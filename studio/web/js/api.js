@@ -65,7 +65,9 @@ export function connectEvents() {
   });
   es.onerror = () => {
     fire('sse.error', {});
-    fetch('/api/settings', { headers: { 'x-studio-token': TOKEN } }).then((r) => { if (r.status === 401) staleSession(); }).catch(() => {});
+    fetch('/api/settings', { headers: { 'x-studio-token': TOKEN } })
+      .then((r) => { if (r.status === 401) staleSession(); })
+      .catch(() => fire('server.down', {}));
   };
-  es.onopen = () => fire('sse.open', {});
+  es.onopen = () => { fire('sse.open', {}); fire('server.up', {}); };
 }

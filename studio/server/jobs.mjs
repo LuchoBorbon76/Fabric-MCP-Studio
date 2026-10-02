@@ -1,9 +1,36 @@
 // Long-running jobs with step progress streamed to the UI.
-import { newId } from './config.mjs';
+import { join } from 'node:path';
+import { DATA_DIR, newId, readJson, writeJson } from './config.mjs';
 import { emit } from './events.mjs';
 import { logActivity } from './project.mjs';
 
 const jobs = new Map();
+
+// Running jobs are recorded on disk so a job cut off by a restart (shut down, closed window, reboot) is reported
+// as interrupted the next time the studio starts, instead of silently disappearing.
+const RUNNING_FILE = join(DATA_DIR, 'running-jobs.json');
+let saveTimer = null;
+function saveRunning() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    const running = [...jobs.values()].filter((j) => j.status === 'running').map(publicJob);
+    try { writeJson(RUNNING_FILE, running); } catch { /* read-only data folder */ }
+  }, 500);
+}
+
+for (const j of readJson(RUNNING_FILE, []) || []) {
+  if (!j?.id || jobs.has(j.id)) continue;
+  const job = {
+    ...j,
+    status: 'interrupted',
+    endedAt: new Date().toISOString(),
+    error: 'Fabric MCP Studio was stopped while this job was running. Run it again to finish – completed work is reused.',
+    steps: (j.steps || []).map((s) => (s.status === 'running' ? { ...s, status: 'failed' } : s)),
+  };
+  jobs.set(job.id, job);
+  logActivity('job.interrupted', j.title, { jobId: j.id, jobKind: j.kind });
+}
+try { writeJson(RUNNING_FILE, []); } catch { /* ignore */ }
 
 export function listJobs() {
   return [...jobs.values()].map(publicJob).sort((a, b) => b.startedAt.localeCompare(a.startedAt));
@@ -19,6 +46,13 @@ function publicJob(j) {
   return rest;
 }
 
+/** Write the running-jobs record now (used just before the process exits). */
+export function flushRunningJobs() {
+  clearTimeout(saveTimer);
+  const running = [...jobs.values()].filter((j) => j.status === 'running').map(publicJob);
+  try { writeJson(RUNNING_FILE, running); } catch { /* ignore */ }
+}
+
 /**
  * Start a job. `fn(ctx)` receives { step, log, progress, signal, setResult }.
  * Returns the job immediately; completion is streamed via 'job' events.
@@ -31,7 +65,7 @@ export function startJob(kind, title, fn, { meta = {} } = {}) {
     controller: new AbortController(),
   };
   jobs.set(job.id, job);
-  const push = () => emit('job', { job: publicJob(job) });
+  const push = () => { emit('job', { job: publicJob(job) }); saveRunning(); };
 
   const ctx = {
     signal: job.controller.signal,

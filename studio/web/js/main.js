@@ -256,15 +256,19 @@ const dockJobs = new Set();
 // Reserve room below the footer for the job dock so it never covers the end of the page.
 new ResizeObserver(() => document.documentElement.style.setProperty('--dockh', `${$('#dock').offsetHeight}px`)).observe($('#dock'));
 
+const JOB_ICON = { succeeded: '✓', cancelled: '■', interrupted: '!', failed: '✗' };
+const JOB_WORD = { succeeded: 'done', cancelled: 'cancelled', interrupted: 'interrupted', failed: 'failed' };
+
 export function jobCard(job, { compact = false } = {}) {
-  const icon = job.status === 'running' ? h('span', { class: 'spin' }) : h('span', {}, job.status === 'succeeded' ? '✓' : job.status === 'cancelled' ? '■' : '✗');
-  const el = h('div', { class: `job ${job.status}` },
-    h('div', { class: 'row sp' }, h('div', { class: 'row' }, icon, h('b', {}, job.title)), h('span', { class: 'tiny muted' }, `${job.progress}%`)),
-    h('div', { class: 'bar' }, h('i', { style: { width: `${job.progress}%` } })),
-    compact ? h('div', { class: 'tiny muted' }, job.steps.at(-1)?.label || '') : h('div', { class: 'jsteps' }, job.steps.map((s) => h('div', { class: 's' }, statusDot(s.status === 'done' ? 'ok' : s.status === 'failed' ? 'error' : 'running'), s.label))),
-    job.error ? h('div', { class: 'banner err mt' }, job.error) : null,
+  const icon = job.status === 'running' ? h('span', { class: 'spin' }) : h('span', { class: 'jicon' }, JOB_ICON[job.status] || '✗');
+  const el = h('div', { class: `job ${job.status}${compact ? ' compact' : ''}` },
+    h('div', { class: 'jhead' }, icon, h('b', { title: job.title }, job.title), h('span', { class: 'tiny muted' }, job.status === 'running' ? `${job.progress}%` : JOB_WORD[job.status] || job.status)),
+    h('div', { class: 'bar' }, h('i', { style: { width: `${job.status === 'running' || job.status === 'succeeded' ? job.progress : Math.max(job.progress, 100)}%` } })),
+    compact ? h('div', { class: 'tiny muted jstep', title: job.steps.at(-1)?.label || '' }, job.status === 'interrupted' ? 'Stopped when the studio closed – run it again to finish.' : job.steps.at(-1)?.label || '') : h('div', { class: 'jsteps' }, job.steps.map((s) => h('div', { class: 's' }, statusDot(s.status === 'done' ? 'ok' : s.status === 'failed' ? 'error' : 'running'), s.label))),
+    job.error && !compact ? h('div', { class: `banner ${job.status === 'interrupted' ? 'warn' : 'err'} mt` }, job.error) : null,
+    job.error && compact && job.status !== 'interrupted' ? h('div', { class: 'tiny jerr', title: job.error }, job.error) : null,
     !compact && job.logLines?.length ? h('details', { open: job.status === 'failed' || undefined }, h('summary', { class: 'tiny muted' }, `Log (${job.logLines.length})`), h('div', { class: 'jlog' }, job.logLines.slice(-60).join('\n'))) : null,
-    job.status === 'running' ? h('div', { class: 'row mt' }, h('button', { class: 'btn danger', onclick: () => post(`/jobs/${job.id}/cancel`) }, 'Cancel')) : null);
+    job.status === 'running' && !compact ? h('div', { class: 'row mt' }, h('button', { class: 'btn danger', onclick: () => post(`/jobs/${job.id}/cancel`) }, 'Cancel')) : null);
   return el;
 }
 
@@ -282,17 +286,56 @@ function renderDock() {
   }
 }
 
+function settleDockJob(j) {
+  if (!dockJobs.has(j.id)) return;
+  toast(`${j.title}: ${JOB_WORD[j.status] || j.status}`, j.status === 'succeeded' ? 'ok' : 'err');
+  setTimeout(() => { dockJobs.delete(j.id); renderDock(); }, j.status === 'succeeded' ? 4000 : 15000);
+}
+
 on('job', (e) => {
   const j = e.job;
   if (j.status === 'running') dockJobs.add(j.id);
-  else if (dockJobs.has(j.id)) {
-    toast(`${j.title}: ${j.status === 'succeeded' ? 'done' : j.status}`, j.status === 'succeeded' ? 'ok' : 'err');
-    setTimeout(() => { dockJobs.delete(j.id); renderDock(); }, j.status === 'succeeded' ? 4000 : 12000);
-  }
+  else settleDockJob(j);
   renderDock();
   renderKpis();
   renderNav();
 });
+
+// After a reconnect, the server's job list is the truth: jobs that ended (or vanished) while disconnected must
+// not keep spinning.
+async function resyncJobs() {
+  let list;
+  try { list = await get('/jobs'); } catch { return; }
+  const byId = new Map(list.map((j) => [j.id, j]));
+  for (const j of list) store.jobs.set(j.id, j);
+  for (const id of [...dockJobs]) {
+    const local = store.jobs.get(id);
+    if (local?.status !== 'running') continue;
+    const remote = byId.get(id) || { ...local, status: 'interrupted', error: 'The studio stopped while this job was running.' };
+    store.jobs.set(id, remote);
+    if (remote.status !== 'running') settleDockJob(remote);
+  }
+  renderDock();
+  renderKpis();
+  renderNav();
+}
+
+let disconnected = false;
+on('sse.error', () => { disconnected = true; });
+on('sse.open', () => { if (disconnected) { disconnected = false; resyncJobs(); } });
+// The studio runs on this computer: if it can't be reached, its jobs have stopped too.
+on('server.down', () => {
+  $('#offline').hidden = false;
+  for (const id of dockJobs) {
+    const j = store.jobs.get(id);
+    if (j?.status !== 'running') continue;
+    const stopped = { ...j, status: 'interrupted', error: 'Fabric MCP Studio stopped while this job was running.' };
+    store.jobs.set(id, stopped);
+    settleDockJob(stopped);
+  }
+  renderDock();
+});
+on('server.up', () => { $('#offline').hidden = true; });
 
 on('project.updated', () => { renderHeader(); renderKpis(); refreshSuggestions(); if (['home', 'model', 'ontology', 'share', 'workspace'].includes(current)) renderView(current); });
 on('provider', (e) => { store.provider = e.provider; renderHeader(); renderKpis(); });
@@ -303,7 +346,12 @@ async function refresh() {
   try {
     const b = await get('/bootstrap');
     Object.assign(store, { user: b.user, settings: b.settings, provider: b.provider, providers: b.providers, project: b.project, catalog: b.catalog, chats: b.chats, approvals: b.approvals, preset: b.preset, platform: b.platform });
-    for (const j of b.jobs) { store.jobs.set(j.id, j); if (j.status === 'running') dockJobs.add(j.id); }
+    for (const j of b.jobs) {
+      store.jobs.set(j.id, j);
+      if (j.status === 'running') dockJobs.add(j.id);
+      // A job cut off by the last shut down: show it once so the user knows to run it again.
+      else if (j.status === 'interrupted' && Date.now() - Date.parse(j.endedAt) < 10 * 60 * 1000 && !dockJobs.has(j.id)) { dockJobs.add(j.id); setTimeout(() => { dockJobs.delete(j.id); renderDock(); }, 20000); }
+    }
     if (b.settings?.theme && !localStorage.getItem('studioTheme')) setTheme(b.settings.theme);
     for (const a of b.approvals || []) approvalQueue.push(a);
     showNextApproval();

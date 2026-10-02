@@ -12,7 +12,7 @@ import * as A from './agent.mjs';
 import * as P from './pipelines.mjs';
 import { catalog } from './sources.mjs';
 import { getProject, updateProject, resetProject, getActivity, clearActivity, logActivity, assertProjectTenant } from './project.mjs';
-import { startJob, listJobs, getJob, cancelJob } from './jobs.mjs';
+import { startJob, listJobs, getJob, cancelJob, flushRunningJobs } from './jobs.mjs';
 import { health } from './health.mjs';
 import { presetFor } from './presets.mjs';
 
@@ -185,7 +185,12 @@ route('POST', '/api/jobs/:id/cancel', (p) => ({ ok: cancelJob(p.id) }));
 route('GET', '/api/activity', () => getActivity());
 route('GET', '/api/export', () => ({ exportedAt: new Date().toISOString(), version: VERSION, project: getProject(), activity: getActivity() }));
 
-route('POST', '/api/shutdown', () => { setTimeout(async () => { await A.stopAgent(); process.exit(0); }, 300); return { ok: true }; });
+route('POST', '/api/shutdown', () => {
+  const running = listJobs().filter((j) => j.status === 'running');
+  for (const j of running) cancelJob(j.id);
+  setTimeout(async () => { await A.stopAgent(); process.exit(0); }, running.length ? 1500 : 300);
+  return { ok: true, cancelled: running.length };
+});
 
 // ---------------- server ----------------
 
@@ -233,6 +238,7 @@ function listen(port, attempts = 10) {
 }
 
 process.on('exit', () => {
+  flushRunningJobs();
   try { if (readJson(RUNTIME_FILE, {}).pid === process.pid) rmSync(RUNTIME_FILE, { force: true }); } catch { /* ignore */ }
 });
 
