@@ -94,6 +94,6 @@ function designerCard(p) {
   card.append(h('div', { class: 'row mt' }, deploy,
     h('button', { class: 'btn ai', onclick: () => app.ask(`Read my glossary and data, then propose ontology business rules (one sentence each, referencing the entities and properties they use). After I confirm, deploy the ontology "${name.value}" with studio_deploy_ontology.`) }, '✦ Generate rules with Copilot')),
   job,
-  h('p', { class: 'tiny muted' }, 'Ontology is a preview feature. The Ontology MCP endpoint (used by agents) lists entities and rules on any capacity; natural-language questions need a paid F2+ or P1+ capacity to answer reliably.'));
+  h('p', { class: 'tiny muted' }, 'Ontology is a preview feature. Agents use the Ontology MCP endpoint (paid F2+ or P1+) to read entities and business rules. Ontology questions are turned off for now; numbers come from Fabric IQ.'));
   return card;
 }

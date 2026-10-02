@@ -55,7 +55,7 @@ export async function health() {
       const paid = active.filter((c) => /^(F\d+|P\d|A\d|EM\d)$/i.test(c.sku));
       const trial = active.filter((c) => /^FT/i.test(c.sku));
       if (!active.length) add('capacity', 'Fabric capacity', 'error', 'No active capacity available to you', 'Start a Fabric trial or ask an admin for capacity access.');
-      else add('capacity', 'Fabric capacity', paid.length ? 'ok' : 'warn', `${active.length} active · ${paid.length} paid · ${trial.length} trial`, paid.length ? '' : 'Everything works on a trial; Ontology MCP questions (ask_ontology) answer reliably only on a paid F2+ or P1+ capacity.');
+      else add('capacity', 'Fabric capacity', paid.length ? 'ok' : 'warn', `${active.length} active · ${paid.length} paid · ${trial.length} trial`, paid.length ? '' : 'Everything works on a trial except the Ontology MCP endpoint (entities and rules for agents), which needs a paid F2+ or P1+ capacity.');
     } catch (e) {
       add('capacity', 'Fabric API', 'error', e.message.slice(0, 160), 'Check that Microsoft Fabric is enabled for your tenant.');
     }

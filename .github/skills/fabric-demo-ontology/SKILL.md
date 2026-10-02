@@ -59,7 +59,7 @@ Follow the TMDL rules in [AGENTS.md](../../../AGENTS.md) and copy the shape of [
 
 ## Gotchas
 
-- Ontology is **preview**; on a trial capacity the Ontology MCP endpoint lists entities and rules, but `ask_ontology` questions can time out; use a paid F2+ (or P1+) capacity for reliable answers.
+- Ontology is **preview**; the Ontology MCP endpoint needs a paid F2+ (or P1+) capacity. Use `list_ontology_entities` and `list_ontology_rules` only – ontology questions (`ask_ontology`, `search_ontology`) are turned off in this kit for now. Answer numbers with Fabric IQ.
 - Tabs, not spaces. One rule per file. File name = element `name`.
 - Keep rule statements free of colons; keep them to one sentence where possible.
 - If deployment fails with a parse error, run `-DryRun`, decode the failing part, and fix indentation first.

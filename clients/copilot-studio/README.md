@@ -28,6 +28,10 @@ Agent → **Tools** → **Add a tool** → **New tool** → **Model Context Prot
 | Fabric IQ | `https://fabriciq.svc.cloud.microsoft/v1/mcp/fabriciq` | Answers numeric business questions by querying the Retail Sales Power BI semantic model with DAX. |
 | Contoso Retail Ontology | `https://api.fabric.microsoft.com/v1/mcp/dataPlane/workspaces/<workspaceId>/items/<ontologyId>/ontologyEndpoint` | Explains Contoso Retail business entities, relationships and rules (at-risk customer, return window, minimum margin). |
 
+After adding the ontology server, open its tool list and keep only **list_ontology_entities** and
+**list_ontology_rules**. Turn off **ask_ontology**: ontology questions are turned off in this kit for now, and
+every number comes from Fabric IQ.
+
 Authentication: **OAuth 2.0 → Manual** (Microsoft Entra ID doesn't support dynamic client registration)
 
 | Field | Value |

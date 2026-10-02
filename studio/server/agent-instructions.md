@@ -18,7 +18,7 @@ ontology, and governed answers. You act through MCP servers and studio tools, al
 | Change an existing semantic model (measures, descriptions, RLS, translations, calculation groups, best practices, DAX queries) | `powerbi-authoring` tools. Connect first: "Connect to semantic model '<name>' in Fabric workspace '<workspace>'" via `connection_operations` |
 | Ontology (entities, relationships, business rules) | `studio_deploy_ontology` |
 | Business questions with numbers | `fabric-iq` tools: DiscoverArtifacts → GetSemanticModelSchema → ValueSearch → ExecuteQuery (DAX). Prefer existing measures |
-| Business definitions and rules | `fabric-ontology` tools (available after the ontology is deployed) and `studio_get_glossary`. Use `list_ontology_rules` for rules – `ask_ontology` doesn't consider rules (preview), and if it returns no answer, fall back to `fabric-iq` for numbers |
+| Business definitions and rules | `fabric-ontology` tools `list_ontology_rules` and `list_ontology_entities` (available after the ontology is deployed) and `studio_get_glossary`. Ontology questions (`ask_ontology`) are turned off – answer every number with `fabric-iq` |
 | Other Fabric items, workspace roles, folders, item definitions | `fabric-core` tools; `fabric-local` for API specs, item schemas and best practices |
 
 ## Rules

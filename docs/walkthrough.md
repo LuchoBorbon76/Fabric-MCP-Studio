@@ -57,7 +57,7 @@ Then improve it with Copilot (Power BI Authoring MCP):
 
 > Ask Copilot: *Read my glossary and propose ontology business rules, then deploy the ontology after I confirm.*
 
-Ontology is in preview; the Ontology MCP endpoint (used by agents) works on a trial for listing entities and rules, but questions (`ask_ontology`) need a paid F2+ or P1+ capacity to answer reliably.
+Ontology is in preview; the Ontology MCP endpoint (used by agents) needs a paid F2+ or P1+ capacity. Agents use it to read entities and business rules; ontology questions (`ask_ontology`) are turned off for now, so numbers come from Fabric IQ.
 
 ## 5. Ask and share
 

@@ -12,7 +12,8 @@
 | `powerbi-authoring` 403 | Tenant setting off or no Write permission | Enable *Users can use the Power BI Model Context Protocol server endpoint*; get Write on the model |
 | Local authoring can't reach a Fabric model, or `powerbi-authoring` says *Transaction commit failed … the current context is read-only* | XMLA endpoint read-only (the change was rolled back) | Capacity admin: **Admin portal › Capacity settings › Power BI workloads › XMLA endpoint = Read Write**. Creating models through item definitions still works |
 | Fabric IQ: 404/not available | Region or private link | Use `https://api.fabric.microsoft.com/v1/mcp/fabriciq` with private links; not available in Power BI-only regions or sovereign clouds |
-| Ontology MCP 403 / not found | Wrong IDs or preview not enabled | Check IDs in the ontology URL; ontology tenant setting |
+| Ontology MCP 403 / not found | Wrong IDs, trial capacity, or preview not enabled | Check IDs in the ontology URL; paid F2+/P1+ capacity; ontology tenant setting |
+| Agent tries to ask the ontology questions | `ask_ontology` enabled in the client | Ontology questions are turned off in this kit for now (the preview agent returned *No answer received from the agent* in testing). Keep only `list_ontology_entities` and `list_ontology_rules`; use Fabric IQ for numbers |
 
 ## Studio sign-in and tenants
 
@@ -52,7 +53,7 @@ when it expires.
 | Agent asks to sign in, then shows *Need admin approval* | User consent restricted | Re-run with `-GrantAdminConsent` as an admin, or `az ad app permission admin-consent --id <appId>` |
 | Every tool call returns 404 | OAuth registration bound to a specific app | The installer uses `applicableToApps: AnyApp`; if you edited it in the Teams developer portal, set *Restrict usage by app* to **Any Teams app** |
 | Agent answers but can't find "Retail Sales" | User lacks access to the model, or wrong tenant | Grant the user Build/Read on the semantic model; install in the tenant that owns the Fabric workspace |
-| Ontology plugin errors | Wrong IDs or capacity too small | Use F2+/P1+ for questions; re-run with `-IncludeOntology -OntologyWorkspaceId … -OntologyItemId …` |
+| Ontology plugin errors | Wrong IDs or capacity too small | Use F2+/P1+; re-run with `-IncludeOntology -OntologyWorkspaceId … -OntologyItemId …`. The plugin exposes only `list_ontology_entities` and `list_ontology_rules` |
 | Secret expired | Client secret older than `-SecretValidityMonths` | Delete `agents/contoso-retail-analyst/.deploy/env/.env.<env>.user` and re-run the installer (creates a new secret; the OAuth registration is updated with `oauth/update` in the Teams developer portal) |
 | `atk validate` crashes when run from automation | It opens an interactive Microsoft 365 sign-in | Use `python scripts/validate-agent-package.py <zip>` for offline checks |
 

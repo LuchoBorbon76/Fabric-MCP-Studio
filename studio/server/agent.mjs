@@ -178,10 +178,15 @@ export async function mcpServerConfig() {
   if (s['fabric-local']) servers['fabric-local'] = { type: 'local', ...npx(['-y', '@microsoft/fabric-mcp@latest', 'server', 'start', '--mode', 'all']), tools: ['*'], timeout: 120000 };
   const p = getProject();
   if (s['fabric-ontology'] && p.workspace?.id && p.ontology?.id) {
-    servers['fabric-ontology'] = { type: 'http', url: MCP_ENDPOINTS.ontology(p.workspace.id, p.ontology.id), headers, tools: ['*'] };
+    servers['fabric-ontology'] = { type: 'http', url: MCP_ENDPOINTS.ontology(p.workspace.id, p.ontology.id), headers, tools: ONTOLOGY_TOOLS };
   }
   return servers;
 }
+
+// Ontology MCP: definitions and rules only. Natural-language questions (ask_ontology, and search_ontology on
+// older ontologies) are turned off for now; numbers come from Fabric IQ.
+export const ONTOLOGY_TOOLS = ['list_ontology_entities', 'list_ontology_rules', 'list_ontology_entity_types'];
+const BLOCKED_TOOLS = { 'fabric-ontology': ['ask_ontology', 'search_ontology'] };
 
 // ---------------- approvals ----------------
 
@@ -206,6 +211,9 @@ export function classifyTool(toolName, args) {
 
 async function approve(chatId, input) {
   const info = classifyTool(input.toolName, input.toolArgs);
+  if (BLOCKED_TOOLS[info.server]?.includes(info.tool)) {
+    return { permissionDecision: 'deny', permissionDecisionReason: 'Ontology questions are turned off in this studio. Use list_ontology_rules or list_ontology_entities for definitions and Fabric IQ for numbers.' };
+  }
   if (!info.write) return { permissionDecision: 'allow' };
   const mode = getSettings().approvalMode;
   if (mode === 'readonly') {

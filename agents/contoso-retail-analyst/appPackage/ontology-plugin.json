@@ -1,25 +1,79 @@
 {
-    "$schema": "https://developer.microsoft.com/json-schemas/copilot/plugin/v2.4/schema.json",
-    "schema_version": "v2.4",
-    "name_for_human": "Retail Ontology",
-    "namespace": "retailontology",
-    "description_for_human": "Contoso Retail business entities, relationships and rules from Fabric IQ.",
-    "description_for_model": "The Contoso Retail ontology in Microsoft Fabric IQ. Use it to explain business definitions and rules (at-risk customer, active customer, return window, minimum margin, discount cap), how entities relate (Customer, Product, Store, Sale, ProductReturn), and to answer questions grounded in those definitions. Combine with Fabric IQ for numbers.",
-    "contact_email": "${{AGENT_CONTACT_EMAIL}}",
-    "functions": [],
-    "runtimes": [
-        {
-            "type": "RemoteMCPServer",
-            "spec": {
-                "url": "https://api.fabric.microsoft.com/v1/mcp/dataPlane/workspaces/${{ONTOLOGY_WORKSPACE_ID}}/items/${{ONTOLOGY_ITEM_ID}}/ontologyEndpoint"
-            },
-            "run_for_functions": [
-                "*"
-            ],
-            "auth": {
-                "type": "OAuthPluginVault",
-                "reference_id": "${{ONTOLOGY_AUTH_ID}}"
-            }
-        }
-    ]
+    "$schema":  "https://developer.microsoft.com/json-schemas/copilot/plugin/v2.4/schema.json",
+    "schema_version":  "v2.4",
+    "name_for_human":  "Retail Ontology",
+    "namespace":  "retailontology",
+    "description_for_human":  "Contoso Retail business entities, relationships and rules from Fabric IQ.",
+    "description_for_model":  "The Contoso Retail ontology in Microsoft Fabric IQ. Use it to explain business definitions and rules (at-risk customer, active customer, return window, minimum margin, discount cap) and how entities relate (Customer, Product, Store, Sale, ProductReturn). It does not answer data questions; use Fabric IQ for every number.",
+    "contact_email":  "${{AGENT_CONTACT_EMAIL}}",
+    "functions":  [
+                      {
+                          "name":  "list_ontology_entities",
+                          "description":  "Lists the entities defined in the ontology, including each entity's properties, keys, backing tables, and annotations."
+                      },
+                      {
+                          "name":  "list_ontology_rules",
+                          "description":  "Lists the business rule definitions, including natural language statement, available linked entities, properties, relationships, description, and metadata."
+                      }
+                  ],
+    "runtimes":  [
+                     {
+                         "type":  "RemoteMCPServer",
+                         "spec":  {
+                                      "url":  "https://api.fabric.microsoft.com/v1/mcp/dataPlane/workspaces/${{ONTOLOGY_WORKSPACE_ID}}/items/${{ONTOLOGY_ITEM_ID}}/ontologyEndpoint",
+                                      "mcp_tool_description":  {
+                                                                   "tools":  [
+                                                                                 {
+                                                                                     "name":  "list_ontology_entities",
+                                                                                     "description":  "Lists the entities defined in the ontology, including each entity's properties, keys, backing tables, and annotations.",
+                                                                                     "inputSchema":  {
+                                                                                                         "type":  "object",
+                                                                                                         "properties":  {
+                                                                                                                            "entityName":  {
+                                                                                                                                               "type":  "string",
+                                                                                                                                               "description":  "Optional exact name of an entity to filter by. May return more than one match because entity names can repeat across namespaces. An empty value is not accepted; omit this parameter to list all entities.",
+                                                                                                                                               "minLength":  1,
+                                                                                                                                               "maxLength":  128,
+                                                                                                                                               "pattern":  "^[a-zA-Z][a-zA-Z0-9_-]{0,127}$"
+                                                                                                                                           }
+                                                                                                                        },
+                                                                                                         "required":  [
+
+                                                                                                                      ]
+                                                                                                     }
+                                                                                 },
+                                                                                 {
+                                                                                     "name":  "list_ontology_rules",
+                                                                                     "description":  "Lists the business rule definitions, including natural language statement, available linked entities, properties, relationships, description, and metadata.",
+                                                                                     "inputSchema":  {
+                                                                                                         "type":  "object",
+                                                                                                         "properties":  {
+                                                                                                                            "entityNames":  {
+                                                                                                                                                "type":  "array",
+                                                                                                                                                "description":  "Optional list of entity names to filter by. Only rules that reference at least one of the named entities are returned. Matching is exact and case-insensitive. Omit this parameter to return all rules.",
+                                                                                                                                                "items":  {
+                                                                                                                                                              "type":  "string"
+                                                                                                                                                          },
+                                                                                                                                                "minItems":  1,
+                                                                                                                                                "maxItems":  100
+                                                                                                                                            }
+                                                                                                                        },
+                                                                                                         "required":  [
+
+                                                                                                                      ]
+                                                                                                     }
+                                                                                 }
+                                                                             ]
+                                                               }
+                                  },
+                         "run_for_functions":  [
+                                                   "list_ontology_entities",
+                                                   "list_ontology_rules"
+                                               ],
+                         "auth":  {
+                                      "type":  "OAuthPluginVault",
+                                      "reference_id":  "${{ONTOLOGY_AUTH_ID}}"
+                                  }
+                     }
+                 ]
 }

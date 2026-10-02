@@ -67,7 +67,7 @@ function newForm() {
     app.go('data');
   }));
   return h('div', { class: 'col' },
-    h('div', { class: 'formgrid' }, field('Workspace name', name), field('Capacity', capSel, 'Trial capacities work for everything; Ontology MCP questions answer reliably only on paid F2+.'), field('Description', desc)),
+    h('div', { class: 'formgrid' }, field('Workspace name', name), field('Capacity', capSel, 'Trial capacities work for everything except the Ontology MCP endpoint, which needs paid F2+.'), field('Description', desc)),
     h('div', { class: 'row mt' }, btn, h('button', { class: 'btn ai', onclick: () => app.ask(`Create a new Fabric workspace named "${name.value || 'Fabric MCP Demo'}" on the most suitable capacity I have, and make it the project workspace.`) }, '✦ Ask Copilot to do it')),
     h('p', { class: 'tiny muted' }, 'If a workspace with this name already exists and you have access, the studio uses it instead of creating a duplicate.'));
 }

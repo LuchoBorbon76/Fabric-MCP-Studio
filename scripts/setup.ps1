@@ -101,7 +101,7 @@ function New-ServerEntry($Server, [string]$ClientId, [switch]$Portable) {
         }
         switch ($ClientId) {
             'cursor' { $e.url = $url }
-            'copilot-cli' { $e.type = 'http'; $e.url = $url; $e.tools = @('*') }
+            'copilot-cli' { $e.type = 'http'; $e.url = $url; $e.tools = [object[]]$(if ($Server.Contains('tools')) { @($Server.tools) } else { @('*') }) }
             default { $e.type = 'http'; $e.url = $url }
         }
         return $e
@@ -254,6 +254,9 @@ if ($IncludeOntology) {
         $script:OntologyIds = @{ WorkspaceId = $OntologyWorkspaceId; ItemId = $OntologyItemId }
     } elseif ($Client -ne 'vscode') {
         throw 'Ontology endpoint needs -OntologyWorkspaceId and -OntologyItemId (or run deploy-ontology.ps1 first).'
+    }
+    if ($Client -ne 'copilot-cli') {
+        Write-Info "Ontology questions are turned off in this kit for now: in your client's tool list, keep list_ontology_entities and list_ontology_rules and turn off ask_ontology."
     }
 }
 
