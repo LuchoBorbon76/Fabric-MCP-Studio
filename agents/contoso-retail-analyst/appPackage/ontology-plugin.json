@@ -1,0 +1,25 @@
+{
+    "$schema": "https://developer.microsoft.com/json-schemas/copilot/plugin/v2.4/schema.json",
+    "schema_version": "v2.4",
+    "name_for_human": "Retail Ontology",
+    "namespace": "retailontology",
+    "description_for_human": "Contoso Retail business entities, relationships and rules from Fabric IQ.",
+    "description_for_model": "The Contoso Retail ontology in Microsoft Fabric IQ. Use it to explain business definitions and rules (at-risk customer, active customer, return window, minimum margin, discount cap), how entities relate (Customer, Product, Store, Sale, ProductReturn), and to answer questions grounded in those definitions. Combine with Fabric IQ for numbers.",
+    "contact_email": "${{AGENT_CONTACT_EMAIL}}",
+    "functions": [],
+    "runtimes": [
+        {
+            "type": "RemoteMCPServer",
+            "spec": {
+                "url": "https://api.fabric.microsoft.com/v1/mcp/dataPlane/workspaces/${{ONTOLOGY_WORKSPACE_ID}}/items/${{ONTOLOGY_ITEM_ID}}/ontologyEndpoint"
+            },
+            "run_for_functions": [
+                "*"
+            ],
+            "auth": {
+                "type": "OAuthPluginVault",
+                "reference_id": "${{ONTOLOGY_AUTH_ID}}"
+            }
+        }
+    ]
+}

@@ -1,0 +1,25 @@
+{
+    "$schema": "https://developer.microsoft.com/json-schemas/copilot/plugin/v2.4/schema.json",
+    "schema_version": "v2.4",
+    "name_for_human": "Fabric IQ",
+    "namespace": "fabriciq",
+    "description_for_human": "Query governed Power BI semantic models in Microsoft Fabric.",
+    "description_for_model": "Fabric IQ answers numeric business questions by finding Power BI semantic models the signed-in user can access, reading their schema and measures, searching exact member values, and running DAX queries. Use it for any question about Contoso Retail sales, margin, orders, customers, stores, products, returns, growth or counts. Prefer the model's existing measures. Results respect the user's Power BI permissions and row-level security.",
+    "contact_email": "${{AGENT_CONTACT_EMAIL}}",
+    "functions": [],
+    "runtimes": [
+        {
+            "type": "RemoteMCPServer",
+            "spec": {
+                "url": "https://fabriciq.svc.cloud.microsoft/v1/mcp/fabriciq"
+            },
+            "run_for_functions": [
+                "*"
+            ],
+            "auth": {
+                "type": "OAuthPluginVault",
+                "reference_id": "${{FABRIC_IQ_AUTH_ID}}"
+            }
+        }
+    ]
+}

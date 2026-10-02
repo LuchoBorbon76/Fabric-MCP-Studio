@@ -10,8 +10,8 @@ required for this demo.
 | **GitHub Copilot CLI** | GitHub Copilot Pro, Pro+, Business or Enterprise | `~/.copilot/mcp-config.json` ([template](copilot-cli/mcp-config.json)) | `.\scripts\setup.ps1 -Client copilot-cli` | Terminal-first builders, Skills for Fabric plugins |
 | **Claude Code** | Anthropic plan or API key | `.mcp.json` (committed) | `.\scripts\setup.ps1 -Client claude-code` | Teams standardised on Claude |
 | **Cursor** | Cursor plan with agent mode | `.cursor/mcp.json` (committed) | `.\scripts\setup.ps1 -Client cursor` | Teams standardised on Cursor |
-| **Copilot Studio** | Copilot Studio (capacity or pay-as-you-go) | Portal | [copilot-studio/](copilot-studio/README.md) | Business-facing agents |
-| **Microsoft 365 Copilot** (Teams, Outlook, Copilot app) | Microsoft 365 Copilot + Copilot Studio | Portal | [m365-copilot/](m365-copilot/README.md) | "Ask anywhere" finale |
+| **Copilot Studio** | Copilot Studio (capacity or pay-as-you-go) | Portal | [copilot-studio/](copilot-studio/README.md) | Business-facing agents built in the portal |
+| **Microsoft 365 Copilot** (Teams, Outlook, Copilot app) | Microsoft 365 Copilot | Ready-made agent in [agents/](../agents/contoso-retail-analyst/README.md) | `.\scripts\install-teams-agent.ps1` | "Ask anywhere" finale – one command, any tenant |
 | **Azure AI Foundry agent** | Azure subscription + any deployed model | Portal / SDK | [azure-ai-foundry/](azure-ai-foundry/README.md) | Customers who want their own model, network and compliance controls |
 
 ## Which servers each client gets

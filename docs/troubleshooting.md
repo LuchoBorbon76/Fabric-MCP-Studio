@@ -37,6 +37,18 @@ when it expires.
 | Ontology update rejected (parse error) | Spaces instead of tabs, missing `ref` in `model.tmdl`, colon in a rule statement | `deploy-ontology.ps1 -DryRun`, decode the part, fix, redeploy |
 | Numbers differ from the answer key | Different seed or definitions drifted from the glossary | Regenerate data with seed 42; compare measure DAX to the semantic-model skill |
 
+## Microsoft 365 Copilot agent (install-teams-agent.ps1)
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `atk provision` says custom app upload or Copilot access is disabled | Tenant policy | Admin enables custom app upload for the installer (Teams admin center) and confirms a Microsoft 365 Copilot license |
+| Agent asks to sign in, then shows *Need admin approval* | User consent restricted | Re-run with `-GrantAdminConsent` as an admin, or `az ad app permission admin-consent --id <appId>` |
+| Every tool call returns 404 | OAuth registration bound to a specific app | The installer uses `applicableToApps: AnyApp`; if you edited it in the Teams developer portal, set *Restrict usage by app* to **Any Teams app** |
+| Agent answers but can't find "Retail Sales" | User lacks access to the model, or wrong tenant | Grant the user Build/Read on the semantic model; install in the tenant that owns the Fabric workspace |
+| Ontology plugin errors | Paid capacity missing or wrong IDs | Needs F2+/P1+; re-run with `-IncludeOntology -OntologyWorkspaceId … -OntologyItemId …` |
+| Secret expired | Client secret older than `-SecretValidityMonths` | Delete `agents/contoso-retail-analyst/.deploy/env/.env.<env>.user` and re-run the installer (creates a new secret; the OAuth registration is updated with `oauth/update` in the Teams developer portal) |
+| `atk validate` crashes when run from automation | It opens an interactive Microsoft 365 sign-in | Use `python scripts/validate-agent-package.py <zip>` for offline checks |
+
 ## Repo location
 
 Clone the repo **outside** OneDrive/SharePoint-synced folders. Sync clients and `.git` don't mix well.

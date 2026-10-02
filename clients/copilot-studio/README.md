@@ -5,8 +5,14 @@ Authoring (lakehouse, semantic model, ontology) stays with a builder client.
 
 ## 1. Register an Entra ID app (once per tenant)
 
-Copilot Studio needs OAuth 2.0 settings for Fabric endpoints. Follow
-[Fabric IQ MCP – clients that require an app registration](https://learn.microsoft.com/fabric/iq/connectors/fabric-iq-mcp#clients-that-require-an-app-registration):
+Copilot Studio needs OAuth 2.0 settings for Fabric endpoints. Fastest path – let the installer for the Microsoft 365
+agent create it for you (it creates a single-tenant app with the right permissions and prints nothing secret):
+
+```powershell
+.\scripts\install-teams-agent.ps1 -DryRun   # shows exactly what will be created
+```
+
+Or create it by hand ([reference](https://learn.microsoft.com/fabric/iq/connectors/fabric-iq-mcp#clients-that-require-an-app-registration)):
 
 1. Entra admin center → **App registrations** → **New registration** → single tenant.
 2. **API permissions** → *Power BI Service* → **Delegated**: `Item.Read.All`, `Item.Execute.All`, `Dataset.Read.All`.
@@ -22,18 +28,18 @@ Agent → **Tools** → **Add a tool** → **New tool** → **Model Context Prot
 | Fabric IQ | `https://fabriciq.svc.cloud.microsoft/v1/mcp/fabriciq` | Answers numeric business questions by querying the Retail Sales Power BI semantic model with DAX. |
 | Contoso Retail Ontology | `https://api.fabric.microsoft.com/v1/mcp/dataPlane/workspaces/<workspaceId>/items/<ontologyId>/ontologyEndpoint` | Explains Contoso Retail business entities, relationships and rules (at-risk customer, return window, minimum margin). |
 
-Authentication: **OAuth 2.0 → Manual**
+Authentication: **OAuth 2.0 → Manual** (Microsoft Entra ID doesn't support dynamic client registration)
 
 | Field | Value |
 |---|---|
 | Client ID / secret | From step 1 |
 | Authorization URL | `https://login.microsoftonline.com/<tenantId>/oauth2/v2.0/authorize` |
 | Token URL / Refresh URL | `https://login.microsoftonline.com/<tenantId>/oauth2/v2.0/token` |
-| Scopes – Fabric IQ | `https://analysis.windows.net/powerbi/api/Item.Read.All https://analysis.windows.net/powerbi/api/Item.Execute.All https://analysis.windows.net/powerbi/api/Dataset.Read.All offline_access` |
-| Scopes – Ontology | `https://api.fabric.microsoft.com/.default offline_access` |
+| Scope (both servers) | `https://api.fabric.microsoft.com/.default offline_access` |
 
-> Validate the scopes in your tenant before a customer session; endpoints and consent behaviour are still evolving
-> for preview features. If your tool catalog already lists a first-party Fabric / Power BI MCP connector, prefer it.
+> The scope comes from each endpoint's OAuth protected-resource metadata
+> (`/.well-known/oauth-protected-resource/...` advertises `https://api.fabric.microsoft.com/.default`). The
+> `.default` scope requests the delegated Power BI permissions granted to the app in step 1.
 
 ## 3. Instructions for the agent
 
@@ -46,4 +52,7 @@ rules. Show which measure or rule you used. Never invent numbers.
 ## 4. Test and publish
 
 Ask the questions from [the ask skill answer key](../../.github/skills/fabric-demo-ask/SKILL.md), then publish to
-Teams and Microsoft 365 Copilot ([m365-copilot](../m365-copilot/README.md)).
+Teams and Microsoft 365 Copilot.
+
+> Prefer code over portal clicks? The repo also ships a ready-made **Microsoft 365 Copilot declarative agent** with
+> the same tools that any tenant can install with one command – see [m365-copilot](../m365-copilot/README.md).

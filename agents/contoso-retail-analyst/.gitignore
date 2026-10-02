@@ -1,0 +1,9 @@
+# Agents Toolkit
+env/.env.*.user
+env/.env.local
+.localConfigs
+appPackage/build
+appPackage/.generated
+.deploy/
+node_modules/
+.env

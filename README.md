@@ -26,10 +26,21 @@ Microsoft 365 Copilot or an Azure AI Foundry agent.
 | GitHub Copilot CLI | Copilot Pro / Pro+ / Business / Enterprise | `.\scripts\setup.ps1 -Client copilot-cli` |
 | Claude Code | Anthropic plan / API key | `.\scripts\setup.ps1 -Client claude-code` |
 | Cursor | Cursor plan | `.\scripts\setup.ps1 -Client cursor` |
-| Copilot Studio → Teams / Microsoft 365 Copilot | Copilot Studio (+ M365 Copilot) | [portal guide](clients/copilot-studio/README.md) |
+| Copilot Studio | Copilot Studio (+ M365 Copilot) | [portal guide](clients/copilot-studio/README.md) |
+| **Microsoft 365 Copilot / Teams** (ready-made agent) | Microsoft 365 Copilot | `.\scripts\install-teams-agent.ps1` |
 | Azure AI Foundry agent | Azure + any model deployment | [portal guide](clients/azure-ai-foundry/README.md) |
 
 Run `.\scripts\setup.ps1` with no arguments for an interactive menu. Details: [clients/README.md](clients/README.md).
+
+## Frontends included
+
+| Frontend | Who | How to open |
+|---|---|---|
+| **Demo control panel** – run of show, copy-ready prompts, client picker, answer key | Presenters, workshop attendees | `.\scripts\open-control-panel.ps1` ([details](control-panel/README.md)) |
+| **Contoso Retail Analyst** – Microsoft 365 Copilot agent in Teams, Outlook and the Copilot app | Business users | `.\scripts\install-teams-agent.ps1` ([details](agents/contoso-retail-analyst/README.md)) |
+| Your own AI client chat | Builders | `.\scripts\setup.ps1` |
+
+Everything installs into the customer's own tenant with their own sign-in. Nothing in the repo is tenant-specific.
 
 ## Quick start
 
@@ -38,6 +49,7 @@ git clone https://github.com/luisbor_microsoft/fabric-mcp-server-luisbor.git
 cd fabric-mcp-server-luisbor
 .\scripts\prereq-check.ps1 -CheckFabric      # tools, Azure sign-in, Fabric capacities
 .\scripts\setup.ps1                          # choose your AI client / Copilot license
+.\scripts\open-control-panel.ps1             # presenter control panel in your browser
 ```
 
 Then open your client in the repo folder, sign in to the MCP servers with your Entra ID work account, and ask:
@@ -65,12 +77,15 @@ Single source of truth: [config/mcp-servers.json](config/mcp-servers.json). Arch
 ```text
 .github/skills/        Demo skills (portable Agent Skills: VS Code, Copilot CLI, Claude Code via setup.ps1)
 AGENTS.md              Routing rules, modeling conventions, ontology TMDL rules, safety
+agents/                Contoso Retail Analyst - Microsoft 365 Copilot declarative agent (Fabric IQ + Ontology MCP)
 clients/               Per-client guides; copilot-cli template
 config/                MCP server catalog; demo.state.json (git-ignored, written by scripts)
+control-panel/         Self-contained presenter control panel (index.html)
 data/retail/           Synthetic CSV + typed Parquet, business glossary
 docs/                  Architecture, prerequisites, demo script, troubleshooting
 ontology/retail/       Reference ontology (TMDL) – 5 entities, 4 relationships, 5 rules
-scripts/               setup, prereq-check, deploy-fabric, deploy-ontology, reset, generate-sample-data
+scripts/               setup, prereq-check, deploy-fabric, deploy-ontology, reset, install-teams-agent,
+                       open-control-panel, generate-sample-data, validate-agent-package
 .vscode/ .cursor/ .mcp.json   Default client configs (hosted authoring, no ontology)
 ```
 

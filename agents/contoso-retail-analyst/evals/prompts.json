@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "1.2.0",
+  "default_evaluators": {
+    "Relevance": {},
+    "Coherence": {}
+  },
+  "items": [
+    {
+      "prompt": "What were total net sales and gross margin %?",
+      "expected_response": "Net sales are about 3,849,588 with a gross margin of 37.3%.",
+      "evaluators": { "PartialMatch": { "case_sensitive": false } },
+      "evaluators_mode": "extend"
+    },
+    {
+      "prompt": "How did same-store sales growth compare with total growth for January to September 2026 versus 2025?",
+      "expected_response": "Total net sales grew about 3.8% but same-store sales fell about 12.5%.",
+      "evaluators": { "PartialMatch": { "case_sensitive": false } },
+      "evaluators_mode": "extend"
+    },
+    {
+      "prompt": "How many at-risk customers do we have?",
+      "expected_response": "105 at-risk customers: no purchase in the last 120 days and lifetime net sales of at least 3,000.",
+      "evaluators": { "PartialMatch": { "case_sensitive": false } },
+      "evaluators_mode": "extend"
+    },
+    {
+      "prompt": "Which region is declining this year?",
+      "expected_response": "Central is down about 11.6% year over year for January to September.",
+      "evaluators": { "PartialMatch": { "case_sensitive": false } },
+      "evaluators_mode": "extend"
+    }
+  ]
+}

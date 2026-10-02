@@ -11,7 +11,8 @@ ontology through MCP, governed like code – and everyone gets the same answer i
 - [ ] Ask: *"Use the fabric-demo-verify skill to check my MCP connections."* – all ✅
 - [ ] Full dry run of acts 1–5, then `.\scripts\reset.ps1`
 - [ ] Optional safety net: `.\scripts\deploy-fabric.ps1 -Stage Files` (pre-uploads raw files only)
-- [ ] Second client ready for the finale (Copilot Studio agent in Teams, or Copilot CLI)
+- [ ] Teams finale ready: `.\scripts\install-teams-agent.ps1` (add `-IncludeOntology` after act 4)
+- [ ] Open the presenter view: `.\scripts\open-control-panel.ps1` – prompts, timer and answer key on a second screen
 
 ## Run of show
 
@@ -60,7 +61,8 @@ gap to find. Show the PR – governance is the point. Then run `.\scripts\setup.
 > How many at-risk customers do we have, what exactly does at-risk mean, and which region should the win-back
 > campaign start in?
 
-Ask the same question in a second client (Copilot Studio agent in Teams or Copilot CLI). Expected: **105** customers,
+Ask the same question in a second client – the **Contoso Retail Analyst** agent in Teams / Microsoft 365 Copilot
+(`install-teams-agent.ps1`) or Copilot CLI. Expected: **105** customers,
 definition quoted from rule `AtRiskCustomer`, start in **East** (30 of 105; ~580K lifetime net sales at risk overall).
 More questions and answers: [fabric-demo-ask](../.github/skills/fabric-demo-ask/SKILL.md).
 

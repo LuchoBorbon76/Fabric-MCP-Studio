@@ -29,7 +29,8 @@ Run `.\scripts\prereq-check.ps1 -CheckFabric` for the parts that can be checked 
 |---|---|---|
 | GitHub Copilot (VS Code / CLI) | Free, Pro, Pro+, Business, Enterprise | Business/Enterprise: enable **MCP servers in Copilot** |
 | Claude Code / Cursor | Vendor plan | Allow MCP servers in the vendor admin console if restricted |
-| Copilot Studio / Microsoft 365 Copilot | Copilot Studio (+ M365 Copilot for Teams/Outlook) | App registration with delegated Power BI Service permissions |
+| Copilot Studio / Microsoft 365 Copilot | Copilot Studio (+ M365 Copilot for Teams/Outlook) | App registration with delegated Power BI Service permissions (`install-teams-agent.ps1` creates it) |
+| Microsoft 365 Copilot agent (`install-teams-agent.ps1`) | Microsoft 365 Copilot | Custom app upload + Copilot access for the installer; Entra app creation rights; admin consent if user consent is restricted |
 | Azure AI Foundry | Azure subscription + model deployment | Review Fabric IQ data-boundary notes |
 
 ## Local tools (builder clients)
@@ -41,6 +42,7 @@ Run `.\scripts\prereq-check.ps1 -CheckFabric` for the parts that can be checked 
 | PowerShell 5.1+ (7 recommended) | Scripts |
 | Azure CLI (`az login`) | `deploy-*.ps1` / `reset.ps1` fallbacks and the `az rest` Load Table call |
 | Python 3.10+ and `pyarrow` | Only to regenerate the sample data |
+| Microsoft 365 Agents Toolkit CLI (`atk`) | Teams agent install – `install-teams-agent.ps1` installs it with npm if missing |
 
 ## Identity
 

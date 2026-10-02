@@ -1,0 +1,80 @@
+# yaml-language-server: $schema=https://aka.ms/m365-agents-toolkits/v1.13/yaml.schema.json
+# Contoso Retail Analyst - Microsoft 365 Copilot declarative agent (Teams, Outlook, Microsoft 365 Copilot app).
+# Install with:  .\scripts\install-teams-agent.ps1   (it creates the Entra app and fills env/.env.<env>)
+# Docs: https://learn.microsoft.com/microsoft-365/copilot/extensibility/build-mcp-plugins
+version: v1.13
+
+environmentFolderPath: ./env
+
+provision:
+  - uses: teamsApp/create
+    with:
+      name: Contoso Retail Analyst${{APP_NAME_SUFFIX}}
+    writeToEnvironmentFile:
+      teamsAppId: TEAMS_APP_ID
+
+  # Fabric IQ MCP (Power BI semantic models) - OAuth config stored in the tenant's Enterprise token store.
+  - uses: oauth/register
+    with:
+      name: fabric-iq-mcp
+      appId: ${{TEAMS_APP_ID}}
+      applicableToApps: AnyApp
+      targetAudience: HomeTenant
+      flow: authorizationCode
+      identityProvider: Custom
+      authorizationUrl: https://login.microsoftonline.com/${{AAD_TENANT_ID}}/oauth2/v2.0/authorize
+      tokenUrl: https://login.microsoftonline.com/${{AAD_TENANT_ID}}/oauth2/v2.0/token
+      refreshUrl: https://login.microsoftonline.com/${{AAD_TENANT_ID}}/oauth2/v2.0/token
+      baseUrl: https://fabriciq.svc.cloud.microsoft/v1/mcp/fabriciq
+      clientId: ${{FABRIC_OAUTH_CLIENT_ID}}
+      clientSecret: ${{SECRET_FABRIC_OAUTH_CLIENT_SECRET}}
+      scope: https://api.fabric.microsoft.com/.default offline_access
+      isPKCEEnabled: true
+    writeToEnvironmentFile:
+      configurationId: FABRIC_IQ_AUTH_ID
+
+  - uses: teamsApp/zipAppPackage
+    with:
+      manifestPath: ./appPackage/manifest.json
+      outputZipPath: ./appPackage/build/appPackage.${{TEAMSFX_ENV}}.zip
+      outputFolder: ./appPackage/build
+
+  - uses: teamsApp/validateAppPackage
+    with:
+      appPackagePath: ./appPackage/build/appPackage.${{TEAMSFX_ENV}}.zip
+
+  - uses: teamsApp/update
+    with:
+      appPackagePath: ./appPackage/build/appPackage.${{TEAMSFX_ENV}}.zip
+
+  # Sideloads the agent for the signed-in user (Microsoft 365 Copilot, Teams, Outlook).
+  - uses: copilotAgent/publish
+    with:
+      appPackagePath: ./appPackage/build/appPackage.${{TEAMSFX_ENV}}.zip
+    writeToEnvironmentFile:
+      titleId: M365_TITLE_ID
+      appId: M365_APP_ID
+
+# 'atk publish' - submits the agent to the tenant app catalog for admin approval (org-wide rollout).
+publish:
+  - uses: teamsApp/zipAppPackage
+    with:
+      manifestPath: ./appPackage/manifest.json
+      outputZipPath: ./appPackage/build/appPackage.${{TEAMSFX_ENV}}.zip
+      outputFolder: ./appPackage/build
+
+  - uses: teamsApp/validateAppPackage
+    with:
+      appPackagePath: ./appPackage/build/appPackage.${{TEAMSFX_ENV}}.zip
+
+  - uses: teamsApp/update
+    with:
+      appPackagePath: ./appPackage/build/appPackage.${{TEAMSFX_ENV}}.zip
+
+  - uses: copilotAgent/publish
+    with:
+      appPackagePath: ./appPackage/build/appPackage.${{TEAMSFX_ENV}}.zip
+      scope: tenant
+    writeToEnvironmentFile:
+      titleId: M365_PUBLISHED_TITLE_ID
+      appId: M365_PUBLISHED_APP_ID

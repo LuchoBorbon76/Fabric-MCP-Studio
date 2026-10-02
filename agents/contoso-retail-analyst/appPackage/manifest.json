@@ -1,0 +1,37 @@
+{
+    "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.30/MicrosoftTeams.schema.json",
+    "manifestVersion": "1.30",
+    "version": "1.0.0",
+    "id": "${{TEAMS_APP_ID}}",
+    "developer": {
+        "name": "${{AGENT_PUBLISHER_NAME}}",
+        "websiteUrl": "${{AGENT_WEBSITE_URL}}",
+        "privacyUrl": "${{AGENT_PRIVACY_URL}}",
+        "termsOfUseUrl": "${{AGENT_TERMS_URL}}"
+    },
+    "icons": {
+        "color": "color.png",
+        "outline": "outline.png"
+    },
+    "name": {
+        "short": "Contoso Retail Analyst${{APP_NAME_SUFFIX}}",
+        "full": "Contoso Retail Analyst - Fabric IQ demo agent"
+    },
+    "description": {
+        "short": "Governed answers about Contoso Retail from Microsoft Fabric.",
+        "full": "Ask business questions in plain language. The agent queries the Retail Sales Power BI semantic model through the Fabric IQ MCP server and, when configured, the Contoso Retail ontology through the Fabric Ontology MCP server. Answers use your own Fabric permissions and row-level security. Demo agent from the Fabric MCP demo kit; uses synthetic data."
+    },
+    "accentColor": "#B11F4B",
+    "copilotAgents": {
+        "declarativeAgents": [
+            {
+                "id": "contosoRetailAnalyst",
+                "file": "declarativeAgent.json"
+            }
+        ]
+    },
+    "permissions": [
+        "identity"
+    ],
+    "validDomains": []
+}

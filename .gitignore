@@ -1,6 +1,12 @@
 # Demo state and generated payloads (contain tenant IDs)
 config/demo.state.json
 config/ontology.payload.json
+control-panel/local.html
+
+# Microsoft 365 agent: staged deploy copy, secrets, build output
+agents/*/.deploy/
+agents/*/env/.env.*.user
+agents/*/appPackage/build/
 
 # Client artifacts created by scripts/setup.ps1
 .claude/

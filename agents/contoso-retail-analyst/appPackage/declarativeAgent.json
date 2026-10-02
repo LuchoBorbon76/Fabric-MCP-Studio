@@ -1,0 +1,39 @@
+{
+    "$schema": "https://developer.microsoft.com/json-schemas/copilot/declarative-agent/v1.8/schema.json",
+    "version": "v1.8",
+    "name": "Contoso Retail Analyst${{APP_NAME_SUFFIX}}",
+    "description": "Ask governed questions about Contoso Retail sales, customers, stores and returns. Answers come from the Fabric semantic model and ontology, as you.",
+    "instructions": "$[file('instruction.txt')]",
+    "conversation_starters": [
+        {
+            "title": "Sales overview",
+            "text": "What were total net sales and gross margin %?"
+        },
+        {
+            "title": "Growth reality check",
+            "text": "How did Jan to Sep 2026 compare with 2025, and how does same-store sales growth differ from total growth?"
+        },
+        {
+            "title": "Win-back campaign",
+            "text": "How many at-risk customers do we have, what does at-risk mean, and which region should we start with?"
+        },
+        {
+            "title": "Region in trouble",
+            "text": "Which region is declining this year and by how much?"
+        },
+        {
+            "title": "Margin check",
+            "text": "Which products break the minimum margin rule?"
+        },
+        {
+            "title": "Returns",
+            "text": "Which category has the highest return rate and what is the most common return reason?"
+        }
+    ],
+    "actions": [
+        {
+            "id": "fabricIq",
+            "file": "fabric-iq-plugin.json"
+        }
+    ]
+}
