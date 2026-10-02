@@ -1,7 +1,9 @@
 # Demo state and generated payloads (contain tenant IDs)
 config/demo.state.json
 config/ontology.payload.json
-control-panel/local.html
+
+# Fabric MCP Studio local data (project state, chat transcripts, Copilot runtime home)
+studio/data/
 
 # Microsoft 365 agent: staged deploy copy, secrets, build output
 agents/*/.deploy/

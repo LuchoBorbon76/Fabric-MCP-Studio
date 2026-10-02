@@ -18,7 +18,7 @@ description: Demo step 5 - answer business questions with governed definitions, 
 2. Always show: the answer, the measure(s)/rule(s) used, the DAX you ran (collapsed), and which server answered.
 3. If the data can't answer it, say so. Never invent numbers. RLS applies – different users may see different results.
 
-## Demo questions and answer key (synthetic data)
+## Sample questions and expected results (Contoso Retail sample data)
 
 | Question | Expected |
 |---|---|
@@ -33,8 +33,3 @@ description: Demo step 5 - answer business questions with governed definitions, 
 | Which category has the highest return rate? | Electronics (4.34%) |
 | Top category by 2026 net sales? | Electronics (292,880) |
 | Most common return reason? | "Not as described" (187) |
-
-## Talk track
-
-"Same question, same answer, whether it's asked in VS Code, Copilot CLI, Claude, a Copilot Studio agent in Teams,
-or a Foundry agent – because every client is reading the same governed model and ontology through MCP."

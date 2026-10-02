@@ -1,0 +1,165 @@
+// Catalog of supported data sources and how each one lands in Fabric.
+export const SAMPLES = [
+  {
+    id: 'retail',
+    kind: 'sample',
+    name: 'Contoso Retail',
+    tagline: 'Synthetic retail sales: stores, products, customers, sales and returns.',
+    details: '6 tables · 22.8K sales lines · 2024–2026 · includes a business glossary',
+    lands: 'Parquet files → Lakehouse tables',
+    needs: 'Fabric capacity only',
+    minutes: 3,
+    tables: ['customers', 'dates', 'products', 'returns', 'sales', 'stores'],
+  },
+  {
+    id: 'adventureworks-azuresql',
+    kind: 'sample-azure',
+    name: 'AdventureWorksLT on Azure SQL Database',
+    tagline: 'Provision the classic AdventureWorksLT sample in your Azure subscription, then mirror it into Fabric.',
+    details: 'Real foreign keys · shows Mirroring end to end · serverless (auto-pauses)',
+    lands: 'Azure SQL Database → Fabric Mirroring',
+    needs: 'Azure subscription (Contributor) · small Azure cost while running',
+    minutes: 12,
+  },
+];
+
+export const SOURCE_TYPES = [
+  {
+    id: 'azure-sql',
+    name: 'Azure SQL Database',
+    group: 'Azure',
+    icon: 'sql',
+    mirrorType: 'AzureSqlDatabase',
+    connectionType: 'SQL',
+    engine: 'sqlserver',
+    methods: ['mirror'],
+    fields: [
+      { id: 'server', label: 'Server', placeholder: 'myserver.database.windows.net', required: true },
+      { id: 'database', label: 'Database', placeholder: 'SalesDb', required: true },
+    ],
+    auth: ['Entra', 'Basic', 'ServicePrincipal'],
+    connectionCredentials: ['Basic', 'ServicePrincipal', 'WorkspaceIdentity', 'Existing'],
+    prerequisites: [
+      'System-assigned managed identity (SAMI) enabled on the logical server',
+      'Server firewall allows Azure services (or use a VNet data gateway for private endpoints)',
+      'vCore or DTU S3+ tier; not the Basic tier',
+      'Login used by the Fabric connection needs db_owner (or CONTROL) to enable mirroring',
+    ],
+    docs: 'https://learn.microsoft.com/fabric/mirroring/azure-sql-database',
+  },
+  {
+    id: 'sql-mi',
+    name: 'Azure SQL Managed Instance',
+    group: 'Azure',
+    icon: 'sql',
+    mirrorType: 'AzureSqlMI',
+    connectionType: 'SQL',
+    engine: 'sqlserver',
+    methods: ['mirror'],
+    fields: [
+      { id: 'server', label: 'Server (public or VNet endpoint)', placeholder: 'myinstance.public.abc123.database.windows.net,3342', required: true },
+      { id: 'database', label: 'Database', placeholder: 'SalesDb', required: true },
+    ],
+    auth: ['Entra', 'Basic', 'ServicePrincipal'],
+    connectionCredentials: ['Basic', 'ServicePrincipal', 'Existing'],
+    prerequisites: [
+      'System-assigned managed identity enabled on the instance',
+      'Public endpoint enabled (port 3342) or a VNet data gateway for private access',
+      'Login used by the Fabric connection needs CONTROL on the database',
+    ],
+    docs: 'https://learn.microsoft.com/fabric/mirroring/azure-sql-managed-instance',
+  },
+  {
+    id: 'sql-server',
+    name: 'SQL Server (on-premises or VM)',
+    group: 'On-premises',
+    icon: 'server',
+    mirrorType: 'MSSQL',
+    mirrorTypeByVersion: { 17: 'SqlServer2025' },
+    connectionType: 'SQL',
+    engine: 'sqlserver',
+    methods: ['mirror'],
+    gateway: true,
+    fields: [
+      { id: 'server', label: 'Server', placeholder: 'sql01.contoso.local or sql01,1433', required: true },
+      { id: 'database', label: 'Database', placeholder: 'SalesDb', required: true },
+    ],
+    auth: ['Basic', 'Windows', 'Entra'],
+    connectionCredentials: ['Existing'],
+    prerequisites: [
+      'SQL Server 2016–2025',
+      'On-premises data gateway installed on a machine that can reach the server',
+      'Create the gateway connection in Fabric: Settings › Manage connections and gateways (credentials are encrypted by your gateway)',
+      'SQL Server 2016–2022: CDC-based mirroring requirements; SQL Server 2025: Azure Arc connected',
+    ],
+    docs: 'https://learn.microsoft.com/fabric/mirroring/sql-server',
+  },
+  {
+    id: 'azure-postgres',
+    name: 'Azure Database for PostgreSQL',
+    group: 'Azure',
+    icon: 'pg',
+    mirrorType: 'AzurePostgreSql',
+    connectionType: 'AzurePostgreSQL',
+    engine: 'postgres',
+    methods: ['mirror'],
+    fields: [
+      { id: 'server', label: 'Server', placeholder: 'myserver.postgres.database.azure.com', required: true },
+      { id: 'database', label: 'Database', placeholder: 'sales', required: true },
+      { id: 'port', label: 'Port', placeholder: '5432' },
+    ],
+    auth: ['Basic', 'Entra'],
+    connectionCredentials: ['Basic', 'ServicePrincipal', 'Existing'],
+    prerequisites: [
+      'Flexible server (General Purpose or Memory Optimized tier)',
+      'System-assigned managed identity enabled; server parameter azure.fabric_mirror_enabled = on',
+      'wal_level = logical; network access from Fabric (public access or VNet data gateway)',
+    ],
+    docs: 'https://learn.microsoft.com/fabric/mirroring/azure-database-postgresql',
+  },
+  {
+    id: 'fabric-lakehouse',
+    name: 'Fabric Lakehouse',
+    group: 'Microsoft Fabric',
+    icon: 'lakehouse',
+    itemType: 'Lakehouse',
+    methods: ['shortcut', 'in-place'],
+    fields: [],
+    prerequisites: ['Read access to the source workspace', 'Delta tables in the Tables area'],
+    docs: 'https://learn.microsoft.com/fabric/onelake/onelake-shortcuts',
+  },
+  {
+    id: 'fabric-warehouse',
+    name: 'Fabric Warehouse',
+    group: 'Microsoft Fabric',
+    icon: 'warehouse',
+    itemType: 'Warehouse',
+    methods: ['shortcut', 'in-place'],
+    fields: [],
+    prerequisites: ['Read access to the source workspace'],
+    docs: 'https://learn.microsoft.com/fabric/data-warehouse/data-warehousing',
+  },
+  {
+    id: 'fabric-mirrored',
+    name: 'Existing Fabric mirrored database',
+    group: 'Microsoft Fabric',
+    icon: 'mirror',
+    itemType: 'MirroredDatabase',
+    methods: ['in-place'],
+    fields: [],
+    prerequisites: ['Read access to the source workspace'],
+    docs: 'https://learn.microsoft.com/fabric/mirroring/overview',
+  },
+];
+
+export const METHODS = {
+  mirror: { id: 'mirror', name: 'Mirroring', summary: 'Near real-time replication into OneLake as Delta tables. No pipelines to maintain.' },
+  shortcut: { id: 'shortcut', name: 'OneLake shortcuts', summary: 'Reference the tables from your project lakehouse without copying data.' },
+  'in-place': { id: 'in-place', name: 'Use in place', summary: 'Build the semantic model and ontology directly on the existing item.' },
+};
+
+export const sourceType = (id) => SOURCE_TYPES.find((s) => s.id === id);
+
+export function catalog() {
+  return { samples: SAMPLES, sources: SOURCE_TYPES, methods: METHODS };
+}

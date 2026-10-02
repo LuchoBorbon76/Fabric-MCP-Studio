@@ -35,11 +35,6 @@ Turn a one-paragraph business description into a populated lakehouse.
 7. **Record state**: write `workspaceId`, `workspaceName`, `lakehouseId`, `lakehouseName` (and `createdWorkspace: true`
    if you created it) to `config/demo.state.json`.
 
-## Talk track
-
-"I described the business in one sentence. The agent picked the right MCP server for each step, used the
-Fabric API docs tool when it needed the Load Table contract, and asked before creating anything."
-
 ## Expected row counts
 
 customers 800 · products 94 · stores 18 · sales 22,812 · returns 1,025 · dates 1,461

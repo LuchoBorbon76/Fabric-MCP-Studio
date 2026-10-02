@@ -37,7 +37,7 @@ Run `.\scripts\prereq-check.ps1 -CheckFabric` for the parts that can be checked 
 
 | Tool | Needed for |
 |---|---|
-| Node.js LTS (20+) | `fabric-local` and local Power BI authoring servers (`npx`) |
+| Node.js LTS (20.19+) | Fabric MCP Studio, `fabric-local` and local Power BI authoring servers (`npx`) |
 | Git | Ontology-as-code step, cloning the repo |
 | PowerShell 5.1+ (7 recommended) | Scripts |
 | Azure CLI (`az login`) | `deploy-*.ps1` / `reset.ps1` fallbacks and the `az rest` Load Table call |

@@ -51,7 +51,7 @@ rules. Show which measure or rule you used. Never invent numbers.
 
 ## 4. Test and publish
 
-Ask the questions from [the ask skill answer key](../../.github/skills/fabric-demo-ask/SKILL.md), then publish to
+Ask the sample questions from [the ask skill](../../.github/skills/fabric-demo-ask/SKILL.md), then publish to
 Teams and Microsoft 365 Copilot.
 
 > Prefer code over portal clicks? The repo also ships a ready-made **Microsoft 365 Copilot declarative agent** with

@@ -25,8 +25,3 @@ without building anything new.
    - Set format strings, display folders, `summarizeBy: none`, hide keys, sort-by columns.
 5. **Translate** (optional): add cultures `es-MX` and `fr-FR` with translated table, column, measure and display-folder names and descriptions.
 6. **Re-run the analysis** and show before/after counts.
-
-## Talk track
-
-"This is the same work a senior modeler does in a day – documentation, consistency, translations – done in
-minutes, with every change reviewable and reversible."

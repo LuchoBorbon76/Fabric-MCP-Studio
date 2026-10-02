@@ -6,6 +6,7 @@ required for this demo.
 
 | Client | License the customer needs | Config | Set up | Best for |
 |---|---|---|---|---|
+| **Fabric MCP Studio** | GitHub Copilot (any plan) **or** Azure AI Foundry / Azure OpenAI, OpenAI, Anthropic, local model | In-app Settings | `Start-Studio.cmd` ([studio](../studio/README.md)) | Guided end-to-end experience with approvals |
 | **GitHub Copilot in VS Code** | GitHub Copilot Free, Pro, Pro+, Business or Enterprise | `.vscode/mcp.json` (committed) | `.\scripts\setup.ps1 -Client vscode` | Builders; the full demo |
 | **GitHub Copilot CLI** | GitHub Copilot Pro, Pro+, Business or Enterprise | `~/.copilot/mcp-config.json` ([template](copilot-cli/mcp-config.json)) | `.\scripts\setup.ps1 -Client copilot-cli` | Terminal-first builders, Skills for Fabric plugins |
 | **Claude Code** | Anthropic plan or API key | `.mcp.json` (committed) | `.\scripts\setup.ps1 -Client claude-code` | Teams standardised on Claude |

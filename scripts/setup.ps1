@@ -190,7 +190,7 @@ function Show-NextSteps([string]$ClientId) {
         }
         'cursor' {
             Write-Info '1. Open this folder in Cursor. Settings > MCP: enable the demo servers and sign in.'
-            Write-Info '2. In Agent chat, paste the prompts from docs/demo-script.md (Cursor reads AGENTS.md).'
+            Write-Info '2. In Agent chat, follow docs/walkthrough.md (Cursor reads AGENTS.md).'
         }
     }
 }

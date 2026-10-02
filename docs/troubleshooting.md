@@ -35,7 +35,7 @@ when it expires.
 | Fabric IQ answers don't change after edits | Model not refreshed / reframed | Refresh the semantic model |
 | `deploy-ontology.ps1`: SQL endpoint not provisioned | New lakehouse | Wait a minute and re-run |
 | Ontology update rejected (parse error) | Spaces instead of tabs, missing `ref` in `model.tmdl`, colon in a rule statement | `deploy-ontology.ps1 -DryRun`, decode the part, fix, redeploy |
-| Numbers differ from the answer key | Different seed or definitions drifted from the glossary | Regenerate data with seed 42; compare measure DAX to the semantic-model skill |
+| Numbers differ from the expected sample results | Different seed or definitions drifted from the glossary | Regenerate data with seed 42; compare measure DAX to the semantic-model skill |
 
 ## Microsoft 365 Copilot agent (install-teams-agent.ps1)
 

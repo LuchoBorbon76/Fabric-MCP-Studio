@@ -66,8 +66,8 @@ If a capability has no MCP tool (for example the Lakehouse *Load Table* API), us
 | `.github/skills/` | Demo skills (verify, lakehouse, semantic-model, model-doctor, ontology, ask) |
 | `agents/contoso-retail-analyst/` | Microsoft 365 Copilot declarative agent (Fabric IQ + Ontology MCP plugins) |
 | `config/mcp-servers.json` | Catalog of MCP endpoints – source of truth for client configs |
-| `control-panel/index.html` | Self-contained presenter control panel |
-| `scripts/` | `setup.ps1` (choose client), `prereq-check.ps1`, `deploy-fabric.ps1`, `deploy-ontology.ps1`, `reset.ps1`, `install-teams-agent.ps1`, `open-control-panel.ps1` |
+| `studio/` | Fabric MCP Studio app (Copilot SDK agent, Fabric REST pipelines, web UI) |
+| `scripts/` | `setup.ps1` (choose client), `prereq-check.ps1`, `deploy-fabric.ps1`, `deploy-ontology.ps1`, `reset.ps1`, `install-teams-agent.ps1` |
 | `data/retail/` | Synthetic CSV + typed Parquet, business glossary |
 | `ontology/retail/` | Reference ontology TMDL |
-| `docs/` | Architecture, prerequisites, demo script, troubleshooting |
+| `docs/` | Walkthrough, architecture, prerequisites, troubleshooting |

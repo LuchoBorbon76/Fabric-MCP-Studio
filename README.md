@@ -1,64 +1,54 @@
-# Fabric MCP demo kit – semantic models and ontologies from natural language
+# Fabric MCP Studio – semantic models and ontologies from natural language
 
-Build a **Microsoft Fabric lakehouse, Power BI semantic model and Fabric IQ ontology by talking to an AI agent**,
-then ask governed business questions from any Copilot. Everything goes through Model Context Protocol (MCP) servers,
-so customers **use the AI client and license they already have** – GitHub Copilot, Claude, Cursor, Copilot Studio,
-Microsoft 365 Copilot or an Azure AI Foundry agent.
+Build a **Microsoft Fabric workspace, data foundation, Power BI semantic model and Fabric IQ ontology by chatting
+with an AI agent**, then get governed answers anywhere. Everything goes through Model Context Protocol (MCP)
+servers, so every customer **uses the AI they already license** – GitHub Copilot, Azure AI Foundry / Azure OpenAI,
+OpenAI, Anthropic, a local model, Microsoft 365 Copilot, Claude Code or Cursor.
 
-> Synthetic "Contoso Retail" data. Several components are in preview – see [status](docs/architecture.md#server-status-october-2026).
+> Several Fabric components used here are in preview – see [status](docs/architecture.md#server-status-october-2026).
 > This is a sample, provided as-is, not an official Microsoft product.
 
-## What the demo shows
+## Fabric MCP Studio (the app)
 
-| # | Demo | MCP servers | Skill |
-|---|---|---|---|
-| 1 | **Napkin to lakehouse** – one paragraph → workspace, lakehouse, typed Delta tables | Fabric Core, Fabric local | `fabric-demo-lakehouse` |
-| 2 | **Semantic model in plain English** – star schema, glossary-accurate DAX, validated | Power BI Authoring | `fabric-demo-semantic-model` |
-| 3 | **Model doctor** – best-practice audit, documentation, translations (works on customer models) | Power BI Authoring | `fabric-demo-model-doctor` |
-| 4 | **Ontology as code** – semantic model or glossary → entities, relationships, rules → PR → deploy | Fabric Core + Git | `fabric-demo-ontology` |
-| 5 | **Ask anywhere** – same governed answer in every client | Fabric IQ, Ontology MCP | `fabric-demo-ask` |
+A local web app the customer installs and runs. One place to:
 
-## Bring your own Copilot
+| Step | What you can do |
+|---|---|
+| **Choose your AI** | GitHub Copilot (any plan) or bring your own key: Azure AI Foundry/Azure OpenAI (Entra ID, no keys), OpenAI, Anthropic, local OpenAI-compatible model |
+| **Workspace** | Create a new workspace on any capacity, or use an existing one |
+| **Data** | Sample data (Contoso Retail, or AdventureWorksLT provisioned on Azure SQL) · mirror **Azure SQL DB, SQL Managed Instance, SQL Server on-premises, Azure PostgreSQL** · reuse **Fabric lakehouses, warehouses, mirrored databases** (in place or shortcuts) |
+| **Semantic model** | Direct Lake model generated from your tables and keys, then enriched by Copilot: measures from your glossary, descriptions, RLS, translations, best-practice review |
+| **Ontology** | Entities, relationships and plain-English business rules from your glossary |
+| **Ask & share** | Chat with governed answers (Fabric IQ), install the Microsoft 365 Copilot / Teams agent, connect other AI clients, create a Fabric data agent, export the audit log |
 
-| Client | Customer license | One-line setup |
-|---|---|---|
-| GitHub Copilot in VS Code | Copilot Free / Pro / Pro+ / Business / Enterprise | `.\scripts\setup.ps1 -Client vscode` |
-| GitHub Copilot CLI | Copilot Pro / Pro+ / Business / Enterprise | `.\scripts\setup.ps1 -Client copilot-cli` |
-| Claude Code | Anthropic plan / API key | `.\scripts\setup.ps1 -Client claude-code` |
-| Cursor | Cursor plan | `.\scripts\setup.ps1 -Client cursor` |
-| Copilot Studio | Copilot Studio (+ M365 Copilot) | [portal guide](clients/copilot-studio/README.md) |
-| **Microsoft 365 Copilot / Teams** (ready-made agent) | Microsoft 365 Copilot | `.\scripts\install-teams-agent.ps1` |
-| Azure AI Foundry agent | Azure + any model deployment | [portal guide](clients/azure-ai-foundry/README.md) |
-
-Run `.\scripts\setup.ps1` with no arguments for an interactive menu. Details: [clients/README.md](clients/README.md).
-
-## Frontends included
-
-| Frontend | Who | How to open |
-|---|---|---|
-| **Demo control panel** – run of show, copy-ready prompts, client picker, answer key | Presenters, workshop attendees | `.\scripts\open-control-panel.ps1` ([details](control-panel/README.md)) |
-| **Contoso Retail Analyst** – Microsoft 365 Copilot agent in Teams, Outlook and the Copilot app | Business users | `.\scripts\install-teams-agent.ps1` ([details](agents/contoso-retail-analyst/README.md)) |
-| Your own AI client chat | Builders | `.\scripts\setup.ps1` |
-
-Everything installs into the customer's own tenant with their own sign-in. Nothing in the repo is tenant-specific.
-
-## Quick start
+Every step has a quick action **and** a Copilot path. Copilot calls the Fabric MCP servers as the signed-in user and
+**asks for approval before every change**; database credentials never go through the chat.
 
 ```powershell
 git clone https://github.com/luisbor_microsoft/fabric-mcp-server-luisbor.git
 cd fabric-mcp-server-luisbor
-.\scripts\prereq-check.ps1 -CheckFabric      # tools, Azure sign-in, Fabric capacities
-.\scripts\setup.ps1                          # choose your AI client / Copilot license
-.\scripts\open-control-panel.ps1             # presenter control panel in your browser
+.\Start-Studio.cmd            # Windows  (macOS/Linux: ./studio/start-studio.sh)
 ```
 
-Then open your client in the repo folder, sign in to the MCP servers with your Entra ID work account, and ask:
+Requirements: Node.js 20.19+, a Microsoft Entra work account with Fabric access, and one AI provider.
+Details: [studio/README.md](studio/README.md) · Step-by-step: [docs/walkthrough.md](docs/walkthrough.md).
 
-```text
-Use the fabric-demo-verify skill to check my MCP connections.
-```
+## Bring your own Copilot – other clients
 
-Follow [docs/demo-script.md](docs/demo-script.md) for the 30-minute run of show with copy-paste prompts and an answer key.
+The same MCP servers and skills work in the customer's existing tools:
+
+| Client | Customer license | Setup |
+|---|---|---|
+| **Fabric MCP Studio** | GitHub Copilot or any BYOK model | `Start-Studio.cmd` |
+| GitHub Copilot in VS Code | Copilot Free / Pro / Pro+ / Business / Enterprise | `.\scripts\setup.ps1 -Client vscode` |
+| GitHub Copilot CLI | Copilot Pro / Pro+ / Business / Enterprise | `.\scripts\setup.ps1 -Client copilot-cli` |
+| Claude Code | Anthropic plan / API key | `.\scripts\setup.ps1 -Client claude-code` |
+| Cursor | Cursor plan | `.\scripts\setup.ps1 -Client cursor` |
+| **Microsoft 365 Copilot / Teams** (ready-made agent) | Microsoft 365 Copilot | Studio › Ask & share, or `.\scripts\install-teams-agent.ps1` |
+| Copilot Studio | Copilot Studio (+ M365 Copilot) | [portal guide](clients/copilot-studio/README.md) |
+| Azure AI Foundry agent | Azure + any model deployment | [portal guide](clients/azure-ai-foundry/README.md) |
+
+Details: [clients/README.md](clients/README.md).
 
 ## MCP servers used
 
@@ -75,33 +65,37 @@ Single source of truth: [config/mcp-servers.json](config/mcp-servers.json). Arch
 ## Repository layout
 
 ```text
-.github/skills/        Demo skills (portable Agent Skills: VS Code, Copilot CLI, Claude Code via setup.ps1)
+Start-Studio.cmd       Double-click to run Fabric MCP Studio (Windows)
+studio/                Fabric MCP Studio: Node.js server (Copilot SDK + Fabric APIs) and web UI
+.github/skills/        Agent Skills used by VS Code, Copilot CLI and Claude Code
 AGENTS.md              Routing rules, modeling conventions, ontology TMDL rules, safety
-agents/                Contoso Retail Analyst - Microsoft 365 Copilot declarative agent (Fabric IQ + Ontology MCP)
+agents/                Microsoft 365 Copilot declarative agent (Fabric IQ + Ontology MCP)
 clients/               Per-client guides; copilot-cli template
-config/                MCP server catalog; demo.state.json (git-ignored, written by scripts)
-control-panel/         Self-contained presenter control panel (index.html)
+config/                MCP server catalog; demo.state.json (git-ignored, shared by studio and scripts)
 data/retail/           Synthetic CSV + typed Parquet, business glossary
-docs/                  Architecture, prerequisites, demo script, troubleshooting
+docs/                  Walkthrough, architecture, prerequisites, troubleshooting
 ontology/retail/       Reference ontology (TMDL) – 5 entities, 4 relationships, 5 rules
 scripts/               setup, prereq-check, deploy-fabric, deploy-ontology, reset, install-teams-agent,
-                       open-control-panel, generate-sample-data, validate-agent-package
+                       generate-sample-data, validate-agent-package
 .vscode/ .cursor/ .mcp.json   Default client configs (hosted authoring, no ontology)
 ```
 
-## Fallback scripts (plan B for live demos)
+## Scripts
 
 | Script | Does |
 |---|---|
-| `deploy-fabric.ps1` | Find-or-create workspace + lakehouse, upload Parquet, load tables (`-Stage Files` to upload only) |
-| `deploy-ontology.ps1` | Pack `ontology/<domain>` TMDL and create/update the Ontology item (`-DryRun` to inspect) |
-| `reset.ps1` | Delete what the demo created |
+| `setup.ps1` | Write MCP config for VS Code, Copilot CLI, Claude Code or Cursor |
+| `prereq-check.ps1` | Local tools, Azure sign-in, Fabric capacities |
+| `deploy-fabric.ps1` | Workspace + lakehouse + Contoso Retail tables without an agent |
+| `deploy-ontology.ps1` | Deploy `ontology/<domain>` TMDL as a Fabric Ontology item |
+| `install-teams-agent.ps1` | Install/publish/uninstall the Microsoft 365 Copilot agent in any tenant |
+| `reset.ps1` | Delete what the scripts created |
 
-All scripts run on Windows PowerShell 5.1 and PowerShell 7 and use your `az login` identity.
+All scripts run on Windows PowerShell 5.1 and PowerShell 7.
 
 ## Adapting to a customer
 
-1. Replace `data/retail` with a synthetic extract of their domain (or point the skills at their lakehouse).
-2. Replace `business-glossary.md` with their definitions – it drives measures and ontology rules.
-3. Copy `ontology/retail` to `ontology/<domain>` and let the ontology skill evolve it.
-4. Run the model doctor on one of their existing models – fastest path to value.
+1. Connect their data in the studio (mirroring or existing Fabric items) – no code changes needed.
+2. Paste or upload their business glossary in **Ontology › Business glossary**; Copilot uses it for measures and rules.
+3. Run the model review on one of their existing semantic models – the fastest path to value.
+4. Rename and customize the Microsoft 365 agent in `agents/contoso-retail-analyst`.

@@ -36,7 +36,7 @@ Relationships (single direction, many-to-one): `Sales[CustomerId]→Customer`, `
 3. Rename tables to business names, create relationships, mark `Date` as date table, sort `MonthName` by `MonthNumber`.
 4. Create the measures below (display folders in brackets). Add a plain-English description and format string to each.
 5. Hide foreign keys on facts; `summarizeBy: none` on IDs, `Year`, `MonthNumber`, `WeekOfYear`.
-6. **Validate** with DAX queries and compare to the answer key. Report any mismatch – don't silently change the definition.
+6. **Validate** with DAX queries and compare to the expected results below (sample data). Report any mismatch – don't silently change the definition.
 
 ## Reference measures
 
@@ -93,7 +93,7 @@ RETURN CALCULATE ( [Net Sales], KEEPFILTERS ( Comparable ), SAMEPERIODLASTYEAR (
 Same-Store Sales Growth % = DIVIDE ( [Same-Store Sales] - [Same-Store Sales PY], [Same-Store Sales PY] )
 ```
 
-## Answer key (synthetic data, seed 42)
+## Expected results (Contoso Retail sample data, seed 42)
 
 | Check | Expected |
 |---|---|

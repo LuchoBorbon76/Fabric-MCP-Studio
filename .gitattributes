@@ -3,3 +3,7 @@
 *.tmdl text eol=lf
 *.csv -text
 *.parquet binary
+*.sh text eol=lf
+*.cmd text eol=crlf
+*.mjs text eol=lf
+

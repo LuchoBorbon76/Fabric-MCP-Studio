@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="studio-token" content="__STUDIO_TOKEN__">
+<title>Fabric MCP Studio</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 23 23'%3E%3Crect width='10' height='10' x='1' y='1' fill='%23F25022'/%3E%3Crect width='10' height='10' x='12' y='1' fill='%237FBA00'/%3E%3Crect width='10' height='10' x='1' y='12' fill='%2300A4EF'/%3E%3Crect width='10' height='10' x='12' y='12' fill='%23FFB900'/%3E%3C/svg%3E">
+<script>try{var t=localStorage.getItem('studioTheme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<header class="top">
+  <div class="hdrbtns">
+    <select class="themesel" id="themesel" title="Theme">
+      <option value="">Light</option><option value="dark">Dark</option><option value="midnight">Midnight</option>
+      <option value="slate">Slate</option><option value="teal">Teal</option><option value="plum">Plum</option>
+      <option value="sunset">Sunset</option><option value="gold">Gold</option><option value="forest">Forest</option>
+    </select>
+    <button class="hdrbtn" id="healthBtn" title="Run readiness checks">✓ Check setup</button>
+    <span class="userchip" id="userChip" title="Microsoft Entra account"><span class="avatar" id="avatar">?</span><span id="userName">Sign in</span></span>
+    <button class="hdrbtn exitbtn" id="exitBtn" title="Stop the studio server">⏻ Shut down</button>
+  </div>
+  <h1><svg class="mslogo" viewBox="0 0 23 23" width="26" height="26" aria-label="Microsoft" role="img"><rect width="10" height="10" x="1" y="1" fill="#F25022"/><rect width="10" height="10" x="12" y="1" fill="#7FBA00"/><rect width="10" height="10" x="1" y="12" fill="#00A4EF"/><rect width="10" height="10" x="12" y="12" fill="#FFB900"/></svg><span id="appTitle">Fabric MCP Studio</span><span class="buildchip">v__STUDIO_VERSION__</span></h1>
+  <p id="subtitle">Build lakehouses, semantic models and ontologies in Microsoft Fabric by chatting with the Copilot you already use.</p>
+</header>
+
+<div class="wrap">
+  <section class="kpis" id="kpis"></section>
+  <nav class="nav" id="nav"></nav>
+
+  <section class="view" id="view-home"></section>
+  <section class="view" id="view-copilot"></section>
+  <section class="view" id="view-workspace"></section>
+  <section class="view" id="view-data"></section>
+  <section class="view" id="view-model"></section>
+  <section class="view" id="view-ontology"></section>
+  <section class="view" id="view-share"></section>
+  <section class="view" id="view-activity"></section>
+  <section class="view" id="view-settings"></section>
+  <footer class="foot">Fabric MCP Studio runs on your computer. It signs in to Microsoft Fabric as you, uses the AI provider you choose, and asks before every change.</footer>
+</div>
+
+<div class="dock" id="dock"></div>
+<button class="askfab" id="askfab" title="Ask Copilot"><span>✦</span><span>Ask Copilot</span></button>
+<div class="askpanel" id="askpanel" hidden></div>
+<div class="toasts" id="toasts"></div>
+<div id="modalRoot"></div>
+
+<script type="module" src="/js/main.js"></script>
+</body>
+</html>

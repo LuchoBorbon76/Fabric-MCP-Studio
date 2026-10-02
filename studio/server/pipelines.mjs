@@ -1,0 +1,458 @@
+// End-to-end pipelines used by both the UI (quick actions) and the AI agent (studio_* tools).
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
+import { join, basename, extname } from 'node:path';
+import { spawn } from 'node:child_process';
+import { REPO_ROOT, sleep, stableUuid } from './config.mjs';
+import { runAz } from './azcli.mjs';
+import * as F from './fabric.mjs';
+import { getProject, updateProject, setStep, recordArtifact, logActivity } from './project.mjs';
+import { discoverSqlServer, testSqlServer, readOnlyQuery } from './sql.mjs';
+import { discoverPostgres, testPostgres } from './pg.mjs';
+import { sourceType } from './sources.mjs';
+import { buildPlan, semanticModelFiles, ontologyFiles, defaultMeasures } from './generators/tmdl.mjs';
+import { RETAIL, presetFor } from './presets.mjs';
+
+const safeName = (s, fallback = 'Item') => (String(s || '').replace(/[^A-Za-z0-9_]/g, '_').replace(/^_+|_+$/g, '').replace(/_+/g, '_') || fallback).slice(0, 120);
+
+// ---------------- workspace ----------------
+
+export async function selectWorkspace({ workspaceId, name, capacityId, description }, log = () => {}) {
+  let ws;
+  let created = false;
+  if (workspaceId) {
+    ws = await F.getWorkspace(workspaceId);
+  } else {
+    if (!name) throw new Error('Workspace name is required.');
+    ws = await F.findWorkspace(name);
+    if (!ws) {
+      if (!capacityId) throw new Error('Choose a Fabric capacity for the new workspace.');
+      log(`Creating workspace "${name}"…`);
+      ws = await F.createWorkspace({ name, capacityId, description: description || 'Created by Fabric MCP Studio.' });
+      created = true;
+    }
+  }
+  if (!ws.capacityId && capacityId) {
+    log('Assigning the workspace to the selected capacity…');
+    await F.assignCapacity(ws.id, capacityId);
+    ws = await F.getWorkspace(ws.id);
+  }
+  if (!ws.capacityId) throw new Error('This workspace is not on a Fabric capacity. Pick a capacity so the studio can create Fabric items.');
+  const prev = getProject().workspace;
+  const workspace = { id: ws.id, name: ws.displayName, capacityId: ws.capacityId, created: created || (prev?.id === ws.id && prev.created) };
+  const reset = prev?.id !== ws.id ? { lakehouse: null, modelSource: null, semanticModel: null, ontology: null, source: null } : {};
+  updateProject({ workspace, ...reset });
+  setStep('workspace', 'done', workspace.name);
+  if (created) recordArtifact({ type: 'Workspace', id: ws.id, name: ws.displayName, workspaceId: ws.id });
+  logActivity('workspace.select', `Using workspace ${ws.displayName}`, { workspaceId: ws.id, created });
+  return workspace;
+}
+
+function requireWorkspace() {
+  const ws = getProject().workspace;
+  if (!ws) throw new Error('Select or create a workspace first (Workspace tab).');
+  return ws;
+}
+
+async function ensureProjectLakehouse(name, log) {
+  const ws = requireWorkspace();
+  const p = getProject();
+  if (p.lakehouse?.id && (!name || p.lakehouse.name === name)) return p.lakehouse;
+  const lhName = safeName(name || 'StudioLakehouse');
+  log(`Preparing lakehouse ${lhName}…`);
+  const lh = await F.ensureLakehouse(ws.id, lhName, 'Project lakehouse created by Fabric MCP Studio.');
+  if (lh.created) recordArtifact({ type: 'Lakehouse', id: lh.id, name: lhName, workspaceId: ws.id });
+  log('Waiting for the SQL analytics endpoint…');
+  const ep = await F.waitSqlEndpoint(ws.id, lh.id, 'Lakehouse');
+  const lakehouse = { id: lh.id, name: lhName, sqlEndpointId: ep.endpointId, sqlEndpointServer: ep.server };
+  updateProject({ lakehouse });
+  return lakehouse;
+}
+
+function setModelSource(ms, label) {
+  updateProject({ modelSource: ms });
+  setStep('data', 'done', label);
+}
+
+// ---------------- sample data ----------------
+
+export async function runSampleRetail(ctx) {
+  const ws = requireWorkspace();
+  ctx.step('Create the project lakehouse');
+  const lh = await ensureProjectLakehouse(RETAIL.lakehouseName, ctx.log);
+  ctx.progress(20);
+
+  const folder = join(REPO_ROOT, 'data', 'retail', 'parquet');
+  if (!existsSync(folder)) throw new Error(`Sample files not found in ${folder}. Run: python scripts/generate-sample-data.py`);
+  const files = readdirSync(folder).filter((f) => f.endsWith('.parquet')).sort();
+  ctx.step(`Upload ${files.length} files to OneLake`);
+  for (const [i, f] of files.entries()) {
+    await F.uploadOneLake(ws.id, lh.id, `Files/raw/retail/${f}`, readFileSync(join(folder, f)), { signal: ctx.signal });
+    ctx.log(`Uploaded ${f}`);
+    ctx.progress(20 + (i + 1) * (25 / files.length));
+  }
+
+  ctx.step('Load Delta tables');
+  for (const [i, f] of files.entries()) {
+    const table = basename(f, extname(f));
+    await F.loadTable(ws.id, lh.id, table, `Files/raw/retail/${f}`, 'Parquet', { signal: ctx.signal });
+    ctx.log(`Loaded table ${table}`);
+    ctx.progress(45 + (i + 1) * (35 / files.length));
+  }
+
+  ctx.step('Refresh the SQL analytics endpoint');
+  await F.refreshSqlEndpoint(ws.id, lh.sqlEndpointId);
+  ctx.progress(90);
+
+  const glossaryPath = join(REPO_ROOT, RETAIL.glossaryFile);
+  updateProject({
+    scenario: 'sample',
+    source: { kind: 'sample', id: 'retail', label: 'Contoso Retail (sample)', method: 'files', tables: files.map((f) => basename(f, '.parquet')) },
+    glossary: existsSync(glossaryPath) ? readFileSync(glossaryPath, 'utf8') : getProject().glossary,
+  });
+  setModelSource({ itemType: 'Lakehouse', itemId: lh.id, itemName: lh.name, workspaceId: ws.id, server: lh.sqlEndpointServer, endpointId: lh.sqlEndpointId, database: lh.name }, 'Contoso Retail sample loaded');
+  return { lakehouse: lh, tables: files.length };
+}
+
+// ---------------- customer sources ----------------
+
+export async function testSource({ typeId, server, database, port, auth }) {
+  const st = sourceType(typeId);
+  if (!st) throw new Error(`Unknown source type ${typeId}`);
+  if (st.engine === 'postgres') return testPostgres({ server, database, port, auth });
+  return testSqlServer({ server, database, port, auth, trustServerCertificate: typeId === 'sql-server' });
+}
+
+export async function discoverSource({ typeId, server, database, port, auth }) {
+  const st = sourceType(typeId);
+  if (st.engine === 'postgres') return discoverPostgres({ server, database, port, auth });
+  return discoverSqlServer({ server, database, port, auth, trustServerCertificate: typeId === 'sql-server' });
+}
+
+export async function createConnection({ typeId, server, database, port, credential, name }) {
+  const st = sourceType(typeId);
+  const host = st.engine === 'postgres' && port && String(port) !== '5432' ? `${server}:${port}` : server;
+  const conn = await F.createCloudConnection({
+    name: name || `${st.name} - ${server}/${database}`.slice(0, 200),
+    connectionType: st.connectionType,
+    server: host,
+    database,
+    credential,
+  });
+  logActivity('connection.create', `Created Fabric connection ${conn.displayName}`, { connectionId: conn.id });
+  return { id: conn.id, name: conn.displayName };
+}
+
+/** Mirror a database into Fabric. Credentials never reach this function: it takes a Fabric connection ID. */
+export async function runMirror(ctx, { typeId, connectionId, database, tables = [], name, sqlVersionMajor, sourceLabel }) {
+  const ws = requireWorkspace();
+  const st = sourceType(typeId);
+  if (!st?.mirrorType) throw new Error(`${typeId} can't be mirrored.`);
+  if (!connectionId) throw new Error('A Fabric connection is required. Create one in the Data tab or pick an existing connection.');
+  const mirrorType = (st.mirrorTypeByVersion && st.mirrorTypeByVersion[sqlVersionMajor]) || st.mirrorType;
+  const itemName = safeName(name || `Mirror_${database}`);
+
+  ctx.step(`Create mirrored database ${itemName}`);
+  let item = await F.findItem(ws.id, 'MirroredDatabase', itemName);
+  if (!item) {
+    item = await F.createMirroredDatabase(ws.id, { name: itemName, sourceType: mirrorType, connectionId, database: st.engine === 'postgres' ? database : undefined, tables });
+    recordArtifact({ type: 'MirroredDatabase', id: item.id, name: itemName, workspaceId: ws.id });
+    ctx.log(`Created ${itemName} (${mirrorType})`);
+  } else ctx.log(`Reusing existing ${itemName}`);
+  ctx.progress(20);
+
+  ctx.step('Start mirroring');
+  try { await F.startMirroring(ws.id, item.id); } catch (e) { if (!/already|running/i.test(e.message)) throw e; }
+  ctx.progress(30);
+
+  ctx.step('Replicate tables (initial snapshot)');
+  const deadline = Date.now() + 20 * 60 * 1000;
+  let last = [];
+  while (Date.now() < deadline) {
+    if (ctx.signal.aborted) throw new Error('Cancelled');
+    await sleep(15000);
+    let status = {};
+    try { status = await F.mirroringStatus(ws.id, item.id); } catch { status = {}; }
+    try { last = await F.tablesMirroringStatus(ws.id, item.id); } catch { last = []; }
+    ctx.data({ kind: 'mirroring', status: status.status, tables: last });
+    const done = last.filter((t) => t.status === 'Replicating' && (t.metrics?.processedRows ?? 0) >= 0 && t.metrics?.lastSyncDateTime);
+    const failed = last.filter((t) => /fail|error/i.test(t.status || ''));
+    ctx.log(`Mirroring ${status.status || '…'} · ${done.length}/${last.length || '?'} tables synced${failed.length ? ` · ${failed.length} failed` : ''}`);
+    ctx.progress(30 + (last.length ? (done.length / last.length) * 50 : 5));
+    if (failed.length && failed.length === last.length) throw new Error(`Mirroring failed: ${failed[0].errorMessage || failed[0].status}. Check the prerequisites for ${st.name}.`);
+    if (last.length && done.length + failed.length === last.length) break;
+  }
+
+  ctx.step('Wait for the SQL analytics endpoint');
+  const ep = await F.waitSqlEndpoint(ws.id, item.id, 'MirroredDatabase', { signal: ctx.signal });
+  await F.refreshSqlEndpoint(ws.id, ep.endpointId);
+  ctx.progress(95);
+
+  updateProject({ scenario: 'byod', source: { kind: 'database', type: typeId, label: sourceLabel || `${st.name} · ${database}`, method: 'mirror', connectionId, itemId: item.id, tables: last.map((t) => `${t.sourceSchemaName}.${t.sourceTableName}`) } });
+  setModelSource({ itemType: 'MirroredDatabase', itemId: item.id, itemName, workspaceId: ws.id, server: ep.server, endpointId: ep.endpointId, database: itemName }, `${st.name} mirrored`);
+  return { mirroredDatabaseId: item.id, tables: last.length };
+}
+
+export async function listSourceItems(workspaceId, itemType) {
+  const items = await F.listItems(workspaceId, itemType);
+  return items.map((i) => ({ id: i.id, name: i.displayName, type: i.type, workspaceId }));
+}
+
+async function endpointFor(workspaceId, itemId, itemType) {
+  const ep = await F.waitSqlEndpoint(workspaceId, itemId, itemType, { timeoutMs: 60000 });
+  const item = await F.getItem(workspaceId, itemId);
+  return { ...ep, itemName: item.displayName };
+}
+
+export async function listTablesOfItem({ workspaceId, itemId, itemType }) {
+  const ep = await endpointFor(workspaceId, itemId, itemType);
+  const d = await discoverSqlServer({ server: ep.server, database: ep.database }, { fabricEndpoint: true });
+  return { endpoint: ep, tables: d.tables.map((t) => ({ schema: t.schema, name: t.name, rows: t.rows, columns: t.columns.length })) };
+}
+
+export async function useInPlace({ workspaceId, itemId, itemType, typeId }) {
+  requireWorkspace();
+  const ep = await endpointFor(workspaceId, itemId, itemType);
+  updateProject({ scenario: 'byod', source: { kind: 'fabric', type: typeId || itemType, label: `${itemType} · ${ep.itemName}`, method: 'in-place', itemId, workspaceId } });
+  setModelSource({ itemType, itemId, itemName: ep.itemName, workspaceId, server: ep.server, endpointId: ep.endpointId, database: ep.database }, `Using ${ep.itemName} in place`);
+  return getProject().modelSource;
+}
+
+export async function runShortcuts(ctx, { sourceWorkspaceId, sourceItemId, sourceItemType, tables = [], typeId }) {
+  requireWorkspace();
+  const ws = getProject().workspace;
+  ctx.step('Prepare the project lakehouse');
+  const lh = await ensureProjectLakehouse(getProject().lakehouse?.name || 'StudioLakehouse', ctx.log);
+  ctx.progress(25);
+  ctx.step(`Create ${tables.length} OneLake shortcuts`);
+  for (const [i, t] of tables.entries()) {
+    const schema = t.schema || 'dbo';
+    const targetPath = sourceItemType === 'Lakehouse' && schema === 'dbo' && !t.schemaEnabled ? `Tables/${t.name}` : `Tables/${schema}/${t.name}`;
+    await F.createShortcut(ws.id, lh.id, { path: 'Tables', name: t.name, target: { oneLake: { workspaceId: sourceWorkspaceId, itemId: sourceItemId, path: targetPath } } });
+    ctx.log(`Shortcut ${t.name} → ${targetPath}`);
+    ctx.progress(25 + ((i + 1) / tables.length) * 55);
+  }
+  ctx.step('Refresh the SQL analytics endpoint');
+  await sleep(5000);
+  await F.refreshSqlEndpoint(ws.id, lh.sqlEndpointId);
+  const src = await F.getItem(sourceWorkspaceId, sourceItemId);
+  updateProject({ scenario: 'byod', source: { kind: 'fabric', type: typeId || sourceItemType, label: `${sourceItemType} · ${src.displayName} (shortcuts)`, method: 'shortcut', itemId: sourceItemId, workspaceId: sourceWorkspaceId, tables: tables.map((t) => t.name) } });
+  setModelSource({ itemType: 'Lakehouse', itemId: lh.id, itemName: lh.name, workspaceId: ws.id, server: lh.sqlEndpointServer, endpointId: lh.sqlEndpointId, database: lh.name }, `${tables.length} tables shortcut into ${lh.name}`);
+  return { lakehouseId: lh.id, shortcuts: tables.length };
+}
+
+// ---------------- model source discovery ----------------
+
+let discoveryCache = { key: null, at: 0, data: null };
+
+export async function describeModelSource({ refresh = false } = {}) {
+  const ms = getProject().modelSource;
+  if (!ms) throw new Error('No data source yet. Load sample data or connect your data first (Data tab).');
+  const key = `${ms.server}|${ms.endpointId}|${ms.database}`;
+  if (!refresh && discoveryCache.key === key && Date.now() - discoveryCache.at < 5 * 60 * 1000) return discoveryCache.data;
+  const d = await discoverSqlServer({ server: ms.server, database: ms.database }, { fabricEndpoint: true });
+  const preset = presetFor(getProject());
+  if (preset?.relationships) d.relationships = preset.relationships;
+  d.source = ms;
+  discoveryCache = { key, at: Date.now(), data: d };
+  return d;
+}
+
+export async function queryModelSource(query) {
+  const ms = getProject().modelSource;
+  if (!ms) throw new Error('No data source yet.');
+  return readOnlyQuery({ server: ms.server, database: ms.database }, query);
+}
+
+// ---------------- semantic model ----------------
+
+export async function runSemanticModel(ctx, { name, include, names, relationships, measures, descriptions, useDefaults = true } = {}) {
+  const ws = requireWorkspace();
+  const p = getProject();
+  const preset = presetFor(p);
+  ctx.step('Read the source schema');
+  const schema = await describeModelSource({ refresh: true });
+  if (relationships?.length) schema.relationships = relationships;
+  const plan = buildPlan(schema, { include, names: names || preset?.names, descriptions: descriptions || preset?.descriptions });
+  if (!plan.tables.length) throw new Error('No tables found in the data source.');
+  ctx.log(`${plan.tables.length} tables, ${plan.relationships.length} relationships`);
+  ctx.progress(25);
+
+  let m = measures;
+  if (!m?.length) m = preset?.measures || (useDefaults ? defaultMeasures(plan) : []);
+  m = (m || []).filter((x) => plan.tables.some((t) => t.name === x.table));
+  const dateTable = preset?.dateTable && plan.tables.some((t) => t.name === preset.dateTable.table) ? preset.dateTable : null;
+  const modelName = name || p.semanticModel?.name || preset?.semanticModelName || `${p.modelSource.itemName} Model`;
+
+  ctx.step('Generate the Direct Lake model (TMDL)');
+  const files = semanticModelFiles({ name: modelName, src: { server: p.modelSource.server, endpointId: p.modelSource.endpointId, itemName: p.modelSource.itemName }, plan, measures: m, dateTable });
+  ctx.log(`${Object.keys(files).length} definition parts · ${m.length} measures`);
+  ctx.progress(45);
+
+  ctx.step(`Deploy semantic model "${modelName}"`);
+  const definition = F.toParts(files);
+  let item = await F.findItem(ws.id, 'SemanticModel', modelName);
+  if (item) {
+    await F.updateDefinition(ws.id, item.id, definition);
+    ctx.log('Updated existing model definition');
+  } else {
+    item = await F.createItem(ws.id, { name: modelName, type: 'SemanticModel', description: 'Direct Lake model generated by Fabric MCP Studio.', definition });
+    recordArtifact({ type: 'SemanticModel', id: item.id, name: modelName, workspaceId: ws.id });
+  }
+  ctx.progress(90);
+  updateProject({ semanticModel: { id: item.id, name: modelName, tables: plan.tables.length, measures: m.length, relationships: plan.relationships.length } });
+  setStep('model', 'done', modelName);
+  return { id: item.id, name: modelName, tables: plan.tables.map((t) => t.name), measures: m.map((x) => x.name), relationships: plan.relationships.length };
+}
+
+// ---------------- ontology ----------------
+
+export async function runOntology(ctx, { name, include, entityNames, rules, descriptions } = {}) {
+  const ws = requireWorkspace();
+  const p = getProject();
+  const preset = presetFor(p);
+  ctx.step('Read the source schema');
+  const schema = await describeModelSource();
+  const exclude = new Set((preset?.ontology?.exclude || []).map((x) => x.toLowerCase()));
+  const inc = include?.length ? include : schema.tables.filter((t) => !exclude.has(t.name.toLowerCase())).map((t) => `${t.schema}.${t.name}`);
+  const plan = buildPlan(schema, { include: inc, names: preset?.names, descriptions: preset?.descriptions });
+  const ontName = name || p.ontology?.name || preset?.ontologyName || `${p.modelSource.itemName} Ontology`;
+  const presetRules = preset?.ontology?.rules || [];
+  const ruleSet = rules?.length
+    ? rules.map((r) => {
+      const pr = presetRules.find((x) => x.name === r.name);
+      return pr && !r.entities?.length ? { ...pr, ...r, entities: pr.entities, relationships: pr.relationships } : r;
+    })
+    : presetRules;
+  ctx.progress(25);
+
+  ctx.step('Generate the ontology (entities, relationships, rules)');
+  const out = ontologyFiles({ name: ontName, src: { server: p.modelSource.server, endpointId: p.modelSource.endpointId }, plan, rules: ruleSet, entityNames: entityNames || preset?.ontology?.entityNames || {}, descriptions: descriptions || {} });
+  ctx.log(`${Object.keys(out.entities).length} entities · ${out.relationships.length} relationships · ${out.rules.length} rules`);
+  ctx.progress(45);
+
+  ctx.step(`Deploy ontology "${ontName}"`);
+  const definition = F.toParts(out.files);
+  let item = await F.findItem(ws.id, 'Ontology', ontName);
+  if (item) await F.updateDefinition(ws.id, item.id, definition);
+  else {
+    item = await F.createItem(ws.id, { name: ontName, type: 'Ontology', description: 'Business ontology generated by Fabric MCP Studio.', definition });
+    recordArtifact({ type: 'Ontology', id: item.id, name: ontName, workspaceId: ws.id });
+  }
+  updateProject({ ontology: { id: item.id, name: ontName, entities: Object.values(out.entities), rules: out.rules, relationships: out.relationships.map((r) => r.label) } });
+  setStep('ontology', 'done', ontName);
+  return { id: item.id, name: ontName, entities: Object.values(out.entities), rules: out.rules };
+}
+
+export function ontologyPreview({ include, rules } = {}) {
+  return (async () => {
+    const p = getProject();
+    const preset = presetFor(p);
+    const schema = await describeModelSource();
+    const exclude = new Set((preset?.ontology?.exclude || []).map((x) => x.toLowerCase()));
+    const inc = include?.length ? include : schema.tables.filter((t) => !exclude.has(t.name.toLowerCase())).map((t) => `${t.schema}.${t.name}`);
+    const plan = buildPlan(schema, { include: inc, names: preset?.names });
+    const out = ontologyFiles({ name: 'preview', src: { server: 's', endpointId: 'e' }, plan, rules: rules || preset?.ontology?.rules || [], entityNames: preset?.ontology?.entityNames || {} });
+    return {
+      entities: plan.tables.map((t) => ({ name: out.entities[t.key], table: `${t.schema}.${t.source}`, properties: t.columns.length, key: t.columns.find((c) => c.isKey)?.name || null })),
+      relationships: out.relationships,
+      rules: (rules || preset?.ontology?.rules || []).map((r) => ({ name: r.name, statement: r.statement })),
+    };
+  })();
+}
+
+// ---------------- Teams agent (Microsoft 365 Copilot) ----------------
+
+export function runTeamsAgent(ctx, { includeOntology = false, publish = false, dryRun = false } = {}) {
+  if (process.platform !== 'win32') throw new Error('The Teams agent installer is a PowerShell script. Run scripts/install-teams-agent.ps1 with PowerShell 7 on macOS/Linux.');
+  const script = join(REPO_ROOT, 'scripts', 'install-teams-agent.ps1');
+  const args = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script];
+  if (dryRun) args.push('-DryRun');
+  if (includeOntology) {
+    const p = getProject();
+    if (!p.ontology?.id) throw new Error('Deploy the ontology first, or install without it.');
+    args.push('-IncludeOntology', '-OntologyWorkspaceId', p.workspace.id, '-OntologyItemId', p.ontology.id);
+  }
+  if (publish) args.push('-Publish');
+  ctx.step(dryRun ? 'Validate the agent package (dry run)' : 'Install the Contoso Retail Analyst agent');
+  return new Promise((resolveP, reject) => {
+    const child = spawn('powershell.exe', args, { cwd: REPO_ROOT, windowsHide: true });
+    const onData = (b) => String(b).split(/\r?\n/).filter((l) => l.trim() && !/DeprecationWarning|trace-deprecation/.test(l)).forEach((l) => ctx.log(l));
+    child.stdout.on('data', onData);
+    child.stderr.on('data', onData);
+    ctx.signal.addEventListener('abort', () => child.kill());
+    child.on('error', reject);
+    child.on('exit', (code) => {
+      if (code === 0) {
+        if (!dryRun) { updateProject({ teamsAgent: { installedAt: new Date().toISOString(), includeOntology, published: publish } }); setStep('share', 'done', 'Teams agent installed'); }
+        resolveP({ ok: true });
+      } else reject(new Error(`Installer exited with code ${code}. See the log above.`));
+    });
+  });
+}
+
+// ---------------- Azure SQL sample (AdventureWorksLT) ----------------
+
+const az = (args, ctx, { json = true } = {}) => runAz(args, { json, signal: ctx?.signal, onCommand: (c) => ctx?.log(c) });
+
+export async function listSubscriptions() {
+  const subs = await az(['account', 'list', '--query', '[?state==`Enabled`].{id:id,name:name,tenantId:tenantId,isDefault:isDefault}']);
+  return subs || [];
+}
+
+export async function runAzureSqlSample(ctx, { subscriptionId, resourceGroup, location, serverName, adminUser, adminPassword, databaseName = 'AdventureWorksLT' }) {
+  if (!subscriptionId || !resourceGroup || !location || !serverName || !adminUser || !adminPassword) throw new Error('All fields are required.');
+  const sub = ['--subscription', subscriptionId];
+  ctx.step('Create resource group');
+  await az(['group', 'create', '-n', resourceGroup, '-l', location, ...sub, '--tags', 'createdBy=fabric-mcp-studio'], ctx);
+  ctx.progress(10);
+  ctx.step('Create Azure SQL logical server (managed identity on)');
+  const existing = await az(['sql', 'server', 'show', '-g', resourceGroup, '-n', serverName, ...sub], ctx).catch(() => null);
+  if (!existing) {
+    await az(['sql', 'server', 'create', '-g', resourceGroup, '-n', serverName, '-l', location, '--admin-user', adminUser, '--admin-password', adminPassword, '--assign-identity', '--enable-public-network', 'true', ...sub], ctx);
+  } else {
+    await az(['sql', 'server', 'update', '-g', resourceGroup, '-n', serverName, '--assign_identity', ...sub], ctx).catch(() => null);
+  }
+  ctx.progress(40);
+  ctx.step('Allow Azure services (Fabric) through the firewall');
+  await az(['sql', 'server', 'firewall-rule', 'create', '-g', resourceGroup, '-s', serverName, '-n', 'AllowAzureServices', '--start-ip-address', '0.0.0.0', '--end-ip-address', '0.0.0.0', ...sub], ctx);
+  ctx.progress(50);
+  ctx.step('Create AdventureWorksLT database (serverless, auto-pause)');
+  const dbExists = await az(['sql', 'db', 'show', '-g', resourceGroup, '-s', serverName, '-n', databaseName, ...sub], ctx).catch(() => null);
+  if (!dbExists) {
+    await az(['sql', 'db', 'create', '-g', resourceGroup, '-s', serverName, '-n', databaseName, '--sample-name', 'AdventureWorksLT', '--edition', 'GeneralPurpose', '--family', 'Gen5', '--capacity', '2', '--compute-model', 'Serverless', '--auto-pause-delay', '60', '--backup-storage-redundancy', 'Local', ...sub], ctx);
+  }
+  ctx.progress(95);
+  const server = `${serverName}.database.windows.net`;
+  updateProject({ azureSample: { subscriptionId, resourceGroup, serverName, server, database: databaseName, createdAt: new Date().toISOString() } });
+  logActivity('azure.sample', `Provisioned AdventureWorksLT on ${server}`, { resourceGroup });
+  return { server, database: databaseName, adminUser };
+}
+
+// ---------------- teardown ----------------
+
+export async function runTeardown(ctx, { deleteWorkspace = false, deleteAzureSample = false } = {}) {
+  const p = getProject();
+  if (deleteWorkspace && p.workspace?.created) {
+    ctx.step(`Delete workspace ${p.workspace.name}`);
+    await F.deleteWorkspace(p.workspace.id);
+  } else if (p.workspace) {
+    ctx.step('Delete items created by the studio');
+    for (const it of [p.ontology, p.semanticModel].filter(Boolean)) {
+      try { await F.deleteItem(p.workspace.id, it.id); ctx.log(`Deleted ${it.name}`); } catch (e) { ctx.log(`Could not delete ${it.name}: ${e.message}`); }
+    }
+    if (p.source?.method === 'mirror' && p.modelSource?.itemId) {
+      try { await F.stopMirroring(p.workspace.id, p.modelSource.itemId); } catch { /* ignore */ }
+      try { await F.deleteItem(p.workspace.id, p.modelSource.itemId); ctx.log(`Deleted ${p.modelSource.itemName}`); } catch (e) { ctx.log(e.message); }
+    }
+    if (p.lakehouse?.id) {
+      try { await F.deleteItem(p.workspace.id, p.lakehouse.id); ctx.log(`Deleted ${p.lakehouse.name}`); } catch (e) { ctx.log(e.message); }
+    }
+  }
+  if (deleteAzureSample && p.azureSample?.resourceGroup) {
+    ctx.step(`Delete Azure resource group ${p.azureSample.resourceGroup}`);
+    await az(['group', 'delete', '-n', p.azureSample.resourceGroup, '--subscription', p.azureSample.subscriptionId, '--yes', '--no-wait'], ctx, { json: false });
+  }
+  return { ok: true };
+}
+
+export const ids = { stableUuid };
