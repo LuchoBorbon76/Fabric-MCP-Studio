@@ -1,10 +1,10 @@
 // Fabric MCP Studio - local web server (127.0.0.1 only). No framework: node:http + SSE + static files.
 import { createServer } from 'node:http';
-import { readFileSync, existsSync, statSync } from 'node:fs';
+import { readFileSync, existsSync, statSync, rmSync } from 'node:fs';
 import { join, extname, normalize } from 'node:path';
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { WEB_ROOT, VERSION, getSettings, saveSettings, publicSettings } from './config.mjs';
+import { WEB_ROOT, DATA_DIR, VERSION, getSettings, saveSettings, publicSettings, readJson, writeJson, shortHash } from './config.mjs';
 import { addClient, emit } from './events.mjs';
 import * as auth from './auth.mjs';
 import * as F from './fabric.mjs';
@@ -31,6 +31,32 @@ if (flag('--check')) {
   process.exit(h.ready ? 0 : 1);
 }
 
+// ---------------- single instance ----------------
+// Launching again (desktop shortcut, Start-Studio.cmd) opens the copy that is already running for this data folder.
+
+const INSTANCE = shortHash(DATA_DIR.toLowerCase());
+const RUNTIME_FILE = join(DATA_DIR, 'runtime.json');
+
+async function runningInstanceUrl() {
+  const ports = new Set([Number(readJson(RUNTIME_FILE, {}).port) || 0, PORT].filter(Boolean));
+  for (const p of ports) {
+    try {
+      const r = await fetch(`http://127.0.0.1:${p}/`, { signal: AbortSignal.timeout(1500) });
+      if (r.headers.get('x-studio-instance') === INSTANCE) return `http://127.0.0.1:${p}/`;
+    } catch { /* not running */ }
+  }
+  return null;
+}
+
+if (!flag('--new-instance')) {
+  const url = await runningInstanceUrl();
+  if (url) {
+    console.log(`\n  Fabric MCP Studio is already running at ${url}\n`);
+    if (!flag('--no-open')) openBrowser(url);
+    process.exit(0);
+  }
+}
+
 // ---------------- helpers ----------------
 
 function send(res, status, data, headers = {}) {
@@ -53,7 +79,7 @@ function serveStatic(req, res, pathname) {
   if (!file.startsWith(WEB_ROOT) || !existsSync(file) || statSync(file).isDirectory()) return send(res, 404, 'Not found');
   let content = readFileSync(file);
   if (file.endsWith('index.html')) content = Buffer.from(content.toString('utf8').replace('__STUDIO_TOKEN__', TOKEN).replace(/__STUDIO_VERSION__/g, VERSION));
-  res.writeHead(200, { 'Content-Type': MIME[extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer' });
+  res.writeHead(200, { 'Content-Type': MIME[extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'X-Studio-Instance': INSTANCE });
   res.end(content);
 }
 
@@ -200,15 +226,20 @@ function listen(port, attempts = 10) {
   server.listen(port, '127.0.0.1', () => {
     PORT = port;
     const url = `http://127.0.0.1:${port}/`;
+    try { writeJson(RUNTIME_FILE, { pid: process.pid, port, url, startedAt: new Date().toISOString() }); } catch { /* read-only data folder */ }
     console.log(`\n  Fabric MCP Studio ${VERSION} is running at ${url}\n  Press Ctrl+C to stop.\n`);
     if (!flag('--no-open')) openBrowser(url);
   });
 }
+
+process.on('exit', () => {
+  try { if (readJson(RUNTIME_FILE, {}).pid === process.pid) rmSync(RUNTIME_FILE, { force: true }); } catch { /* ignore */ }
+});
 
 function openBrowser(url) {
   const cmd = process.platform === 'win32' ? ['cmd', ['/c', 'start', '""', url]] : process.platform === 'darwin' ? ['open', [url]] : ['xdg-open', [url]];
   try { spawn(cmd[0], cmd[1], { detached: true, stdio: 'ignore', windowsHide: true }).unref(); } catch { /* ignore */ }
 }
 
-for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, async () => { await A.stopAgent(); process.exit(0); });
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, async () => { await A.stopAgent(); process.exit(0); });
 listen(PORT);

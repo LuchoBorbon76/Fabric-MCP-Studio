@@ -28,6 +28,7 @@ Every step has a quick action **and** a Copilot path. Copilot calls the Fabric M
 git clone https://github.com/luisbor_microsoft/fabric-mcp-server-luisbor.git
 cd fabric-mcp-server-luisbor
 .\Start-Studio.cmd            # Windows  (macOS/Linux: ./studio/start-studio.sh)
+.\scripts\create-shortcut.ps1 # optional: "Fabric MCP Studio" icon on the desktop (-StartMenu for the Start menu too)
 ```
 
 Requirements: Node.js 20.19+, a Microsoft Entra work account with Fabric access, and one AI provider.
