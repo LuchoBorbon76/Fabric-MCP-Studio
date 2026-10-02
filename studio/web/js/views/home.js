@@ -35,7 +35,7 @@ export function renderHome(el) {
   }));
 
   const journey = h('div', { class: 'card' },
-    h('div', { class: 'row sp' }, h('h2', {}, 'Your journey'), st.current ? h('button', { class: 'btn ai', onclick: () => app.ask(nextPrompt(st.current, p), { open: 'tab' }) }, '✦ Let Copilot do the next step') : h('span', { class: 'pill ok' }, 'All steps complete')),
+    h('div', { class: 'row sp' }, h('h2', {}, 'Your journey'), st.current ? h('button', { class: 'btn ai', onclick: () => app.ask(nextPrompt(st.current, p), { view: STEPS.find((x) => x.id === st.current)?.view }) }, '✦ Let Copilot do the next step') : h('span', { class: 'pill ok' }, 'All steps complete')),
     h('p', { class: 'lead' }, 'Each step can be done with a quick action or by asking Copilot.'),
     steps);
 

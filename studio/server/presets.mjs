@@ -197,3 +197,19 @@ export function presetFor(project) {
   if (project?.source?.kind === 'sample' && project.source.id === 'adventureworks-dw') return ADVENTUREWORKS;
   return null;
 }
+
+/** What the UI needs from a sample preset (curated tables, business names, model name, measures, questions). */
+export function presetSummary(project) {
+  const p = presetFor(project);
+  if (!p) return null;
+  return {
+    label: p === RETAIL ? 'Contoso Retail' : 'AdventureWorksDW2022',
+    include: p.include || null,
+    names: p.names || {},
+    semanticModelName: p.semanticModelName,
+    ontologyName: p.ontologyName,
+    measureCount: p.measures?.length || 0,
+    measureNames: (p.measures || []).map((m) => m.name),
+    starterQuestions: p.starterQuestions || [],
+  };
+}

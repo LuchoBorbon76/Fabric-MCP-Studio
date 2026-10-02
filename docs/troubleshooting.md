@@ -25,6 +25,14 @@
 | Log shows *schema change of the target table – retrying* | Fabric started replicating a table while it was being loaded | Retried automatically; no action needed |
 | Running the sample again | – | If the database already holds the complete, verified data it's reused; an incomplete load is removed and reloaded |
 
+## Starting the studio
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Double-clicking the desktop icon shows *Fabric MCP Studio could not start* | The server stopped during start-up (the dialog shows the last lines of `studio/data/studio.log`) | Fix the error shown, for example install Node.js 20.19+ or free the port. Run `Start-Studio.cmd` to see the full output in a console |
+| Nothing opens and there is no message | Windows Script Host is turned off by policy | Run `.\scripts\create-shortcut.ps1` again: it detects this and creates a console shortcut. Or use `Start-Studio.cmd` |
+| How do I stop the studio started from the icon? | It runs in the background, without a window | **Shut down** in the app. Starting the icon again while it runs just reopens the browser |
+
 ## Studio sign-in and tenants
 
 | Symptom | Cause | Fix |

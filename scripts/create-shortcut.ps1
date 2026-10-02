@@ -3,9 +3,13 @@
     Create a "Fabric MCP Studio" shortcut on the desktop (and optionally in the Start menu).
 
 .DESCRIPTION
-    The shortcut runs Start-Studio.cmd from this repository in a minimized window and opens the studio in your
-    browser. If the studio is already running, it opens the running copy instead of starting a second one.
+    The shortcut starts the studio in the background (no console window) and opens it in your browser. If the
+    studio is already running, it opens the running copy instead of starting a second one. Stop the studio with
+    "Shut down" in the app; server output is written to studio\data\studio.log.
     Installs the studio's Node.js dependencies first (if needed) so the first launch is quick.
+
+    If Windows Script Host is turned off on this computer (some organizations do that), or you use -ShowConsole,
+    the shortcut runs Start-Studio.cmd in a minimized console window instead.
 
 .EXAMPLE
     .\scripts\create-shortcut.ps1
@@ -16,6 +20,10 @@
     Desktop and Start menu shortcuts.
 
 .EXAMPLE
+    .\scripts\create-shortcut.ps1 -ShowConsole
+    Desktop shortcut that runs the studio in a minimized console window (useful for troubleshooting).
+
+.EXAMPLE
     .\scripts\create-shortcut.ps1 -Remove
     Remove the shortcuts.
 #>
@@ -24,6 +32,7 @@ param(
     [switch]$StartMenu,
     [switch]$Remove,
     [switch]$SkipInstall,
+    [switch]$ShowConsole,
     [string]$Name = 'Fabric MCP Studio'
 )
 
@@ -33,6 +42,8 @@ if ($env:OS -ne 'Windows_NT') { throw 'Shortcuts are created on Windows only. On
 
 $launcher = Join-Path $script:RepoRoot 'Start-Studio.cmd'
 $studio = Join-Path $script:RepoRoot 'studio'
+$silent = Join-Path $studio 'Start-Studio-Silent.wsf'
+$wscript = Join-Path $env:SystemRoot 'System32\wscript.exe'
 $icon = Join-Path $studio 'assets\fabric-mcp-studio.ico'
 $locations = @([Environment]::GetFolderPath('Desktop'))
 if ($StartMenu) { $locations += [Environment]::GetFolderPath('Programs') }
@@ -51,6 +62,16 @@ if (-not (Get-Command node -ErrorAction SilentlyContinue)) { throw 'Node.js 20 o
 Write-Ok "Node.js $(node --version)"
 if (-not (Test-Path -LiteralPath $launcher)) { throw "Start-Studio.cmd was not found at $launcher." }
 
+function Test-ScriptHostEnabled {
+    foreach ($hive in 'HKCU:', 'HKLM:') {
+        $v = Get-ItemProperty -Path "$hive\Software\Microsoft\Windows Script Host\Settings" -Name Enabled -ErrorAction SilentlyContinue
+        if ($v -and "$($v.Enabled)" -eq '0') { return $false }
+    }
+    return (Test-Path -LiteralPath $wscript)
+}
+$useSilent = -not $ShowConsole -and (Test-Path -LiteralPath $silent) -and (Test-ScriptHostEnabled)
+if (-not $ShowConsole -and -not $useSilent) { Write-Warn2 'Windows Script Host is turned off on this computer, so the shortcut uses a minimized console window.' }
+
 if (-not $SkipInstall -and -not (Test-Path -LiteralPath (Join-Path $studio 'node_modules\@github\copilot-sdk'))) {
     Write-Step 'Installing studio dependencies (first run only)'
     Push-Location $studio
@@ -67,12 +88,20 @@ foreach ($dir in $locations) {
     if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
     $path = Join-Path $dir "$Name.lnk"
     $lnk = $shell.CreateShortcut($path)
-    $lnk.TargetPath = $launcher
+    if ($useSilent) {
+        $lnk.TargetPath = $wscript
+        $lnk.Arguments = "//nologo `"$silent`""
+        $lnk.WindowStyle = 1
+    } else {
+        $lnk.TargetPath = $launcher
+        $lnk.Arguments = ''
+        $lnk.WindowStyle = 7   # minimized - the studio opens in your browser
+    }
     $lnk.WorkingDirectory = $studio
-    $lnk.WindowStyle = 7   # minimized - the studio opens in your browser
     $lnk.Description = 'Build Fabric workspaces, semantic models and ontologies with the Copilot you already use.'
     if (Test-Path -LiteralPath $icon) { $lnk.IconLocation = "$icon,0" }
     $lnk.Save()
     Write-Ok $path
 }
-Write-Info 'Double-click the shortcut to open the studio. Close it with "Shut down" in the app (or close its taskbar window).'
+if ($useSilent) { Write-Info 'Double-click the shortcut to open the studio. It runs in the background; stop it with "Shut down" in the app.' }
+else { Write-Info 'Double-click the shortcut to open the studio. Stop it with "Shut down" in the app (or close its taskbar window).' }

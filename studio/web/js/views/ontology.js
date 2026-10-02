@@ -1,6 +1,6 @@
 import { store, get, post, patch, on } from '../api.js';
 import { h, toast, busy, field, input } from '../ui.js';
-import { app } from '../app.js';
+import { app, copilotSlot } from '../app.js';
 
 let rules = null;
 
@@ -11,7 +11,7 @@ export function renderOntology(el) {
     return;
   }
   if (p.ontology) el.append(ontologyCard(p));
-  el.append(h('div', { class: 'grid g2', style: { marginTop: p.ontology ? '14px' : 0 } }, glossaryCard(p), designerCard(p)));
+  el.append(h('div', { class: 'grid g2', style: { marginTop: p.ontology ? '14px' : 0 } }, glossaryCard(p), designerCard(p)), copilotSlot());
 }
 
 function ontologyCard(p) {
@@ -52,7 +52,7 @@ function glossaryCard(p) {
 
 function designerCard(p) {
   const card = h('div', { class: 'card' });
-  const name = input({ value: p.ontology?.name || (p.source?.id === 'retail' ? 'Contoso_Retail_Ontology' : `${p.modelSource.itemName.replace(/[^A-Za-z0-9_]+/g, '_')}_Ontology`) });
+  const name = input({ value: p.ontology?.name || store.preset?.ontologyName || (p.source?.id === 'retail' ? 'Contoso_Retail_Ontology' : `${p.modelSource.itemName.replace(/[^A-Za-z0-9_]+/g, '_')}_Ontology`) });
   const preview = h('div', {}, h('div', { class: 'row muted' }, h('span', { class: 'spin' }), 'Building a preview from your tables…'));
   const rulesBox = h('div');
   const job = h('div', { class: 'mt' });

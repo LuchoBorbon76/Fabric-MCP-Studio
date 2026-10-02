@@ -2,11 +2,23 @@
 export const app = {
   go: () => {},
   ask: () => {},
+  placeChat: () => {},
   refresh: async () => {},
   rerender: () => {},
   jobCard: () => null,
   watchJob: () => {},
 };
+
+/**
+ * Where Copilot opens inside a view. Copilot is always embedded in the page (never a pop-up): app.ask() from a view
+ * moves the chat into that view's slot. One slot per view; views without one use the Copilot tab.
+ */
+export function copilotSlot() {
+  const el = document.createElement('section');
+  el.className = 'cslot';
+  el.hidden = true;
+  return el;
+}
 
 export const STEPS = [
   { id: 'ai', view: 'settings', title: 'Connect your AI', desc: 'Pick the Copilot or model you already license' },

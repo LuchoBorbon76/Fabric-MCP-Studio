@@ -1,8 +1,8 @@
-// Entry point: header, KPI strip, navigation, approvals, job dock and the Copilot panel.
-import { get, post, patch, store, on, connectEvents } from './api.js';
-import { h, $, $$, toast, modal, initials, statusDot, fmtTime, busy, SERVER_LABEL } from './ui.js';
-import { app, STEPS, stepStatus, suggestions } from './app.js';
-import { chatElement, ask as chatAsk, refreshHeader, refreshSuggestions, setPanelMode } from './chat.js';
+// Entry point: header, KPI strip, navigation, approvals, job dock and the embedded Copilot.
+import { get, post, store, on, connectEvents } from './api.js';
+import { h, $, $$, toast, modal, initials, statusDot, busy, SERVER_LABEL } from './ui.js';
+import { app, stepStatus, suggestions } from './app.js';
+import { chatElement, ask as chatAsk, refreshHeader, refreshSuggestions, setPanelMode, scrollChatToEnd, focusChat } from './chat.js';
 import { renderHome } from './views/home.js';
 import { renderCopilot } from './views/copilot.js';
 import { renderWorkspace } from './views/workspace.js';
@@ -174,6 +174,7 @@ function renderView(id) {
   el.innerHTML = '';
   try { VIEWS[id].render(el); } catch (e) { el.append(h('div', { class: 'banner err' }, `Could not render this view: ${e.message}`)); console.error(e); }
   rendered.add(id);
+  if (id === current) placeChat();
 }
 
 export function go(id) {
@@ -183,7 +184,6 @@ export function go(id) {
   $$('.view').forEach((v) => v.classList.toggle('on', v.id === `view-${id}`));
   renderView(id);
   renderNav();
-  placeChat();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -195,34 +195,48 @@ function renderAll() {
   refreshSuggestions();
 }
 
-// ---------------- Copilot panel ----------------
-const fab = $('#askfab');
-const panel = $('#askpanel');
+// ---------------- Copilot (embedded) ----------------
+// One chat component. It lives in the Copilot tab, or embedded in the current view's Copilot slot (.cslot) when the
+// user asks from that view. Nothing floats over the page.
+const inlineOpen = new Set();
 const chatEl = chatElement({
   suggestions: () => suggestions(store.project, store.preset),
-  onClose: () => { panel.hidden = true; fab.hidden = current === 'copilot'; },
+  onClose: () => { inlineOpen.delete(current); placeChat(); },
 });
 
-function placeChat() {
-  if (current === 'copilot') {
-    const slot = $('#chatSlot');
-    if (slot && chatEl.parentElement !== slot) slot.append(chatEl);
-    panel.hidden = true;
-    fab.hidden = true;
-    setPanelMode(false);
-  } else {
-    if (chatEl.parentElement !== panel) panel.append(chatEl);
-    fab.hidden = !panel.hidden;
-    setPanelMode(true);
-  }
+function viewSlot(id = current) {
+  return id === 'copilot' ? $('#chatSlot') : $(`#view-${id} .cslot`);
 }
 
-fab.addEventListener('click', () => { panel.hidden = false; fab.hidden = true; placeChat(); });
+function placeChat() {
+  const slot = viewSlot();
+  for (const s of $$('.cslot')) if (s !== slot) s.hidden = true;
+  if (current === 'copilot' && slot) {
+    if (chatEl.parentElement !== slot) { slot.append(chatEl); scrollChatToEnd(); }
+    setPanelMode(false);
+    return;
+  }
+  if (slot && inlineOpen.has(current)) {
+    slot.hidden = false;
+    if (chatEl.parentElement !== slot) { slot.append(chatEl); scrollChatToEnd(); }
+    setPanelMode(true);
+    return;
+  }
+  if (slot) slot.hidden = true;
+  if (chatEl.parentElement && chatEl.parentElement.id !== 'chatSlot') chatEl.remove();
+}
 
-function askCopilot(prompt, { open = 'panel' } = {}) {
-  if (open === 'tab') go('copilot');
-  else if (current !== 'copilot') { panel.hidden = false; fab.hidden = true; placeChat(); }
-  chatAsk(prompt);
+/** Open Copilot embedded in a view (default: the current one) and send a prompt. */
+function askCopilot(prompt, { view } = {}) {
+  if (view && view !== current) go(view);
+  const slot = viewSlot();
+  if (!slot) { go('copilot'); } else if (current !== 'copilot') {
+    inlineOpen.add(current);
+    placeChat();
+    setTimeout(() => slot.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+  }
+  if (prompt) chatAsk(prompt);
+  else focusChat();
 }
 
 // ---------------- approvals ----------------
@@ -337,7 +351,13 @@ on('server.down', () => {
 });
 on('server.up', () => { $('#offline').hidden = true; });
 
-on('project.updated', () => { renderHeader(); renderKpis(); refreshSuggestions(); if (['home', 'model', 'ontology', 'share', 'workspace'].includes(current)) renderView(current); });
+let presetSource;
+on('project.updated', async () => {
+  const sid = store.project?.source?.id || null;
+  if (sid !== presetSource) { presetSource = sid; try { store.preset = await get('/preset'); } catch { /* keep */ } }
+  renderHeader(); renderKpis(); refreshSuggestions();
+  if (['home', 'model', 'ontology', 'share', 'workspace'].includes(current)) renderView(current);
+});
 on('provider', (e) => { store.provider = e.provider; renderHeader(); renderKpis(); });
 on('auth', (e) => { store.user = e.user; renderAll(); });
 
@@ -346,6 +366,7 @@ async function refresh() {
   try {
     const b = await get('/bootstrap');
     Object.assign(store, { user: b.user, settings: b.settings, provider: b.provider, providers: b.providers, project: b.project, catalog: b.catalog, chats: b.chats, approvals: b.approvals, preset: b.preset, platform: b.platform });
+    presetSource = b.project?.source?.id || null;
     for (const j of b.jobs) {
       store.jobs.set(j.id, j);
       if (j.status === 'running') dockJobs.add(j.id);
@@ -363,7 +384,7 @@ async function refresh() {
   refreshHeader();
 }
 
-Object.assign(app, { go, ask: askCopilot, refresh, rerender: () => renderView(current), jobCard, watchJob: (id) => { dockJobs.add(id); renderDock(); } });
+Object.assign(app, { go, ask: askCopilot, placeChat, refresh, rerender: () => renderView(current), jobCard, watchJob: (id) => { dockJobs.add(id); renderDock(); } });
 
 connectEvents();
 await refresh();

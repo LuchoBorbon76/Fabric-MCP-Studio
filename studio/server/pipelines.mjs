@@ -70,6 +70,7 @@ async function ensureProjectLakehouse(name, log) {
 }
 
 function setModelSource(ms, label) {
+  discoveryCache = { key: null, at: 0, data: null };
   updateProject({ modelSource: ms });
   setStep('data', 'done', label);
 }
@@ -276,7 +277,7 @@ export async function runSemanticModel(ctx, { name, include, names, relationship
   ctx.step('Read the source schema');
   const schema = await describeModelSource({ refresh: true });
   if (relationships?.length) schema.relationships = relationships;
-  const plan = buildPlan(schema, { include: include?.length ? include : preset?.include, names: names || preset?.names, descriptions: descriptions || preset?.descriptions });
+  const plan = buildPlan(schema, { include: include?.length ? include : preset?.include, names: { ...(preset?.names || {}), ...(names || {}) }, descriptions: descriptions || preset?.descriptions });
   if (!plan.tables.length) throw new Error('No tables found in the data source.');
   ctx.log(`${plan.tables.length} tables, ${plan.relationships.length} relationships`);
   ctx.progress(25);

@@ -19,13 +19,18 @@ Everything runs on the customer's computer, signs in to Fabric as the customer, 
 
 | OS | Command |
 |---|---|
-| Windows | Double-click `Start-Studio.cmd` (repository root or this folder), or run `.\scripts\create-shortcut.ps1` once for a **Fabric MCP Studio** desktop icon (`-StartMenu` adds it to the Start menu) |
+| Windows | Run `.\scripts\create-shortcut.ps1` once for a **Fabric MCP Studio** desktop icon (`-StartMenu` adds it to the Start menu), or double-click `Start-Studio.cmd` (repository root or this folder) |
 | macOS / Linux | `./studio/start-studio.sh` |
 | Any | `cd studio && npm install && npm start` |
 
 The first run installs dependencies (~150 MB, includes the GitHub Copilot runtime). The app opens at
 `http://127.0.0.1:4870`. Launching it again while it is running just reopens the running copy in your browser.
 Options: `--port 5000`, `--no-open`, `--check` (readiness checks only), `--new-instance` (start another copy).
+
+The desktop icon starts the studio in the background, with no console window (`Start-Studio-Silent.wsf`, Windows
+Script Host). Stop it with **Shut down** in the app header; server output goes to `studio/data/studio.log`.
+`Start-Studio.cmd` runs it in a console window instead (`create-shortcut.ps1 -ShowConsole` makes the icon do the same,
+and it is used automatically when Windows Script Host is turned off).
 
 **Requirements:** Node.js 20.19+ (LTS), a Microsoft Entra work account with access to Microsoft Fabric, and one AI
 provider (below). Optional: Azure CLI (sign-in reuse), PowerShell (Teams agent installer). The AdventureWorksDW2022 sample
@@ -61,6 +66,8 @@ flowchart LR
 
 - **Two ways to do every step**: quick actions (deterministic, using Fabric REST APIs) or Copilot (MCP servers +
   studio tools). Both update the same project state.
+- **Copilot inside every step**: Copilot opens right in the tab you are working in (for example below the tables and
+  relationships in *Semantic model*), never in a separate window. The **Copilot** tab shows the same conversation full size.
 - **Approvals**: every tool call that creates or changes something opens a review dialog with the exact request.
   Modes: *Ask every time* (default), *Auto-approve*, *Read-only*.
 - **Secrets never reach the AI**: database credentials are entered in the Data tab and sent straight to Fabric to
@@ -101,7 +108,8 @@ analytics endpoint) and infers relationships from naming conventions when no for
 | `server/agent-instructions.md` | System instructions for the agent |
 | `web/` | UI (vanilla ES modules, MSX Command Center design, 9 themes) |
 | `assets/` | App icon (`fabric-mcp-studio.ico` / `.png`) used by the desktop shortcut |
-| `data/` | Local state (git-ignored): project, activity log, chat transcripts, Copilot runtime home |
+| `Start-Studio-Silent.wsf` | Windows launcher used by the desktop shortcut: starts the studio without a console window, reuses a running copy, reports start-up errors |
+| `data/` | Local state (git-ignored): project, activity log, chat transcripts, Copilot runtime home, `studio.log` |
 
 ## Troubleshooting
 

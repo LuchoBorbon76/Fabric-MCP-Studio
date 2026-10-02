@@ -6,13 +6,14 @@ connected to the same MCP servers. Allow 30–45 minutes the first time.
 ## Before you start
 
 - [ ] `Start-Studio.cmd` (Windows) or `./studio/start-studio.sh` – the app opens in your browser. On Windows,
-      `.\scripts\create-shortcut.ps1` adds a **Fabric MCP Studio** icon to the desktop.
+      `.\scripts\create-shortcut.ps1` adds a **Fabric MCP Studio** icon to the desktop that runs the studio in the
+      background (stop it with **Shut down** in the app).
 - [ ] Sign in with the Microsoft Entra work account that has Fabric access (top right)
 - [ ] **Check setup** shows green for Microsoft Entra, Fabric capacity, your AI provider and the MCP servers
 - [ ] Optional: pick your AI provider in **Settings › AI provider** (GitHub Copilot, Azure AI Foundry, OpenAI, Anthropic, local)
 
-Everything below can be done with the quick action buttons **or** by asking Copilot. Copilot asks for your approval
-before each change.
+Everything below can be done with the quick action buttons **or** by asking Copilot. Copilot opens inside the tab you
+are working in (no separate window) and asks for your approval before each change.
 
 ## 1. Workspace
 

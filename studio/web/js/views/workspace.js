@@ -1,6 +1,6 @@
 import { store, get, post } from '../api.js';
 import { h, toast, busy, field, input, select, seg, fmtNum } from '../ui.js';
-import { app } from '../app.js';
+import { app, copilotSlot } from '../app.js';
 
 let mode = 'new';
 let caps = null;
@@ -16,7 +16,7 @@ export function renderWorkspace(el) {
     h('div', { class: 'row sp' }, h('div', {}, h('h2', {}, p.workspace ? 'Switch workspace' : 'Choose a workspace'), h('p', { class: 'lead' }, 'Everything the studio builds lands in one Fabric workspace on a capacity.')),
       seg([{ value: 'new', label: 'Create new' }, { value: 'existing', label: 'Use existing' }], mode, (v) => { mode = v; draw(); })),
     body);
-  el.append(card);
+  el.append(card, copilotSlot());
 
   const draw = () => { body.innerHTML = ''; body.append(mode === 'new' ? newForm() : existingList()); };
   draw();

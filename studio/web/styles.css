@@ -183,9 +183,10 @@ ul.pre{margin:6px 0 0;padding-left:18px;font-size:12px;color:var(--muted)}
 .dock .job{box-shadow:0 8px 24px rgba(0,0,0,.18)}
 
 /* ---------- chat ---------- */
-.askfab{position:fixed;right:22px;bottom:22px;z-index:60;display:inline-flex;align-items:center;gap:8px;border:0;border-radius:24px;padding:11px 18px;background:linear-gradient(120deg,var(--hdr1),var(--hdr2));color:#fff;font-size:13.5px;font-weight:600;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.28)}
-.askfab:hover{filter:brightness(1.06);transform:translateY(-1px)}
-.askpanel{position:fixed;right:22px;bottom:22px;z-index:61;width:480px;max-width:calc(100vw - 32px);height:min(720px,calc(100vh - 70px));display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.4);overflow:hidden}
+/* Copilot embedded in a view (below the content it works on) */
+.cslot{margin-top:14px;height:clamp(440px,68vh,680px);display:flex;flex-direction:column;scroll-margin-top:16px}
+.cslot[hidden]{display:none}
+.cslot>.chat{flex:1;box-shadow:0 0 0 1px color-mix(in srgb,var(--brand) 35%,transparent),var(--shadow)}
 .chatwrap{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:14px;height:calc(100vh - 290px);min-height:480px}
 .chatwrap>*{min-width:0;min-height:0}
 #chatSlot{display:flex;flex-direction:column;height:100%}

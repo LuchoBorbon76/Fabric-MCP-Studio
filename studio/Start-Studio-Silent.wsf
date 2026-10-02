@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package>
+<job id="start">
+<!--
+  Starts Fabric MCP Studio without a console window and opens it in your browser.
+  The desktop shortcut (scripts\create-shortcut.ps1) runs this file with: wscript.exe //nologo Start-Studio-Silent.wsf
+  - If the studio is already running, it opens the running copy.
+  - First run installs the Node.js dependencies (hidden; progress in data\install.log).
+  - Server output goes to data\studio.log (the previous run is kept as data\studio.prev.log).
+  - Stop the studio with "Shut down" in the app. Use Start-Studio.cmd to run it with a console instead.
+  Arguments are passed to the server, for example: wscript.exe Start-Studio-Silent.wsf - -port 4880
+-->
+<script language="JScript"><![CDATA[
+var TITLE = 'Fabric MCP Studio';
+var shell = new ActiveXObject('WScript.Shell');
+var fso = new ActiveXObject('Scripting.FileSystemObject');
+
+var studio = fso.GetParentFolderName(WScript.ScriptFullName);
+shell.CurrentDirectory = studio;
+var envData = shell.ExpandEnvironmentStrings('%STUDIO_DATA_DIR%');
+var data = envData.charAt(0) === '%' ? fso.BuildPath(studio, 'data') : fso.GetAbsolutePathName(envData);
+var runtimeFile = fso.BuildPath(data, 'runtime.json');
+var logFile = fso.BuildPath(data, 'studio.log');
+var prevLog = fso.BuildPath(data, 'studio.prev.log');
+var installLog = fso.BuildPath(data, 'install.log');
+var okFlag = fso.BuildPath(data, 'launcher-exit-ok.flag');
+var failFlag = fso.BuildPath(data, 'launcher-exit-failed.flag');
+
+function q(s) { return '"' + s + '"'; }
+function popup(msg, secs, flags) { return shell.Popup(msg, secs || 0, TITLE, flags || 0); }
+// Runs a command line through cmd.exe in a hidden window. Returns the exit code when wait is true.
+function hidden(cmd, wait) { return shell.Run('%ComSpec% /d /s /c ' + q(cmd), 0, !!wait); }
+function sleep(ms) { WScript.Sleep(ms); }
+
+function readText(path) {
+  try { var f = fso.OpenTextFile(path, 1, false); var t = f.AtEndOfStream ? '' : f.ReadAll(); f.Close(); return t; } catch (e) { return ''; }
+}
+function tail(path, n) {
+  var lines = readText(path).replace(/\r/g, '').replace(/\s+$/, '').split('\n');
+  return lines.slice(Math.max(0, lines.length - n)).join('\n');
+}
+function ensureFolder(path) {
+  if (fso.FolderExists(path)) return;
+  ensureFolder(fso.GetParentFolderName(path));
+  fso.CreateFolder(path);
+}
+function remove(path) { try { if (fso.FileExists(path)) fso.DeleteFile(path, true); } catch (e) { /* in use */ } }
+
+// The URL of the studio that is already running for this data folder, or null.
+function runningUrl() {
+  var m = /"url"\s*:\s*"([^"]+)"/.exec(readText(runtimeFile));
+  if (!m) return null;
+  try {
+    var x = new ActiveXObject('MSXML2.ServerXMLHTTP.6.0');
+    x.setTimeouts(1000, 1000, 2000, 2000);
+    x.open('GET', m[1], false);
+    x.send();
+    return x.getResponseHeader('X-Studio-Instance') ? m[1] : null;
+  } catch (e) { return null; }
+}
+
+var args = [];
+var newInstance = false;
+var noOpen = false;
+for (var i = 0; i < WScript.Arguments.length; i++) {
+  var a = WScript.Arguments(i);
+  if (a === '--new-instance') newInstance = true;
+  if (a === '--no-open') noOpen = true;
+  args.push(/[\s"]/.test(a) ? q(a.replace(/"/g, '')) : a);
+}
+
+ensureFolder(data);
+
+if (!newInstance) {
+  var url = runningUrl();
+  if (url) { if (!noOpen) shell.Run(url, 1, false); WScript.Quit(0); }
+}
+
+if (hidden('where node >nul 2>nul', true) !== 0) {
+  if (popup('Node.js 20 or later is required to run Fabric MCP Studio.\n\nOpen nodejs.org to download the LTS version?', 0, 4 + 48) === 6) shell.Run('https://nodejs.org/en/download', 1, false);
+  WScript.Quit(1);
+}
+
+if (!fso.FolderExists(fso.BuildPath(studio, 'node_modules\\@github\\copilot-sdk'))) {
+  popup('Installing Fabric MCP Studio dependencies (first run only).\n\nThis takes a minute or two. The studio opens in your browser when it is ready.', 6, 64);
+  if (hidden('npm install --no-audit --no-fund > ' + q(installLog) + ' 2>&1', true) !== 0) {
+    popup('Installing the dependencies failed. Check your network or proxy settings and try again.\n\n' + tail(installLog, 12) + '\n\nFull log: ' + installLog, 0, 16);
+    WScript.Quit(1);
+  }
+}
+
+try { if (fso.FileExists(logFile)) fso.CopyFile(logFile, prevLog, true); } catch (e) { /* the log is in use */ }
+remove(okFlag);
+remove(failFlag);
+var before = readText(runtimeFile);
+
+hidden('node server\\main.mjs' + (args.length ? ' ' + args.join(' ') : '') + ' > ' + q(logFile) + ' 2>&1 && type nul > ' + q(okFlag) + ' || type nul > ' + q(failFlag), false);
+
+// The server writes runtime.json and opens the browser once it is listening. A quick clean exit means it found
+// a running copy and opened that one instead.
+for (var t = 0; t < 120; t++) {
+  sleep(500);
+  var now = readText(runtimeFile);
+  if (now && now !== before) WScript.Quit(0);
+  if (fso.FileExists(okFlag)) { remove(okFlag); WScript.Quit(0); }
+  if (fso.FileExists(failFlag)) {
+    sleep(300);
+    remove(failFlag);
+    popup('Fabric MCP Studio could not start.\n\n' + tail(logFile, 14) + '\n\nFull log: ' + logFile, 0, 16);
+    WScript.Quit(1);
+  }
+}
+popup('Fabric MCP Studio is taking longer than usual to start.\n\n' + tail(logFile, 10) + '\n\nIt will open in your browser when it is ready. Full log: ' + logFile, 20, 48);
+]]></script>
+</job>
+</package>

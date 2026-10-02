@@ -14,13 +14,17 @@ import { catalog } from './sources.mjs';
 import { getProject, updateProject, resetProject, getActivity, clearActivity, logActivity, assertProjectTenant } from './project.mjs';
 import { startJob, listJobs, getJob, cancelJob, flushRunningJobs } from './jobs.mjs';
 import { health } from './health.mjs';
-import { presetFor } from './presets.mjs';
+import { presetSummary } from './presets.mjs';
 
 const args = process.argv.slice(2);
 const flag = (n) => args.includes(n);
 const opt = (n, d) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : d; };
 const TOKEN = randomBytes(24).toString('hex');
 let PORT = Number(opt('--port', process.env.STUDIO_PORT || 4870));
+if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
+  console.error(`Invalid port "${opt('--port', process.env.STUDIO_PORT)}". Use a number between 1 and 65535, for example --port 4870.`);
+  process.exit(2);
+}
 
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json', '.ico': 'image/x-icon', '.md': 'text/markdown; charset=utf-8' };
 
@@ -95,7 +99,7 @@ const route = (method, pattern, handler) => {
 route('GET', '/api/bootstrap', async () => {
   const me = await auth.whoAmI();
   const p = getProject();
-  return { version: VERSION, user: me, settings: publicSettings(), provider: A.providerSummary(), providers: A.PROVIDERS, project: p, preset: presetFor(p) ? { starterQuestions: presetFor(p).starterQuestions } : null, catalog: catalog(), jobs: listJobs().slice(0, 20), chats: A.listChats(), approvals: A.pendingApprovals(), platform: process.platform };
+  return { version: VERSION, user: me, settings: publicSettings(), provider: A.providerSummary(), providers: A.PROVIDERS, project: p, preset: presetSummary(p), catalog: catalog(), jobs: listJobs().slice(0, 20), chats: A.listChats(), approvals: A.pendingApprovals(), platform: process.platform };
 });
 route('GET', '/api/health', () => health());
 
@@ -154,6 +158,7 @@ route('GET', '/api/fabric/connections', () => F.listConnections());
 route('GET', '/api/fabric/gateways', () => F.listGateways());
 
 route('GET', '/api/project', () => getProject());
+route('GET', '/api/preset', () => presetSummary(getProject()));
 route('PATCH', '/api/project', (_, b) => { const patch = {}; for (const k of ['name', 'glossary']) if (b[k] !== undefined) patch[k] = b[k]; return updateProject(patch); });
 route('POST', '/api/project/reset', () => { clearActivity(); return resetProject(); });
 route('POST', '/api/project/workspace', (_, b) => P.selectWorkspace(b));

@@ -28,7 +28,7 @@ Every step has a quick action **and** a Copilot path. Copilot calls the Fabric M
 git clone https://github.com/luisbor_microsoft/fabric-mcp-server-luisbor.git
 cd fabric-mcp-server-luisbor
 .\Start-Studio.cmd            # Windows  (macOS/Linux: ./studio/start-studio.sh)
-.\scripts\create-shortcut.ps1 # optional: "Fabric MCP Studio" icon on the desktop (-StartMenu for the Start menu too)
+.\scripts\create-shortcut.ps1 # optional: "Fabric MCP Studio" desktop icon, runs in the background (-StartMenu adds it to the Start menu)
 ```
 
 Requirements: Node.js 20.19+, a Microsoft Entra work account with Fabric access, and one AI provider.
@@ -90,7 +90,7 @@ scripts/               setup, prereq-check, deploy-fabric, deploy-ontology, rese
 | `deploy-fabric.ps1` | Workspace + lakehouse + Contoso Retail tables without an agent |
 | `deploy-ontology.ps1` | Deploy `ontology/<domain>` TMDL as a Fabric Ontology item |
 | `install-teams-agent.ps1` | Install/publish/uninstall the Microsoft 365 Copilot agent in any tenant |
-| `create-shortcut.ps1` | Desktop (and optional Start menu) shortcut for Fabric MCP Studio; `-Remove` to delete it |
+| `create-shortcut.ps1` | Desktop (and optional Start menu) shortcut that starts Fabric MCP Studio without a console window; `-ShowConsole` for a minimized console, `-Remove` to delete it |
 | `reset.ps1` | Delete what the scripts created |
 
 All scripts run on Windows PowerShell 5.1 and PowerShell 7.

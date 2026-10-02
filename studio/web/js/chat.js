@@ -1,4 +1,4 @@
-// Chat with the selected AI provider. One component, mounted in the Copilot tab or the floating panel.
+// Chat with the selected AI provider. One component, embedded in the Copilot tab or in the current view.
 import { api, post, put, get, store, on } from './api.js';
 import { h, $, toast, esc, SERVER_LABEL } from './ui.js';
 import { md } from './md.js';
@@ -23,7 +23,7 @@ export function chatElement({ suggestions, onClose }) {
   providerEl = h('span', { class: 'provider', title: 'AI provider – change it in Settings' }, '…');
   modelSel = h('select', { class: 'mini', title: 'Model', onchange: async () => { try { await put('/providers', { id: 'github', model: modelSel.value }); toast(`Model set to ${modelSel.value} for new chats`); } catch (e) { toast(e.message, 'err'); } } });
   histSel = h('select', { class: 'mini', title: 'Recent chats', onchange: () => { if (histSel.value) loadChat(histSel.value); } });
-  closeBtn = h('button', { class: 'mini', title: 'Close', onclick: () => onCloseFn() }, '✕');
+  closeBtn = h('button', { class: 'mini', title: 'Hide Copilot', onclick: () => onCloseFn() }, '✕');
 
   msgsEl = h('div', { class: 'msgs' });
   inputEl = h('textarea', { rows: 1, placeholder: 'Ask Copilot to build, explain or answer… (Enter to send, Shift+Enter for a new line)' });
@@ -49,6 +49,11 @@ export function chatElement({ suggestions, onClose }) {
 }
 
 export function setPanelMode(isPanel) { if (closeBtn) closeBtn.hidden = !isPanel; }
+
+/** Keep the latest messages in view after the chat moves to another place in the page. */
+export function scrollChatToEnd() { if (msgsEl) requestAnimationFrame(() => { msgsEl.scrollTop = msgsEl.scrollHeight; }); }
+
+export function focusChat() { if (inputEl) setTimeout(() => inputEl.focus({ preventScroll: true }), 300); }
 
 function autosize() { inputEl.style.height = 'auto'; inputEl.style.height = `${Math.min(160, inputEl.scrollHeight)}px`; }
 

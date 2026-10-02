@@ -1,6 +1,6 @@
 import { store, get, post, on } from '../api.js';
 import { h, toast, busy, field, input, select, seg, fmtNum, $ } from '../ui.js';
-import { app } from '../app.js';
+import { app, copilotSlot } from '../app.js';
 
 let tab = 'samples';
 let selectedType = null;
@@ -22,6 +22,7 @@ export function renderData(el) {
     body));
   const draw = () => { body.innerHTML = ''; body.append(tab === 'samples' ? samples() : tab === 'databases' ? databases() : fabricData()); };
   draw();
+  el.append(copilotSlot());
 }
 
 function currentSource(p) {
