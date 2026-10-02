@@ -1,0 +1,62 @@
+/// A sellable item (SKU) in the catalog, classified by category, subcategory and brand.
+entity Product
+	lineageTag: ec1a4745-9863-5bf8-b5e5-4f2bce3643c5
+	backingTable: products
+	keyProperty: ProductId
+
+	/// Unique product (SKU) identifier.
+	property ProductId
+		dataType: string
+		lineageTag: 41e0e197-7281-5924-8a7a-230d6e3ebe67
+
+		backingConfiguration
+			valueColumn: products.ProductId
+
+	/// Product display name.
+	property ProductName
+		dataType: string
+		lineageTag: 43fbc989-a8c2-5f06-99c6-3cfe18ef8f8c
+
+		backingConfiguration
+			valueColumn: products.ProductName
+
+	/// Top-level product category.
+	property Category
+		dataType: string
+		lineageTag: 45446580-f74a-5a4b-b25e-868f9d9ed7b5
+
+		backingConfiguration
+			valueColumn: products.Category
+
+	/// Product subcategory.
+	property Subcategory
+		dataType: string
+		lineageTag: b470ca83-c74a-5344-9878-6771a9bebd59
+
+		backingConfiguration
+			valueColumn: products.Subcategory
+
+	/// Brand the product is sold under.
+	property Brand
+		dataType: string
+		lineageTag: a8c0200d-2592-5ac3-ad73-2df2163e60e9
+
+		backingConfiguration
+			valueColumn: products.Brand
+
+	/// Current unit cost to Contoso.
+	property UnitCost
+		dataType: double
+		lineageTag: d9c0db21-956d-5f77-aa37-477085f0ed5c
+
+		backingConfiguration
+			valueColumn: products.UnitCost
+
+	/// Current list price before discounts.
+	property ListPrice
+		dataType: double
+		lineageTag: 75bdc4a4-b1fd-530d-95b0-01ef3540f7bf
+
+		backingConfiguration
+			valueColumn: products.ListPrice
+

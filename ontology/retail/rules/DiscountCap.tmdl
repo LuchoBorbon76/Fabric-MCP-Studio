@@ -1,0 +1,11 @@
+rule DiscountCap
+	statement: Line discounts above 20% are allowed only for sales with an order date in November or December.
+	lineageTag: 99bfae16-d5bf-54dd-b16d-7999a5b86464
+
+	ruleReferencedEntity Sale
+		propertyScope: specific
+
+		ruleReferencedProperty DiscountPct
+
+		ruleReferencedProperty OrderDate
+

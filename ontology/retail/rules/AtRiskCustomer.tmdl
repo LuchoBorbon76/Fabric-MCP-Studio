@@ -1,0 +1,19 @@
+rule AtRiskCustomer
+	statement: A customer is at risk when they have made no purchase in the last 120 days and their lifetime net sales (quantity times unit price times one minus discount) are at least 3000.
+	lineageTag: 98dc55d2-d3d2-5210-ab63-648632e8d407
+
+	ruleReferencedEntity Customer
+
+	ruleReferencedEntity Sale
+		propertyScope: specific
+
+		ruleReferencedProperty OrderDate
+
+		ruleReferencedProperty Quantity
+
+		ruleReferencedProperty UnitPrice
+
+		ruleReferencedProperty DiscountPct
+
+	ruleReferencedRelationship 'Sale By Customer'
+

@@ -1,0 +1,16 @@
+relationship rel_sales_customer
+	fromColumn: sales.CustomerId
+	toColumn: customers.CustomerId
+
+relationship rel_sales_product
+	fromColumn: sales.ProductId
+	toColumn: products.ProductId
+
+relationship rel_sales_store
+	fromColumn: sales.StoreId
+	toColumn: stores.StoreId
+
+relationship rel_returns_sales
+	fromColumn: returns.SalesLineId
+	toColumn: sales.SalesLineId
+

@@ -1,0 +1,95 @@
+ProductId,ProductName,Category,Subcategory,Brand,UnitCost,ListPrice
+P001,Wide World Importers Urban Earbuds,Electronics,Audio,Wide World Importers,69.37,130.89
+P002,Fabrikam Eco Headphones,Electronics,Audio,Fabrikam,36.33,54.21
+P003,Tailspin Smart Speaker,Electronics,Audio,Tailspin,190.4,308.61
+P004,Northwind Eco Headphones,Electronics,Audio,Northwind,104.72,154.76
+P005,Alpine Ski House Max Earbuds,Electronics,Audio,Alpine Ski House,133.35,236.84
+P006,Adventure Works Essential Earbuds,Electronics,Audio,Adventure Works,63.63,157.63
+P007,Litware Max Smartwatch,Electronics,Wearables,Litware,187.47,391.86
+P008,Litware Premium Smart Ring,Electronics,Wearables,Litware,214.01,228.43
+P009,Litware Smart Smartwatch,Electronics,Wearables,Litware,91.28,158.67
+P010,Woodgrove Essential Fitness Band,Electronics,Wearables,Woodgrove,64.42,131.66
+P011,Alpine Ski House Urban Smartwatch,Electronics,Wearables,Alpine Ski House,130.18,238.52
+P012,Northwind Classic Smartwatch,Electronics,Wearables,Northwind,192.85,268.52
+P013,Northwind Trail Smart Ring,Electronics,Wearables,Northwind,147.58,312.16
+P014,Fabrikam Smart Smart Ring,Electronics,Wearables,Fabrikam,120.39,222.36
+P015,Wide World Importers Pro Phone Case,Electronics,Accessories,Wide World Importers,58.83,78.86
+P016,Litware Smart Charger,Electronics,Accessories,Litware,11.31,18.92
+P017,Woodgrove Essential Charger,Electronics,Accessories,Woodgrove,42.41,87.75
+P018,Woodgrove Max Cable,Electronics,Accessories,Woodgrove,44.26,77.33
+P019,Litware Essential Charger,Electronics,Accessories,Litware,39.85,71.0
+P020,Alpine Ski House Urban Phone Case,Electronics,Accessories,Alpine Ski House,26.7,35.93
+P021,Tailspin Pro Charger,Electronics,Accessories,Tailspin,6.48,14.63
+P022,Adventure Works Essential Knife Set,Home,Kitchen,Adventure Works,84.3,206.77
+P023,Northwind Lite Cookware Set,Home,Kitchen,Northwind,71.18,170.04
+P024,Wide World Importers Max Knife Set,Home,Kitchen,Wide World Importers,132.43,220.02
+P025,Woodgrove Urban Coffee Maker,Home,Kitchen,Woodgrove,56.0,108.76
+P026,Wide World Importers Pro Cookware Set,Home,Kitchen,Wide World Importers,80.32,121.1
+P027,Contoso Max Blender,Home,Kitchen,Contoso,138.43,153.25
+P028,Fabrikam Pro Blender,Home,Kitchen,Fabrikam,132.27,181.34
+P029,Litware Smart Knife Set,Home,Kitchen,Litware,21.1,31.65
+P030,Northwind Premium Candle Set,Home,Decor,Northwind,58.66,132.97
+P031,Tailspin Max Lamp,Home,Decor,Tailspin,67.02,143.39
+P032,Fabrikam Trail Candle Set,Home,Decor,Fabrikam,76.39,122.03
+P033,Contoso Pro Lamp,Home,Decor,Contoso,50.48,124.47
+P034,Proseware Pro Vase,Home,Decor,Proseware,62.86,133.8
+P035,Tailspin Trail Vase,Home,Decor,Tailspin,25.11,42.34
+P036,Woodgrove Pro Candle Set,Home,Decor,Woodgrove,39.35,88.65
+P037,Wide World Importers Essential Lamp,Home,Decor,Wide World Importers,13.9,26.64
+P038,Tailspin Max Throw Blanket,Home,Bedding,Tailspin,39.59,68.25
+P039,Contoso Trail Sheet Set,Home,Bedding,Contoso,50.85,67.87
+P040,Adventure Works Essential Throw Blanket,Home,Bedding,Adventure Works,48.4,95.61
+P041,Northwind Classic Duvet,Home,Bedding,Northwind,49.65,73.68
+P042,Litware Essential Pillow Set,Home,Bedding,Litware,23.54,43.15
+P043,Contoso Lite Duvet,Home,Bedding,Contoso,181.2,250.98
+P044,Fabrikam Pro Polo,Apparel,Men,Fabrikam,76.47,114.53
+P045,Alpine Ski House Trail Chinos,Apparel,Men,Alpine Ski House,55.04,103.23
+P046,Woodgrove Max Chinos,Apparel,Men,Woodgrove,24.27,48.6
+P047,Proseware Smart Chinos,Apparel,Men,Proseware,20.08,38.32
+P048,Fabrikam Premium Jacket,Apparel,Men,Fabrikam,11.34,21.3
+P049,Fabrikam Lite Chinos,Apparel,Men,Fabrikam,54.58,95.27
+P050,Fabrikam Lite Sneakers,Apparel,Men,Fabrikam,127.71,143.1
+P051,Wide World Importers Essential Jacket,Apparel,Men,Wide World Importers,63.51,118.5
+P052,Wide World Importers Lite Leggings,Apparel,Women,Wide World Importers,36.71,70.89
+P053,Fabrikam Lite Leggings,Apparel,Women,Fabrikam,83.94,171.25
+P054,Woodgrove Max Leggings,Apparel,Women,Woodgrove,103.43,122.82
+P055,Wide World Importers Classic Dress,Apparel,Women,Wide World Importers,44.63,103.05
+P056,Proseware Urban Blazer,Apparel,Women,Proseware,118.26,160.99
+P057,Woodgrove Trail Dress,Apparel,Women,Woodgrove,28.26,47.47
+P058,Fabrikam Lite Dress,Apparel,Women,Fabrikam,14.46,32.79
+P059,Litware Lite Dress,Apparel,Women,Litware,83.1,119.03
+P060,Litware Classic Rain Jacket,Apparel,Kids,Litware,34.38,72.93
+P061,Tailspin Urban Sneakers,Apparel,Kids,Tailspin,29.83,57.74
+P062,Alpine Ski House Max T-Shirt,Apparel,Kids,Alpine Ski House,26.61,62.46
+P063,Northwind Urban Sneakers,Apparel,Kids,Northwind,53.15,71.7
+P064,Tailspin Pro Sneakers,Apparel,Kids,Tailspin,13.61,28.68
+P065,Contoso Smart Rain Jacket,Apparel,Kids,Contoso,47.12,70.1
+P066,Woodgrove Max Hoodie,Apparel,Kids,Woodgrove,30.01,67.44
+P067,Tailspin Pro Backpack,Outdoor,Camping,Tailspin,113.81,174.42
+P068,Litware Essential Backpack,Outdoor,Camping,Litware,162.02,265.56
+P069,Contoso Lite Backpack,Outdoor,Camping,Contoso,28.01,68.25
+P070,Contoso Urban Camp Stove,Outdoor,Camping,Contoso,39.25,65.65
+P071,Alpine Ski House Premium Sleeping Bag,Outdoor,Camping,Alpine Ski House,279.62,394.09
+P072,Woodgrove Essential Sleeping Bag,Outdoor,Camping,Woodgrove,24.87,41.64
+P073,Litware Urban Backpack,Outdoor,Camping,Litware,78.04,186.74
+P074,Fabrikam Eco Camp Stove,Outdoor,Camping,Fabrikam,190.18,294.91
+P075,Proseware Max Water Bottle,Outdoor,Fitness,Proseware,201.67,213.7
+P076,Proseware Premium Resistance Bands,Outdoor,Fitness,Proseware,90.29,208.04
+P077,Proseware Eco Dumbbell Set,Outdoor,Fitness,Proseware,128.35,171.16
+P078,Proseware Urban Water Bottle,Outdoor,Fitness,Proseware,128.47,238.94
+P079,Adventure Works Smart Dumbbell Set,Outdoor,Fitness,Adventure Works,95.22,141.02
+P080,Fabrikam Premium Resistance Bands,Outdoor,Fitness,Fabrikam,49.63,95.88
+P081,Fabrikam Eco Dumbbell Set,Outdoor,Fitness,Fabrikam,120.92,248.25
+P082,Northwind Smart Moisturizer,Beauty,Skincare,Northwind,7.13,10.74
+P083,Adventure Works Max Sunscreen,Beauty,Skincare,Adventure Works,28.82,54.42
+P084,Adventure Works Classic Moisturizer,Beauty,Skincare,Adventure Works,36.84,52.76
+P085,Proseware Essential Sunscreen,Beauty,Skincare,Proseware,15.23,32.51
+P086,Contoso Pro Sunscreen,Beauty,Skincare,Contoso,30.21,70.43
+P087,Northwind Essential Cleanser,Beauty,Skincare,Northwind,50.48,97.76
+P088,Alpine Ski House Trail Cologne,Beauty,Fragrance,Alpine Ski House,59.52,135.95
+P089,Adventure Works Smart Body Mist,Beauty,Fragrance,Adventure Works,71.81,146.64
+P090,Woodgrove Eco Cologne,Beauty,Fragrance,Woodgrove,111.49,127.73
+P091,Adventure Works Pro Cologne,Beauty,Fragrance,Adventure Works,72.9,111.48
+P092,Woodgrove Essential Eau de Parfum,Beauty,Fragrance,Woodgrove,38.25,60.48
+P093,Northwind Lite Cologne,Beauty,Fragrance,Northwind,30.56,49.61
+P094,Tailspin Essential Body Mist,Beauty,Fragrance,Tailspin,23.29,38.35

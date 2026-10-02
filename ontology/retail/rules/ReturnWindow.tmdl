@@ -1,0 +1,16 @@
+rule ReturnWindow
+	statement: A product return is valid only if its return date is within 30 days of the order date of the sale it references. Returns outside the window require a manager override.
+	lineageTag: c461fa53-23ce-5206-8609-81ffc5b2ac0e
+
+	ruleReferencedEntity ProductReturn
+		propertyScope: specific
+
+		ruleReferencedProperty ReturnDate
+
+	ruleReferencedEntity Sale
+		propertyScope: specific
+
+		ruleReferencedProperty OrderDate
+
+	ruleReferencedRelationship 'Return Of Sale'
+

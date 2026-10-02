@@ -1,0 +1,19 @@
+# Demo state and generated payloads (contain tenant IDs)
+config/demo.state.json
+config/ontology.payload.json
+
+# Client artifacts created by scripts/setup.ps1
+.claude/
+*.bak-*
+
+# Model backups taken by the model-doctor skill
+backups/
+
+# Python / Node
+__pycache__/
+.venv/
+node_modules/
+
+# OS / editor
+.DS_Store
+Thumbs.db

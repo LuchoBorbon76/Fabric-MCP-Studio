@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "fabric-core": {
+      "type": "http",
+      "url": "https://api.fabric.microsoft.com/v1/mcp/core"
+    },
+    "fabric-local": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@microsoft/fabric-mcp@latest", "server", "start", "--mode", "all"]
+    },
+    "powerbi-authoring": {
+      "type": "http",
+      "url": "https://api.fabric.microsoft.com/v1/mcp/powerbi/authoring"
+    },
+    "fabric-iq": {
+      "type": "http",
+      "url": "https://fabriciq.svc.cloud.microsoft/v1/mcp/fabriciq"
+    }
+  }
+}

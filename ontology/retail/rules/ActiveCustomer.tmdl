@@ -1,0 +1,13 @@
+rule ActiveCustomer
+	statement: A customer is active when they have made at least one purchase in the last 90 days.
+	lineageTag: 7a807195-9bab-5d5e-9c97-7f4d6df47a5b
+
+	ruleReferencedEntity Customer
+
+	ruleReferencedEntity Sale
+		propertyScope: specific
+
+		ruleReferencedProperty OrderDate
+
+	ruleReferencedRelationship 'Sale By Customer'
+

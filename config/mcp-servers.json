@@ -1,0 +1,64 @@
+{
+  "$comment": "Single source of truth for the MCP servers used by this demo. scripts/setup.ps1 renders client-specific configs from this file. Endpoints verified against Microsoft Learn, October 2026.",
+  "servers": [
+    {
+      "id": "fabric-core",
+      "transport": "http",
+      "url": "https://api.fabric.microsoft.com/v1/mcp/core",
+      "role": "Create and manage workspaces, items, folders, roles, and item definitions (including Ontology TMDL).",
+      "status": "Remote, hosted by Microsoft",
+      "docs": "https://learn.microsoft.com/rest/api/fabric/articles/mcp-servers/core-remote/get-started-core",
+      "default": true
+    },
+    {
+      "id": "fabric-local",
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@microsoft/fabric-mcp@latest", "server", "start", "--mode", "all"],
+      "role": "Fabric API specs, item schemas and best practices (offline), OneLake file and table tools, Data Factory pipelines and Dataflow Gen2.",
+      "status": "Local, open source (requires Node.js LTS)",
+      "docs": "https://github.com/microsoft/mcp/tree/main/servers/Fabric.Mcp.Server",
+      "default": true
+    },
+    {
+      "id": "powerbi-authoring",
+      "variant": "hosted",
+      "transport": "http",
+      "url": "https://api.fabric.microsoft.com/v1/mcp/powerbi/authoring",
+      "role": "Author semantic models in natural language: tables, measures, relationships, RLS, calculation groups, translations, best-practice fixes, DAX queries.",
+      "status": "Remote (preview). Tenant setting 'Users can use the Power BI Model Context Protocol server endpoint' must be on.",
+      "docs": "https://learn.microsoft.com/power-bi/developer/mcp/power-bi-authoring-mcp",
+      "default": true
+    },
+    {
+      "id": "powerbi-authoring",
+      "variant": "local",
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@microsoft/powerbi-modeling-mcp@latest", "--start"],
+      "role": "Same authoring tools plus Power BI Desktop, PBIP/TMDL files on disk, transactions and traces.",
+      "status": "Local (GA). Requires XMLA endpoint Read Write for Fabric workspaces. Accept the EULA on first use.",
+      "docs": "https://github.com/microsoft/powerbi-modeling-mcp",
+      "default": false
+    },
+    {
+      "id": "fabric-iq",
+      "transport": "http",
+      "url": "https://fabriciq.svc.cloud.microsoft/v1/mcp/fabriciq",
+      "role": "Read-only: discover reports and semantic models, inspect schema, search values, run DAX as the signed-in user (RLS/OLS enforced).",
+      "status": "Remote (GA). Use https://api.fabric.microsoft.com/v1/mcp/fabriciq with private links.",
+      "docs": "https://learn.microsoft.com/fabric/iq/connectors/fabric-iq-mcp",
+      "default": true
+    },
+    {
+      "id": "fabric-ontology",
+      "transport": "http",
+      "url": "https://api.fabric.microsoft.com/v1/mcp/dataPlane/workspaces/{workspaceId}/items/{ontologyId}/ontologyEndpoint",
+      "role": "Ground an agent in one ontology: entities, relationships, rules and bound data.",
+      "status": "Remote (preview). One endpoint per ontology item. Requires paid F2+ (or P1+) capacity.",
+      "docs": "https://learn.microsoft.com/fabric/iq/ontology/how-to-use-ontology-mcp-server",
+      "requires": ["workspaceId", "ontologyId"],
+      "default": false
+    }
+  ]
+}

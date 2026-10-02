@@ -1,0 +1,86 @@
+/// One product on one customer order, at one store, on one date. Lines that share an OrderId form an order.
+entity Sale
+	lineageTag: 240bc899-3cb2-5003-8cb7-c008989181f3
+	backingTable: sales
+	keyProperty: SalesLineId
+
+	/// Unique sales line identifier.
+	property SalesLineId
+		dataType: int64
+		lineageTag: cb8caa7e-b031-5eba-993b-6d0c57789f73
+
+		backingConfiguration
+			valueColumn: sales.SalesLineId
+
+	/// Order the line belongs to.
+	property OrderId
+		dataType: string
+		lineageTag: fe331098-e333-5411-85dc-ce38dcc4a7f9
+
+		backingConfiguration
+			valueColumn: sales.OrderId
+
+	/// Date the order was placed.
+	property OrderDate
+		dataType: dateTime
+		lineageTag: 39396a6e-5f99-5018-bc8a-742810cc04f6
+
+		backingConfiguration
+			valueColumn: sales.OrderDate
+
+	/// Customer who placed the order.
+	property CustomerId
+		dataType: string
+		lineageTag: f087f0e1-e82d-5a55-8a42-eced6b15418c
+
+		backingConfiguration
+			valueColumn: sales.CustomerId
+
+	/// Store or channel where the sale happened.
+	property StoreId
+		dataType: string
+		lineageTag: 85ee5e8a-8aed-5878-99ae-a3f043d45273
+
+		backingConfiguration
+			valueColumn: sales.StoreId
+
+	/// Product sold.
+	property ProductId
+		dataType: string
+		lineageTag: cad054fd-904b-5684-b51d-d9759574e3fa
+
+		backingConfiguration
+			valueColumn: sales.ProductId
+
+	/// Units sold on the line.
+	property Quantity
+		dataType: int64
+		lineageTag: e83d7492-906a-50ea-bcb5-87687b72513f
+
+		backingConfiguration
+			valueColumn: sales.Quantity
+
+	/// Unit price before discount.
+	property UnitPrice
+		dataType: double
+		lineageTag: 63d9a739-6563-5e66-9f24-b71e4e88d140
+
+		backingConfiguration
+			valueColumn: sales.UnitPrice
+
+	/// Line discount as a fraction (0.1 = 10%).
+	property DiscountPct
+		dataType: double
+		lineageTag: 0531d360-a1f2-58d4-87f1-768cd6c47fa8
+
+		backingConfiguration
+			valueColumn: sales.DiscountPct
+
+	/// Unit cost at the time of sale.
+	property UnitCost
+		dataType: double
+		lineageTag: 1d54cb5c-4a6d-5959-b614-9ca8ab0b3343
+
+		backingConfiguration
+			valueColumn: sales.UnitCost
+

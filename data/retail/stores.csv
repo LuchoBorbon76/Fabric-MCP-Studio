@@ -1,0 +1,19 @@
+StoreId,StoreName,Channel,City,State,Region,OpenDate,SquareFeet
+S01,Seattle Store,Store,Seattle,WA,West,2022-02-01,12000
+S02,Portland Store,Store,Portland,OR,West,2016-04-01,18000
+S03,San Francisco Store,Store,San Francisco,CA,West,2014-12-01,12000
+S04,Los Angeles Store,Store,Los Angeles,CA,West,2025-03-01,12000
+S05,Denver Store,Store,Denver,CO,Central,2021-07-01,12000
+S06,Chicago Store,Store,Chicago,IL,Central,2012-02-01,18000
+S07,Minneapolis Store,Store,Minneapolis,MN,Central,2015-09-01,12000
+S08,Kansas City Store,Store,Kansas City,MO,Central,2020-04-01,32000
+S09,Dallas Store,Store,Dallas,TX,South,2025-06-15,24000
+S10,Austin Store,Store,Austin,TX,South,2012-03-01,32000
+S11,Atlanta Store,Store,Atlanta,GA,South,2017-05-01,18000
+S12,Miami Store,Store,Miami,FL,South,2015-06-01,12000
+S13,New York Store,Store,New York,NY,East,2013-07-01,12000
+S14,Boston Store,Store,Boston,MA,East,2025-09-01,24000
+S15,Philadelphia Store,Store,Philadelphia,PA,East,2012-12-01,32000
+S16,Washington Store,Store,Washington,DC,East,2020-02-01,32000
+S17,Online Web,Online,,,Digital,2015-01-01,0
+S18,Online App,Online,,,Digital,2019-05-01,0

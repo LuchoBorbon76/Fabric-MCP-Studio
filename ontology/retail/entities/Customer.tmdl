@@ -1,0 +1,78 @@
+/// A person or business with a Contoso Retail account, classified by segment and loyalty tier.
+entity Customer
+	lineageTag: ffa4ed56-7517-5dcf-8f3c-1f7638398ee8
+	backingTable: customers
+	keyProperty: CustomerId
+
+	/// Unique customer identifier.
+	property CustomerId
+		dataType: string
+		lineageTag: 7db372ff-c6f9-5a34-970c-13b592ba52ce
+
+		backingConfiguration
+			valueColumn: customers.CustomerId
+
+	/// Customer display name.
+	property CustomerName
+		dataType: string
+		lineageTag: 6ecf418e-529e-597b-a3b1-65ff6a4f1c89
+
+		backingConfiguration
+			valueColumn: customers.CustomerName
+
+	/// Customer email address (synthetic).
+	property Email
+		dataType: string
+		lineageTag: a00da315-8d31-5d67-b367-a7b6859a5775
+
+		backingConfiguration
+			valueColumn: customers.Email
+
+	/// Customer segment: Consumer, Small Business or Corporate.
+	property Segment
+		dataType: string
+		lineageTag: 178e3029-c34a-53dd-bef1-e5495461687b
+
+		backingConfiguration
+			valueColumn: customers.Segment
+
+	/// Loyalty tier: Bronze, Silver, Gold or Platinum.
+	property LoyaltyTier
+		dataType: string
+		lineageTag: 0385993c-3cab-5fdd-a06c-f6ceca8a2d36
+
+		backingConfiguration
+			valueColumn: customers.LoyaltyTier
+
+	/// Customer home city.
+	property City
+		dataType: string
+		lineageTag: dd68f072-df44-5eb0-b9f6-f60aa7cbb88c
+
+		backingConfiguration
+			valueColumn: customers.City
+
+	/// Customer home state.
+	property State
+		dataType: string
+		lineageTag: 6850a66f-9d53-5776-b342-5cb4284424e1
+
+		backingConfiguration
+			valueColumn: customers.State
+
+	/// Customer home sales region.
+	property Region
+		dataType: string
+		lineageTag: 8741ceb5-b591-5fa9-8d4f-9d3f733c2623
+
+		backingConfiguration
+			valueColumn: customers.Region
+
+	/// Date the customer account was created.
+	property SignupDate
+		dataType: dateTime
+		lineageTag: f65a4d31-cf96-5262-84a4-9276c5300124
+
+		backingConfiguration
+			valueColumn: customers.SignupDate
+

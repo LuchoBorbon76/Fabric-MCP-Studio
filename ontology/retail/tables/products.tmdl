@@ -1,0 +1,45 @@
+table products
+	lineageTag: ea8f61be-e1c7-5e9d-b6d5-b4343122b51c
+
+	column ProductId
+		dataType: string
+		lineageTag: e1894abe-3d5b-5b64-9943-ee7713a7a148
+		sourceColumn: ProductId
+
+	column ProductName
+		dataType: string
+		lineageTag: bc32639a-f827-5469-99c0-1051c191665f
+		sourceColumn: ProductName
+
+	column Category
+		dataType: string
+		lineageTag: 7874153a-5102-541e-a907-1a9634bf848a
+		sourceColumn: Category
+
+	column Subcategory
+		dataType: string
+		lineageTag: 50c56783-2113-5c3d-bd0d-c6227b6624a2
+		sourceColumn: Subcategory
+
+	column Brand
+		dataType: string
+		lineageTag: 77134eff-2d8d-5ae7-b445-f1dd10697492
+		sourceColumn: Brand
+
+	column UnitCost
+		dataType: double
+		lineageTag: 46ca26be-112f-59b5-8d1b-a2fb4535f64c
+		sourceColumn: UnitCost
+
+	column ListPrice
+		dataType: double
+		lineageTag: d43c6796-aec9-5b31-9448-3bf674fe0005
+		sourceColumn: ListPrice
+
+	partition products = entity
+		mode: directLake
+		source
+			entityName: products
+			schemaName: dbo
+			expressionSource: DatabaseQuery
+

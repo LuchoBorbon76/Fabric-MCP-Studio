@@ -1,0 +1,46 @@
+/// Units from a single sales line that a customer brought back.
+entity ProductReturn
+	lineageTag: 8299dd35-9011-5ab1-9821-b0bc23e53500
+	backingTable: returns
+	keyProperty: ReturnId
+
+	/// Unique return identifier.
+	property ReturnId
+		dataType: string
+		lineageTag: 0e12343d-1b66-592d-9cf6-e5d89328c501
+
+		backingConfiguration
+			valueColumn: returns.ReturnId
+
+	/// Sales line the return references.
+	property SalesLineId
+		dataType: int64
+		lineageTag: fe15463b-5c86-563e-8cdf-60fbaf1a3fc1
+
+		backingConfiguration
+			valueColumn: returns.SalesLineId
+
+	/// Date the return was processed.
+	property ReturnDate
+		dataType: dateTime
+		lineageTag: d4ce8099-8cd5-5fc7-9683-31be1b46e57f
+
+		backingConfiguration
+			valueColumn: returns.ReturnDate
+
+	/// Units returned.
+	property Quantity
+		dataType: int64
+		lineageTag: 033d66b2-5839-5a54-9688-9f530239f1d2
+
+		backingConfiguration
+			valueColumn: returns.Quantity
+
+	/// Customer-provided return reason.
+	property Reason
+		dataType: string
+		lineageTag: 5c2377ca-51a4-5d15-8fa3-7a36aa84e88b
+
+		backingConfiguration
+			valueColumn: returns.Reason
+

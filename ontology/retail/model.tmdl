@@ -1,0 +1,21 @@
+model Model
+
+ref table customers
+ref table products
+ref table stores
+ref table sales
+ref table returns
+
+ref entity Customer
+ref entity Product
+ref entity Store
+ref entity Sale
+ref entity ProductReturn
+
+ref namespace default
+
+ref rule MinimumMargin
+ref rule ReturnWindow
+ref rule DiscountCap
+ref rule AtRiskCustomer
+ref rule ActiveCustomer

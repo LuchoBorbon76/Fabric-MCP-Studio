@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Ontology",
+    "displayName": "Contoso Retail Ontology"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "676698d0-26af-5dd8-a82c-c87dd1e84115"
+  }
+}

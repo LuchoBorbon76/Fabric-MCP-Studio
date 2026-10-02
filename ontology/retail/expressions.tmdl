@@ -1,0 +1,6 @@
+expression DatabaseQuery =
+		let
+		    database = Sql.Database("{{SQL_ENDPOINT_SERVER}}", "{{SQL_ENDPOINT_ID}}")
+		in
+		    database
+	lineageTag: b44eb5a5-d86a-51a4-828d-72964cd3cd0d

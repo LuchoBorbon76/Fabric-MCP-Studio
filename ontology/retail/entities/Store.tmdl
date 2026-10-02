@@ -1,0 +1,70 @@
+/// A point of sale. Physical stores belong to a sales region; online channels belong to the Digital region.
+entity Store
+	lineageTag: d058cf5e-af70-5738-9f5c-6f0608a0f056
+	backingTable: stores
+	keyProperty: StoreId
+
+	/// Unique store identifier.
+	property StoreId
+		dataType: string
+		lineageTag: 2d53ee6d-ee7f-5c64-93b8-8272c418e50c
+
+		backingConfiguration
+			valueColumn: stores.StoreId
+
+	/// Store display name.
+	property StoreName
+		dataType: string
+		lineageTag: 9299dbcc-7528-5c37-a309-1e776a1883c1
+
+		backingConfiguration
+			valueColumn: stores.StoreName
+
+	/// Sales channel: Store or Online.
+	property Channel
+		dataType: string
+		lineageTag: cfe423a3-bff2-54be-aa73-6cfe426a66d3
+
+		backingConfiguration
+			valueColumn: stores.Channel
+
+	/// Store city (blank for online channels).
+	property City
+		dataType: string
+		lineageTag: 948db835-7af9-593b-87a9-39c6b06796c7
+
+		backingConfiguration
+			valueColumn: stores.City
+
+	/// Store state (blank for online channels).
+	property State
+		dataType: string
+		lineageTag: 02186b9a-111d-5625-bea7-94d731fc59b3
+
+		backingConfiguration
+			valueColumn: stores.State
+
+	/// Sales region: West, Central, South, East or Digital.
+	property Region
+		dataType: string
+		lineageTag: 2aebd3f4-ccf9-5287-8cfc-2bc9ee4bccd1
+
+		backingConfiguration
+			valueColumn: stores.Region
+
+	/// Date the store opened.
+	property OpenDate
+		dataType: dateTime
+		lineageTag: 4b295ba5-1dc9-59a1-be0b-ade439c0c8f3
+
+		backingConfiguration
+			valueColumn: stores.OpenDate
+
+	/// Selling floor area in square feet (0 for online).
+	property SquareFeet
+		dataType: int64
+		lineageTag: 83ef8796-66f5-5ce2-bd98-6fa541ecc839
+
+		backingConfiguration
+			valueColumn: stores.SquareFeet
+

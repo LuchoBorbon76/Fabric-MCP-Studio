@@ -1,0 +1,56 @@
+table customers
+	lineageTag: 17ed015f-9001-5b57-8093-ae7a0407cb2b
+
+	column CustomerId
+		dataType: string
+		lineageTag: c4565f9d-4a87-5f18-96bb-6223bd512ca9
+		sourceColumn: CustomerId
+
+	column CustomerName
+		dataType: string
+		lineageTag: e0d7128e-6358-5912-ae34-e99804119c64
+		sourceColumn: CustomerName
+
+	column Email
+		dataType: string
+		lineageTag: 98c965b3-967d-5d9e-ab74-6b88f99df221
+		sourceColumn: Email
+
+	column Segment
+		dataType: string
+		lineageTag: df1d2c21-2ec6-5a9f-9c98-5a66aaaebd35
+		sourceColumn: Segment
+
+	column LoyaltyTier
+		dataType: string
+		lineageTag: fa678931-a356-5f7e-a940-54daccb71bfb
+		sourceColumn: LoyaltyTier
+
+	column City
+		dataType: string
+		lineageTag: 00b1bc5c-1333-581e-8d4f-7316e43198ad
+		sourceColumn: City
+
+	column State
+		dataType: string
+		lineageTag: 24f57c34-b2b4-52fa-a20a-df2622bb2bc1
+		sourceColumn: State
+
+	column Region
+		dataType: string
+		lineageTag: 2e2e5f57-13d4-5d08-9f96-3088c066a5e3
+		sourceColumn: Region
+
+	column SignupDate
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 88658c42-22fc-5ffe-a027-05840033afcf
+		sourceColumn: SignupDate
+
+	partition customers = entity
+		mode: directLake
+		source
+			entityName: customers
+			schemaName: dbo
+			expressionSource: DatabaseQuery
+

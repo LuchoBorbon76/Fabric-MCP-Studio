@@ -1,0 +1,801 @@
+CustomerId,CustomerName,Email,Segment,LoyaltyTier,City,State,Region,SignupDate
+C0001,Aria Walker,aria.walker1@example.com,Consumer,Bronze,Kansas City,MO,Central,2022-06-22
+C0002,Adrian Wilson,adrian.wilson2@example.com,Small Business,Silver,Philadelphia,PA,East,2025-09-29
+C0003,Mateo Young,mateo.young3@example.com,Consumer,Bronze,Denver,CO,Central,2024-07-05
+C0004,Aria Perez,aria.perez4@example.com,Consumer,Bronze,Boston,MA,East,2023-07-18
+C0005,Olivia Lopez,olivia.lopez5@example.com,Consumer,Bronze,Portland,OR,West,2024-09-10
+C0006,Lucas Rossi,lucas.rossi6@example.com,Consumer,Silver,Minneapolis,MN,Central,2022-07-26
+C0007,Lucas Wilson,lucas.wilson7@example.com,Consumer,Gold,Austin,TX,South,2023-11-10
+C0008,Emma Lopez,emma.lopez8@example.com,Consumer,Bronze,Kansas City,MO,Central,2022-04-24
+C0009,Sofia Clark,sofia.clark9@example.com,Consumer,Gold,Boston,MA,East,2023-08-13
+C0010,Isabella Young,isabella.young10@example.com,Consumer,Silver,Miami,FL,South,2021-06-04
+C0011,Henry Okafor,henry.okafor11@example.com,Consumer,Bronze,Washington,DC,East,2019-11-26
+C0012,Henry Allen,henry.allen12@example.com,Consumer,Bronze,Kansas City,MO,Central,2025-08-06
+C0013,James Nguyen,james.nguyen13@example.com,Small Business,Silver,Minneapolis,MN,Central,2022-07-21
+C0014,Ava Chen,ava.chen14@example.com,Consumer,Bronze,Minneapolis,MN,Central,2019-12-19
+C0015,Arjun Allen,arjun.allen15@example.com,Consumer,Silver,Seattle,WA,West,2022-10-05
+C0016,Omar Chen,omar.chen16@example.com,Consumer,Bronze,Miami,FL,South,2020-11-30
+C0017,Lucas Thomas,lucas.thomas17@example.com,Consumer,Bronze,Atlanta,GA,South,2020-12-30
+C0018,Henry Chen,henry.chen18@example.com,Consumer,Bronze,Austin,TX,South,2026-05-02
+C0019,Fatima Gonzalez,fatima.gonzalez19@example.com,Consumer,Bronze,Dallas,TX,South,2023-09-12
+C0020,Arjun Hernandez,arjun.hernandez20@example.com,Consumer,Platinum,Seattle,WA,West,2021-05-15
+C0021,Priya Davis,priya.davis21@example.com,Consumer,Bronze,San Francisco,CA,West,2023-08-03
+C0022,Leo Brown,leo.brown22@example.com,Small Business,Bronze,Kansas City,MO,Central,2021-09-01
+C0023,Elena Allen,elena.allen23@example.com,Consumer,Silver,Austin,TX,South,2025-03-15
+C0024,Diego Moore,diego.moore24@example.com,Consumer,Bronze,Dallas,TX,South,2023-02-14
+C0025,Ingrid Patel,ingrid.patel25@example.com,Consumer,Bronze,Austin,TX,South,2022-05-21
+C0026,Lucia Thomas,lucia.thomas26@example.com,Small Business,Gold,Boston,MA,East,2022-09-28
+C0027,Valentina White,valentina.white27@example.com,Consumer,Gold,Austin,TX,South,2021-05-17
+C0028,Arjun Allen,arjun.allen28@example.com,Consumer,Bronze,San Francisco,CA,West,2021-07-31
+C0029,Amara Smith,amara.smith29@example.com,Consumer,Gold,Dallas,TX,South,2023-01-08
+C0030,Kofi Young,kofi.young30@example.com,Consumer,Silver,Washington,DC,East,2025-04-26
+C0031,Samuel Walker,samuel.walker31@example.com,Consumer,Bronze,Washington,DC,East,2021-10-03
+C0032,Chloe Davis,chloe.davis32@example.com,Consumer,Silver,New York,NY,East,2026-04-24
+C0033,Emma Chen,emma.chen33@example.com,Small Business,Bronze,Miami,FL,South,2021-03-17
+C0034,Grace Allen,grace.allen34@example.com,Consumer,Bronze,Washington,DC,East,2020-06-20
+C0035,Omar Walker,omar.walker35@example.com,Consumer,Gold,San Francisco,CA,West,2023-05-14
+C0036,Grace Kim,grace.kim36@example.com,Consumer,Silver,Dallas,TX,South,2021-04-18
+C0037,Ingrid Kim,ingrid.kim37@example.com,Small Business,Bronze,Denver,CO,Central,2024-10-09
+C0038,Henry Garcia,henry.garcia38@example.com,Corporate,Bronze,Austin,TX,South,2026-05-07
+C0039,Fatima Patel,fatima.patel39@example.com,Corporate,Gold,Miami,FL,South,2020-12-15
+C0040,Daniel Rossi,daniel.rossi40@example.com,Consumer,Gold,New York,NY,East,2021-09-12
+C0041,Ethan Nguyen,ethan.nguyen41@example.com,Consumer,Gold,Portland,OR,West,2020-09-10
+C0042,Owen Garcia,owen.garcia42@example.com,Consumer,Silver,Denver,CO,Central,2020-05-01
+C0043,Lars Robinson,lars.robinson43@example.com,Consumer,Platinum,San Francisco,CA,West,2026-05-22
+C0044,Arjun Okafor,arjun.okafor44@example.com,Small Business,Platinum,Portland,OR,West,2022-09-08
+C0045,Julian Hernandez,julian.hernandez45@example.com,Consumer,Bronze,Los Angeles,CA,West,2020-02-10
+C0046,Zoe Ramirez,zoe.ramirez46@example.com,Consumer,Bronze,Boston,MA,East,2021-01-09
+C0047,Lars Lewis,lars.lewis47@example.com,Consumer,Bronze,Kansas City,MO,Central,2020-09-24
+C0048,Owen Thompson,owen.thompson48@example.com,Consumer,Platinum,Chicago,IL,Central,2022-01-24
+C0049,Owen White,owen.white49@example.com,Consumer,Silver,Minneapolis,MN,Central,2026-05-23
+C0050,Grace Smith,grace.smith50@example.com,Small Business,Platinum,New York,NY,East,2020-10-29
+C0051,Arjun Thompson,arjun.thompson51@example.com,Consumer,Bronze,Kansas City,MO,Central,2022-01-10
+C0052,Camila Hernandez,camila.hernandez52@example.com,Consumer,Bronze,Portland,OR,West,2021-07-13
+C0053,Nora Anderson,nora.anderson53@example.com,Consumer,Silver,Minneapolis,MN,Central,2020-12-23
+C0054,Valentina Lee,valentina.lee54@example.com,Consumer,Bronze,Washington,DC,East,2024-10-29
+C0055,Ethan Jackson,ethan.jackson55@example.com,Consumer,Bronze,New York,NY,East,2026-04-03
+C0056,Lucas King,lucas.king56@example.com,Consumer,Silver,Miami,FL,South,2020-03-26
+C0057,Olivia Patel,olivia.patel57@example.com,Consumer,Silver,Seattle,WA,West,2020-11-08
+C0058,Owen White,owen.white58@example.com,Consumer,Bronze,Boston,MA,East,2023-10-01
+C0059,Fatima Gonzalez,fatima.gonzalez59@example.com,Consumer,Silver,New York,NY,East,2020-03-29
+C0060,Ethan Walker,ethan.walker60@example.com,Corporate,Bronze,Los Angeles,CA,West,2025-09-22
+C0061,Elena Allen,elena.allen61@example.com,Consumer,Gold,Kansas City,MO,Central,2024-04-11
+C0062,Noah Robinson,noah.robinson62@example.com,Small Business,Bronze,Dallas,TX,South,2023-04-26
+C0063,Ingrid Smith,ingrid.smith63@example.com,Small Business,Bronze,Portland,OR,West,2024-09-06
+C0064,Omar Moore,omar.moore64@example.com,Consumer,Gold,Minneapolis,MN,Central,2024-08-26
+C0065,Ethan Gonzalez,ethan.gonzalez65@example.com,Consumer,Bronze,Dallas,TX,South,2024-04-22
+C0066,Daniel Harris,daniel.harris66@example.com,Consumer,Silver,Seattle,WA,West,2023-09-16
+C0067,Gabriel Kim,gabriel.kim67@example.com,Consumer,Silver,Los Angeles,CA,West,2022-10-05
+C0068,Kenji White,kenji.white68@example.com,Small Business,Bronze,Philadelphia,PA,East,2023-10-30
+C0069,Elena Lopez,elena.lopez69@example.com,Consumer,Silver,San Francisco,CA,West,2023-03-04
+C0070,Aria Chen,aria.chen70@example.com,Small Business,Bronze,Austin,TX,South,2020-08-10
+C0071,Omar Moore,omar.moore71@example.com,Small Business,Bronze,Boston,MA,East,2022-09-21
+C0072,Chloe Young,chloe.young72@example.com,Consumer,Bronze,Atlanta,GA,South,2021-11-26
+C0073,Mateo Brown,mateo.brown73@example.com,Consumer,Silver,Boston,MA,East,2021-11-29
+C0074,Samuel Davis,samuel.davis74@example.com,Consumer,Gold,Boston,MA,East,2020-04-09
+C0075,Grace White,grace.white75@example.com,Consumer,Bronze,Miami,FL,South,2021-02-26
+C0076,Omar Ramirez,omar.ramirez76@example.com,Consumer,Silver,Los Angeles,CA,West,2025-08-10
+C0077,Lars Silva,lars.silva77@example.com,Consumer,Bronze,Seattle,WA,West,2020-04-24
+C0078,Leo Sanchez,leo.sanchez78@example.com,Consumer,Bronze,Miami,FL,South,2023-03-14
+C0079,Liam Brown,liam.brown79@example.com,Consumer,Silver,Minneapolis,MN,Central,2021-06-16
+C0080,Amara Brown,amara.brown80@example.com,Consumer,Silver,Portland,OR,West,2020-07-15
+C0081,Elena Walker,elena.walker81@example.com,Consumer,Silver,Dallas,TX,South,2021-02-16
+C0082,Kenji White,kenji.white82@example.com,Consumer,Bronze,Portland,OR,West,2020-08-22
+C0083,Lucia Thompson,lucia.thompson83@example.com,Consumer,Bronze,Atlanta,GA,South,2021-03-19
+C0084,Mei Silva,mei.silva84@example.com,Consumer,Bronze,Miami,FL,South,2023-10-07
+C0085,Julian Rossi,julian.rossi85@example.com,Consumer,Platinum,New York,NY,East,2025-03-03
+C0086,Lars King,lars.king86@example.com,Consumer,Silver,Miami,FL,South,2023-05-30
+C0087,Leo Sanchez,leo.sanchez87@example.com,Consumer,Silver,Kansas City,MO,Central,2023-01-22
+C0088,Zoe Clark,zoe.clark88@example.com,Consumer,Bronze,Denver,CO,Central,2023-03-08
+C0089,Mia Anderson,mia.anderson89@example.com,Consumer,Gold,Washington,DC,East,2020-11-03
+C0090,Lars Harris,lars.harris90@example.com,Consumer,Silver,Atlanta,GA,South,2023-08-15
+C0091,Zoe Kim,zoe.kim91@example.com,Small Business,Bronze,San Francisco,CA,West,2021-06-20
+C0092,Mateo Kim,mateo.kim92@example.com,Consumer,Bronze,New York,NY,East,2020-11-22
+C0093,Amara Thomas,amara.thomas93@example.com,Consumer,Bronze,Atlanta,GA,South,2021-03-11
+C0094,Samuel Brown,samuel.brown94@example.com,Consumer,Silver,Chicago,IL,Central,2020-01-13
+C0095,Gabriel Thompson,gabriel.thompson95@example.com,Consumer,Silver,New York,NY,East,2022-02-08
+C0096,Samuel Hernandez,samuel.hernandez96@example.com,Corporate,Silver,New York,NY,East,2019-12-11
+C0097,Mateo Miller,mateo.miller97@example.com,Consumer,Silver,Miami,FL,South,2020-04-28
+C0098,Leo Silva,leo.silva98@example.com,Consumer,Gold,New York,NY,East,2022-02-28
+C0099,Kenji Brown,kenji.brown99@example.com,Consumer,Bronze,Boston,MA,East,2023-11-25
+C0100,Arjun Thomas,arjun.thomas100@example.com,Small Business,Silver,Kansas City,MO,Central,2024-06-07
+C0101,Kenji Martinez,kenji.martinez101@example.com,Consumer,Bronze,Atlanta,GA,South,2025-09-24
+C0102,Lars Wilson,lars.wilson102@example.com,Consumer,Bronze,Philadelphia,PA,East,2021-12-16
+C0103,Elena Jackson,elena.jackson103@example.com,Consumer,Silver,Kansas City,MO,Central,2021-05-16
+C0104,Elena King,elena.king104@example.com,Corporate,Gold,Austin,TX,South,2025-05-29
+C0105,Camila Lee,camila.lee105@example.com,Consumer,Gold,Portland,OR,West,2021-12-02
+C0106,Grace Brown,grace.brown106@example.com,Consumer,Gold,Chicago,IL,Central,2021-02-14
+C0107,Zoe Smith,zoe.smith107@example.com,Consumer,Bronze,Boston,MA,East,2021-03-09
+C0108,Chloe Hernandez,chloe.hernandez108@example.com,Small Business,Silver,Atlanta,GA,South,2024-05-20
+C0109,Priya Allen,priya.allen109@example.com,Small Business,Silver,Seattle,WA,West,2024-01-20
+C0110,Kenji Young,kenji.young110@example.com,Consumer,Bronze,Los Angeles,CA,West,2024-08-31
+C0111,Owen Lopez,owen.lopez111@example.com,Consumer,Silver,Los Angeles,CA,West,2025-05-26
+C0112,Ethan Thompson,ethan.thompson112@example.com,Consumer,Silver,Boston,MA,East,2022-01-09
+C0113,Gabriel Lopez,gabriel.lopez113@example.com,Corporate,Bronze,Seattle,WA,West,2021-05-14
+C0114,Mia Clark,mia.clark114@example.com,Consumer,Bronze,Kansas City,MO,Central,2025-10-05
+C0115,Fatima Sanchez,fatima.sanchez115@example.com,Consumer,Silver,Chicago,IL,Central,2025-12-02
+C0116,Mia King,mia.king116@example.com,Small Business,Bronze,Portland,OR,West,2023-10-04
+C0117,Adrian Okafor,adrian.okafor117@example.com,Consumer,Silver,Washington,DC,East,2020-05-17
+C0118,Samuel Perez,samuel.perez118@example.com,Consumer,Gold,Los Angeles,CA,West,2025-03-23
+C0119,James Nguyen,james.nguyen119@example.com,Consumer,Bronze,Washington,DC,East,2021-02-02
+C0120,James Okafor,james.okafor120@example.com,Consumer,Bronze,Austin,TX,South,2023-07-22
+C0121,Valentina Allen,valentina.allen121@example.com,Consumer,Platinum,Miami,FL,South,2019-12-05
+C0122,Noah Lopez,noah.lopez122@example.com,Consumer,Gold,New York,NY,East,2020-03-11
+C0123,Elena Martinez,elena.martinez123@example.com,Consumer,Silver,Denver,CO,Central,2020-05-20
+C0124,Elena Ramirez,elena.ramirez124@example.com,Consumer,Bronze,Miami,FL,South,2023-07-28
+C0125,Daniel Davis,daniel.davis125@example.com,Small Business,Bronze,Seattle,WA,West,2025-05-26
+C0126,Elena Moore,elena.moore126@example.com,Consumer,Bronze,Austin,TX,South,2021-04-01
+C0127,Elena Brown,elena.brown127@example.com,Consumer,Bronze,Atlanta,GA,South,2020-01-09
+C0128,James Ramirez,james.ramirez128@example.com,Consumer,Bronze,Kansas City,MO,Central,2022-11-16
+C0129,Amara Ramirez,amara.ramirez129@example.com,Consumer,Bronze,Philadelphia,PA,East,2025-07-18
+C0130,Priya Chen,priya.chen130@example.com,Consumer,Bronze,Boston,MA,East,2026-04-23
+C0131,Owen Chen,owen.chen131@example.com,Consumer,Platinum,Miami,FL,South,2020-11-28
+C0132,Noah Davis,noah.davis132@example.com,Consumer,Bronze,Denver,CO,Central,2023-02-04
+C0133,Grace Brown,grace.brown133@example.com,Consumer,Silver,Dallas,TX,South,2020-11-29
+C0134,Valentina Miller,valentina.miller134@example.com,Consumer,Gold,Chicago,IL,Central,2019-12-18
+C0135,Liam Brown,liam.brown135@example.com,Consumer,Silver,Portland,OR,West,2026-02-28
+C0136,Liam Nguyen,liam.nguyen136@example.com,Small Business,Silver,Austin,TX,South,2022-04-23
+C0137,Mia Johnson,mia.johnson137@example.com,Consumer,Bronze,Chicago,IL,Central,2021-04-15
+C0138,Chloe Clark,chloe.clark138@example.com,Consumer,Bronze,New York,NY,East,2021-12-04
+C0139,Elena Martin,elena.martin139@example.com,Small Business,Bronze,Denver,CO,Central,2022-05-17
+C0140,Valentina Harris,valentina.harris140@example.com,Consumer,Bronze,Atlanta,GA,South,2023-02-09
+C0141,Liam Brown,liam.brown141@example.com,Consumer,Bronze,New York,NY,East,2022-08-26
+C0142,Priya Thompson,priya.thompson142@example.com,Consumer,Silver,Seattle,WA,West,2025-03-17
+C0143,Adrian Johnson,adrian.johnson143@example.com,Consumer,Silver,Minneapolis,MN,Central,2022-05-20
+C0144,Lars Davis,lars.davis144@example.com,Corporate,Silver,Denver,CO,Central,2025-02-07
+C0145,Ethan Thomas,ethan.thomas145@example.com,Consumer,Bronze,New York,NY,East,2023-10-01
+C0146,Ingrid Kim,ingrid.kim146@example.com,Consumer,Silver,Denver,CO,Central,2020-07-25
+C0147,Kofi Sanchez,kofi.sanchez147@example.com,Consumer,Bronze,Washington,DC,East,2024-11-02
+C0148,Nora White,nora.white148@example.com,Small Business,Silver,Seattle,WA,West,2022-07-07
+C0149,Noah Patel,noah.patel149@example.com,Small Business,Bronze,Chicago,IL,Central,2019-12-17
+C0150,Sofia Rossi,sofia.rossi150@example.com,Consumer,Silver,Los Angeles,CA,West,2021-07-12
+C0151,Lars Patel,lars.patel151@example.com,Consumer,Silver,Portland,OR,West,2025-06-15
+C0152,Chloe Anderson,chloe.anderson152@example.com,Consumer,Gold,Philadelphia,PA,East,2024-12-16
+C0153,Lucia Patel,lucia.patel153@example.com,Consumer,Platinum,Minneapolis,MN,Central,2024-10-12
+C0154,Grace Moore,grace.moore154@example.com,Corporate,Silver,Washington,DC,East,2022-01-17
+C0155,Amara Okafor,amara.okafor155@example.com,Corporate,Gold,New York,NY,East,2025-02-08
+C0156,Grace Brown,grace.brown156@example.com,Consumer,Bronze,Miami,FL,South,2025-11-02
+C0157,Omar Perez,omar.perez157@example.com,Consumer,Gold,Denver,CO,Central,2020-09-17
+C0158,Olivia Johnson,olivia.johnson158@example.com,Consumer,Bronze,Los Angeles,CA,West,2019-12-24
+C0159,Valentina Walker,valentina.walker159@example.com,Consumer,Bronze,Washington,DC,East,2022-11-19
+C0160,Mateo Rossi,mateo.rossi160@example.com,Consumer,Gold,Kansas City,MO,Central,2019-12-13
+C0161,James Martinez,james.martinez161@example.com,Corporate,Gold,New York,NY,East,2024-07-09
+C0162,Ava White,ava.white162@example.com,Corporate,Silver,Los Angeles,CA,West,2024-12-09
+C0163,Camila Kim,camila.kim163@example.com,Consumer,Silver,Philadelphia,PA,East,2023-05-16
+C0164,Ava Sanchez,ava.sanchez164@example.com,Small Business,Gold,Austin,TX,South,2022-12-02
+C0165,Mei Harris,mei.harris165@example.com,Consumer,Bronze,San Francisco,CA,West,2023-06-20
+C0166,Lucia Lewis,lucia.lewis166@example.com,Consumer,Silver,Kansas City,MO,Central,2022-07-04
+C0167,Gabriel Martin,gabriel.martin167@example.com,Consumer,Silver,Portland,OR,West,2021-05-23
+C0168,Leo Davis,leo.davis168@example.com,Consumer,Bronze,Austin,TX,South,2022-10-06
+C0169,Ingrid Ramirez,ingrid.ramirez169@example.com,Small Business,Gold,Boston,MA,East,2025-04-27
+C0170,Ingrid Brown,ingrid.brown170@example.com,Consumer,Gold,Philadelphia,PA,East,2021-12-22
+C0171,Emma Rossi,emma.rossi171@example.com,Consumer,Silver,Denver,CO,Central,2021-01-31
+C0172,Mei Allen,mei.allen172@example.com,Consumer,Silver,Portland,OR,West,2021-02-14
+C0173,Leo Smith,leo.smith173@example.com,Consumer,Bronze,New York,NY,East,2023-12-26
+C0174,Mia Okafor,mia.okafor174@example.com,Consumer,Bronze,Portland,OR,West,2024-03-11
+C0175,Camila Walker,camila.walker175@example.com,Small Business,Bronze,Miami,FL,South,2025-01-26
+C0176,Fatima Gonzalez,fatima.gonzalez176@example.com,Consumer,Platinum,Miami,FL,South,2020-12-27
+C0177,Liam White,liam.white177@example.com,Consumer,Bronze,Philadelphia,PA,East,2020-12-12
+C0178,Ethan Perez,ethan.perez178@example.com,Consumer,Silver,Minneapolis,MN,Central,2026-01-12
+C0179,Liam Martin,liam.martin179@example.com,Consumer,Gold,Minneapolis,MN,Central,2020-09-02
+C0180,Sofia Robinson,sofia.robinson180@example.com,Small Business,Bronze,Philadelphia,PA,East,2022-10-14
+C0181,Olivia Rossi,olivia.rossi181@example.com,Consumer,Gold,Atlanta,GA,South,2020-03-25
+C0182,Kenji Jackson,kenji.jackson182@example.com,Consumer,Silver,Boston,MA,East,2023-08-30
+C0183,Julian Silva,julian.silva183@example.com,Consumer,Silver,Washington,DC,East,2022-01-26
+C0184,Nora Walker,nora.walker184@example.com,Consumer,Gold,Denver,CO,Central,2022-12-21
+C0185,Ethan King,ethan.king185@example.com,Consumer,Bronze,Portland,OR,West,2021-08-31
+C0186,Mateo Allen,mateo.allen186@example.com,Consumer,Bronze,Miami,FL,South,2019-12-10
+C0187,Sofia Lopez,sofia.lopez187@example.com,Consumer,Bronze,Minneapolis,MN,Central,2025-08-24
+C0188,Samuel White,samuel.white188@example.com,Consumer,Platinum,Seattle,WA,West,2022-12-08
+C0189,Daniel Moore,daniel.moore189@example.com,Consumer,Bronze,New York,NY,East,2025-07-19
+C0190,Leo Lee,leo.lee190@example.com,Small Business,Silver,Miami,FL,South,2021-03-19
+C0191,Chloe Moore,chloe.moore191@example.com,Consumer,Bronze,Miami,FL,South,2023-09-30
+C0192,Kofi Walker,kofi.walker192@example.com,Consumer,Bronze,Austin,TX,South,2022-02-25
+C0193,Samuel Lee,samuel.lee193@example.com,Consumer,Silver,Washington,DC,East,2025-10-19
+C0194,Camila Okafor,camila.okafor194@example.com,Corporate,Silver,Washington,DC,East,2020-12-17
+C0195,Mia Johnson,mia.johnson195@example.com,Consumer,Bronze,Seattle,WA,West,2020-06-19
+C0196,Gabriel Johnson,gabriel.johnson196@example.com,Consumer,Bronze,Washington,DC,East,2023-11-30
+C0197,Fatima Thompson,fatima.thompson197@example.com,Small Business,Gold,Seattle,WA,West,2020-02-02
+C0198,Isabella Chen,isabella.chen198@example.com,Small Business,Bronze,Denver,CO,Central,2020-07-11
+C0199,Gabriel Robinson,gabriel.robinson199@example.com,Consumer,Gold,Philadelphia,PA,East,2020-02-04
+C0200,Sofia Brown,sofia.brown200@example.com,Consumer,Silver,New York,NY,East,2020-11-26
+C0201,Julian Sanchez,julian.sanchez201@example.com,Small Business,Silver,Los Angeles,CA,West,2024-02-13
+C0202,Henry Martinez,henry.martinez202@example.com,Consumer,Bronze,San Francisco,CA,West,2022-06-06
+C0203,Chloe Smith,chloe.smith203@example.com,Small Business,Bronze,Minneapolis,MN,Central,2020-01-03
+C0204,Amara Lewis,amara.lewis204@example.com,Consumer,Bronze,Atlanta,GA,South,2023-03-21
+C0205,Zoe Johnson,zoe.johnson205@example.com,Small Business,Platinum,Los Angeles,CA,West,2023-07-30
+C0206,Chloe Smith,chloe.smith206@example.com,Consumer,Gold,Dallas,TX,South,2025-04-06
+C0207,Kofi Lewis,kofi.lewis207@example.com,Consumer,Bronze,San Francisco,CA,West,2024-10-29
+C0208,Ethan Lewis,ethan.lewis208@example.com,Consumer,Silver,Atlanta,GA,South,2023-06-28
+C0209,Mateo Anderson,mateo.anderson209@example.com,Consumer,Bronze,Boston,MA,East,2020-11-21
+C0210,Ingrid Harris,ingrid.harris210@example.com,Consumer,Gold,New York,NY,East,2021-09-06
+C0211,Daniel Rossi,daniel.rossi211@example.com,Consumer,Bronze,Chicago,IL,Central,2023-01-19
+C0212,Henry Walker,henry.walker212@example.com,Corporate,Silver,Austin,TX,South,2023-07-28
+C0213,Lars Thomas,lars.thomas213@example.com,Consumer,Silver,Philadelphia,PA,East,2022-04-18
+C0214,Samuel Allen,samuel.allen214@example.com,Consumer,Bronze,Atlanta,GA,South,2020-05-08
+C0215,Emma Patel,emma.patel215@example.com,Consumer,Silver,Atlanta,GA,South,2021-10-08
+C0216,Amara Martin,amara.martin216@example.com,Corporate,Bronze,Atlanta,GA,South,2021-10-19
+C0217,James Silva,james.silva217@example.com,Consumer,Silver,Seattle,WA,West,2025-04-17
+C0218,Mia Walker,mia.walker218@example.com,Consumer,Silver,Washington,DC,East,2022-04-21
+C0219,Mia Allen,mia.allen219@example.com,Small Business,Silver,Washington,DC,East,2021-01-02
+C0220,Gabriel Okafor,gabriel.okafor220@example.com,Consumer,Silver,San Francisco,CA,West,2022-08-11
+C0221,Adrian Sanchez,adrian.sanchez221@example.com,Consumer,Silver,Boston,MA,East,2023-06-14
+C0222,Amara Jackson,amara.jackson222@example.com,Consumer,Silver,Philadelphia,PA,East,2021-05-28
+C0223,Liam Patel,liam.patel223@example.com,Consumer,Bronze,Los Angeles,CA,West,2023-07-10
+C0224,Diego Chen,diego.chen224@example.com,Consumer,Bronze,Washington,DC,East,2023-06-16
+C0225,Lucas Smith,lucas.smith225@example.com,Small Business,Silver,Atlanta,GA,South,2020-03-16
+C0226,Omar Wilson,omar.wilson226@example.com,Consumer,Bronze,Atlanta,GA,South,2021-05-30
+C0227,Julian Robinson,julian.robinson227@example.com,Consumer,Bronze,Seattle,WA,West,2024-07-21
+C0228,Henry Lopez,henry.lopez228@example.com,Consumer,Bronze,Los Angeles,CA,West,2025-07-03
+C0229,Arjun Chen,arjun.chen229@example.com,Consumer,Bronze,Atlanta,GA,South,2020-07-29
+C0230,James White,james.white230@example.com,Consumer,Bronze,San Francisco,CA,West,2022-03-31
+C0231,Aria Walker,aria.walker231@example.com,Consumer,Silver,Denver,CO,Central,2021-08-18
+C0232,James Silva,james.silva232@example.com,Small Business,Silver,Chicago,IL,Central,2023-03-20
+C0233,Ava Nguyen,ava.nguyen233@example.com,Consumer,Bronze,Denver,CO,Central,2021-11-06
+C0234,Nora Allen,nora.allen234@example.com,Consumer,Bronze,Washington,DC,East,2020-10-31
+C0235,Grace Wilson,grace.wilson235@example.com,Consumer,Bronze,Philadelphia,PA,East,2021-03-23
+C0236,Gabriel Okafor,gabriel.okafor236@example.com,Corporate,Bronze,Portland,OR,West,2025-03-27
+C0237,Daniel White,daniel.white237@example.com,Consumer,Gold,Portland,OR,West,2022-01-18
+C0238,Daniel Moore,daniel.moore238@example.com,Consumer,Bronze,Miami,FL,South,2025-09-16
+C0239,Diego Johnson,diego.johnson239@example.com,Consumer,Silver,Miami,FL,South,2020-08-27
+C0240,Henry Kim,henry.kim240@example.com,Corporate,Gold,Los Angeles,CA,West,2021-09-11
+C0241,Camila Martin,camila.martin241@example.com,Small Business,Bronze,Denver,CO,Central,2026-04-28
+C0242,Henry Walker,henry.walker242@example.com,Small Business,Bronze,New York,NY,East,2020-06-13
+C0243,Gabriel King,gabriel.king243@example.com,Small Business,Bronze,Washington,DC,East,2023-12-27
+C0244,Zoe Lopez,zoe.lopez244@example.com,Consumer,Bronze,New York,NY,East,2021-08-05
+C0245,Omar Rossi,omar.rossi245@example.com,Small Business,Silver,Denver,CO,Central,2021-04-13
+C0246,Owen Smith,owen.smith246@example.com,Consumer,Platinum,Los Angeles,CA,West,2024-06-10
+C0247,Camila White,camila.white247@example.com,Consumer,Bronze,Chicago,IL,Central,2026-06-16
+C0248,Valentina Johnson,valentina.johnson248@example.com,Consumer,Silver,New York,NY,East,2019-12-07
+C0249,Ava Moore,ava.moore249@example.com,Consumer,Bronze,Washington,DC,East,2020-09-03
+C0250,Lucas Young,lucas.young250@example.com,Consumer,Bronze,Denver,CO,Central,2022-09-20
+C0251,Leo Gonzalez,leo.gonzalez251@example.com,Consumer,Silver,New York,NY,East,2026-02-10
+C0252,Amara Garcia,amara.garcia252@example.com,Consumer,Gold,Chicago,IL,Central,2019-12-14
+C0253,Elena Moore,elena.moore253@example.com,Consumer,Bronze,San Francisco,CA,West,2024-05-23
+C0254,Chloe Gonzalez,chloe.gonzalez254@example.com,Consumer,Silver,Kansas City,MO,Central,2023-07-13
+C0255,Liam White,liam.white255@example.com,Consumer,Silver,Minneapolis,MN,Central,2021-02-22
+C0256,Daniel Nguyen,daniel.nguyen256@example.com,Consumer,Gold,New York,NY,East,2021-03-14
+C0257,Gabriel Harris,gabriel.harris257@example.com,Consumer,Bronze,Denver,CO,Central,2020-10-24
+C0258,Mia Smith,mia.smith258@example.com,Corporate,Bronze,San Francisco,CA,West,2022-10-17
+C0259,Mei Walker,mei.walker259@example.com,Consumer,Bronze,Boston,MA,East,2024-03-25
+C0260,Mateo Kim,mateo.kim260@example.com,Consumer,Silver,Minneapolis,MN,Central,2024-06-08
+C0261,Mia White,mia.white261@example.com,Consumer,Gold,Boston,MA,East,2026-05-16
+C0262,Lars Johnson,lars.johnson262@example.com,Consumer,Silver,Austin,TX,South,2020-04-24
+C0263,Valentina Nguyen,valentina.nguyen263@example.com,Consumer,Silver,Miami,FL,South,2019-12-17
+C0264,Lucas Smith,lucas.smith264@example.com,Consumer,Platinum,Atlanta,GA,South,2024-10-05
+C0265,Arjun King,arjun.king265@example.com,Consumer,Silver,Miami,FL,South,2020-10-28
+C0266,Lucas Jackson,lucas.jackson266@example.com,Consumer,Bronze,Seattle,WA,West,2023-12-07
+C0267,Sofia Silva,sofia.silva267@example.com,Consumer,Bronze,Boston,MA,East,2022-08-11
+C0268,Gabriel Davis,gabriel.davis268@example.com,Corporate,Bronze,Portland,OR,West,2021-02-09
+C0269,Grace White,grace.white269@example.com,Consumer,Silver,Atlanta,GA,South,2021-06-10
+C0270,Daniel King,daniel.king270@example.com,Small Business,Silver,Miami,FL,South,2021-03-27
+C0271,Daniel Miller,daniel.miller271@example.com,Consumer,Gold,Seattle,WA,West,2024-01-25
+C0272,Samuel Garcia,samuel.garcia272@example.com,Consumer,Platinum,New York,NY,East,2026-01-14
+C0273,Noah Miller,noah.miller273@example.com,Consumer,Silver,Dallas,TX,South,2022-09-14
+C0274,Mateo Hernandez,mateo.hernandez274@example.com,Consumer,Silver,Denver,CO,Central,2021-10-16
+C0275,Grace Lee,grace.lee275@example.com,Consumer,Bronze,Atlanta,GA,South,2025-02-06
+C0276,Mia Thomas,mia.thomas276@example.com,Consumer,Bronze,Denver,CO,Central,2025-08-21
+C0277,Fatima Clark,fatima.clark277@example.com,Consumer,Bronze,Minneapolis,MN,Central,2021-05-28
+C0278,Ingrid Martinez,ingrid.martinez278@example.com,Consumer,Bronze,Minneapolis,MN,Central,2024-12-01
+C0279,Leo Lee,leo.lee279@example.com,Consumer,Silver,Chicago,IL,Central,2021-09-25
+C0280,Isabella Gonzalez,isabella.gonzalez280@example.com,Consumer,Silver,Los Angeles,CA,West,2022-10-03
+C0281,Mateo Lee,mateo.lee281@example.com,Consumer,Gold,San Francisco,CA,West,2023-08-22
+C0282,Samuel Davis,samuel.davis282@example.com,Consumer,Gold,Portland,OR,West,2024-02-21
+C0283,Liam Lewis,liam.lewis283@example.com,Consumer,Bronze,Boston,MA,East,2022-10-19
+C0284,Lars Martin,lars.martin284@example.com,Consumer,Bronze,Austin,TX,South,2020-11-30
+C0285,Kenji Martin,kenji.martin285@example.com,Consumer,Silver,Seattle,WA,West,2026-03-11
+C0286,Amara Kim,amara.kim286@example.com,Consumer,Gold,Atlanta,GA,South,2022-12-29
+C0287,Noah Patel,noah.patel287@example.com,Consumer,Silver,Miami,FL,South,2024-08-26
+C0288,Noah Jackson,noah.jackson288@example.com,Consumer,Gold,New York,NY,East,2023-01-11
+C0289,Kofi Smith,kofi.smith289@example.com,Small Business,Gold,Miami,FL,South,2025-07-31
+C0290,Fatima White,fatima.white290@example.com,Consumer,Silver,Chicago,IL,Central,2023-07-01
+C0291,Lars Thomas,lars.thomas291@example.com,Small Business,Bronze,Denver,CO,Central,2023-01-03
+C0292,Kofi Miller,kofi.miller292@example.com,Consumer,Silver,Los Angeles,CA,West,2026-05-31
+C0293,Kofi Hernandez,kofi.hernandez293@example.com,Consumer,Bronze,Atlanta,GA,South,2023-03-28
+C0294,Arjun Harris,arjun.harris294@example.com,Small Business,Silver,Chicago,IL,Central,2025-07-29
+C0295,Kofi Anderson,kofi.anderson295@example.com,Consumer,Bronze,New York,NY,East,2020-02-21
+C0296,Amara Robinson,amara.robinson296@example.com,Corporate,Bronze,Portland,OR,West,2022-03-21
+C0297,Arjun Miller,arjun.miller297@example.com,Consumer,Silver,Atlanta,GA,South,2024-08-31
+C0298,Samuel Allen,samuel.allen298@example.com,Consumer,Silver,Seattle,WA,West,2022-08-08
+C0299,Noah Lewis,noah.lewis299@example.com,Consumer,Bronze,Philadelphia,PA,East,2024-06-19
+C0300,Isabella Patel,isabella.patel300@example.com,Consumer,Bronze,Kansas City,MO,Central,2023-08-04
+C0301,Isabella Lopez,isabella.lopez301@example.com,Consumer,Gold,Atlanta,GA,South,2021-11-24
+C0302,Samuel Patel,samuel.patel302@example.com,Small Business,Bronze,Seattle,WA,West,2020-05-03
+C0303,Diego Thomas,diego.thomas303@example.com,Consumer,Silver,Boston,MA,East,2019-12-15
+C0304,Isabella Johnson,isabella.johnson304@example.com,Consumer,Bronze,New York,NY,East,2021-04-01
+C0305,Ingrid Patel,ingrid.patel305@example.com,Consumer,Bronze,Minneapolis,MN,Central,2022-11-04
+C0306,Leo Robinson,leo.robinson306@example.com,Consumer,Bronze,Washington,DC,East,2020-04-18
+C0307,Aria Ramirez,aria.ramirez307@example.com,Consumer,Gold,Chicago,IL,Central,2022-07-11
+C0308,Ethan Hernandez,ethan.hernandez308@example.com,Small Business,Bronze,San Francisco,CA,West,2020-12-19
+C0309,Aria Chen,aria.chen309@example.com,Consumer,Gold,Boston,MA,East,2025-12-04
+C0310,Mateo Robinson,mateo.robinson310@example.com,Consumer,Silver,Portland,OR,West,2021-02-07
+C0311,Elena Anderson,elena.anderson311@example.com,Consumer,Bronze,Chicago,IL,Central,2026-04-07
+C0312,Emma Miller,emma.miller312@example.com,Consumer,Bronze,Dallas,TX,South,2019-12-04
+C0313,Chloe Perez,chloe.perez313@example.com,Consumer,Silver,Philadelphia,PA,East,2024-01-13
+C0314,Nora Miller,nora.miller314@example.com,Corporate,Gold,Denver,CO,Central,2020-09-25
+C0315,Isabella Thompson,isabella.thompson315@example.com,Consumer,Silver,Miami,FL,South,2024-09-27
+C0316,Henry Robinson,henry.robinson316@example.com,Consumer,Gold,Denver,CO,Central,2020-03-08
+C0317,Daniel Johnson,daniel.johnson317@example.com,Small Business,Bronze,Washington,DC,East,2025-01-16
+C0318,Isabella Jackson,isabella.jackson318@example.com,Consumer,Silver,Denver,CO,Central,2021-07-08
+C0319,Mateo Thomas,mateo.thomas319@example.com,Small Business,Gold,Philadelphia,PA,East,2021-09-20
+C0320,Mei Wilson,mei.wilson320@example.com,Small Business,Silver,San Francisco,CA,West,2021-02-28
+C0321,James Thomas,james.thomas321@example.com,Small Business,Silver,Minneapolis,MN,Central,2024-09-12
+C0322,Owen Kim,owen.kim322@example.com,Consumer,Bronze,New York,NY,East,2023-04-23
+C0323,Priya Silva,priya.silva323@example.com,Consumer,Bronze,Miami,FL,South,2022-07-21
+C0324,Valentina Rossi,valentina.rossi324@example.com,Consumer,Silver,Minneapolis,MN,Central,2025-10-24
+C0325,Ava Patel,ava.patel325@example.com,Consumer,Silver,Denver,CO,Central,2020-08-18
+C0326,Henry Young,henry.young326@example.com,Consumer,Silver,New York,NY,East,2025-04-15
+C0327,Adrian Hernandez,adrian.hernandez327@example.com,Small Business,Silver,Seattle,WA,West,2020-04-15
+C0328,Grace White,grace.white328@example.com,Consumer,Gold,Los Angeles,CA,West,2022-02-12
+C0329,Leo Thomas,leo.thomas329@example.com,Small Business,Gold,Denver,CO,Central,2022-08-27
+C0330,Chloe Gonzalez,chloe.gonzalez330@example.com,Consumer,Bronze,Seattle,WA,West,2022-05-06
+C0331,Amara Thomas,amara.thomas331@example.com,Consumer,Bronze,Atlanta,GA,South,2024-08-15
+C0332,Zoe Kim,zoe.kim332@example.com,Consumer,Bronze,Austin,TX,South,2026-05-10
+C0333,Lucia Silva,lucia.silva333@example.com,Consumer,Bronze,Chicago,IL,Central,2024-12-09
+C0334,Nora Sanchez,nora.sanchez334@example.com,Consumer,Bronze,Miami,FL,South,2022-05-09
+C0335,Kofi Lopez,kofi.lopez335@example.com,Consumer,Bronze,Washington,DC,East,2025-05-27
+C0336,Ethan Gonzalez,ethan.gonzalez336@example.com,Corporate,Bronze,Minneapolis,MN,Central,2020-10-22
+C0337,James Brown,james.brown337@example.com,Consumer,Bronze,Washington,DC,East,2023-01-04
+C0338,Valentina Rossi,valentina.rossi338@example.com,Consumer,Bronze,Chicago,IL,Central,2023-07-05
+C0339,Aria Garcia,aria.garcia339@example.com,Consumer,Bronze,Portland,OR,West,2019-11-27
+C0340,Emma Smith,emma.smith340@example.com,Small Business,Bronze,Seattle,WA,West,2022-08-10
+C0341,Mei White,mei.white341@example.com,Consumer,Silver,Chicago,IL,Central,2023-09-30
+C0342,Samuel Young,samuel.young342@example.com,Consumer,Gold,Denver,CO,Central,2021-04-03
+C0343,Adrian Smith,adrian.smith343@example.com,Consumer,Silver,Kansas City,MO,Central,2023-04-08
+C0344,Sofia Lewis,sofia.lewis344@example.com,Consumer,Silver,Dallas,TX,South,2025-09-30
+C0345,Lucas Walker,lucas.walker345@example.com,Consumer,Bronze,Philadelphia,PA,East,2020-12-07
+C0346,Ava White,ava.white346@example.com,Consumer,Silver,Boston,MA,East,2020-04-15
+C0347,Isabella Kim,isabella.kim347@example.com,Consumer,Silver,Los Angeles,CA,West,2023-05-29
+C0348,Emma Clark,emma.clark348@example.com,Small Business,Silver,Boston,MA,East,2023-10-13
+C0349,Daniel Garcia,daniel.garcia349@example.com,Consumer,Bronze,Seattle,WA,West,2023-05-20
+C0350,Mei Lopez,mei.lopez350@example.com,Corporate,Bronze,Los Angeles,CA,West,2025-10-21
+C0351,Isabella Anderson,isabella.anderson351@example.com,Consumer,Silver,Portland,OR,West,2025-01-03
+C0352,Sofia Garcia,sofia.garcia352@example.com,Small Business,Platinum,Denver,CO,Central,2023-01-17
+C0353,Mateo Ramirez,mateo.ramirez353@example.com,Consumer,Gold,Atlanta,GA,South,2021-10-03
+C0354,Priya Walker,priya.walker354@example.com,Corporate,Gold,Chicago,IL,Central,2020-02-06
+C0355,Kofi Patel,kofi.patel355@example.com,Consumer,Gold,Philadelphia,PA,East,2021-11-15
+C0356,Camila Patel,camila.patel356@example.com,Consumer,Silver,Washington,DC,East,2021-09-11
+C0357,Kenji Rossi,kenji.rossi357@example.com,Consumer,Silver,Kansas City,MO,Central,2025-11-16
+C0358,Julian Martin,julian.martin358@example.com,Consumer,Gold,Washington,DC,East,2020-03-17
+C0359,Lars Johnson,lars.johnson359@example.com,Consumer,Bronze,Seattle,WA,West,2023-02-14
+C0360,Arjun Harris,arjun.harris360@example.com,Consumer,Bronze,Kansas City,MO,Central,2022-06-11
+C0361,Mateo King,mateo.king361@example.com,Consumer,Bronze,Philadelphia,PA,East,2025-04-03
+C0362,Liam Hernandez,liam.hernandez362@example.com,Small Business,Silver,New York,NY,East,2020-11-16
+C0363,Leo Kim,leo.kim363@example.com,Consumer,Bronze,Minneapolis,MN,Central,2021-06-11
+C0364,Owen Sanchez,owen.sanchez364@example.com,Consumer,Silver,Washington,DC,East,2025-01-07
+C0365,Samuel Clark,samuel.clark365@example.com,Consumer,Bronze,Austin,TX,South,2021-11-27
+C0366,Nora Hernandez,nora.hernandez366@example.com,Consumer,Bronze,Dallas,TX,South,2022-12-13
+C0367,Samuel Hernandez,samuel.hernandez367@example.com,Consumer,Silver,Boston,MA,East,2020-06-14
+C0368,Kofi Kim,kofi.kim368@example.com,Consumer,Gold,Denver,CO,Central,2024-01-05
+C0369,Priya Kim,priya.kim369@example.com,Consumer,Bronze,Chicago,IL,Central,2023-01-11
+C0370,Chloe Kim,chloe.kim370@example.com,Small Business,Bronze,New York,NY,East,2020-08-02
+C0371,Grace Allen,grace.allen371@example.com,Consumer,Bronze,Denver,CO,Central,2020-08-16
+C0372,Chloe Silva,chloe.silva372@example.com,Consumer,Gold,Minneapolis,MN,Central,2020-07-02
+C0373,James Kim,james.kim373@example.com,Consumer,Silver,Atlanta,GA,South,2026-02-18
+C0374,Nora Okafor,nora.okafor374@example.com,Consumer,Bronze,Austin,TX,South,2025-03-08
+C0375,Noah Thomas,noah.thomas375@example.com,Consumer,Bronze,Dallas,TX,South,2024-06-13
+C0376,Grace Moore,grace.moore376@example.com,Consumer,Silver,Portland,OR,West,2021-06-19
+C0377,Omar Lewis,omar.lewis377@example.com,Consumer,Gold,Kansas City,MO,Central,2020-02-06
+C0378,Chloe Silva,chloe.silva378@example.com,Small Business,Gold,Portland,OR,West,2022-08-05
+C0379,Olivia Ramirez,olivia.ramirez379@example.com,Consumer,Silver,Minneapolis,MN,Central,2024-07-17
+C0380,James Kim,james.kim380@example.com,Consumer,Bronze,Los Angeles,CA,West,2021-08-07
+C0381,Ava Sanchez,ava.sanchez381@example.com,Consumer,Bronze,Philadelphia,PA,East,2024-06-07
+C0382,Lars White,lars.white382@example.com,Small Business,Bronze,Washington,DC,East,2025-07-17
+C0383,James Chen,james.chen383@example.com,Consumer,Bronze,San Francisco,CA,West,2024-06-12
+C0384,Diego Sanchez,diego.sanchez384@example.com,Consumer,Bronze,Atlanta,GA,South,2022-10-11
+C0385,Ava Davis,ava.davis385@example.com,Consumer,Platinum,Miami,FL,South,2020-05-26
+C0386,Chloe Lewis,chloe.lewis386@example.com,Consumer,Silver,Los Angeles,CA,West,2020-12-21
+C0387,Mei Kim,mei.kim387@example.com,Consumer,Silver,Philadelphia,PA,East,2022-05-04
+C0388,Valentina Okafor,valentina.okafor388@example.com,Small Business,Gold,Seattle,WA,West,2022-10-27
+C0389,Isabella Moore,isabella.moore389@example.com,Consumer,Bronze,Boston,MA,East,2023-08-07
+C0390,Mateo Lopez,mateo.lopez390@example.com,Consumer,Bronze,Portland,OR,West,2022-08-04
+C0391,Aria Allen,aria.allen391@example.com,Consumer,Bronze,New York,NY,East,2023-11-28
+C0392,Mia Martinez,mia.martinez392@example.com,Consumer,Silver,San Francisco,CA,West,2021-03-08
+C0393,Elena Lewis,elena.lewis393@example.com,Consumer,Bronze,New York,NY,East,2024-02-01
+C0394,Fatima Thompson,fatima.thompson394@example.com,Corporate,Bronze,Denver,CO,Central,2019-11-30
+C0395,Ethan Davis,ethan.davis395@example.com,Consumer,Bronze,Portland,OR,West,2020-08-28
+C0396,Zoe Moore,zoe.moore396@example.com,Consumer,Bronze,Boston,MA,East,2026-05-21
+C0397,Emma Davis,emma.davis397@example.com,Small Business,Gold,Chicago,IL,Central,2020-10-27
+C0398,Owen Silva,owen.silva398@example.com,Consumer,Silver,San Francisco,CA,West,2023-08-17
+C0399,Zoe Gonzalez,zoe.gonzalez399@example.com,Consumer,Bronze,Kansas City,MO,Central,2020-07-12
+C0400,Leo Miller,leo.miller400@example.com,Consumer,Silver,Miami,FL,South,2025-03-14
+C0401,Julian Perez,julian.perez401@example.com,Consumer,Bronze,Miami,FL,South,2022-02-21
+C0402,Omar Hernandez,omar.hernandez402@example.com,Small Business,Bronze,Chicago,IL,Central,2023-07-18
+C0403,Lucia Lopez,lucia.lopez403@example.com,Consumer,Silver,San Francisco,CA,West,2026-05-19
+C0404,Kofi Moore,kofi.moore404@example.com,Consumer,Silver,Portland,OR,West,2020-12-14
+C0405,Adrian Jackson,adrian.jackson405@example.com,Consumer,Silver,Austin,TX,South,2021-03-11
+C0406,Lars Wilson,lars.wilson406@example.com,Consumer,Gold,Denver,CO,Central,2022-12-31
+C0407,Priya Clark,priya.clark407@example.com,Consumer,Bronze,Portland,OR,West,2021-04-08
+C0408,Kenji Ramirez,kenji.ramirez408@example.com,Consumer,Silver,New York,NY,East,2021-06-14
+C0409,Kenji Perez,kenji.perez409@example.com,Consumer,Bronze,Dallas,TX,South,2020-10-21
+C0410,Mia Chen,mia.chen410@example.com,Consumer,Gold,Dallas,TX,South,2022-10-02
+C0411,Priya Garcia,priya.garcia411@example.com,Consumer,Bronze,Denver,CO,Central,2022-09-17
+C0412,Ingrid Davis,ingrid.davis412@example.com,Consumer,Bronze,Kansas City,MO,Central,2022-02-24
+C0413,Valentina Walker,valentina.walker413@example.com,Consumer,Silver,Seattle,WA,West,2023-04-15
+C0414,Amara Miller,amara.miller414@example.com,Consumer,Platinum,Portland,OR,West,2022-12-29
+C0415,Grace Brown,grace.brown415@example.com,Consumer,Gold,Minneapolis,MN,Central,2021-05-11
+C0416,Kofi Anderson,kofi.anderson416@example.com,Consumer,Silver,Dallas,TX,South,2020-02-27
+C0417,Aria Gonzalez,aria.gonzalez417@example.com,Consumer,Bronze,Los Angeles,CA,West,2021-01-26
+C0418,Isabella Anderson,isabella.anderson418@example.com,Consumer,Silver,Washington,DC,East,2025-09-06
+C0419,Camila Okafor,camila.okafor419@example.com,Consumer,Bronze,Seattle,WA,West,2026-03-04
+C0420,Kenji Young,kenji.young420@example.com,Consumer,Silver,Kansas City,MO,Central,2025-05-08
+C0421,Amara Hernandez,amara.hernandez421@example.com,Small Business,Bronze,Boston,MA,East,2021-04-29
+C0422,Fatima Walker,fatima.walker422@example.com,Consumer,Silver,Dallas,TX,South,2020-01-10
+C0423,Aria Moore,aria.moore423@example.com,Consumer,Bronze,Atlanta,GA,South,2023-05-28
+C0424,Julian Rossi,julian.rossi424@example.com,Consumer,Silver,Miami,FL,South,2020-03-09
+C0425,James Ramirez,james.ramirez425@example.com,Small Business,Bronze,Washington,DC,East,2022-04-13
+C0426,Lucas Jackson,lucas.jackson426@example.com,Consumer,Bronze,Philadelphia,PA,East,2024-06-14
+C0427,Noah Wilson,noah.wilson427@example.com,Small Business,Bronze,New York,NY,East,2024-01-06
+C0428,Mateo Lopez,mateo.lopez428@example.com,Consumer,Gold,Dallas,TX,South,2023-07-22
+C0429,Kenji Thompson,kenji.thompson429@example.com,Consumer,Bronze,Portland,OR,West,2026-04-19
+C0430,Kenji Thompson,kenji.thompson430@example.com,Consumer,Silver,Minneapolis,MN,Central,2020-08-22
+C0431,Gabriel Martin,gabriel.martin431@example.com,Small Business,Bronze,Seattle,WA,West,2024-03-29
+C0432,Kofi Thomas,kofi.thomas432@example.com,Consumer,Silver,Seattle,WA,West,2024-03-11
+C0433,Kofi Clark,kofi.clark433@example.com,Corporate,Bronze,Miami,FL,South,2024-10-10
+C0434,Ava Lee,ava.lee434@example.com,Consumer,Bronze,Chicago,IL,Central,2023-05-28
+C0435,Mei Lee,mei.lee435@example.com,Small Business,Silver,Dallas,TX,South,2021-11-20
+C0436,Owen King,owen.king436@example.com,Small Business,Bronze,Seattle,WA,West,2022-07-22
+C0437,Chloe Walker,chloe.walker437@example.com,Consumer,Bronze,Miami,FL,South,2023-12-13
+C0438,Samuel Lopez,samuel.lopez438@example.com,Consumer,Bronze,Chicago,IL,Central,2022-01-07
+C0439,Emma Nguyen,emma.nguyen439@example.com,Consumer,Bronze,Minneapolis,MN,Central,2022-08-24
+C0440,Lars Clark,lars.clark440@example.com,Consumer,Silver,Denver,CO,Central,2024-05-02
+C0441,Fatima Martinez,fatima.martinez441@example.com,Corporate,Gold,Washington,DC,East,2022-03-27
+C0442,Arjun Anderson,arjun.anderson442@example.com,Small Business,Bronze,Dallas,TX,South,2020-10-07
+C0443,Mei Clark,mei.clark443@example.com,Corporate,Silver,New York,NY,East,2026-03-05
+C0444,Ava Garcia,ava.garcia444@example.com,Consumer,Bronze,Minneapolis,MN,Central,2023-06-09
+C0445,Daniel Perez,daniel.perez445@example.com,Consumer,Bronze,Washington,DC,East,2024-12-17
+C0446,Gabriel Ramirez,gabriel.ramirez446@example.com,Corporate,Silver,New York,NY,East,2022-12-29
+C0447,Henry Martin,henry.martin447@example.com,Consumer,Gold,Boston,MA,East,2024-07-19
+C0448,Arjun Gonzalez,arjun.gonzalez448@example.com,Small Business,Bronze,Atlanta,GA,South,2024-11-03
+C0449,Valentina Johnson,valentina.johnson449@example.com,Consumer,Silver,Minneapolis,MN,Central,2025-05-02
+C0450,Gabriel Silva,gabriel.silva450@example.com,Consumer,Silver,Dallas,TX,South,2021-09-10
+C0451,Fatima Anderson,fatima.anderson451@example.com,Small Business,Bronze,Austin,TX,South,2020-03-24
+C0452,Lars Thompson,lars.thompson452@example.com,Consumer,Gold,Philadelphia,PA,East,2023-03-11
+C0453,Lars Rossi,lars.rossi453@example.com,Consumer,Bronze,New York,NY,East,2024-03-14
+C0454,Henry Robinson,henry.robinson454@example.com,Consumer,Silver,Dallas,TX,South,2026-03-10
+C0455,Nora Wilson,nora.wilson455@example.com,Consumer,Gold,Chicago,IL,Central,2024-05-08
+C0456,Mateo Moore,mateo.moore456@example.com,Consumer,Bronze,Chicago,IL,Central,2023-06-20
+C0457,Kenji Brown,kenji.brown457@example.com,Small Business,Bronze,Los Angeles,CA,West,2023-02-17
+C0458,Grace Allen,grace.allen458@example.com,Consumer,Gold,Denver,CO,Central,2023-01-17
+C0459,Owen Okafor,owen.okafor459@example.com,Consumer,Bronze,Dallas,TX,South,2023-03-31
+C0460,Amara Young,amara.young460@example.com,Small Business,Bronze,Austin,TX,South,2025-05-08
+C0461,Lucia Miller,lucia.miller461@example.com,Small Business,Bronze,Austin,TX,South,2021-01-25
+C0462,Ava Nguyen,ava.nguyen462@example.com,Consumer,Silver,Washington,DC,East,2021-08-03
+C0463,Emma Walker,emma.walker463@example.com,Consumer,Gold,Boston,MA,East,2023-02-01
+C0464,Mateo Young,mateo.young464@example.com,Consumer,Bronze,Kansas City,MO,Central,2020-07-25
+C0465,Henry Walker,henry.walker465@example.com,Consumer,Silver,Minneapolis,MN,Central,2024-07-05
+C0466,Lars Nguyen,lars.nguyen466@example.com,Consumer,Platinum,Minneapolis,MN,Central,2023-02-24
+C0467,Camila Allen,camila.allen467@example.com,Consumer,Bronze,Seattle,WA,West,2023-02-27
+C0468,Gabriel King,gabriel.king468@example.com,Consumer,Silver,Portland,OR,West,2023-03-08
+C0469,Lucia Lewis,lucia.lewis469@example.com,Small Business,Bronze,Seattle,WA,West,2019-12-30
+C0470,Sofia Thomas,sofia.thomas470@example.com,Corporate,Bronze,Philadelphia,PA,East,2024-04-06
+C0471,Leo Harris,leo.harris471@example.com,Consumer,Bronze,Chicago,IL,Central,2023-10-07
+C0472,Leo Thomas,leo.thomas472@example.com,Corporate,Bronze,Miami,FL,South,2026-06-03
+C0473,Ava Wilson,ava.wilson473@example.com,Consumer,Bronze,Dallas,TX,South,2021-10-13
+C0474,Priya Miller,priya.miller474@example.com,Consumer,Silver,Miami,FL,South,2024-09-11
+C0475,Noah Johnson,noah.johnson475@example.com,Consumer,Bronze,Miami,FL,South,2020-01-26
+C0476,Omar Clark,omar.clark476@example.com,Consumer,Bronze,Philadelphia,PA,East,2024-01-22
+C0477,Arjun Allen,arjun.allen477@example.com,Consumer,Bronze,Austin,TX,South,2021-04-03
+C0478,Henry Silva,henry.silva478@example.com,Small Business,Silver,Chicago,IL,Central,2023-02-18
+C0479,Mei Lewis,mei.lewis479@example.com,Small Business,Bronze,Chicago,IL,Central,2025-09-26
+C0480,Fatima Lewis,fatima.lewis480@example.com,Consumer,Bronze,Minneapolis,MN,Central,2021-03-19
+C0481,Chloe Davis,chloe.davis481@example.com,Consumer,Gold,Los Angeles,CA,West,2023-08-18
+C0482,Arjun Thomas,arjun.thomas482@example.com,Consumer,Silver,Los Angeles,CA,West,2020-05-27
+C0483,Lucia Johnson,lucia.johnson483@example.com,Small Business,Silver,Miami,FL,South,2019-12-23
+C0484,Mateo King,mateo.king484@example.com,Small Business,Bronze,Portland,OR,West,2021-09-02
+C0485,Kenji Martinez,kenji.martinez485@example.com,Corporate,Bronze,San Francisco,CA,West,2024-03-20
+C0486,Fatima Lewis,fatima.lewis486@example.com,Consumer,Bronze,Minneapolis,MN,Central,2020-04-26
+C0487,Nora Hernandez,nora.hernandez487@example.com,Small Business,Bronze,Miami,FL,South,2020-01-24
+C0488,Adrian Kim,adrian.kim488@example.com,Consumer,Bronze,Atlanta,GA,South,2021-01-03
+C0489,Chloe Ramirez,chloe.ramirez489@example.com,Consumer,Bronze,Boston,MA,East,2025-03-16
+C0490,Aria Silva,aria.silva490@example.com,Consumer,Silver,Dallas,TX,South,2021-06-19
+C0491,Ingrid Smith,ingrid.smith491@example.com,Consumer,Bronze,Denver,CO,Central,2024-11-05
+C0492,Henry Silva,henry.silva492@example.com,Consumer,Bronze,Denver,CO,Central,2021-06-03
+C0493,Olivia Lee,olivia.lee493@example.com,Consumer,Bronze,Austin,TX,South,2021-10-05
+C0494,Priya Anderson,priya.anderson494@example.com,Small Business,Bronze,Washington,DC,East,2025-12-07
+C0495,Sofia Rossi,sofia.rossi495@example.com,Consumer,Gold,New York,NY,East,2023-09-09
+C0496,Lucas Jackson,lucas.jackson496@example.com,Consumer,Bronze,Seattle,WA,West,2020-06-16
+C0497,Ethan Harris,ethan.harris497@example.com,Consumer,Bronze,Kansas City,MO,Central,2020-03-23
+C0498,Mei Brown,mei.brown498@example.com,Consumer,Silver,Kansas City,MO,Central,2021-10-16
+C0499,Adrian Lee,adrian.lee499@example.com,Consumer,Bronze,San Francisco,CA,West,2021-07-26
+C0500,Arjun Robinson,arjun.robinson500@example.com,Consumer,Silver,Minneapolis,MN,Central,2021-01-23
+C0501,Amara Brown,amara.brown501@example.com,Consumer,Bronze,Los Angeles,CA,West,2021-08-17
+C0502,Leo Wilson,leo.wilson502@example.com,Consumer,Gold,Miami,FL,South,2021-07-10
+C0503,Gabriel Miller,gabriel.miller503@example.com,Consumer,Bronze,San Francisco,CA,West,2023-09-12
+C0504,Grace Garcia,grace.garcia504@example.com,Consumer,Bronze,Atlanta,GA,South,2023-05-19
+C0505,Diego Moore,diego.moore505@example.com,Consumer,Silver,Dallas,TX,South,2020-07-05
+C0506,Kofi Chen,kofi.chen506@example.com,Small Business,Silver,Portland,OR,West,2023-08-31
+C0507,Ava Lopez,ava.lopez507@example.com,Consumer,Gold,New York,NY,East,2020-04-14
+C0508,Aria Jackson,aria.jackson508@example.com,Consumer,Silver,New York,NY,East,2020-01-09
+C0509,Emma Kim,emma.kim509@example.com,Small Business,Bronze,Philadelphia,PA,East,2020-01-03
+C0510,Valentina Smith,valentina.smith510@example.com,Consumer,Platinum,Miami,FL,South,2022-01-04
+C0511,Noah Lee,noah.lee511@example.com,Corporate,Gold,New York,NY,East,2026-04-14
+C0512,Samuel Robinson,samuel.robinson512@example.com,Consumer,Gold,Denver,CO,Central,2021-11-10
+C0513,Nora Martin,nora.martin513@example.com,Consumer,Silver,Denver,CO,Central,2022-04-02
+C0514,Camila Okafor,camila.okafor514@example.com,Small Business,Gold,Minneapolis,MN,Central,2024-11-12
+C0515,Ethan Rossi,ethan.rossi515@example.com,Consumer,Bronze,Chicago,IL,Central,2020-11-16
+C0516,Ethan Smith,ethan.smith516@example.com,Consumer,Silver,Atlanta,GA,South,2025-02-27
+C0517,Henry Miller,henry.miller517@example.com,Consumer,Silver,Minneapolis,MN,Central,2022-12-19
+C0518,Ingrid Jackson,ingrid.jackson518@example.com,Consumer,Silver,Kansas City,MO,Central,2021-12-27
+C0519,Gabriel Anderson,gabriel.anderson519@example.com,Consumer,Bronze,New York,NY,East,2023-03-26
+C0520,Henry Walker,henry.walker520@example.com,Consumer,Gold,Kansas City,MO,Central,2024-07-26
+C0521,Lars Nguyen,lars.nguyen521@example.com,Small Business,Silver,Atlanta,GA,South,2024-09-09
+C0522,Chloe Robinson,chloe.robinson522@example.com,Small Business,Gold,Portland,OR,West,2021-06-21
+C0523,Fatima Robinson,fatima.robinson523@example.com,Corporate,Bronze,Portland,OR,West,2021-02-08
+C0524,Leo Thompson,leo.thompson524@example.com,Consumer,Silver,Philadelphia,PA,East,2022-05-09
+C0525,Elena Brown,elena.brown525@example.com,Consumer,Bronze,Los Angeles,CA,West,2020-09-20
+C0526,Elena Smith,elena.smith526@example.com,Small Business,Bronze,Chicago,IL,Central,2020-01-03
+C0527,Valentina Davis,valentina.davis527@example.com,Consumer,Silver,San Francisco,CA,West,2021-06-25
+C0528,Mei Wilson,mei.wilson528@example.com,Small Business,Silver,New York,NY,East,2023-10-04
+C0529,Ethan Wilson,ethan.wilson529@example.com,Consumer,Silver,Denver,CO,Central,2020-01-04
+C0530,James Davis,james.davis530@example.com,Consumer,Bronze,Denver,CO,Central,2024-01-04
+C0531,Fatima Garcia,fatima.garcia531@example.com,Consumer,Bronze,Washington,DC,East,2020-09-13
+C0532,Ava Martin,ava.martin532@example.com,Consumer,Bronze,Dallas,TX,South,2020-11-16
+C0533,Zoe Martinez,zoe.martinez533@example.com,Consumer,Bronze,Denver,CO,Central,2025-11-14
+C0534,Isabella Walker,isabella.walker534@example.com,Consumer,Silver,Chicago,IL,Central,2022-05-29
+C0535,James King,james.king535@example.com,Consumer,Gold,Miami,FL,South,2024-04-05
+C0536,Julian Silva,julian.silva536@example.com,Consumer,Silver,San Francisco,CA,West,2023-04-01
+C0537,Diego Johnson,diego.johnson537@example.com,Consumer,Silver,Los Angeles,CA,West,2020-06-22
+C0538,Grace Young,grace.young538@example.com,Consumer,Bronze,Atlanta,GA,South,2020-10-11
+C0539,Kenji Nguyen,kenji.nguyen539@example.com,Consumer,Bronze,Washington,DC,East,2025-09-16
+C0540,Owen Davis,owen.davis540@example.com,Consumer,Silver,Minneapolis,MN,Central,2025-02-28
+C0541,Ava Thomas,ava.thomas541@example.com,Consumer,Bronze,Austin,TX,South,2023-08-16
+C0542,Samuel Sanchez,samuel.sanchez542@example.com,Small Business,Bronze,New York,NY,East,2025-09-22
+C0543,Priya Patel,priya.patel543@example.com,Consumer,Gold,Portland,OR,West,2021-04-20
+C0544,Owen Walker,owen.walker544@example.com,Consumer,Silver,Portland,OR,West,2024-11-02
+C0545,Amara Sanchez,amara.sanchez545@example.com,Consumer,Platinum,Miami,FL,South,2023-03-02
+C0546,Valentina Rossi,valentina.rossi546@example.com,Small Business,Silver,New York,NY,East,2023-05-07
+C0547,Sofia Perez,sofia.perez547@example.com,Small Business,Bronze,Boston,MA,East,2022-09-02
+C0548,James Davis,james.davis548@example.com,Consumer,Silver,Miami,FL,South,2026-03-07
+C0549,Mei Miller,mei.miller549@example.com,Consumer,Silver,Minneapolis,MN,Central,2021-04-16
+C0550,Isabella Chen,isabella.chen550@example.com,Consumer,Silver,Denver,CO,Central,2023-10-19
+C0551,Sofia Brown,sofia.brown551@example.com,Consumer,Bronze,Atlanta,GA,South,2023-09-29
+C0552,Leo Moore,leo.moore552@example.com,Consumer,Bronze,Atlanta,GA,South,2022-05-25
+C0553,Ethan Wilson,ethan.wilson553@example.com,Consumer,Silver,Dallas,TX,South,2020-07-05
+C0554,Henry Miller,henry.miller554@example.com,Small Business,Silver,Austin,TX,South,2023-01-16
+C0555,Liam Patel,liam.patel555@example.com,Consumer,Silver,Portland,OR,West,2023-09-13
+C0556,Elena Clark,elena.clark556@example.com,Consumer,Silver,Austin,TX,South,2022-11-22
+C0557,Owen Rossi,owen.rossi557@example.com,Consumer,Silver,Denver,CO,Central,2020-02-01
+C0558,Owen Patel,owen.patel558@example.com,Consumer,Gold,Kansas City,MO,Central,2024-05-27
+C0559,Samuel Harris,samuel.harris559@example.com,Consumer,Bronze,Philadelphia,PA,East,2023-08-21
+C0560,Zoe Rossi,zoe.rossi560@example.com,Small Business,Bronze,Denver,CO,Central,2021-09-23
+C0561,Leo Okafor,leo.okafor561@example.com,Consumer,Bronze,Philadelphia,PA,East,2021-09-07
+C0562,Mia Sanchez,mia.sanchez562@example.com,Corporate,Silver,Minneapolis,MN,Central,2025-08-28
+C0563,Daniel Anderson,daniel.anderson563@example.com,Consumer,Silver,San Francisco,CA,West,2025-12-29
+C0564,Omar Hernandez,omar.hernandez564@example.com,Consumer,Silver,Philadelphia,PA,East,2021-09-22
+C0565,Chloe Nguyen,chloe.nguyen565@example.com,Small Business,Silver,Portland,OR,West,2023-03-23
+C0566,Ethan Miller,ethan.miller566@example.com,Consumer,Bronze,Philadelphia,PA,East,2021-10-25
+C0567,Leo Rossi,leo.rossi567@example.com,Small Business,Platinum,Austin,TX,South,2025-03-21
+C0568,Lars Kim,lars.kim568@example.com,Consumer,Silver,New York,NY,East,2026-05-22
+C0569,Omar Clark,omar.clark569@example.com,Consumer,Bronze,Los Angeles,CA,West,2026-06-05
+C0570,Aria Robinson,aria.robinson570@example.com,Consumer,Bronze,New York,NY,East,2022-10-26
+C0571,Gabriel Walker,gabriel.walker571@example.com,Consumer,Bronze,Denver,CO,Central,2020-03-30
+C0572,Arjun Young,arjun.young572@example.com,Small Business,Gold,Denver,CO,Central,2020-05-26
+C0573,Julian Anderson,julian.anderson573@example.com,Consumer,Bronze,Philadelphia,PA,East,2020-11-27
+C0574,Ava Rossi,ava.rossi574@example.com,Consumer,Gold,Washington,DC,East,2024-08-30
+C0575,Sofia Martinez,sofia.martinez575@example.com,Corporate,Bronze,Washington,DC,East,2024-04-25
+C0576,Kenji Perez,kenji.perez576@example.com,Consumer,Bronze,Philadelphia,PA,East,2021-01-25
+C0577,Mia Okafor,mia.okafor577@example.com,Consumer,Bronze,Austin,TX,South,2022-01-28
+C0578,Amara Sanchez,amara.sanchez578@example.com,Consumer,Gold,Boston,MA,East,2022-05-08
+C0579,Amara Lee,amara.lee579@example.com,Consumer,Platinum,Portland,OR,West,2020-10-04
+C0580,Lars Smith,lars.smith580@example.com,Small Business,Bronze,Austin,TX,South,2023-04-17
+C0581,Henry Perez,henry.perez581@example.com,Small Business,Silver,Dallas,TX,South,2023-05-18
+C0582,Gabriel Anderson,gabriel.anderson582@example.com,Small Business,Gold,Dallas,TX,South,2024-08-29
+C0583,Mateo Miller,mateo.miller583@example.com,Small Business,Bronze,Denver,CO,Central,2026-02-09
+C0584,Valentina Moore,valentina.moore584@example.com,Consumer,Bronze,Miami,FL,South,2022-07-09
+C0585,Leo Patel,leo.patel585@example.com,Consumer,Silver,Kansas City,MO,Central,2020-01-17
+C0586,Grace Allen,grace.allen586@example.com,Consumer,Gold,New York,NY,East,2021-01-11
+C0587,Julian Perez,julian.perez587@example.com,Consumer,Bronze,Atlanta,GA,South,2023-06-14
+C0588,Daniel Thomas,daniel.thomas588@example.com,Consumer,Bronze,Atlanta,GA,South,2022-12-29
+C0589,Nora Hernandez,nora.hernandez589@example.com,Consumer,Bronze,Los Angeles,CA,West,2022-01-12
+C0590,Mateo Johnson,mateo.johnson590@example.com,Consumer,Silver,Minneapolis,MN,Central,2025-10-15
+C0591,Amara Anderson,amara.anderson591@example.com,Consumer,Bronze,Los Angeles,CA,West,2022-08-01
+C0592,Henry Young,henry.young592@example.com,Consumer,Bronze,Atlanta,GA,South,2023-08-03
+C0593,Lucia Lee,lucia.lee593@example.com,Consumer,Bronze,Chicago,IL,Central,2021-03-30
+C0594,Isabella Miller,isabella.miller594@example.com,Consumer,Bronze,Boston,MA,East,2020-05-24
+C0595,Amara Lee,amara.lee595@example.com,Consumer,Bronze,Philadelphia,PA,East,2021-03-18
+C0596,Ethan Sanchez,ethan.sanchez596@example.com,Small Business,Bronze,New York,NY,East,2021-02-10
+C0597,Mia Okafor,mia.okafor597@example.com,Consumer,Silver,Kansas City,MO,Central,2020-02-20
+C0598,Zoe Sanchez,zoe.sanchez598@example.com,Consumer,Bronze,Austin,TX,South,2020-06-16
+C0599,Samuel Brown,samuel.brown599@example.com,Consumer,Bronze,Philadelphia,PA,East,2024-10-23
+C0600,Emma White,emma.white600@example.com,Consumer,Gold,New York,NY,East,2025-10-07
+C0601,Emma Gonzalez,emma.gonzalez601@example.com,Consumer,Bronze,Portland,OR,West,2019-12-19
+C0602,Leo Nguyen,leo.nguyen602@example.com,Consumer,Silver,Philadelphia,PA,East,2024-01-17
+C0603,Diego Chen,diego.chen603@example.com,Consumer,Silver,Philadelphia,PA,East,2026-06-10
+C0604,Sofia Miller,sofia.miller604@example.com,Consumer,Bronze,Washington,DC,East,2021-05-11
+C0605,Ava Anderson,ava.anderson605@example.com,Consumer,Bronze,Portland,OR,West,2026-04-20
+C0606,Isabella Davis,isabella.davis606@example.com,Small Business,Bronze,Washington,DC,East,2020-07-20
+C0607,Adrian Harris,adrian.harris607@example.com,Consumer,Platinum,Los Angeles,CA,West,2025-08-12
+C0608,Sofia Anderson,sofia.anderson608@example.com,Consumer,Bronze,Atlanta,GA,South,2022-06-20
+C0609,Daniel Martinez,daniel.martinez609@example.com,Small Business,Bronze,Denver,CO,Central,2020-06-16
+C0610,Ava Garcia,ava.garcia610@example.com,Small Business,Bronze,Chicago,IL,Central,2025-12-24
+C0611,Priya Gonzalez,priya.gonzalez611@example.com,Consumer,Gold,Minneapolis,MN,Central,2022-06-26
+C0612,Sofia Anderson,sofia.anderson612@example.com,Small Business,Bronze,Washington,DC,East,2023-07-05
+C0613,Daniel Thomas,daniel.thomas613@example.com,Small Business,Platinum,Los Angeles,CA,West,2024-04-07
+C0614,Owen Moore,owen.moore614@example.com,Consumer,Platinum,Dallas,TX,South,2023-05-16
+C0615,James Wilson,james.wilson615@example.com,Consumer,Bronze,Portland,OR,West,2021-12-17
+C0616,Owen Martinez,owen.martinez616@example.com,Small Business,Bronze,Los Angeles,CA,West,2025-07-04
+C0617,Daniel Allen,daniel.allen617@example.com,Consumer,Bronze,Atlanta,GA,South,2020-03-16
+C0618,Daniel Walker,daniel.walker618@example.com,Consumer,Gold,Minneapolis,MN,Central,2022-10-07
+C0619,Lars King,lars.king619@example.com,Consumer,Bronze,Chicago,IL,Central,2023-03-28
+C0620,Samuel Gonzalez,samuel.gonzalez620@example.com,Consumer,Bronze,Portland,OR,West,2023-09-01
+C0621,Samuel Jackson,samuel.jackson621@example.com,Small Business,Silver,Austin,TX,South,2020-06-04
+C0622,Olivia Brown,olivia.brown622@example.com,Consumer,Bronze,Boston,MA,East,2025-05-15
+C0623,Ava Young,ava.young623@example.com,Small Business,Silver,Kansas City,MO,Central,2021-07-26
+C0624,Amara Garcia,amara.garcia624@example.com,Consumer,Silver,Boston,MA,East,2024-02-11
+C0625,Adrian Patel,adrian.patel625@example.com,Consumer,Silver,Los Angeles,CA,West,2022-08-27
+C0626,Camila Clark,camila.clark626@example.com,Consumer,Silver,Austin,TX,South,2023-06-30
+C0627,Kofi Smith,kofi.smith627@example.com,Consumer,Silver,Philadelphia,PA,East,2023-03-24
+C0628,Owen Garcia,owen.garcia628@example.com,Consumer,Bronze,San Francisco,CA,West,2020-02-17
+C0629,Lars Okafor,lars.okafor629@example.com,Consumer,Gold,Minneapolis,MN,Central,2024-03-23
+C0630,Gabriel Johnson,gabriel.johnson630@example.com,Consumer,Bronze,Los Angeles,CA,West,2021-05-23
+C0631,Mia Silva,mia.silva631@example.com,Consumer,Bronze,Minneapolis,MN,Central,2022-02-15
+C0632,Kofi Moore,kofi.moore632@example.com,Consumer,Bronze,Kansas City,MO,Central,2022-07-03
+C0633,Elena Nguyen,elena.nguyen633@example.com,Consumer,Bronze,Los Angeles,CA,West,2021-01-07
+C0634,Mia Thomas,mia.thomas634@example.com,Consumer,Platinum,Philadelphia,PA,East,2021-10-23
+C0635,Henry Davis,henry.davis635@example.com,Consumer,Bronze,Denver,CO,Central,2022-11-09
+C0636,Fatima Gonzalez,fatima.gonzalez636@example.com,Consumer,Bronze,Washington,DC,East,2021-07-06
+C0637,Olivia Chen,olivia.chen637@example.com,Small Business,Bronze,Atlanta,GA,South,2022-01-29
+C0638,Kenji Silva,kenji.silva638@example.com,Consumer,Silver,Philadelphia,PA,East,2020-10-27
+C0639,Gabriel Thompson,gabriel.thompson639@example.com,Consumer,Gold,Portland,OR,West,2022-05-29
+C0640,Grace Anderson,grace.anderson640@example.com,Small Business,Bronze,Chicago,IL,Central,2025-12-10
+C0641,Chloe Rossi,chloe.rossi641@example.com,Consumer,Bronze,Denver,CO,Central,2021-12-05
+C0642,Zoe Miller,zoe.miller642@example.com,Consumer,Bronze,Miami,FL,South,2023-02-03
+C0643,Ethan King,ethan.king643@example.com,Consumer,Silver,Atlanta,GA,South,2020-12-09
+C0644,Grace Rossi,grace.rossi644@example.com,Consumer,Silver,Denver,CO,Central,2026-01-16
+C0645,Sofia Gonzalez,sofia.gonzalez645@example.com,Consumer,Bronze,Los Angeles,CA,West,2021-10-01
+C0646,Ingrid Thomas,ingrid.thomas646@example.com,Consumer,Silver,Kansas City,MO,Central,2026-02-24
+C0647,Mateo Kim,mateo.kim647@example.com,Consumer,Bronze,New York,NY,East,2022-03-22
+C0648,Adrian Miller,adrian.miller648@example.com,Consumer,Platinum,Boston,MA,East,2021-11-29
+C0649,Mateo Moore,mateo.moore649@example.com,Consumer,Gold,Philadelphia,PA,East,2025-03-01
+C0650,Julian Walker,julian.walker650@example.com,Consumer,Platinum,Denver,CO,Central,2025-09-04
+C0651,Samuel Lopez,samuel.lopez651@example.com,Consumer,Bronze,New York,NY,East,2021-09-15
+C0652,Amara Gonzalez,amara.gonzalez652@example.com,Consumer,Gold,Minneapolis,MN,Central,2021-11-11
+C0653,Kofi White,kofi.white653@example.com,Small Business,Bronze,Washington,DC,East,2021-05-27
+C0654,Priya Davis,priya.davis654@example.com,Consumer,Bronze,Austin,TX,South,2021-03-30
+C0655,Arjun Lopez,arjun.lopez655@example.com,Consumer,Silver,Miami,FL,South,2020-10-30
+C0656,Lucas Ramirez,lucas.ramirez656@example.com,Consumer,Bronze,Seattle,WA,West,2024-06-15
+C0657,Zoe Wilson,zoe.wilson657@example.com,Corporate,Bronze,Portland,OR,West,2021-08-25
+C0658,Mia Kim,mia.kim658@example.com,Consumer,Bronze,Minneapolis,MN,Central,2024-07-06
+C0659,Chloe White,chloe.white659@example.com,Consumer,Bronze,Dallas,TX,South,2020-02-22
+C0660,Camila Chen,camila.chen660@example.com,Small Business,Bronze,Austin,TX,South,2021-04-13
+C0661,Mei Jackson,mei.jackson661@example.com,Small Business,Silver,Minneapolis,MN,Central,2025-07-26
+C0662,Omar Davis,omar.davis662@example.com,Small Business,Bronze,Boston,MA,East,2023-07-29
+C0663,Gabriel Gonzalez,gabriel.gonzalez663@example.com,Corporate,Bronze,Philadelphia,PA,East,2025-09-03
+C0664,Lucas Jackson,lucas.jackson664@example.com,Consumer,Bronze,Denver,CO,Central,2024-05-25
+C0665,Julian Davis,julian.davis665@example.com,Consumer,Bronze,San Francisco,CA,West,2021-04-15
+C0666,Mei Johnson,mei.johnson666@example.com,Consumer,Silver,Washington,DC,East,2022-08-01
+C0667,Ingrid Moore,ingrid.moore667@example.com,Small Business,Gold,Minneapolis,MN,Central,2022-01-12
+C0668,Zoe Clark,zoe.clark668@example.com,Consumer,Silver,Chicago,IL,Central,2026-03-10
+C0669,Kofi Garcia,kofi.garcia669@example.com,Small Business,Bronze,Minneapolis,MN,Central,2024-10-15
+C0670,Diego Kim,diego.kim670@example.com,Consumer,Bronze,Washington,DC,East,2020-09-11
+C0671,Aria Young,aria.young671@example.com,Consumer,Bronze,Minneapolis,MN,Central,2021-09-19
+C0672,Gabriel Thompson,gabriel.thompson672@example.com,Consumer,Silver,Portland,OR,West,2021-03-26
+C0673,Elena Jackson,elena.jackson673@example.com,Consumer,Gold,Boston,MA,East,2021-08-08
+C0674,Gabriel Anderson,gabriel.anderson674@example.com,Consumer,Silver,Seattle,WA,West,2025-05-18
+C0675,Lucas Miller,lucas.miller675@example.com,Consumer,Gold,New York,NY,East,2020-09-09
+C0676,Gabriel Thomas,gabriel.thomas676@example.com,Consumer,Bronze,Atlanta,GA,South,2021-09-26
+C0677,Kofi Perez,kofi.perez677@example.com,Consumer,Bronze,New York,NY,East,2020-04-06
+C0678,Owen Hernandez,owen.hernandez678@example.com,Corporate,Bronze,Los Angeles,CA,West,2021-03-19
+C0679,Mia Nguyen,mia.nguyen679@example.com,Consumer,Bronze,Seattle,WA,West,2025-01-26
+C0680,Mia Chen,mia.chen680@example.com,Consumer,Silver,Washington,DC,East,2024-07-25
+C0681,Fatima Okafor,fatima.okafor681@example.com,Small Business,Bronze,Seattle,WA,West,2024-02-02
+C0682,Aria Allen,aria.allen682@example.com,Small Business,Bronze,Philadelphia,PA,East,2023-01-04
+C0683,Arjun Young,arjun.young683@example.com,Consumer,Silver,Denver,CO,Central,2021-10-27
+C0684,Fatima Rossi,fatima.rossi684@example.com,Consumer,Bronze,Washington,DC,East,2023-02-15
+C0685,Lars Clark,lars.clark685@example.com,Consumer,Bronze,Austin,TX,South,2023-11-05
+C0686,Kofi Smith,kofi.smith686@example.com,Consumer,Bronze,Atlanta,GA,South,2021-08-08
+C0687,Daniel Martin,daniel.martin687@example.com,Consumer,Bronze,Austin,TX,South,2020-02-22
+C0688,Sofia King,sofia.king688@example.com,Consumer,Silver,Boston,MA,East,2021-08-22
+C0689,Aria Rossi,aria.rossi689@example.com,Consumer,Silver,New York,NY,East,2023-06-15
+C0690,Mei Sanchez,mei.sanchez690@example.com,Consumer,Silver,Chicago,IL,Central,2021-12-18
+C0691,Mia Okafor,mia.okafor691@example.com,Consumer,Gold,Minneapolis,MN,Central,2023-09-26
+C0692,Mateo Hernandez,mateo.hernandez692@example.com,Consumer,Bronze,Atlanta,GA,South,2020-10-28
+C0693,Leo Kim,leo.kim693@example.com,Consumer,Bronze,Austin,TX,South,2020-12-22
+C0694,Omar Anderson,omar.anderson694@example.com,Consumer,Bronze,Seattle,WA,West,2021-02-08
+C0695,Owen Perez,owen.perez695@example.com,Consumer,Bronze,Boston,MA,East,2026-01-14
+C0696,Ethan White,ethan.white696@example.com,Small Business,Bronze,Boston,MA,East,2023-08-23
+C0697,Valentina Lee,valentina.lee697@example.com,Consumer,Gold,Kansas City,MO,Central,2023-05-14
+C0698,Omar Young,omar.young698@example.com,Consumer,Bronze,Boston,MA,East,2023-10-18
+C0699,Henry Silva,henry.silva699@example.com,Consumer,Bronze,Chicago,IL,Central,2023-10-07
+C0700,Mateo Harris,mateo.harris700@example.com,Consumer,Gold,Austin,TX,South,2025-02-20
+C0701,Camila Martin,camila.martin701@example.com,Consumer,Gold,Los Angeles,CA,West,2021-03-13
+C0702,Kenji Lee,kenji.lee702@example.com,Small Business,Bronze,Washington,DC,East,2024-08-31
+C0703,Aria Martin,aria.martin703@example.com,Corporate,Bronze,Boston,MA,East,2023-05-28
+C0704,Kofi Johnson,kofi.johnson704@example.com,Consumer,Bronze,Washington,DC,East,2020-01-30
+C0705,Henry Miller,henry.miller705@example.com,Consumer,Platinum,Miami,FL,South,2021-12-09
+C0706,Noah Martin,noah.martin706@example.com,Consumer,Gold,Dallas,TX,South,2022-04-08
+C0707,Fatima Martin,fatima.martin707@example.com,Small Business,Bronze,Philadelphia,PA,East,2021-10-19
+C0708,Daniel White,daniel.white708@example.com,Consumer,Gold,Minneapolis,MN,Central,2024-06-13
+C0709,Nora Martinez,nora.martinez709@example.com,Consumer,Silver,Dallas,TX,South,2026-04-22
+C0710,Samuel Young,samuel.young710@example.com,Consumer,Bronze,Los Angeles,CA,West,2025-12-16
+C0711,Omar Harris,omar.harris711@example.com,Consumer,Bronze,Philadelphia,PA,East,2023-09-17
+C0712,Ava Robinson,ava.robinson712@example.com,Consumer,Bronze,Minneapolis,MN,Central,2022-03-30
+C0713,Camila Walker,camila.walker713@example.com,Consumer,Gold,Atlanta,GA,South,2023-04-03
+C0714,Emma Brown,emma.brown714@example.com,Corporate,Gold,Boston,MA,East,2021-10-18
+C0715,Liam Silva,liam.silva715@example.com,Consumer,Bronze,Kansas City,MO,Central,2025-04-18
+C0716,Julian Lee,julian.lee716@example.com,Consumer,Bronze,Denver,CO,Central,2021-12-09
+C0717,Owen Nguyen,owen.nguyen717@example.com,Small Business,Silver,Los Angeles,CA,West,2022-11-11
+C0718,Arjun Lewis,arjun.lewis718@example.com,Corporate,Bronze,Denver,CO,Central,2022-11-04
+C0719,Nora Anderson,nora.anderson719@example.com,Consumer,Silver,Boston,MA,East,2024-01-30
+C0720,Gabriel King,gabriel.king720@example.com,Corporate,Bronze,San Francisco,CA,West,2023-04-04
+C0721,Aria Young,aria.young721@example.com,Corporate,Bronze,Dallas,TX,South,2020-11-17
+C0722,Ingrid Martinez,ingrid.martinez722@example.com,Corporate,Silver,Seattle,WA,West,2020-07-11
+C0723,Omar Martinez,omar.martinez723@example.com,Consumer,Bronze,Chicago,IL,Central,2021-03-06
+C0724,Kenji Young,kenji.young724@example.com,Consumer,Platinum,Denver,CO,Central,2022-03-31
+C0725,Gabriel Young,gabriel.young725@example.com,Small Business,Bronze,Austin,TX,South,2024-09-26
+C0726,Valentina Harris,valentina.harris726@example.com,Small Business,Silver,Washington,DC,East,2024-06-03
+C0727,Emma Miller,emma.miller727@example.com,Consumer,Bronze,Portland,OR,West,2023-10-20
+C0728,Arjun Martinez,arjun.martinez728@example.com,Consumer,Bronze,Philadelphia,PA,East,2020-01-10
+C0729,Ethan Davis,ethan.davis729@example.com,Consumer,Silver,Miami,FL,South,2022-05-30
+C0730,Kofi Moore,kofi.moore730@example.com,Small Business,Bronze,Seattle,WA,West,2020-10-20
+C0731,Isabella Sanchez,isabella.sanchez731@example.com,Consumer,Platinum,Seattle,WA,West,2020-03-09
+C0732,Ethan Smith,ethan.smith732@example.com,Consumer,Platinum,San Francisco,CA,West,2020-01-13
+C0733,Ava Sanchez,ava.sanchez733@example.com,Consumer,Silver,Portland,OR,West,2021-06-18
+C0734,Amara Gonzalez,amara.gonzalez734@example.com,Consumer,Bronze,Minneapolis,MN,Central,2026-03-31
+C0735,Ingrid Lewis,ingrid.lewis735@example.com,Small Business,Bronze,San Francisco,CA,West,2023-01-02
+C0736,Diego Wilson,diego.wilson736@example.com,Corporate,Bronze,New York,NY,East,2024-10-18
+C0737,Julian White,julian.white737@example.com,Consumer,Bronze,Denver,CO,Central,2023-06-19
+C0738,Priya Perez,priya.perez738@example.com,Consumer,Bronze,Boston,MA,East,2021-08-19
+C0739,Sofia Kim,sofia.kim739@example.com,Consumer,Bronze,Atlanta,GA,South,2025-11-23
+C0740,Kenji Brown,kenji.brown740@example.com,Consumer,Bronze,Austin,TX,South,2023-07-23
+C0741,Leo Martin,leo.martin741@example.com,Small Business,Silver,Boston,MA,East,2023-09-26
+C0742,Nora Hernandez,nora.hernandez742@example.com,Consumer,Silver,Philadelphia,PA,East,2020-10-24
+C0743,Liam Davis,liam.davis743@example.com,Consumer,Bronze,Philadelphia,PA,East,2022-12-24
+C0744,Chloe King,chloe.king744@example.com,Small Business,Gold,Philadelphia,PA,East,2022-07-08
+C0745,Mateo Lee,mateo.lee745@example.com,Consumer,Silver,Los Angeles,CA,West,2023-11-26
+C0746,Adrian Nguyen,adrian.nguyen746@example.com,Consumer,Silver,Austin,TX,South,2020-07-17
+C0747,Leo Brown,leo.brown747@example.com,Consumer,Bronze,Denver,CO,Central,2022-12-07
+C0748,Priya Miller,priya.miller748@example.com,Consumer,Bronze,Kansas City,MO,Central,2020-06-28
+C0749,Ethan Patel,ethan.patel749@example.com,Consumer,Bronze,Boston,MA,East,2023-01-26
+C0750,Liam Allen,liam.allen750@example.com,Consumer,Bronze,Kansas City,MO,Central,2020-10-22
+C0751,Julian Walker,julian.walker751@example.com,Corporate,Bronze,Washington,DC,East,2025-09-02
+C0752,Mei Nguyen,mei.nguyen752@example.com,Consumer,Bronze,Kansas City,MO,Central,2025-06-24
+C0753,Nora Patel,nora.patel753@example.com,Consumer,Bronze,Los Angeles,CA,West,2020-05-18
+C0754,Emma Patel,emma.patel754@example.com,Small Business,Bronze,Miami,FL,South,2021-02-26
+C0755,Owen Gonzalez,owen.gonzalez755@example.com,Small Business,Silver,Austin,TX,South,2025-02-03
+C0756,Priya Wilson,priya.wilson756@example.com,Consumer,Bronze,Minneapolis,MN,Central,2023-07-09
+C0757,Isabella Walker,isabella.walker757@example.com,Corporate,Bronze,Washington,DC,East,2022-10-30
+C0758,Valentina Anderson,valentina.anderson758@example.com,Consumer,Bronze,Portland,OR,West,2024-12-11
+C0759,Lucia Sanchez,lucia.sanchez759@example.com,Consumer,Bronze,Miami,FL,South,2026-02-27
+C0760,Mei Hernandez,mei.hernandez760@example.com,Corporate,Silver,Portland,OR,West,2025-03-24
+C0761,Lars Hernandez,lars.hernandez761@example.com,Small Business,Gold,Portland,OR,West,2023-01-24
+C0762,Grace Allen,grace.allen762@example.com,Consumer,Gold,Washington,DC,East,2024-04-11
+C0763,Emma Allen,emma.allen763@example.com,Small Business,Bronze,Boston,MA,East,2024-01-07
+C0764,Mateo Perez,mateo.perez764@example.com,Consumer,Bronze,Miami,FL,South,2025-02-28
+C0765,Nora Jackson,nora.jackson765@example.com,Small Business,Platinum,Denver,CO,Central,2025-02-27
+C0766,Gabriel Smith,gabriel.smith766@example.com,Consumer,Bronze,Philadelphia,PA,East,2023-12-12
+C0767,Adrian Wilson,adrian.wilson767@example.com,Consumer,Gold,Boston,MA,East,2023-10-18
+C0768,Kenji Thompson,kenji.thompson768@example.com,Small Business,Silver,Boston,MA,East,2020-03-08
+C0769,Zoe Garcia,zoe.garcia769@example.com,Consumer,Bronze,Dallas,TX,South,2025-09-17
+C0770,Fatima Allen,fatima.allen770@example.com,Small Business,Gold,Miami,FL,South,2026-03-11
+C0771,Fatima Sanchez,fatima.sanchez771@example.com,Consumer,Silver,New York,NY,East,2026-01-27
+C0772,Mei Silva,mei.silva772@example.com,Consumer,Silver,Austin,TX,South,2020-06-09
+C0773,Daniel White,daniel.white773@example.com,Small Business,Bronze,Boston,MA,East,2024-04-23
+C0774,Lucas Johnson,lucas.johnson774@example.com,Consumer,Platinum,Los Angeles,CA,West,2020-10-16
+C0775,Kofi Rossi,kofi.rossi775@example.com,Small Business,Silver,Kansas City,MO,Central,2022-05-29
+C0776,Aria Chen,aria.chen776@example.com,Small Business,Bronze,Kansas City,MO,Central,2021-02-08
+C0777,Julian Walker,julian.walker777@example.com,Consumer,Bronze,San Francisco,CA,West,2021-08-14
+C0778,Kenji Robinson,kenji.robinson778@example.com,Consumer,Bronze,New York,NY,East,2025-08-21
+C0779,Arjun Walker,arjun.walker779@example.com,Consumer,Platinum,Chicago,IL,Central,2023-04-16
+C0780,Kenji Davis,kenji.davis780@example.com,Corporate,Bronze,Minneapolis,MN,Central,2023-10-27
+C0781,Ingrid Walker,ingrid.walker781@example.com,Consumer,Bronze,Los Angeles,CA,West,2020-10-18
+C0782,Gabriel White,gabriel.white782@example.com,Consumer,Gold,Austin,TX,South,2023-03-15
+C0783,Grace Moore,grace.moore783@example.com,Consumer,Gold,Chicago,IL,Central,2025-05-15
+C0784,Amara White,amara.white784@example.com,Small Business,Gold,Philadelphia,PA,East,2026-03-11
+C0785,Camila Kim,camila.kim785@example.com,Small Business,Bronze,Philadelphia,PA,East,2025-11-14
+C0786,Lars Walker,lars.walker786@example.com,Consumer,Silver,New York,NY,East,2021-10-14
+C0787,Henry Brown,henry.brown787@example.com,Small Business,Bronze,Chicago,IL,Central,2025-08-08
+C0788,Omar Brown,omar.brown788@example.com,Consumer,Silver,Minneapolis,MN,Central,2025-07-08
+C0789,Priya Kim,priya.kim789@example.com,Consumer,Silver,Seattle,WA,West,2021-01-07
+C0790,Kofi Allen,kofi.allen790@example.com,Consumer,Bronze,San Francisco,CA,West,2025-09-13
+C0791,Samuel Young,samuel.young791@example.com,Consumer,Bronze,Chicago,IL,Central,2021-01-15
+C0792,Valentina Thompson,valentina.thompson792@example.com,Corporate,Silver,Denver,CO,Central,2023-07-02
+C0793,Chloe Anderson,chloe.anderson793@example.com,Consumer,Bronze,Seattle,WA,West,2024-11-01
+C0794,Aria Davis,aria.davis794@example.com,Consumer,Silver,Portland,OR,West,2020-08-27
+C0795,Lucas Perez,lucas.perez795@example.com,Consumer,Bronze,Portland,OR,West,2020-11-25
+C0796,Liam Perez,liam.perez796@example.com,Consumer,Silver,Los Angeles,CA,West,2020-11-21
+C0797,Mei Moore,mei.moore797@example.com,Consumer,Bronze,Denver,CO,Central,2023-01-22
+C0798,Elena Martinez,elena.martinez798@example.com,Consumer,Bronze,Seattle,WA,West,2026-04-29
+C0799,Priya Perez,priya.perez799@example.com,Small Business,Bronze,Dallas,TX,South,2025-01-24
+C0800,Grace Martinez,grace.martinez800@example.com,Consumer,Bronze,Chicago,IL,Central,2025-07-30

@@ -1,0 +1,38 @@
+table returns
+	lineageTag: a8d722b7-3a5b-5ec8-a4fe-cfc0e51bb425
+
+	column ReturnId
+		dataType: string
+		lineageTag: 12f83ba5-4aae-5c03-a62c-580c1923bae0
+		sourceColumn: ReturnId
+
+	column SalesLineId
+		dataType: int64
+		formatString: 0
+		lineageTag: 9f561727-159b-50c2-8558-610263209374
+		sourceColumn: SalesLineId
+
+	column ReturnDate
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: a851b265-5f70-5206-9185-bfe175b0eba1
+		sourceColumn: ReturnDate
+
+	column Quantity
+		dataType: int64
+		formatString: 0
+		lineageTag: a102526c-bdf8-52c9-aead-c9c0bda1908e
+		sourceColumn: Quantity
+
+	column Reason
+		dataType: string
+		lineageTag: cf3594b1-d546-56cc-b59d-968b3eb1e8f0
+		sourceColumn: Reason
+
+	partition returns = entity
+		mode: directLake
+		source
+			entityName: returns
+			schemaName: dbo
+			expressionSource: DatabaseQuery
+

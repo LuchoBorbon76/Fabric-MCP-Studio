@@ -1,0 +1,32 @@
+entityRelationship 'Sale By Customer'
+	lineageTag: c2cff91e-ec71-575f-aecb-5009f74179ba
+	fromEntity: Sale
+	toEntity: Customer
+
+	backingConfiguration
+		relationship: rel_sales_customer
+
+entityRelationship 'Sale Of Product'
+	lineageTag: 479dc4fe-fd55-5ffc-ab51-c71501ab3f5f
+	fromEntity: Sale
+	toEntity: Product
+
+	backingConfiguration
+		relationship: rel_sales_product
+
+entityRelationship 'Sale At Store'
+	lineageTag: c9417f63-57f3-5f21-9d09-3278095fcf3a
+	fromEntity: Sale
+	toEntity: Store
+
+	backingConfiguration
+		relationship: rel_sales_store
+
+entityRelationship 'Return Of Sale'
+	lineageTag: 942589d3-f07a-5f73-9d09-c2eb7d565ef9
+	fromEntity: ProductReturn
+	toEntity: Sale
+
+	backingConfiguration
+		relationship: rel_returns_sales
+

@@ -1,0 +1,52 @@
+table stores
+	lineageTag: 643f2d87-239c-52d0-ae2e-7b71df8c26bc
+
+	column StoreId
+		dataType: string
+		lineageTag: fcb2fb52-0579-575b-82ee-8031dd1724f1
+		sourceColumn: StoreId
+
+	column StoreName
+		dataType: string
+		lineageTag: 3c0163f4-752f-506e-bfef-299cdd35a209
+		sourceColumn: StoreName
+
+	column Channel
+		dataType: string
+		lineageTag: 482290c9-56be-5ad0-8fe9-93a41fcc8155
+		sourceColumn: Channel
+
+	column City
+		dataType: string
+		lineageTag: e82d4b76-6d85-5274-9349-1bedcd64ded4
+		sourceColumn: City
+
+	column State
+		dataType: string
+		lineageTag: 89b18682-5f48-5732-ab8b-26ad1132e283
+		sourceColumn: State
+
+	column Region
+		dataType: string
+		lineageTag: afe8c556-43fd-53ff-843d-f0f34805e4c8
+		sourceColumn: Region
+
+	column OpenDate
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 1140b1c5-8d8c-5099-b3e0-6bfb785bb69d
+		sourceColumn: OpenDate
+
+	column SquareFeet
+		dataType: int64
+		formatString: 0
+		lineageTag: b06b156f-7881-5f89-aaf0-2ff5e3c4d92d
+		sourceColumn: SquareFeet
+
+	partition stores = entity
+		mode: directLake
+		source
+			entityName: stores
+			schemaName: dbo
+			expressionSource: DatabaseQuery
+

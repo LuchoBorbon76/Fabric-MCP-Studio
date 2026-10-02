@@ -1,0 +1,63 @@
+table sales
+	lineageTag: afb06724-b66b-5011-9ec5-b6872f30da3d
+
+	column SalesLineId
+		dataType: int64
+		formatString: 0
+		lineageTag: fb279af1-61b8-5ae2-a945-f5b2f6581eb2
+		sourceColumn: SalesLineId
+
+	column OrderId
+		dataType: string
+		lineageTag: aed47eb3-3e90-5b99-ab61-5a211e2ab7fe
+		sourceColumn: OrderId
+
+	column OrderDate
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: f43dd578-3af8-533e-a1d2-297e21124aa9
+		sourceColumn: OrderDate
+
+	column CustomerId
+		dataType: string
+		lineageTag: c2a93691-705c-5435-b512-fd08cf7f7b02
+		sourceColumn: CustomerId
+
+	column StoreId
+		dataType: string
+		lineageTag: 5f46f774-630e-55d9-b5ba-2512a974c7bc
+		sourceColumn: StoreId
+
+	column ProductId
+		dataType: string
+		lineageTag: 7f74c1b1-bd81-5e9a-8ae7-186dba9d7eb2
+		sourceColumn: ProductId
+
+	column Quantity
+		dataType: int64
+		formatString: 0
+		lineageTag: 227841b9-6cff-55d6-9fcd-06111392a7c1
+		sourceColumn: Quantity
+
+	column UnitPrice
+		dataType: double
+		lineageTag: a4ace5c8-ca6b-5ab7-a6dd-216e41ce3449
+		sourceColumn: UnitPrice
+
+	column DiscountPct
+		dataType: double
+		lineageTag: 817256df-974d-5d96-baca-504c06da1027
+		sourceColumn: DiscountPct
+
+	column UnitCost
+		dataType: double
+		lineageTag: 50ba7170-e67d-5b62-b0fa-7725b2a6f0d8
+		sourceColumn: UnitCost
+
+	partition sales = entity
+		mode: directLake
+		source
+			entityName: sales
+			schemaName: dbo
+			expressionSource: DatabaseQuery
+

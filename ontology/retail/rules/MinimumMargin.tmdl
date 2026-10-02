@@ -1,0 +1,11 @@
+rule MinimumMargin
+	statement: A product's list price must be at least 20% above its unit cost. Products that break this rule must be reviewed by Merchandising.
+	lineageTag: eafb9e86-0274-548f-a110-30c925bda4a3
+
+	ruleReferencedEntity Product
+		propertyScope: specific
+
+		ruleReferencedProperty UnitCost
+
+		ruleReferencedProperty ListPrice
+
