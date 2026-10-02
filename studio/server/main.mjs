@@ -11,7 +11,7 @@ import * as F from './fabric.mjs';
 import * as A from './agent.mjs';
 import * as P from './pipelines.mjs';
 import { catalog } from './sources.mjs';
-import { getProject, updateProject, resetProject, getActivity, clearActivity, logActivity } from './project.mjs';
+import { getProject, updateProject, resetProject, getActivity, clearActivity, logActivity, assertProjectTenant } from './project.mjs';
 import { startJob, listJobs, getJob, cancelJob } from './jobs.mjs';
 import { health } from './health.mjs';
 import { presetFor } from './presets.mjs';
@@ -178,6 +178,8 @@ const server = createServer(async (req, res) => {
       const m = pathname.match(r.rx);
       const params = Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])]));
       const b = ['POST', 'PUT', 'PATCH'].includes(req.method) ? await body(req) : {};
+      // Jobs change Fabric; never run them against a project that lives in another tenant.
+      if (req.method === 'POST' && pathname.startsWith('/api/jobs/') && !pathname.endsWith('/cancel')) await assertProjectTenant();
       const result = await r.handler(params, b, url.searchParams);
       return send(res, 200, result ?? { ok: true });
     }

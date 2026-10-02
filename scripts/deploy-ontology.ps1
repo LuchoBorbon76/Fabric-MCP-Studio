@@ -23,7 +23,7 @@
 param(
     [string]$WorkspaceId,
     [string]$LakehouseId,
-    [string]$OntologyName = 'Contoso Retail Ontology',
+    [string]$OntologyName = 'Contoso_Retail_Ontology',
     [string]$SourceFolder = (Join-Path (Split-Path -Parent $PSScriptRoot) 'ontology\retail'),
     [switch]$DryRun,
     [string]$PayloadFile = (Join-Path (Split-Path -Parent $PSScriptRoot) 'config\ontology.payload.json')
@@ -32,6 +32,10 @@ param(
 . "$PSScriptRoot\common.ps1"
 
 $SourceFolder = (Resolve-Path $SourceFolder).Path
+# Ontology item names allow only letters, numbers and underscores, and must start with a letter.
+$OntologyName = ($OntologyName -replace '[^A-Za-z0-9_]+', '_').Trim('_')
+if ($OntologyName -notmatch '^[A-Za-z]') { $OntologyName = "Ontology_$OntologyName" }
+if ($OntologyName.Length -gt 89) { $OntologyName = $OntologyName.Substring(0, 89) }
 $state = Get-DemoState
 if (-not $WorkspaceId -and $state.Contains('workspaceId')) { $WorkspaceId = $state.workspaceId }
 if (-not $LakehouseId -and $state.Contains('lakehouseId')) { $LakehouseId = $state.lakehouseId }

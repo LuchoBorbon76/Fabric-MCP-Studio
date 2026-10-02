@@ -2,7 +2,7 @@
 export const RETAIL = {
   lakehouseName: 'RetailLakehouse',
   semanticModelName: 'Retail Sales',
-  ontologyName: 'Contoso Retail Ontology',
+  ontologyName: 'Contoso_Retail_Ontology',
   glossaryFile: 'data/retail/business-glossary.md',
   names: { customers: 'Customer', products: 'Product', stores: 'Store', sales: 'Sales', returns: 'Returns', dates: 'Date' },
   descriptions: {
@@ -80,7 +80,7 @@ export const RETAIL = {
 
 export const ADVENTUREWORKS = {
   semanticModelName: 'AdventureWorks Sales',
-  ontologyName: 'AdventureWorks Ontology',
+  ontologyName: 'AdventureWorks_Ontology',
   starterQuestions: [
     'What is total revenue (TotalDue) by product category?',
     'Who are the top 10 customers by revenue?',

@@ -50,6 +50,28 @@ function renderHeader() {
   if (store.provider) parts.push(`AI: ${store.provider.name}${store.provider.model ? ` (${store.provider.model})` : ''}`);
   if (p?.workspace) parts.push(`Workspace: ${p.workspace.name}`);
   $('#subtitle').textContent = parts.length ? parts.join(' · ') : 'Build lakehouses, semantic models and ontologies in Microsoft Fabric by chatting with the Copilot you already use.';
+  renderTenantBanner();
+}
+
+// The project's workspace lives in one Microsoft Entra tenant; warn when the signed-in account is in another.
+function renderTenantBanner() {
+  const el = $('#tenantBanner');
+  el.innerHTML = '';
+  const u = store.user;
+  const pt = store.project?.tenant;
+  if (!u?.signedIn || !pt?.id || !u.tenantId || pt.id === u.tenantId) return;
+  const reset = h('button', { class: 'btn pri', 'data-busy': 'Starting…' }, 'Start a new project here');
+  reset.addEventListener('click', busy(reset, async () => {
+    if (!confirm(`Start a new project in ${u.tenantDomain || u.tenantId}? Nothing is deleted in Fabric; the studio forgets the current project and its activity.`)) return;
+    await post('/project/reset');
+    toast('New project started. Choose a workspace to begin.', 'ok');
+    await app.refresh();
+  }));
+  el.append(h('div', { class: 'banner warn' },
+    h('div', { style: { flex: '1' } },
+      h('b', {}, 'This project belongs to another tenant. '),
+      `It was built in ${pt.domain || pt.id}, but you're signed in to ${u.tenantDomain || u.tenantId}. Changes are paused until you switch back or start a new project.`),
+    h('div', { class: 'row' }, h('button', { class: 'btn', onclick: () => signInDialog() }, `Sign in to ${pt.domain || 'that tenant'}`), reset)));
 }
 
 $('#userChip').addEventListener('click', () => {
@@ -231,6 +253,8 @@ on('approval.request', (e) => { approvalQueue.push(e.approval); showNextApproval
 
 // ---------------- jobs ----------------
 const dockJobs = new Set();
+// Reserve room below the footer for the job dock so it never covers the end of the page.
+new ResizeObserver(() => document.documentElement.style.setProperty('--dockh', `${$('#dock').offsetHeight}px`)).observe($('#dock'));
 
 export function jobCard(job, { compact = false } = {}) {
   const icon = job.status === 'running' ? h('span', { class: 'spin' }) : h('span', {}, job.status === 'succeeded' ? '✓' : job.status === 'cancelled' ? '■' : '✗');

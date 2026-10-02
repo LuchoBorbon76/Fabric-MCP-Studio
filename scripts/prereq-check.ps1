@@ -54,7 +54,7 @@ if ($CheckFabric) {
         if ($active.Count -gt 0) {
             Add-Result 'Fabric capacities' 'OK' (($active | ForEach-Object { "$($_.displayName) [$($_.sku)]" }) -join '; ')
             if (-not ($active | Where-Object { $_.sku -match '^(F([2-9]|\d{2,})|P\d|FT1)$' })) {
-                Add-Result 'Ontology MCP' 'WARN' 'Ontology MCP needs a paid F2+ or P1+ capacity.'
+                Add-Result 'Ontology MCP' 'WARN' 'Ontology MCP questions (ask_ontology) need a paid F2+ or P1+ capacity to answer reliably; a trial lists entities and rules only.'
             }
         } else {
             Add-Result 'Fabric capacities' 'MISSING' 'No active capacity you can use. Start a Fabric trial or ask an admin for capacity access.'

@@ -28,7 +28,7 @@ If a capability has no MCP tool (for example the Lakehouse *Load Table* API), us
 ## Naming and modeling conventions
 
 - Workspace: `Fabric MCP Demo - Retail` · Lakehouse: `RetailLakehouse` · Semantic model: `Retail Sales` ·
-  Ontology: `Contoso Retail Ontology` (unless the user says otherwise).
+  Ontology: `Contoso_Retail_Ontology` (unless the user says otherwise). Lakehouse and Ontology names allow only letters, numbers and underscores.
 - Lakehouse tables keep source names (`sales`, `customers`, …). Semantic model tables use business names
   (`Sales`, `Customer`, `Product`, `Store`, `Date`, `Returns`).
 - Star schema, single-direction relationships from dimensions to facts, `Date` marked as date table.

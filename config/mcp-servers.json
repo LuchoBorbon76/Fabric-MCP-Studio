@@ -26,7 +26,7 @@
       "transport": "http",
       "url": "https://api.fabric.microsoft.com/v1/mcp/powerbi/authoring",
       "role": "Author semantic models in natural language: tables, measures, relationships, RLS, calculation groups, translations, best-practice fixes, DAX queries.",
-      "status": "Remote (preview). Tenant setting 'Users can use the Power BI Model Context Protocol server endpoint' must be on.",
+      "status": "Remote (preview). Tenant setting 'Users can use the Power BI Model Context Protocol server endpoint' must be on. Saving model changes needs XMLA endpoint Read Write on the capacity.",
       "docs": "https://learn.microsoft.com/power-bi/developer/mcp/power-bi-authoring-mcp",
       "default": true
     },
@@ -37,7 +37,7 @@
       "command": "npx",
       "args": ["-y", "@microsoft/powerbi-modeling-mcp@latest", "--start"],
       "role": "Same authoring tools plus Power BI Desktop, PBIP/TMDL files on disk, transactions and traces.",
-      "status": "Local (GA). Requires XMLA endpoint Read Write for Fabric workspaces. Accept the EULA on first use.",
+      "status": "Local (GA). Requires XMLA endpoint Read Write for Fabric workspaces (so does the hosted server for writes). Accept the EULA on first use.",
       "docs": "https://github.com/microsoft/powerbi-modeling-mcp",
       "default": false
     },
@@ -55,7 +55,7 @@
       "transport": "http",
       "url": "https://api.fabric.microsoft.com/v1/mcp/dataPlane/workspaces/{workspaceId}/items/{ontologyId}/ontologyEndpoint",
       "role": "Ground an agent in one ontology: entities, relationships, rules and bound data.",
-      "status": "Remote (preview). One endpoint per ontology item. Requires paid F2+ (or P1+) capacity.",
+      "status": "Remote (preview). One endpoint per ontology item. Trial capacity lists entities/rules; ask_ontology is reliable on paid F2+ (or P1+).",
       "docs": "https://learn.microsoft.com/fabric/iq/ontology/how-to-use-ontology-mcp-server",
       "requires": ["workspaceId", "ontologyId"],
       "default": false

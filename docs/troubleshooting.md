@@ -10,9 +10,16 @@
 | Claude Code on Windows can't start `npx` servers | Needs a shell wrapper | `setup.ps1 -Client claude-code` writes `cmd /c npx …` automatically |
 | Local Power BI server blocks every tool | EULA not accepted | Approve the `accept_eula` tool call once |
 | `powerbi-authoring` 403 | Tenant setting off or no Write permission | Enable *Users can use the Power BI Model Context Protocol server endpoint*; get Write on the model |
-| Local authoring can't reach a Fabric model | XMLA endpoint read-only | Capacity setting → XMLA endpoint **Read Write** |
+| Local authoring can't reach a Fabric model, or `powerbi-authoring` says *Transaction commit failed … the current context is read-only* | XMLA endpoint read-only (the change was rolled back) | Capacity admin: **Admin portal › Capacity settings › Power BI workloads › XMLA endpoint = Read Write**. Creating models through item definitions still works |
 | Fabric IQ: 404/not available | Region or private link | Use `https://api.fabric.microsoft.com/v1/mcp/fabriciq` with private links; not available in Power BI-only regions or sovereign clouds |
-| Ontology MCP 403 / not found | Wrong IDs, trial capacity, or preview not enabled | Check IDs in the ontology URL; paid F2+ capacity; ontology tenant setting |
+| Ontology MCP 403 / not found | Wrong IDs or preview not enabled | Check IDs in the ontology URL; ontology tenant setting |
+
+## Studio sign-in and tenants
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Banner: *This project belongs to another tenant* | You signed in with an account from a different Microsoft Entra tenant than the one the project's workspace lives in | Sign in to the project's tenant, or select **Start a new project here** (nothing is deleted in Fabric) |
+| Sign-in fails after setting a tenant ID while the Azure CLI has several accounts | `az account get-access-token --tenant` uses the default account | The studio picks an `az` account that belongs to that tenant; if there is none, run `az login --tenant <id> --allow-no-subscriptions` |
 
 ## OAuth and app registrations
 
@@ -45,7 +52,7 @@ when it expires.
 | Agent asks to sign in, then shows *Need admin approval* | User consent restricted | Re-run with `-GrantAdminConsent` as an admin, or `az ad app permission admin-consent --id <appId>` |
 | Every tool call returns 404 | OAuth registration bound to a specific app | The installer uses `applicableToApps: AnyApp`; if you edited it in the Teams developer portal, set *Restrict usage by app* to **Any Teams app** |
 | Agent answers but can't find "Retail Sales" | User lacks access to the model, or wrong tenant | Grant the user Build/Read on the semantic model; install in the tenant that owns the Fabric workspace |
-| Ontology plugin errors | Paid capacity missing or wrong IDs | Needs F2+/P1+; re-run with `-IncludeOntology -OntologyWorkspaceId … -OntologyItemId …` |
+| Ontology plugin errors | Wrong IDs or capacity too small | Use F2+/P1+ for questions; re-run with `-IncludeOntology -OntologyWorkspaceId … -OntologyItemId …` |
 | Secret expired | Client secret older than `-SecretValidityMonths` | Delete `agents/contoso-retail-analyst/.deploy/env/.env.<env>.user` and re-run the installer (creates a new secret; the OAuth registration is updated with `oauth/update` in the Teams developer portal) |
 | `atk validate` crashes when run from automation | It opens an interactive Microsoft 365 sign-in | Use `python scripts/validate-agent-package.py <zip>` for offline checks |
 

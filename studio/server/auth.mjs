@@ -17,10 +17,28 @@ const cache = new Map();          // scope -> { token, expiresOn }
 let browserCred = null;
 let activeMode = null;            // 'azure-cli' | 'browser'
 let identity = null;              // { name, upn, oid, tenantId }
+let cliAccount = null;            // { tenant, subscription } resolved from `az account list`
 
-function cliCred() {
-  const tenantId = getSettings().azure.tenantId || undefined;
-  return new AzureCliCredential(tenantId ? { tenantId } : {});
+async function cliCred() {
+  const tenant = String(getSettings().azure.tenantId || '').trim();
+  if (!tenant) return new AzureCliCredential();
+  // `az account get-access-token --tenant` uses the default account's user, which fails when the Azure CLI is
+  // signed in to several accounts. Prefer an account (subscription or tenant-level entry) in the requested tenant.
+  if (cliAccount?.tenant !== tenant) {
+    let subscription = null;
+    try {
+      const t = tenant.toLowerCase();
+      const accounts = (await runAz(['account', 'list'])) || [];
+      const inTenant = accounts.filter((a) => a.state === 'Enabled' && [a.tenantId, a.tenantDefaultDomain].some((v) => String(v || '').toLowerCase() === t));
+      subscription = (inTenant.find((a) => a.isDefault) || inTenant[0])?.id || null;
+    } catch { /* fall back to --tenant */ }
+    cliAccount = { tenant, subscription };
+  }
+  return new AzureCliCredential(cliAccount.subscription ? { subscription: cliAccount.subscription } : { tenantId: tenant });
+}
+
+export function currentIdentity() {
+  return identity;
 }
 
 function getBrowserCred() {
@@ -39,7 +57,7 @@ export async function getToken(scope = SCOPES.fabric, { interactive = false } = 
   let tok = null;
   let lastErr = null;
   if (mode !== 'browser' && activeMode !== 'browser') {
-    try { tok = await cliCred().getToken(scope); activeMode = 'azure-cli'; } catch (e) { lastErr = e; }
+    try { tok = await (await cliCred()).getToken(scope); activeMode = 'azure-cli'; } catch (e) { lastErr = e; }
   }
   if (!tok && (mode === 'browser' || activeMode === 'browser' || interactive)) {
     try { tok = await getBrowserCred().getToken(scope); activeMode = 'browser'; } catch (e) { lastErr = e; }
@@ -62,6 +80,7 @@ export function tokenExpiresOn(scope = SCOPES.fabric) {
 export async function signIn(mode = 'browser') {
   cache.clear();
   identity = null;
+  cliAccount = null;
   if (mode === 'azure-cli') {
     await runAzLogin();
     activeMode = null;
@@ -76,6 +95,7 @@ export async function signIn(mode = 'browser') {
 export function signOut() {
   cache.clear();
   identity = null;
+  cliAccount = null;
   browserCred = null;
   activeMode = null;
 }

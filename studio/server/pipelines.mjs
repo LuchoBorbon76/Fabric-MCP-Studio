@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process';
 import { REPO_ROOT, sleep, stableUuid } from './config.mjs';
 import { runAz } from './azcli.mjs';
 import * as F from './fabric.mjs';
-import { getProject, updateProject, setStep, recordArtifact, logActivity } from './project.mjs';
+import { getProject, updateProject, setStep, recordArtifact, logActivity, assertProjectTenant } from './project.mjs';
 import { discoverSqlServer, testSqlServer, readOnlyQuery } from './sql.mjs';
 import { discoverPostgres, testPostgres } from './pg.mjs';
 import { sourceType } from './sources.mjs';
@@ -17,6 +17,7 @@ const safeName = (s, fallback = 'Item') => (String(s || '').replace(/[^A-Za-z0-9
 // ---------------- workspace ----------------
 
 export async function selectWorkspace({ workspaceId, name, capacityId, description }, log = () => {}) {
+  await assertProjectTenant();
   let ws;
   let created = false;
   if (workspaceId) {
@@ -210,6 +211,7 @@ export async function listTablesOfItem({ workspaceId, itemId, itemType }) {
 }
 
 export async function useInPlace({ workspaceId, itemId, itemType, typeId }) {
+  await assertProjectTenant();
   requireWorkspace();
   const ep = await endpointFor(workspaceId, itemId, itemType);
   updateProject({ scenario: 'byod', source: { kind: 'fabric', type: typeId || itemType, label: `${itemType} · ${ep.itemName}`, method: 'in-place', itemId, workspaceId } });
@@ -245,6 +247,7 @@ export async function runShortcuts(ctx, { sourceWorkspaceId, sourceItemId, sourc
 let discoveryCache = { key: null, at: 0, data: null };
 
 export async function describeModelSource({ refresh = false } = {}) {
+  await assertProjectTenant();
   const ms = getProject().modelSource;
   if (!ms) throw new Error('No data source yet. Load sample data or connect your data first (Data tab).');
   const key = `${ms.server}|${ms.endpointId}|${ms.database}`;
@@ -258,6 +261,7 @@ export async function describeModelSource({ refresh = false } = {}) {
 }
 
 export async function queryModelSource(query) {
+  await assertProjectTenant();
   const ms = getProject().modelSource;
   if (!ms) throw new Error('No data source yet.');
   return readOnlyQuery({ server: ms.server, database: ms.database }, query);
@@ -315,7 +319,7 @@ export async function runOntology(ctx, { name, include, entityNames, rules, desc
   const exclude = new Set((preset?.ontology?.exclude || []).map((x) => x.toLowerCase()));
   const inc = include?.length ? include : schema.tables.filter((t) => !exclude.has(t.name.toLowerCase())).map((t) => `${t.schema}.${t.name}`);
   const plan = buildPlan(schema, { include: inc, names: preset?.names, descriptions: preset?.descriptions });
-  const ontName = name || p.ontology?.name || preset?.ontologyName || `${p.modelSource.itemName} Ontology`;
+  const ontName = F.itemName('Ontology', name || p.ontology?.name || preset?.ontologyName || `${p.modelSource.itemName}_Ontology`, 'Ontology');
   const presetRules = preset?.ontology?.rules || [];
   const ruleSet = rules?.length
     ? rules.map((r) => {
@@ -435,10 +439,23 @@ export async function runTeardown(ctx, { deleteWorkspace = false, deleteAzureSam
   if (deleteWorkspace && p.workspace?.created) {
     ctx.step(`Delete workspace ${p.workspace.name}`);
     await F.deleteWorkspace(p.workspace.id);
+    // Everything lived in that workspace; keep only the glossary for the next project.
+    updateProject({ workspace: null, lakehouse: null, source: null, modelSource: null, semanticModel: null, ontology: null, teamsAgent: null, scenario: null, tenant: null, steps: {} });
   } else if (p.workspace) {
     ctx.step('Delete items created by the studio');
     for (const it of [p.ontology, p.semanticModel].filter(Boolean)) {
       try { await F.deleteItem(p.workspace.id, it.id); ctx.log(`Deleted ${it.name}`); } catch (e) { ctx.log(`Could not delete ${it.name}: ${e.message}`); }
+    }
+    if (p.ontology?.id) {
+      // An ontology provisions companion items named <ontology>_eh_<id> / <ontology>_graph_<id>.
+      const suffix = p.ontology.id.replace(/-/g, '').toLowerCase();
+      const order = { GraphModel: 0, KQLDatabase: 1, Eventhouse: 2 };
+      try {
+        const companions = (await F.listItems(p.workspace.id)).filter((i) => i.displayName.toLowerCase().endsWith(suffix) && i.type in order).sort((a, b) => order[a.type] - order[b.type]);
+        for (const i of companions) {
+          try { await F.deleteItem(p.workspace.id, i.id); ctx.log(`Deleted ${i.type} ${i.displayName}`); } catch (e) { if (e.status !== 404) ctx.log(`Could not delete ${i.displayName}: ${e.message}`); }
+        }
+      } catch (e) { ctx.log(`Could not list ontology companion items: ${e.message}`); }
     }
     if (p.source?.method === 'mirror' && p.modelSource?.itemId) {
       try { await F.stopMirroring(p.workspace.id, p.modelSource.itemId); } catch { /* ignore */ }
@@ -447,6 +464,8 @@ export async function runTeardown(ctx, { deleteWorkspace = false, deleteAzureSam
     if (p.lakehouse?.id) {
       try { await F.deleteItem(p.workspace.id, p.lakehouse.id); ctx.log(`Deleted ${p.lakehouse.name}`); } catch (e) { ctx.log(e.message); }
     }
+    const keep = p.steps?.workspace;
+    updateProject({ lakehouse: null, source: null, modelSource: null, semanticModel: null, ontology: null, teamsAgent: null, scenario: null, steps: keep ? { workspace: keep } : {} });
   }
   if (deleteAzureSample && p.azureSample?.resourceGroup) {
     ctx.step(`Delete Azure resource group ${p.azureSample.resourceGroup}`);

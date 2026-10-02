@@ -104,7 +104,7 @@ function mcpCard() {
     ['powerbi-authoring', 'Power BI Authoring', 'Create and edit semantic models (hosted = remote, preview; local = npx, works with Desktop/PBIP)', 'pbi'],
     ['fabric-iq', 'Fabric IQ', 'Read-only answers over semantic models with DAX', 'toggle'],
     ['fabric-local', 'Fabric (local)', 'API specs, item schemas, best practices and OneLake tools (runs with npx)', 'toggle'],
-    ['fabric-ontology', 'Ontology', 'Business entities and rules (after the ontology is deployed; paid capacity)', 'toggle'],
+    ['fabric-ontology', 'Ontology', 'Business entities and rules (after the ontology is deployed; questions need paid F2+)', 'toggle'],
   ];
   const save = async (k, v) => {
     try { store.settings = await patch('/settings', { mcp: { [k]: v } }); toast('MCP servers updated. New chats use the new set.', 'ok'); } catch (e) { toast(e.message, 'err'); }

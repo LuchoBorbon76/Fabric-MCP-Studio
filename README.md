@@ -56,9 +56,9 @@ Details: [clients/README.md](clients/README.md).
 |---|---|---|
 | `fabric-core` | `https://api.fabric.microsoft.com/v1/mcp/core` | Workspaces, items, item definitions |
 | `fabric-local` | `npx @microsoft/fabric-mcp` | API specs, schemas, best practices, OneLake files |
-| `powerbi-authoring` | `https://api.fabric.microsoft.com/v1/mcp/powerbi/authoring` | Semantic model authoring |
+| `powerbi-authoring` | `https://api.fabric.microsoft.com/v1/mcp/powerbi/authoring` | Semantic model authoring (saving changes needs XMLA endpoint **Read Write**) |
 | `fabric-iq` | `https://fabriciq.svc.cloud.microsoft/v1/mcp/fabriciq` | Read-only Q&A over semantic models |
-| `fabric-ontology` | `…/workspaces/<ws>/items/<ontology>/ontologyEndpoint` | Ontology context for agents |
+| `fabric-ontology` | `…/workspaces/<ws>/items/<ontology>/ontologyEndpoint` | Ontology context for agents (paid F2+/P1+) |
 
 Single source of truth: [config/mcp-servers.json](config/mcp-servers.json). Architecture: [docs/architecture.md](docs/architecture.md).
 

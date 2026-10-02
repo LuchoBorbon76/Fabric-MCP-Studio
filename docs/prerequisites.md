@@ -7,7 +7,7 @@ Run `.\scripts\prereq-check.ps1 -CheckFabric` for the parts that can be checked 
 | Requirement | Why | Notes |
 |---|---|---|
 | Fabric capacity (trial or paid) | Lakehouse, semantic model | A Fabric trial is enough for steps 1–3. |
-| **Paid F2+ or P1+** capacity | Ontology MCP endpoint | Required for step 5 against the ontology. |
+| **Paid F2+ or P1+** capacity (recommended) | Ontology MCP `ask_ontology` | On a trial the endpoint connects and lists entities and rules, but natural-language questions can time out. |
 | Workspace **Contributor** (or higher) | Create items | `deploy-fabric.ps1` can create a new workspace for you. |
 | **Write** permission on the semantic model | Power BI authoring | Build-only permission allows DAX queries only. |
 | Tenant home region supports all Fabric workloads | Fabric IQ MCP | Not available in Power BI-only regions or sovereign clouds. |
@@ -19,7 +19,7 @@ Run `.\scripts\prereq-check.ps1 -CheckFabric` for the parts that can be checked 
 | Users can create Fabric items | Lakehouse, semantic model, ontology |
 | Ontology (preview) item creation enabled | Ontology steps |
 | **Users can use the Power BI Model Context Protocol server endpoint** | Hosted Power BI Authoring MCP |
-| XMLA endpoint = **Read Write** on the capacity | Only for the *local* Power BI authoring server |
+| XMLA endpoint = **Read Write** on the capacity | Saving changes to existing semantic models with Power BI authoring (hosted **and** local). Reading, DAX queries and creating models work with Read Only |
 
 > No Fabric Copilot / Azure OpenAI tenant setting is needed: the language model runs in the customer's chosen client.
 

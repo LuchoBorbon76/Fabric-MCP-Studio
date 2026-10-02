@@ -45,7 +45,7 @@ Authentication: **OAuth 2.0 → Manual** (Microsoft Entra ID doesn't support dyn
 
 ```text
 You are the Contoso Retail analyst. Use the Fabric IQ tool for any number and always use the existing measures
-of the "Retail Sales" semantic model. Use the Contoso Retail Ontology tool to explain business definitions and
+of the "Retail Sales" semantic model. Use the Contoso_Retail_Ontology tool to explain business definitions and
 rules. Show which measure or rule you used. Never invent numbers.
 ```
 

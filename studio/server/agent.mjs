@@ -5,7 +5,7 @@ import { existsSync, readFileSync, mkdirSync } from 'node:fs';
 import { COPILOT_HOME, DATA_DIR, REPO_ROOT, STUDIO_ROOT, getSettings, envApiKey, newId, truncate, readJson, writeJson } from './config.mjs';
 import { getToken, tokenExpiresOn, SCOPES } from './auth.mjs';
 import { emit } from './events.mjs';
-import { getProject, updateProject, logActivity } from './project.mjs';
+import { getProject, updateProject, logActivity, assertProjectTenant } from './project.mjs';
 import { startJob, waitForJob } from './jobs.mjs';
 import * as P from './pipelines.mjs';
 import * as F from './fabric.mjs';
@@ -257,6 +257,7 @@ const STUDIO_TOOLS_META = {
 };
 
 async function runAsJob(kind, title, fn) {
+  await assertProjectTenant();
   const job = startJob(kind, title, fn);
   const done = await waitForJob(job.id);
   if (done.status !== 'succeeded') return { ok: false, error: done.error, log: done.logLines.slice(-8) };

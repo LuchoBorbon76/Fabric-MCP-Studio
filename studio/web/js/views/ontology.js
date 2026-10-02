@@ -52,13 +52,13 @@ function glossaryCard(p) {
 
 function designerCard(p) {
   const card = h('div', { class: 'card' });
-  const name = input({ value: p.ontology?.name || (p.source?.id === 'retail' ? 'Contoso Retail Ontology' : `${p.modelSource.itemName.replace(/_/g, ' ')} Ontology`) });
+  const name = input({ value: p.ontology?.name || (p.source?.id === 'retail' ? 'Contoso_Retail_Ontology' : `${p.modelSource.itemName.replace(/[^A-Za-z0-9_]+/g, '_')}_Ontology`) });
   const preview = h('div', {}, h('div', { class: 'row muted' }, h('span', { class: 'spin' }), 'Building a preview from your tables…'));
   const rulesBox = h('div');
   const job = h('div', { class: 'mt' });
   card.append(h('h2', {}, p.ontology ? 'Update the ontology' : 'Design the ontology'),
     h('p', { class: 'lead' }, 'Entity types come from your tables and relationships. Business rules are short plain-English statements linked to entities.'),
-    preview, rulesBox, h('div', { class: 'formgrid mt' }, field('Ontology name', name)));
+    preview, rulesBox, h('div', { class: 'formgrid mt' }, field('Ontology name', name, 'Letters, numbers and underscores only (Fabric naming rule)')));
 
   const drawRules = () => {
     rulesBox.innerHTML = '';
@@ -94,6 +94,6 @@ function designerCard(p) {
   card.append(h('div', { class: 'row mt' }, deploy,
     h('button', { class: 'btn ai', onclick: () => app.ask(`Read my glossary and data, then propose ontology business rules (one sentence each, referencing the entities and properties they use). After I confirm, deploy the ontology "${name.value}" with studio_deploy_ontology.`) }, '✦ Generate rules with Copilot')),
   job,
-  h('p', { class: 'tiny muted' }, 'Ontology is a preview feature. The Ontology MCP endpoint (used by agents) needs a paid F2+ or P1+ capacity.'));
+  h('p', { class: 'tiny muted' }, 'Ontology is a preview feature. The Ontology MCP endpoint (used by agents) lists entities and rules on any capacity; natural-language questions need a paid F2+ or P1+ capacity to answer reliably.'));
   return card;
 }

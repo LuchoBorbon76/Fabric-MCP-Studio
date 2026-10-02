@@ -116,6 +116,16 @@ export async function findItem(workspaceId, type, name) {
   return (await listItems(workspaceId, type)).find((i) => i.displayName.toLowerCase() === name.toLowerCase()) || null;
 }
 
+// Item types whose display names only allow letters, numbers and underscores (and must start with a letter).
+const STRICT_NAME_TYPES = new Set(['Lakehouse', 'Ontology', 'MirroredDatabase', 'Eventhouse', 'KQLDatabase']);
+
+export function itemName(type, name, fallback = 'Item') {
+  if (!STRICT_NAME_TYPES.has(type)) return String(name || fallback).trim().slice(0, 256);
+  let n = String(name || fallback).trim().replace(/[^A-Za-z0-9_]+/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+  if (!/^[A-Za-z]/.test(n)) n = `${fallback.replace(/[^A-Za-z0-9_]/g, '') || 'Item'}_${n}`;
+  return n.slice(0, 89);
+}
+
 export async function createItem(workspaceId, { name, type, description, definition }) {
   const created = await fabric('POST', `/workspaces/${workspaceId}/items`, { displayName: name, type, description, definition });
   if (created?.id) return created;
