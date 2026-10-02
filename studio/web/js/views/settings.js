@@ -143,13 +143,12 @@ function entraCard() {
 function dangerCard() {
   const p = store.project || {};
   const delWs = h('input', { type: 'checkbox', disabled: !p.workspace?.created || undefined });
-  const delAz = h('input', { type: 'checkbox', disabled: !p.azureSample || undefined });
   const job = h('div', { class: 'mt' });
   const clean = h('button', { class: 'btn danger', 'data-busy': 'Starting…', disabled: !p.workspace || undefined }, 'Clean up resources');
   clean.addEventListener('click', busy(clean, async () => {
-    const what = delWs.checked ? `the whole workspace "${p.workspace.name}"` : 'the lakehouse, mirrored database, semantic model and ontology created by the studio';
-    if (!(await confirmDialog('Clean up resources', `This deletes ${what}${delAz.checked ? ` and the Azure resource group ${p.azureSample.resourceGroup}` : ''}. This cannot be undone.`, 'Delete', true))) return;
-    const j = await post('/jobs/teardown', { deleteWorkspace: delWs.checked, deleteAzureSample: delAz.checked });
+    const what = delWs.checked ? `the whole workspace "${p.workspace.name}"` : 'the lakehouse, SQL database, mirrored database, semantic model and ontology created by the studio';
+    if (!(await confirmDialog('Clean up resources', `This deletes ${what}. This cannot be undone.`, 'Delete', true))) return;
+    const j = await post('/jobs/teardown', { deleteWorkspace: delWs.checked });
     app.watchJob(j.id);
     const render = (x) => { job.innerHTML = ''; job.append(app.jobCard(x)); };
     render(j);
@@ -167,6 +166,5 @@ function dangerCard() {
     h('h2', {}, 'Clean up'),
     h('p', { class: 'lead' }, 'Remove what the studio created, or start over.'),
     h('label', { class: 'row small' }, delWs, `Delete the whole workspace${p.workspace?.created ? ` "${p.workspace.name}"` : ' (only for workspaces the studio created)'}`),
-    h('label', { class: 'row small' }, delAz, `Delete the AdventureWorksLT Azure resource group${p.azureSample ? ` ${p.azureSample.resourceGroup}` : ''}`),
     h('div', { class: 'row mt' }, clean, reset), job);
 }

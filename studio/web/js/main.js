@@ -149,7 +149,7 @@ function renderKpis() {
   const el = $('#kpis');
   el.innerHTML = '';
   for (const x of k) {
-    const isRun = running.some((j) => (x.id === 'data' && ['sample', 'mirror', 'shortcut', 'azure-sample'].includes(j.kind)) || (x.id === 'model' && j.kind === 'semantic-model') || (x.id === 'ontology' && j.kind === 'ontology'));
+    const isRun = running.some((j) => (x.id === 'data' && ['sample', 'mirror', 'shortcut'].includes(j.kind)) || (x.id === 'model' && j.kind === 'semantic-model') || (x.id === 'ontology' && j.kind === 'ontology'));
     const state = isRun ? 'run' : x.state;
     el.append(h('div', { class: `kpi ${state}`, onclick: () => go(x.view), title: `Open ${x.label}` },
       h('div', { class: 'l' }, statusDot(state === 'done' ? 'ok' : state === 'err' ? 'error' : state === 'run' ? 'running' : ''), x.label),

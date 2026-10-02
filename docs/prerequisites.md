@@ -9,6 +9,8 @@ Run `.\scripts\prereq-check.ps1 -CheckFabric` for the parts that can be checked 
 | Fabric capacity (trial or paid) | Lakehouse, semantic model | A Fabric trial is enough for steps 1–3. |
 | **Paid F2+ or P1+** capacity | Ontology MCP endpoint (entities and rules for agents) | Ontology questions (`ask_ontology`) are turned off in this kit for now; numbers come from Fabric IQ. |
 | Workspace **Contributor** (or higher) | Create items | `deploy-fabric.ps1` can create a new workspace for you. |
+| Workspace **Admin** or **Member** | AdventureWorksDW2022 sample (creates a Fabric SQL database) | SQL database in Fabric is enabled by default. Workspaces the studio creates make you Admin. |
+| Internet access to `github.com` | AdventureWorksDW2022 sample | The studio downloads Microsoft's AdventureWorksDW install kit (17 MB) once and caches it in `studio/data/cache`. |
 | **Write** permission on the semantic model | Power BI authoring | Build-only permission allows DAX queries only. |
 | Tenant home region supports all Fabric workloads | Fabric IQ MCP | Not available in Power BI-only regions or sovereign clouds. |
 

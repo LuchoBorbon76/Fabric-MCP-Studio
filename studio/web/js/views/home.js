@@ -9,7 +9,7 @@ export function renderHome(el) {
   const paths = h('div', { class: 'paths' },
     h('div', { class: 'path', onclick: () => app.go('data') },
       h('div', { class: 'ico' }, '🧪'), h('b', {}, 'Start from sample data'),
-      h('div', { class: 'tiny muted' }, 'Contoso Retail in minutes, or AdventureWorksLT on Azure SQL to see Mirroring end to end.')),
+      h('div', { class: 'tiny muted' }, 'Contoso Retail in minutes, or AdventureWorksDW2022 as a Fabric SQL database replicated to OneLake.')),
     h('div', { class: 'path', onclick: () => app.go('data') },
       h('div', { class: 'ico' }, '🗄️'), h('b', {}, 'Connect my databases'),
       h('div', { class: 'tiny muted' }, 'Azure SQL, SQL Managed Instance, SQL Server on-premises or Azure PostgreSQL via Fabric Mirroring.')),

@@ -10,9 +10,9 @@ ontology, and governed answers. You act through MCP servers and studio tools, al
 |---|---|
 | Project state (workspace, data source, model, ontology) | `studio_get_project_state` – call it first in every new task |
 | Pick or create the workspace | `studio_use_workspace` (never `fabric-core-create_workspace`, so the studio can track it) |
-| Sample data | `studio_load_sample_data` |
+| Sample data | `studio_load_sample_data` – `retail` (Contoso Retail lakehouse, ~3 min) or `adventureworks` (AdventureWorksDW2022 as a Fabric SQL database, ~8 min) |
 | Customer databases (Azure SQL, SQL MI, SQL Server, Azure PostgreSQL) | `studio_list_connections` then `studio_mirror_database` |
-| Existing Fabric lakehouse / warehouse / mirrored database | `studio_list_items`, then `studio_use_item_in_place` or `studio_create_shortcuts` |
+| Existing Fabric lakehouse / warehouse / mirrored database / SQL database | `studio_list_items`, then `studio_use_item_in_place` or `studio_create_shortcuts` |
 | Understand the data | `studio_describe_data`, `studio_query_data` (read-only SELECT) |
 | Create the semantic model | `studio_create_semantic_model` (the studio writes valid Direct Lake TMDL from your design) |
 | Change an existing semantic model (measures, descriptions, RLS, translations, calculation groups, best practices, DAX queries) | `powerbi-authoring` tools. Connect first: "Connect to semantic model '<name>' in Fabric workspace '<workspace>'" via `connection_operations` |

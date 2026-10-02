@@ -139,15 +139,15 @@ route('POST', '/api/sources/connection', (_, b) => P.createConnection(b));
 route('GET', '/api/sources/items', (_, __, q) => P.listSourceItems(q.get('workspaceId'), q.get('itemType')));
 route('POST', '/api/sources/item-tables', (_, b) => P.listTablesOfItem(b));
 route('POST', '/api/sources/in-place', (_, b) => P.useInPlace(b));
-route('GET', '/api/azure/subscriptions', () => P.listSubscriptions());
 
 route('GET', '/api/model/describe', (_, __, q) => P.describeModelSource({ refresh: q.get('refresh') === '1' }));
 route('GET', '/api/ontology/preview', () => P.ontologyPreview());
 
-route('POST', '/api/jobs/sample', () => startJob('sample', 'Load Contoso Retail sample', (ctx) => P.runSampleRetail(ctx)));
+route('POST', '/api/jobs/sample', (_, b) => (b?.dataset === 'adventureworks'
+  ? startJob('sample', 'Create AdventureWorksDW2022 in a Fabric SQL database', (ctx) => P.runSampleAdventureWorks(ctx))
+  : startJob('sample', 'Load Contoso Retail sample', (ctx) => P.runSampleRetail(ctx))));
 route('POST', '/api/jobs/mirror', (_, b) => startJob('mirror', `Mirror ${b.database}`, (ctx) => P.runMirror(ctx, b)));
 route('POST', '/api/jobs/shortcuts', (_, b) => startJob('shortcut', 'Create OneLake shortcuts', (ctx) => P.runShortcuts(ctx, b)));
-route('POST', '/api/jobs/azure-sql-sample', (_, b) => startJob('azure-sample', 'Provision AdventureWorksLT on Azure SQL', (ctx) => P.runAzureSqlSample(ctx, b)));
 route('POST', '/api/jobs/semantic-model', (_, b) => startJob('semantic-model', `Create semantic model ${b.name || ''}`.trim(), (ctx) => P.runSemanticModel(ctx, b)));
 route('POST', '/api/jobs/ontology', (_, b) => startJob('ontology', `Deploy ontology ${b.name || ''}`.trim(), (ctx) => P.runOntology(ctx, b)));
 route('POST', '/api/jobs/teams-agent', (_, b) => startJob('teams-agent', b.dryRun ? 'Validate Teams agent package' : 'Install Teams agent', (ctx) => P.runTeamsAgent(ctx, b)));

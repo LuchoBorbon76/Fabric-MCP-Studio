@@ -9,7 +9,7 @@ function poolConfig({ server, database, port, auth = {}, encrypt = true, trustSe
     database,
     options: { encrypt, trustServerCertificate, enableArithAbort: true },
     connectionTimeout: timeoutMs,
-    requestTimeout: 120000,
+    requestTimeout: 300000,
     pool: { max: 4, min: 0, idleTimeoutMillis: 10000 },
   };
   if (auth.type === 'Basic' || auth.type === 'sql') {
@@ -24,11 +24,19 @@ function poolConfig({ server, database, port, auth = {}, encrypt = true, trustSe
   return cfg;
 }
 
-async function withPool(conn, fn) {
+export async function withPool(conn, fn) {
   const auth = { ...(conn.auth || {}) };
   if (!auth.type || auth.type === 'Entra' || auth.type === 'OAuth2') auth.token = await getToken(SCOPES.sql);
-  const pool = new sql.ConnectionPool(poolConfig({ ...conn, auth }));
-  await pool.connect();
+  let pool;
+  // Azure SQL and Fabric SQL redirect to a worker node; that connection occasionally resets and succeeds on retry.
+  for (let attempt = 1; ; attempt++) {
+    pool = new sql.ConnectionPool(poolConfig({ ...conn, auth }));
+    try { await pool.connect(); break; } catch (e) {
+      await pool.close().catch(() => {});
+      if (attempt >= 4 || !/ECONNRESET|ETIMEOUT|ESOCKET|ECONNREFUSED|Failed to connect/i.test(`${e.code || ''} ${e.message}`)) throw e;
+      await new Promise((r) => setTimeout(r, 3000 * attempt));
+    }
+  }
   try { return await fn(pool); } finally { await pool.close().catch(() => {}); }
 }
 

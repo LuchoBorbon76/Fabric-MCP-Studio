@@ -78,18 +78,122 @@ export const RETAIL = {
   ],
 };
 
+const dbo = (fromTable, fromColumn, toTable, toColumn, label, active = true) => ({
+  from: { schema: 'dbo', table: fromTable, column: fromColumn },
+  to: { schema: 'dbo', table: toTable, column: toColumn },
+  ...(label ? { label } : {}),
+  ...(active ? {} : { active: false }),
+});
+const IS = "'Internet Sales'";
+const RS = "'Reseller Sales'";
+
+// AdventureWorksDW2022 in a Fabric SQL database: a curated star schema over the internet and reseller channels.
 export const ADVENTUREWORKS = {
   semanticModelName: 'AdventureWorks Sales',
   ontologyName: 'AdventureWorks_Ontology',
+  glossaryFile: 'data/adventureworks/business-glossary.md',
+  include: ['dbo.FactInternetSales', 'dbo.FactResellerSales', 'dbo.DimDate', 'dbo.DimProduct', 'dbo.DimProductSubcategory', 'dbo.DimProductCategory', 'dbo.DimCustomer', 'dbo.DimGeography', 'dbo.DimSalesTerritory', 'dbo.DimPromotion', 'dbo.DimReseller'],
+  names: {
+    FactInternetSales: 'Internet Sales', FactResellerSales: 'Reseller Sales', DimDate: 'Date', DimProduct: 'Product',
+    DimProductSubcategory: 'Product Subcategory', DimProductCategory: 'Product Category', DimCustomer: 'Customer',
+    DimGeography: 'Geography', DimSalesTerritory: 'Sales Territory', DimPromotion: 'Promotion', DimReseller: 'Reseller',
+  },
+  descriptions: {
+    FactInternetSales: 'One product line on an online order placed by a customer on the Adventure Works website.',
+    FactResellerSales: 'One product line on an order placed by a reseller through an Adventure Works sales representative.',
+    DimDate: 'Calendar (2005–2014). Use CalendarYear for year comparisons; the sample\'s FiscalYear column has two 18-month years (2010 and 2011).',
+    DimProduct: 'A bike, component, clothing item or accessory sold by Adventure Works.',
+    DimProductSubcategory: 'A group of similar products, for example Mountain Bikes or Helmets.',
+    DimProductCategory: 'Top-level product group: Bikes, Components, Clothing or Accessories.',
+    DimCustomer: 'A person who buys from the Adventure Works website.',
+    DimGeography: 'A city, state or province and country where customers and resellers are located.',
+    DimSalesTerritory: 'A sales region, grouped into North America, Europe and Pacific.',
+    DimPromotion: 'A discount offer that can apply to a sales line.',
+    DimReseller: 'A bike shop, warehouse or specialty store that resells Adventure Works products.',
+  },
+  relationships: [
+    dbo('FactInternetSales', 'ProductKey', 'DimProduct', 'ProductKey', 'Internet Sale Of Product'),
+    dbo('FactInternetSales', 'CustomerKey', 'DimCustomer', 'CustomerKey', 'Internet Sale By Customer'),
+    dbo('FactInternetSales', 'PromotionKey', 'DimPromotion', 'PromotionKey', 'Internet Sale With Promotion'),
+    dbo('FactInternetSales', 'SalesTerritoryKey', 'DimSalesTerritory', 'SalesTerritoryKey', 'Internet Sale In Territory'),
+    dbo('FactInternetSales', 'OrderDateKey', 'DimDate', 'DateKey'),
+    dbo('FactInternetSales', 'DueDateKey', 'DimDate', 'DateKey', null, false),
+    dbo('FactInternetSales', 'ShipDateKey', 'DimDate', 'DateKey', null, false),
+    dbo('FactResellerSales', 'ProductKey', 'DimProduct', 'ProductKey', 'Reseller Sale Of Product'),
+    dbo('FactResellerSales', 'ResellerKey', 'DimReseller', 'ResellerKey', 'Reseller Sale By Reseller'),
+    dbo('FactResellerSales', 'PromotionKey', 'DimPromotion', 'PromotionKey', 'Reseller Sale With Promotion'),
+    dbo('FactResellerSales', 'SalesTerritoryKey', 'DimSalesTerritory', 'SalesTerritoryKey', 'Reseller Sale In Territory'),
+    dbo('FactResellerSales', 'OrderDateKey', 'DimDate', 'DateKey'),
+    dbo('FactResellerSales', 'DueDateKey', 'DimDate', 'DateKey', null, false),
+    dbo('FactResellerSales', 'ShipDateKey', 'DimDate', 'DateKey', null, false),
+    dbo('DimProduct', 'ProductSubcategoryKey', 'DimProductSubcategory', 'ProductSubcategoryKey', 'Product In Subcategory'),
+    dbo('DimProductSubcategory', 'ProductCategoryKey', 'DimProductCategory', 'ProductCategoryKey', 'Subcategory In Category'),
+    dbo('DimCustomer', 'GeographyKey', 'DimGeography', 'GeographyKey', 'Customer Located In Geography'),
+    dbo('DimReseller', 'GeographyKey', 'DimGeography', 'GeographyKey', 'Reseller Located In Geography'),
+    // Inactive: sales already reach Sales Territory directly; an active path through Geography would be ambiguous.
+    dbo('DimGeography', 'SalesTerritoryKey', 'DimSalesTerritory', 'SalesTerritoryKey', 'Geography In Territory', false),
+  ],
+  dateTable: { table: 'Date', column: 'FullDateAlternateKey' },
+  measures: [
+    { table: 'Internet Sales', name: 'Internet Sales Amount', expression: `SUM ( ${IS}[SalesAmount] )`, formatString: '#,0.00', displayFolder: 'Internet', description: 'Sum of SalesAmount on internet orders. The default online sales number.' },
+    { table: 'Internet Sales', name: 'Internet Total Product Cost', expression: `SUM ( ${IS}[TotalProductCost] )`, formatString: '#,0.00', displayFolder: 'Internet', description: 'Standard cost of the products sold online.' },
+    { table: 'Internet Sales', name: 'Internet Gross Profit', expression: '[Internet Sales Amount] - [Internet Total Product Cost]', formatString: '#,0.00', displayFolder: 'Internet', description: 'Internet Sales Amount minus Internet Total Product Cost.' },
+    { table: 'Internet Sales', name: 'Internet Gross Profit Margin', expression: 'DIVIDE ( [Internet Gross Profit], [Internet Sales Amount] )', formatString: '0.0%', displayFolder: 'Internet', description: 'Internet Gross Profit ÷ Internet Sales Amount.' },
+    { table: 'Internet Sales', name: 'Internet Order Quantity', expression: `SUM ( ${IS}[OrderQuantity] )`, formatString: '#,0', displayFolder: 'Internet', description: 'Units sold online.' },
+    { table: 'Internet Sales', name: 'Internet Orders', expression: `DISTINCTCOUNT ( ${IS}[SalesOrderNumber] )`, formatString: '#,0', displayFolder: 'Internet', description: 'Distinct count of internet sales orders.' },
+    { table: 'Internet Sales', name: 'Internet Customers', expression: `DISTINCTCOUNT ( ${IS}[CustomerKey] )`, formatString: '#,0', displayFolder: 'Internet', description: 'Customers with at least one internet sale.' },
+    { table: 'Internet Sales', name: 'Internet Average Order Value', expression: 'DIVIDE ( [Internet Sales Amount], [Internet Orders] )', formatString: '#,0.00', displayFolder: 'Internet', description: 'Internet Sales Amount ÷ Internet Orders.' },
+    { table: 'Internet Sales', name: 'Internet Sales Amount PY', expression: "CALCULATE ( [Internet Sales Amount], SAMEPERIODLASTYEAR ( 'Date'[FullDateAlternateKey] ) )", formatString: '#,0.00', displayFolder: 'Time Intelligence', description: 'Internet Sales Amount for the same period of the prior year.' },
+    { table: 'Internet Sales', name: 'Internet Sales YoY %', expression: 'DIVIDE ( [Internet Sales Amount] - [Internet Sales Amount PY], [Internet Sales Amount PY] )', formatString: '0.0%', displayFolder: 'Time Intelligence', description: 'Year-over-year change in Internet Sales Amount.' },
+    { table: 'Reseller Sales', name: 'Reseller Sales Amount', expression: `SUM ( ${RS}[SalesAmount] )`, formatString: '#,0.00', displayFolder: 'Reseller', description: 'Sum of SalesAmount on reseller orders.' },
+    { table: 'Reseller Sales', name: 'Reseller Total Product Cost', expression: `SUM ( ${RS}[TotalProductCost] )`, formatString: '#,0.00', displayFolder: 'Reseller', description: 'Standard cost of the products sold to resellers.' },
+    { table: 'Reseller Sales', name: 'Reseller Gross Profit', expression: '[Reseller Sales Amount] - [Reseller Total Product Cost]', formatString: '#,0.00', displayFolder: 'Reseller', description: 'Reseller Sales Amount minus Reseller Total Product Cost.' },
+    { table: 'Reseller Sales', name: 'Reseller Gross Profit Margin', expression: 'DIVIDE ( [Reseller Gross Profit], [Reseller Sales Amount] )', formatString: '0.0%', displayFolder: 'Reseller', description: 'Reseller Gross Profit ÷ Reseller Sales Amount.' },
+    { table: 'Reseller Sales', name: 'Reseller Order Quantity', expression: `SUM ( ${RS}[OrderQuantity] )`, formatString: '#,0', displayFolder: 'Reseller', description: 'Units sold to resellers.' },
+    { table: 'Reseller Sales', name: 'Reseller Orders', expression: `DISTINCTCOUNT ( ${RS}[SalesOrderNumber] )`, formatString: '#,0', displayFolder: 'Reseller', description: 'Distinct count of reseller sales orders.' },
+    { table: 'Reseller Sales', name: 'Reseller Sales Below Cost', expression: `COALESCE ( COUNTROWS ( FILTER ( ${RS}, ${RS}[SalesAmount] < ${RS}[TotalProductCost] ) ), 0 )`, formatString: '#,0', displayFolder: 'Business rules', description: 'Reseller sales lines priced below product cost (sales below cost rule).' },
+    { table: 'Reseller Sales', name: 'Reseller Loss Below Cost', expression: `SUMX ( FILTER ( ${RS}, ${RS}[SalesAmount] < ${RS}[TotalProductCost] ), ${RS}[SalesAmount] - ${RS}[TotalProductCost] )`, formatString: '#,0.00', displayFolder: 'Business rules', description: 'Gross loss on reseller sales lines priced below product cost.' },
+    { table: 'Reseller Sales', name: 'Discounts Needing Approval', expression: `COALESCE ( COUNTROWS ( FILTER ( ${RS}, ${RS}[UnitPriceDiscountPct] >= 0.3 ) ), 0 )`, formatString: '#,0', displayFolder: 'Business rules', description: 'Reseller sales lines with a discount of 30% or more (discount approval rule).' },
+    { table: 'Internet Sales', name: 'Total Sales Amount', expression: '[Internet Sales Amount] + [Reseller Sales Amount]', formatString: '#,0.00', displayFolder: 'Total', description: 'Internet Sales Amount plus Reseller Sales Amount.' },
+    { table: 'Internet Sales', name: 'Total Gross Profit', expression: '[Internet Gross Profit] + [Reseller Gross Profit]', formatString: '#,0.00', displayFolder: 'Total', description: 'Gross profit across both channels.' },
+    { table: 'Internet Sales', name: 'Total Gross Profit Margin', expression: 'DIVIDE ( [Total Gross Profit], [Total Sales Amount] )', formatString: '0.0%', displayFolder: 'Total', description: 'Total Gross Profit ÷ Total Sales Amount.' },
+    {
+      table: 'Customer', name: 'High-Value Customers', formatString: '#,0', displayFolder: 'Business rules',
+      description: 'Customers whose lifetime Internet Sales Amount is at least 5,000.',
+      expression: "COALESCE ( COUNTROWS ( FILTER ( VALUES ( Customer[CustomerKey] ), CALCULATE ( [Internet Sales Amount], REMOVEFILTERS ( 'Date' ) ) >= 5000 ) ), 0 )",
+    },
+    {
+      table: 'Product', name: 'Products Below Minimum Margin', formatString: '#,0', displayFolder: 'Business rules',
+      description: 'Products whose list price is less than 50% above standard cost (minimum margin rule).',
+      expression: 'COALESCE ( COUNTROWS ( FILTER ( Product, NOT ISBLANK ( Product[ListPrice] ) && NOT ISBLANK ( Product[StandardCost] ) && Product[ListPrice] < Product[StandardCost] * 1.5 ) ), 0 )',
+    },
+  ],
+  ontology: {
+    include: ['dbo.FactInternetSales', 'dbo.FactResellerSales', 'dbo.DimProduct', 'dbo.DimProductSubcategory', 'dbo.DimProductCategory', 'dbo.DimCustomer', 'dbo.DimGeography', 'dbo.DimSalesTerritory', 'dbo.DimPromotion', 'dbo.DimReseller'],
+    entityNames: {
+      FactInternetSales: 'InternetSale', FactResellerSales: 'ResellerSale', DimProduct: 'Product', DimProductSubcategory: 'ProductSubcategory',
+      DimProductCategory: 'ProductCategory', DimCustomer: 'Customer', DimGeography: 'Geography', DimSalesTerritory: 'SalesTerritory',
+      DimPromotion: 'Promotion', DimReseller: 'Reseller',
+    },
+    rules: [
+      { name: 'MinimumMargin', statement: "A product's list price must be at least 50% above its standard cost. Products that break this rule must be reviewed by product management.", entities: [{ entity: 'Product', properties: ['ListPrice', 'StandardCost'] }] },
+      { name: 'SalesBelowCost', statement: 'A reseller sale must not be priced below the cost of its products. Reseller sales below cost need approval from the sales director.', entities: [{ entity: 'ResellerSale', properties: ['SalesAmount', 'TotalProductCost'] }] },
+      { name: 'DiscountApproval', statement: 'Reseller line discounts of 30 percent or more require approval from the sales director.', entities: [{ entity: 'ResellerSale', properties: ['UnitPriceDiscountPct'] }] },
+      { name: 'HighValueCustomer', statement: 'A customer is high value when their lifetime internet sales amount is at least 5000.', entities: [{ entity: 'Customer' }, { entity: 'InternetSale', properties: ['SalesAmount'] }], relationships: ['Internet Sale By Customer'] },
+      { name: 'DiscontinuedProduct', statement: 'A product is discontinued when its status is not Current. Discontinued products must not be sold on new orders.', entities: [{ entity: 'Product', properties: ['Status'] }] },
+    ],
+  },
   starterQuestions: [
-    'What is total revenue (TotalDue) by product category?',
-    'Who are the top 10 customers by revenue?',
-    'Which products have never been ordered?',
+    'What were total internet and reseller sales, and the gross profit margin of each channel?',
+    'Why is the reseller margin so low? How much did we lose on reseller sales below cost, and which products drove it?',
+    'Which product categories grew the most in calendar year 2013 compared with 2012?',
+    'Who are our top 10 internet customers by sales amount, and which countries are they in?',
+    'Which products break the minimum margin rule?',
   ],
 };
 
 export function presetFor(project) {
   if (project?.source?.kind === 'sample' && project.source.id === 'retail') return RETAIL;
-  if (project?.source?.id === 'adventureworks-azuresql') return ADVENTUREWORKS;
+  if (project?.source?.kind === 'sample' && project.source.id === 'adventureworks-dw') return ADVENTUREWORKS;
   return null;
 }

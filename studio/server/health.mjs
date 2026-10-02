@@ -88,7 +88,7 @@ export async function health() {
   }
 
   const az = tool('az', ['--version']);
-  add('az', 'Azure CLI (optional)', az ? 'ok' : 'info', az ? az.replace(/\s+/g, ' ') : 'Not installed – browser sign-in is used instead', az ? '' : 'Needed only for the AdventureWorksLT sample provisioning.');
+  add('az', 'Azure CLI (optional)', az ? 'ok' : 'info', az ? az.replace(/\s+/g, ' ') : 'Not installed – browser sign-in is used instead', az ? '' : 'Optional: the studio can reuse your az login for sign-in.');
   if (process.platform === 'win32') {
     const atk = tool('atk', ['--version']);
     add('atk', 'Microsoft 365 Agents Toolkit (optional)', atk ? 'ok' : 'info', atk ? `atk ${atk}` : 'Installed automatically when you install the Teams agent', '');

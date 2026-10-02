@@ -132,8 +132,11 @@ export async function createItem(workspaceId, { name, type, description, definit
   return findItem(workspaceId, type, name);
 }
 
-export const updateDefinition = (workspaceId, id, definition) =>
-  fabric('POST', `/workspaces/${workspaceId}/items/${id}/updateDefinition?updateMetadata=True`, { definition });
+// updateMetadata=True only when the definition carries a .platform file (otherwise Fabric rejects the update).
+export const updateDefinition = (workspaceId, id, definition) => {
+  const withPlatform = definition?.parts?.some((p) => p.path === '.platform');
+  return fabric('POST', `/workspaces/${workspaceId}/items/${id}/updateDefinition${withPlatform ? '?updateMetadata=True' : ''}`, { definition });
+};
 
 export async function getDefinition(workspaceId, id, format) {
   const r = await fabric('POST', `/workspaces/${workspaceId}/items/${id}/getDefinition${format ? `?format=${format}` : ''}`);
@@ -172,6 +175,7 @@ export async function ensureLakehouse(workspaceId, name, description) {
 }
 
 export async function waitSqlEndpoint(workspaceId, itemId, itemType = 'Lakehouse', { timeoutMs = 6 * 60 * 1000, signal } = {}) {
+  if (itemType === 'SQLDatabase') return sqlDatabaseEndpoint(workspaceId, itemId, { timeoutMs, signal });
   const seg = { Lakehouse: 'lakehouses', MirroredDatabase: 'mirroredDatabases', Warehouse: 'warehouses' }[itemType];
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -188,6 +192,32 @@ export async function waitSqlEndpoint(workspaceId, itemId, itemType = 'Lakehouse
     await sleep(6000);
   }
   throw new FabricError('SQL analytics endpoint was not ready in time. Try again in a minute.', 0);
+}
+
+// ---------------- SQL database ----------------
+
+export async function createSqlDatabase(workspaceId, { name, description }) {
+  const created = await fabric('POST', `/workspaces/${workspaceId}/sqlDatabases`, { displayName: name, description });
+  if (created?.id) return created;
+  return findItem(workspaceId, 'SQLDatabase', name);
+}
+
+export const getSqlDatabase = (workspaceId, id) => fabric('GET', `/workspaces/${workspaceId}/sqlDatabases/${id}`);
+
+/** The SQL analytics endpoint of a Fabric SQL database (its OneLake replica), once Fabric has provisioned it. */
+export async function sqlDatabaseEndpoint(workspaceId, sqlDatabaseId, { timeoutMs = 6 * 60 * 1000, signal } = {}) {
+  const db = await getSqlDatabase(workspaceId, sqlDatabaseId);
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (signal?.aborted) throw new Error('Cancelled');
+    const ep = (await listItems(workspaceId, 'SQLEndpoint')).find((i) => i.displayName === db.displayName);
+    if (ep) {
+      const cs = await fabric('GET', `/workspaces/${workspaceId}/sqlEndpoints/${ep.id}/connectionString`).catch(() => null);
+      if (cs?.connectionString) return { server: cs.connectionString, endpointId: ep.id, database: db.displayName };
+    }
+    await sleep(6000);
+  }
+  throw new FabricError('The SQL analytics endpoint of the SQL database was not ready in time. Try again in a minute.', 0);
 }
 
 export async function refreshSqlEndpoint(workspaceId, sqlEndpointId) {

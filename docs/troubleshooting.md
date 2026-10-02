@@ -10,10 +10,20 @@
 | Claude Code on Windows can't start `npx` servers | Needs a shell wrapper | `setup.ps1 -Client claude-code` writes `cmd /c npx …` automatically |
 | Local Power BI server blocks every tool | EULA not accepted | Approve the `accept_eula` tool call once |
 | `powerbi-authoring` 403 | Tenant setting off or no Write permission | Enable *Users can use the Power BI Model Context Protocol server endpoint*; get Write on the model |
-| Local authoring can't reach a Fabric model, or `powerbi-authoring` says *Transaction commit failed … the current context is read-only* | XMLA endpoint read-only (the change was rolled back) | Capacity admin: **Admin portal › Capacity settings › Power BI workloads › XMLA endpoint = Read Write**. Creating models through item definitions still works |
+| Local authoring can't reach a Fabric model, or `powerbi-authoring` says *Transaction commit failed … the current context is read-only* | XMLA endpoint read-only (the change was rolled back) | Capacity admin: **Admin portal › Capacity settings › Power BI workloads › XMLA endpoint = Read Write**. Creating and redeploying models through item definitions still works |
 | Fabric IQ: 404/not available | Region or private link | Use `https://api.fabric.microsoft.com/v1/mcp/fabriciq` with private links; not available in Power BI-only regions or sovereign clouds |
 | Ontology MCP 403 / not found | Wrong IDs, trial capacity, or preview not enabled | Check IDs in the ontology URL; paid F2+/P1+ capacity; ontology tenant setting |
 | Agent tries to ask the ontology questions | `ask_ontology` enabled in the client | Ontology questions are turned off in this kit for now (the preview agent returned *No answer received from the agent* in testing). Keep only `list_ontology_entities` and `list_ontology_rules`; use Fabric IQ for numbers |
+
+## AdventureWorksDW2022 sample (Fabric SQL database)
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| *Could not download the AdventureWorksDW install kit* | No internet access to github.com (proxy or firewall) | Allow `github.com` and `objects.githubusercontent.com`, or copy `AdventureWorksDW-data-warehouse-install-script.zip` from the [sql-server-samples release](https://github.com/microsoft/sql-server-samples/releases/tag/adventureworks) to `studio/data/cache/AdventureWorksDW-install-script.zip` |
+| Creating the SQL database fails with *Forbidden* | Contributor or Viewer role | You need **Admin** or **Member** on the workspace (or let the studio create a new workspace) |
+| *OneLake replication didn't finish in time* | Large capacity backlog | The data is already in the SQL database. Run the sample again: it keeps the verified data and only waits for the replica |
+| Log shows *schema change of the target table – retrying* | Fabric started replicating a table while it was being loaded | Retried automatically; no action needed |
+| Running the sample again | – | If the database already holds the complete, verified data it's reused; an incomplete load is removed and reloaded |
 
 ## Studio sign-in and tenants
 

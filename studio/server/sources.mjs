@@ -12,14 +12,14 @@ export const SAMPLES = [
     tables: ['customers', 'dates', 'products', 'returns', 'sales', 'stores'],
   },
   {
-    id: 'adventureworks-azuresql',
-    kind: 'sample-azure',
-    name: 'AdventureWorksLT on Azure SQL Database',
-    tagline: 'Provision the classic AdventureWorksLT sample in your Azure subscription, then mirror it into Fabric.',
-    details: 'Real foreign keys · shows Mirroring end to end · serverless (auto-pauses)',
-    lands: 'Azure SQL Database → Fabric Mirroring',
-    needs: 'Azure subscription (Contributor) · small Azure cost while running',
-    minutes: 12,
+    id: 'adventureworks-dw',
+    kind: 'sample',
+    name: 'AdventureWorksDW2022 in Fabric SQL database',
+    tagline: "Microsoft's classic data warehouse sample, created as a SQL database in your workspace and replicated to OneLake automatically.",
+    details: '28 tables · 60K internet and 61K reseller sales lines · 2010–2014 · real primary and foreign keys',
+    lands: 'Fabric SQL database → OneLake (automatic)',
+    needs: 'Fabric capacity · downloads 17 MB from github.com',
+    minutes: 8,
   },
 ];
 
@@ -149,6 +149,17 @@ export const SOURCE_TYPES = [
     fields: [],
     prerequisites: ['Read access to the source workspace'],
     docs: 'https://learn.microsoft.com/fabric/mirroring/overview',
+  },
+  {
+    id: 'fabric-sqldb',
+    name: 'Fabric SQL database',
+    group: 'Microsoft Fabric',
+    icon: 'sql',
+    itemType: 'SQLDatabase',
+    methods: ['in-place'],
+    fields: [],
+    prerequisites: ['Read access to the source workspace', 'Uses the database\'s OneLake replica (SQL analytics endpoint)'],
+    docs: 'https://learn.microsoft.com/fabric/database/sql/overview',
   },
 ];
 

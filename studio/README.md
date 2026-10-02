@@ -4,9 +4,10 @@ An interactive app, installed by the customer, that builds a governed data found
 chatting with the **AI the customer already licenses**:
 
 - **Workspace** – create a new one on any capacity, or use an existing workspace.
-- **Data** – start from sample data, mirror your databases (Azure SQL Database, Azure SQL Managed Instance,
-  SQL Server on-premises via gateway, Azure Database for PostgreSQL), or reuse Fabric lakehouses, warehouses and
-  mirrored databases (in place or with OneLake shortcuts).
+- **Data** – start from sample data (Contoso Retail, or AdventureWorksDW2022 created as a Fabric SQL database), mirror
+  your databases (Azure SQL Database, Azure SQL Managed Instance, SQL Server on-premises via gateway, Azure Database
+  for PostgreSQL), or reuse Fabric lakehouses, warehouses, mirrored databases and SQL databases (in place or with
+  OneLake shortcuts).
 - **Semantic model** – Direct Lake model generated from your tables and relationships, then enriched by Copilot
   (business measures from your glossary, descriptions, RLS, translations, best-practice review).
 - **Ontology** – Fabric IQ entities, relationships and plain-English business rules.
@@ -26,7 +27,8 @@ The first run installs dependencies (~150 MB, includes the GitHub Copilot runtim
 `http://127.0.0.1:4870`. Options: `--port 5000`, `--no-open`, `--check` (readiness checks only).
 
 **Requirements:** Node.js 20.19+ (LTS), a Microsoft Entra work account with access to Microsoft Fabric, and one AI
-provider (below). Optional: Azure CLI (sign-in reuse and the Azure SQL sample), PowerShell (Teams agent installer).
+provider (below). Optional: Azure CLI (sign-in reuse), PowerShell (Teams agent installer). The AdventureWorksDW2022 sample
+downloads Microsoft's install kit (17 MB) from github.com once.
 
 ## Choose your AI (bring your own Copilot)
 
@@ -71,13 +73,14 @@ flowchart LR
 | Source | How it lands | Notes |
 |---|---|---|
 | Contoso Retail sample | Parquet → Lakehouse tables | Includes glossary, 18 business measures and 5 ontology rules |
-| AdventureWorksLT sample | Provisioned on Azure SQL (serverless) → Mirroring | Needs an Azure subscription; real foreign keys |
+| AdventureWorksDW2022 sample | Fabric SQL database in the project workspace → OneLake (automatic replication) | Microsoft's official install kit: 28 tables, 1.05M rows, real primary and foreign keys. Includes a glossary, 24 measures and 5 ontology rules. Needs the Admin or Member workspace role |
 | Azure SQL Database | Fabric Mirroring | New connection (SQL login, service principal, workspace identity) or existing |
 | Azure SQL Managed Instance | Fabric Mirroring | Public endpoint or VNet data gateway |
 | SQL Server 2016–2025 | Fabric Mirroring via on-premises data gateway | Create the gateway connection in Fabric, then select it |
 | Azure Database for PostgreSQL | Fabric Mirroring | Flexible server prerequisites shown in the wizard |
 | Fabric Lakehouse / Warehouse | In place, or OneLake shortcuts into the project lakehouse | No data copy |
 | Fabric mirrored database | In place | |
+| Fabric SQL database | In place (its SQL analytics endpoint) | |
 
 Schema discovery reads tables, keys and foreign keys (from the source when reachable, or from the Fabric SQL
 analytics endpoint) and infers relationships from naming conventions when no foreign keys exist.
@@ -93,6 +96,7 @@ analytics endpoint) and infers relationships from naming conventions when no for
 | `server/sql.mjs`, `server/pg.mjs` | Schema discovery for SQL Server family, Fabric SQL endpoints and PostgreSQL |
 | `server/generators/tmdl.mjs` | Direct Lake semantic model and ontology TMDL generators |
 | `server/presets.mjs` | Sample presets (names, relationships, measures, rules) |
+| `server/samples/adventureworks-dw.mjs` | AdventureWorksDW2022 loader for Fabric SQL database (install kit → tables, keys, bulk load, verification) |
 | `server/agent-instructions.md` | System instructions for the agent |
 | `web/` | UI (vanilla ES modules, MSX Command Center design, 9 themes) |
 | `data/` | Local state (git-ignored): project, activity log, chat transcripts, Copilot runtime home |

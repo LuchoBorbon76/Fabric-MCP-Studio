@@ -26,7 +26,7 @@ before each change.
 | Path | What to do |
 |---|---|
 | Contoso Retail sample | *Sample data › Load sample* (≈3 min) |
-| AdventureWorksLT on Azure SQL | *Sample data › Set up in my Azure subscription*, then *Mirror into Fabric* (≈12 min) |
+| AdventureWorksDW2022 | *Sample data › Create in my workspace* (≈5–8 min). Creates a Fabric SQL database, loads Microsoft's AdventureWorksDW install kit and waits until Fabric has replicated every table to OneLake |
 | Your database | *Your databases* › source › details › Fabric connection (new or existing) › *Start mirroring* |
 | Existing Fabric data | *Existing Fabric data* › workspace › item › *Use in place* or *Create shortcuts* |
 
@@ -37,7 +37,8 @@ Mirroring shows live replication status per table. When it finishes, the **Data*
 ## 3. Semantic model
 
 **Semantic model** tab › review tables, business names and relationships › *Create semantic model*.
-The studio generates a Direct Lake model. With the Contoso Retail sample it also adds 18 business measures from the glossary.
+The studio generates a Direct Lake model. With the samples it also adds business measures from the glossary
+(18 for Contoso Retail, 24 for AdventureWorksDW2022 – a star schema of internet and reseller sales).
 
 Then improve it with Copilot (Power BI Authoring MCP):
 
@@ -79,12 +80,22 @@ Ontology is in preview; the Ontology MCP endpoint (used by agents) needs a paid 
 | How many at-risk customers do we have, and where should a win-back campaign start? | 105 · East (30) |
 | Which products break the minimum margin rule? | P008, P027, P050, P054, P075, P090 |
 
+### Sample questions (AdventureWorksDW2022)
+
+| Question | Expected |
+|---|---|
+| What were total internet and reseller sales, and the gross profit margin of each channel? | Internet 29,358,677.22 (41.1%) · Reseller 80,450,596.98 (0.6%) |
+| Why is the reseller margin so low? How much did we lose on sales below cost? | 21,829 reseller lines below cost · 3,320,274.60 lost · top products Touring-1000 Yellow 60, Touring-1000 Yellow 46, Road-650 Red 44 |
+| Which product categories grew the most in calendar year 2013 compared with 2012? | Accessories +611%, Clothing +58%, Bikes +49%, Components +13% |
+| Who is our top internet customer? | Nichole Nara (France), 13,295.38 |
+| Which products break the minimum margin rule? | 9 products (Long-Sleeve Logo Jersey S–XL, Short-Sleeve Classic Jersey S–XL, AWC Logo Cap) |
+
 More in [fabric-demo-ask](../.github/skills/fabric-demo-ask/SKILL.md).
 
 ## Clean up
 
-**Settings › Clean up** deletes what the studio created (optionally the whole workspace and the AdventureWorksLT
-Azure resource group). *Start a new project* clears local state only.
+**Settings › Clean up** deletes what the studio created (lakehouse, SQL database, mirrored database, semantic model,
+ontology – or the whole workspace if the studio created it). *Start a new project* clears local state only.
 
 ## Without the studio
 

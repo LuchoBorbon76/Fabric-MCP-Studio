@@ -6,7 +6,6 @@ let tab = 'samples';
 let selectedType = null;
 let wiz = null;           // wizard state for database sources
 let fabricState = { itemType: 'Lakehouse', workspaceId: '', itemId: '', tables: [], selected: new Set() };
-let awSecret = null;      // AdventureWorks sample credentials (kept in this tab only)
 
 export function renderData(el) {
   const p = store.project || {};
@@ -75,73 +74,25 @@ function samples() {
     h('div', { class: 'row mt' }, rBtn, h('button', { class: 'btn ai', onclick: () => app.ask('Load the Contoso Retail sample data into my workspace, then tell me what tables were created.') }, '✦ Ask Copilot')),
     rJob));
 
-  const awBody = h('div');
-  const awCard = h('div', { class: 'card' },
+  const awJob = h('div', { class: 'mt' });
+  const awBtn = h('button', { class: 'btn pri big', 'data-busy': 'Starting…' }, 'Create in my workspace');
+  awBtn.addEventListener('click', busy(awBtn, async () => {
+    if (!requireWs()) return;
+    const job = await post('/jobs/sample', { dataset: 'adventureworks' });
+    watch(awJob, job, (j) => { if (j.status === 'succeeded') { toast('AdventureWorksDW2022 is ready', 'ok'); app.refresh(); } });
+  }));
+  out.append(h('div', { class: 'card' },
     h('div', { class: 'row' }, h('div', { class: 'src', style: { cursor: 'default', border: 0, padding: 0 } }, h('div', { class: 'h' }, h('div', { class: 'ic' }, '🚲'), aw.name))),
     h('p', { class: 'small' }, aw.tagline), h('div', { class: 'tiny muted' }, aw.details),
-    h('div', { class: 'row mt' }, h('span', { class: 'pill brand' }, aw.lands), h('span', { class: 'pill warn' }, aw.needs), h('span', { class: 'pill' }, `~${aw.minutes} min`)),
-    awBody);
-  const showAwForm = () => { awBody.innerHTML = ''; awBody.append(awForm()); };
-  awBody.append(h('div', { class: 'row mt' }, h('button', { class: 'btn pri big', onclick: showAwForm }, 'Set up in my Azure subscription')));
-  out.append(awCard);
+    h('div', { class: 'row mt' }, h('span', { class: 'pill brand' }, aw.lands), h('span', { class: 'pill' }, aw.needs), h('span', { class: 'pill' }, `~${aw.minutes} min`)),
+    h('ul', { class: 'pre tiny' },
+      h('li', {}, 'Creates the SQL database AdventureWorksDW2022 in the project workspace and loads Microsoft\'s official AdventureWorksDW install kit (tables, keys, views and data).'),
+      h('li', {}, 'Fabric replicates the tables to OneLake automatically; the semantic model and ontology use that replica.'),
+      h('li', {}, 'Uses your Microsoft Entra sign-in. No Azure subscription, passwords or connections needed.')),
+    h('div', { class: 'row mt' }, awBtn, h('button', { class: 'btn ai', onclick: () => app.ask('Create the AdventureWorksDW2022 sample in my workspace (studio_load_sample_data with dataset adventureworks), then describe the tables that were created.') }, '✦ Ask Copilot')),
+    awJob));
   return out;
 }
-
-function awForm() {
-  const sub = select([{ value: '', label: 'Loading subscriptions…' }]);
-  get('/azure/subscriptions').then((subs) => {
-    sub.innerHTML = '';
-    for (const s of subs.sort((a, b) => (b.isDefault - a.isDefault) || a.name.localeCompare(b.name))) sub.append(h('option', { value: s.id, selected: s.isDefault || undefined }, `${s.name}${s.isDefault ? ' (default)' : ''}`));
-  }).catch((e) => { sub.innerHTML = ''; sub.append(h('option', { value: '' }, e.message)); });
-  const suffix = Math.random().toString(36).slice(2, 7);
-  const rg = input({ value: 'rg-fabric-mcp-demo' });
-  const loc = select(['eastus', 'eastus2', 'westus2', 'westus3', 'centralus', 'northeurope', 'westeurope', 'uksouth', 'brazilsouth', 'australiaeast', 'japaneast', 'southeastasia'].map((x) => ({ value: x, label: x })));
-  const srv = input({ value: `awlt-fabric-${suffix}` });
-  const user = input({ value: 'sqladmin' });
-  const pwd = input({ type: 'password', value: genPassword() });
-  const job = h('div', { class: 'mt' });
-  const btn = h('button', { class: 'btn pri', 'data-busy': 'Starting…' }, 'Provision AdventureWorksLT');
-  btn.addEventListener('click', busy(btn, async () => {
-    if (!requireWs()) return;
-    const body = { subscriptionId: sub.value, resourceGroup: rg.value.trim(), location: loc.value, serverName: srv.value.trim().toLowerCase(), adminUser: user.value.trim(), adminPassword: pwd.value };
-    awSecret = { username: body.adminUser, password: body.adminPassword };
-    const j = await post('/jobs/azure-sql-sample', body);
-    watch(job, j, (done) => {
-      if (done.status !== 'succeeded') return;
-      const r = done.result;
-      job.append(h('div', { class: 'banner ok mt' }, h('div', {}, h('b', {}, 'Azure SQL is ready. '), `${r.server} / ${r.database}. Next, mirror it into Fabric with a SQL login connection.`)), mirrorAwButton(r));
-    });
-  }));
-  return h('div', { class: 'col mt' },
-    h('div', { class: 'formgrid' }, field('Subscription', sub), field('Resource group', rg), field('Region', loc), field('Server name', srv, 'Globally unique, lowercase'), field('Admin login', user), field('Admin password', pwd, 'Kept in memory only')),
-    h('ul', { class: 'pre' }, h('li', {}, 'Serverless General Purpose (2 vCores, auto-pause after 60 min). Delete the resource group from Settings › Clean up when done.'), h('li', {}, 'Enables the server managed identity and allows Azure services (required for Fabric Mirroring).'), h('li', {}, 'Uses your Azure CLI sign-in (az login) and subscription permissions.')),
-    h('div', { class: 'row' }, btn), job);
-}
-
-function mirrorAwButton(r) {
-  const out = h('div', { class: 'mt' });
-  const b = h('button', { class: 'btn pri', 'data-busy': 'Creating Fabric connection…' }, 'Mirror into Fabric');
-  b.addEventListener('click', busy(b, async () => {
-    if (!awSecret) throw new Error('Credentials are no longer in memory. Use the Your databases tab with a SQL login.');
-    const conn = await post('/sources/connection', { typeId: 'azure-sql', server: r.server, database: r.database, credential: { type: 'Basic', ...awSecret }, name: `AdventureWorksLT - ${r.server}` });
-    const j = await post('/jobs/mirror', { typeId: 'azure-sql', connectionId: conn.id, database: r.database, name: 'AdventureWorksLT_Mirror', sourceLabel: 'AdventureWorksLT (Azure SQL sample)' });
-    out.innerHTML = '';
-    const live = h('div');
-    watch(out, j, (done) => { if (done.status === 'succeeded') { toast('AdventureWorksLT is mirrored', 'ok'); app.refresh(); } }, (d) => renderMirrorTables(live, d));
-    out.after(live);
-  }));
-  out.append(b);
-  return out;
-}
-
-function genPassword() {
-  const sets = ['ABCDEFGHJKLMNPQRSTUVWXYZ', 'abcdefghijkmnpqrstuvwxyz', '23456789', '!#%*-_+'];
-  const pick = (s) => s[crypto.getRandomValues(new Uint32Array(1))[0] % s.length];
-  const chars = sets.map(pick);
-  while (chars.length < 20) chars.push(pick(sets.join('')));
-  return chars.sort(() => crypto.getRandomValues(new Uint8Array(1))[0] - 128).join('');
-}
-
 // ---------------- databases ----------------
 function databases() {
   const types = (store.catalog?.sources || []).filter((s) => s.engine);
@@ -351,7 +302,7 @@ function fabricData() {
       items.innerHTML = '';
       if (!list.length) { items.append(h('div', { class: 'empty' }, `No ${s.itemType} items in this workspace.`)); return; }
       const grid = h('div', { class: 'srcs' });
-      for (const it of list) grid.append(h('div', { class: `src ${s.itemId === it.id ? 'on' : ''}`, onclick: () => { s.itemId = it.id; s.itemName = it.name; loadItems().then(loadTables); } }, h('div', { class: 'h' }, h('div', { class: 'ic' }, { Lakehouse: '🏞️', Warehouse: '🏛️', MirroredDatabase: '🪞' }[s.itemType]), it.name), h('div', { class: 'meta' }, s.itemType)));
+      for (const it of list) grid.append(h('div', { class: `src ${s.itemId === it.id ? 'on' : ''}`, onclick: () => { s.itemId = it.id; s.itemName = it.name; loadItems().then(loadTables); } }, h('div', { class: 'h' }, h('div', { class: 'ic' }, { Lakehouse: '🏞️', Warehouse: '🏛️', MirroredDatabase: '🪞', SQLDatabase: '🗄️' }[s.itemType]), it.name), h('div', { class: 'meta' }, s.itemType)));
       items.append(grid);
     } catch (e) { items.innerHTML = ''; items.append(h('div', { class: 'banner err' }, e.message)); }
   };
@@ -382,14 +333,14 @@ function fabricData() {
         watch(job, j, (done) => { if (done.status === 'succeeded') { toast('Shortcuts created', 'ok'); app.refresh(); } });
       }));
       tablesBox.append(h('div', { class: 'banner ok mt' }, `${r.tables.length} tables in ${s.itemName} · ${r.endpoint.server}`), tablePicker(s.tables, s.selected),
-        h('div', { class: 'row mt' }, inPlace, s.itemType !== 'MirroredDatabase' ? shortcut : null),
+        h('div', { class: 'row mt' }, inPlace, !['MirroredDatabase', 'SQLDatabase'].includes(s.itemType) ? shortcut : null),
         h('p', { class: 'tiny muted' }, 'Use in place builds the model directly on this item (it can live in another workspace). Shortcuts reference the selected tables from the project lakehouse without copying data.'),
         job);
     } catch (e) { tablesBox.innerHTML = ''; tablesBox.append(h('div', { class: 'banner err mt' }, e.message)); }
   };
   wsSel.addEventListener('change', () => { s.itemId = ''; loadItems(); });
   box.append(h('div', { class: 'row' },
-    seg([{ value: 'Lakehouse', label: 'Lakehouse' }, { value: 'Warehouse', label: 'Warehouse' }, { value: 'MirroredDatabase', label: 'Mirrored database' }], s.itemType, (v) => { s.itemType = v; s.itemId = ''; loadItems(); }),
+    seg([{ value: 'Lakehouse', label: 'Lakehouse' }, { value: 'Warehouse', label: 'Warehouse' }, { value: 'MirroredDatabase', label: 'Mirrored database' }, { value: 'SQLDatabase', label: 'SQL database' }], s.itemType, (v) => { s.itemType = v; s.itemId = ''; loadItems(); }),
     h('div', { style: { flex: 1, minWidth: '260px' } }, wsSel)), items, tablesBox);
   if (s.itemId) setTimeout(loadTables, 0);
   return box;

@@ -17,6 +17,7 @@ const EMPTY = {
   scenario: null,                 // sample | byod
   workspace: null,                // { id, name, capacityId, created }
   lakehouse: null,                // { id, name, sqlEndpointId, sqlEndpointServer }
+  sqlDatabase: null,              // { id, name, server, database } – Fabric SQL database created by the studio (AdventureWorksDW2022 sample)
   source: null,                   // { kind, type, label, details, connectionId, tables[], method }
   modelSource: null,              // { itemType, itemId, itemName, workspaceId, server, endpointId, database, schema, tables[] }
   semanticModel: null,            // { id, name }
@@ -144,6 +145,7 @@ export function fabricUrl(type, workspaceId, id) {
     Lakehouse: `/lakehouses/${id}`,
     Warehouse: `/warehouses/${id}`,
     MirroredDatabase: `/mirroreddatabases/${id}`,
+    SQLDatabase: `/sqldatabases/${id}`,
     SemanticModel: `/datasets/${id}/details`,
     Ontology: `/ontologies/${id}`,
     Report: `/reports/${id}`,

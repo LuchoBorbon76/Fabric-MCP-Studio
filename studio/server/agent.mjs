@@ -303,9 +303,11 @@ function studioTools() {
       handler: async (a) => P.selectWorkspace(a),
     }),
     defineTool('studio_load_sample_data', {
-      description: 'Load the Contoso Retail sample (6 tables) into a lakehouse in the project workspace and set it as the model source.',
-      parameters: obj({ dataset: { type: 'string', enum: ['retail'] } }),
-      handler: async () => runAsJob('sample', 'Load Contoso Retail sample', (ctx) => P.runSampleRetail(ctx)),
+      description: 'Load a sample dataset into the project workspace and set it as the model source. "retail": Contoso Retail (6 tables) into a lakehouse, about 3 minutes. "adventureworks": Microsoft\'s AdventureWorksDW2022 created as a Fabric SQL database and replicated to OneLake, about 8 minutes.',
+      parameters: obj({ dataset: { type: 'string', enum: ['retail', 'adventureworks'] } }, ['dataset']),
+      handler: async ({ dataset }) => (dataset === 'adventureworks'
+        ? runAsJob('sample', 'Create AdventureWorksDW2022 in a Fabric SQL database', (ctx) => P.runSampleAdventureWorks(ctx))
+        : runAsJob('sample', 'Load Contoso Retail sample', (ctx) => P.runSampleRetail(ctx))),
     }),
     defineTool('studio_list_connections', {
       description: 'List Fabric connections the user can use for mirroring (SQL, AzurePostgreSQL…), including on-premises gateway connections.',
@@ -323,13 +325,13 @@ function studioTools() {
       handler: async (a) => runAsJob('mirror', `Mirror ${a.database}`, (ctx) => P.runMirror(ctx, { typeId: a.sourceType, connectionId: a.connectionId, database: a.database, tables: a.tables || [], name: a.name })),
     }),
     defineTool('studio_list_items', {
-      description: 'List Lakehouse, Warehouse or MirroredDatabase items in a workspace (to use the customer\'s existing Fabric data).',
-      parameters: obj({ workspaceId: str('Workspace ID'), itemType: { type: 'string', enum: ['Lakehouse', 'Warehouse', 'MirroredDatabase'] } }, ['workspaceId', 'itemType']),
+      description: 'List Lakehouse, Warehouse, MirroredDatabase or SQLDatabase items in a workspace (to use the customer\'s existing Fabric data).',
+      parameters: obj({ workspaceId: str('Workspace ID'), itemType: { type: 'string', enum: ['Lakehouse', 'Warehouse', 'MirroredDatabase', 'SQLDatabase'] } }, ['workspaceId', 'itemType']),
       handler: async ({ workspaceId, itemType }) => P.listSourceItems(workspaceId, itemType),
     }),
     defineTool('studio_use_item_in_place', {
       description: 'Use an existing Lakehouse, Warehouse or MirroredDatabase directly as the model source (no data copy).',
-      parameters: obj({ workspaceId: str('Workspace ID of the item'), itemId: str('Item ID'), itemType: { type: 'string', enum: ['Lakehouse', 'Warehouse', 'MirroredDatabase'] } }, ['workspaceId', 'itemId', 'itemType']),
+      parameters: obj({ workspaceId: str('Workspace ID of the item'), itemId: str('Item ID'), itemType: { type: 'string', enum: ['Lakehouse', 'Warehouse', 'MirroredDatabase', 'SQLDatabase'] } }, ['workspaceId', 'itemId', 'itemType']),
       handler: async (a) => P.useInPlace(a),
     }),
     defineTool('studio_create_shortcuts', {

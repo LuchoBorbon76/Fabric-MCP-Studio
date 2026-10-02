@@ -3,14 +3,14 @@ import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, basename, extname } from 'node:path';
 import { spawn } from 'node:child_process';
 import { REPO_ROOT, sleep, stableUuid } from './config.mjs';
-import { runAz } from './azcli.mjs';
 import * as F from './fabric.mjs';
 import { getProject, updateProject, setStep, recordArtifact, logActivity, assertProjectTenant } from './project.mjs';
-import { discoverSqlServer, testSqlServer, readOnlyQuery } from './sql.mjs';
+import { discoverSqlServer, testSqlServer, readOnlyQuery, withPool } from './sql.mjs';
 import { discoverPostgres, testPostgres } from './pg.mjs';
 import { sourceType } from './sources.mjs';
 import { buildPlan, semanticModelFiles, ontologyFiles, defaultMeasures } from './generators/tmdl.mjs';
-import { RETAIL, presetFor } from './presets.mjs';
+import { RETAIL, ADVENTUREWORKS, presetFor } from './presets.mjs';
+import { AWDW, getKit, loadAdventureWorksDW, salesTotalsMatch } from './samples/adventureworks-dw.mjs';
 
 const safeName = (s, fallback = 'Item') => (String(s || '').replace(/[^A-Za-z0-9_]/g, '_').replace(/^_+|_+$/g, '').replace(/_+/g, '_') || fallback).slice(0, 120);
 
@@ -276,7 +276,7 @@ export async function runSemanticModel(ctx, { name, include, names, relationship
   ctx.step('Read the source schema');
   const schema = await describeModelSource({ refresh: true });
   if (relationships?.length) schema.relationships = relationships;
-  const plan = buildPlan(schema, { include, names: names || preset?.names, descriptions: descriptions || preset?.descriptions });
+  const plan = buildPlan(schema, { include: include?.length ? include : preset?.include, names: names || preset?.names, descriptions: descriptions || preset?.descriptions });
   if (!plan.tables.length) throw new Error('No tables found in the data source.');
   ctx.log(`${plan.tables.length} tables, ${plan.relationships.length} relationships`);
   ctx.progress(25);
@@ -317,7 +317,7 @@ export async function runOntology(ctx, { name, include, entityNames, rules, desc
   ctx.step('Read the source schema');
   const schema = await describeModelSource();
   const exclude = new Set((preset?.ontology?.exclude || []).map((x) => x.toLowerCase()));
-  const inc = include?.length ? include : schema.tables.filter((t) => !exclude.has(t.name.toLowerCase())).map((t) => `${t.schema}.${t.name}`);
+  const inc = include?.length ? include : preset?.ontology?.include || schema.tables.filter((t) => !exclude.has(t.name.toLowerCase())).map((t) => `${t.schema}.${t.name}`);
   const plan = buildPlan(schema, { include: inc, names: preset?.names, descriptions: preset?.descriptions });
   const ontName = F.itemName('Ontology', name || p.ontology?.name || preset?.ontologyName || `${p.modelSource.itemName}_Ontology`, 'Ontology');
   const presetRules = preset?.ontology?.rules || [];
@@ -353,7 +353,7 @@ export function ontologyPreview({ include, rules } = {}) {
     const preset = presetFor(p);
     const schema = await describeModelSource();
     const exclude = new Set((preset?.ontology?.exclude || []).map((x) => x.toLowerCase()));
-    const inc = include?.length ? include : schema.tables.filter((t) => !exclude.has(t.name.toLowerCase())).map((t) => `${t.schema}.${t.name}`);
+    const inc = include?.length ? include : preset?.ontology?.include || schema.tables.filter((t) => !exclude.has(t.name.toLowerCase())).map((t) => `${t.schema}.${t.name}`);
     const plan = buildPlan(schema, { include: inc, names: preset?.names });
     const out = ontologyFiles({ name: 'preview', src: { server: 's', endpointId: 'e' }, plan, rules: rules || preset?.ontology?.rules || [], entityNames: preset?.ontology?.entityNames || {} });
     return {
@@ -394,53 +394,88 @@ export function runTeamsAgent(ctx, { includeOntology = false, publish = false, d
   });
 }
 
-// ---------------- Azure SQL sample (AdventureWorksLT) ----------------
+// ---------------- AdventureWorksDW2022 sample (Fabric SQL database) ----------------
 
-const az = (args, ctx, { json = true } = {}) => runAz(args, { json, signal: ctx?.signal, onCommand: (c) => ctx?.log(c) });
+export async function runSampleAdventureWorks(ctx) {
+  const ws = requireWorkspace();
+  ctx.step('Get the AdventureWorksDW install kit from Microsoft');
+  const kit = await getKit(ctx.log, { signal: ctx.signal });
+  ctx.progress(6);
 
-export async function listSubscriptions() {
-  const subs = await az(['account', 'list', '--query', '[?state==`Enabled`].{id:id,name:name,tenantId:tenantId,isDefault:isDefault}']);
-  return subs || [];
+  ctx.step(`Create the Fabric SQL database ${AWDW.databaseName}`);
+  let db = await F.findItem(ws.id, 'SQLDatabase', AWDW.databaseName);
+  if (!db) {
+    db = await F.createSqlDatabase(ws.id, { name: AWDW.databaseName, description: 'AdventureWorksDW2022 sample created by Fabric MCP Studio.' });
+    recordArtifact({ type: 'SQLDatabase', id: db.id, name: AWDW.databaseName, workspaceId: ws.id });
+    ctx.log(`Created ${AWDW.databaseName}`);
+  } else ctx.log(`Reusing ${AWDW.databaseName}`);
+  const props = (await F.getSqlDatabase(ws.id, db.id))?.properties || {};
+  if (!props.serverFqdn || !props.databaseName) throw new Error('The SQL database has no connection details yet. Try again in a minute.');
+  updateProject({ sqlDatabase: { id: db.id, name: AWDW.databaseName, server: props.serverFqdn, database: props.databaseName } });
+  ctx.progress(12);
+
+  ctx.step('Create the tables and load the data');
+  const load = await withPool({ server: props.serverFqdn, database: props.databaseName }, (pool) => loadAdventureWorksDW(pool, kit, ctx, { from: 12, to: 70 }));
+  const expected = Object.fromEntries(load.plan.data.map((d) => [d.table, load.counts[d.table]]));
+  const rows = Object.values(expected).reduce((a, b) => a + (b || 0), 0);
+  logActivity('sample.adventureworks', `Loaded AdventureWorksDW2022 into Fabric SQL database (${Object.keys(expected).length} tables, ${rows.toLocaleString('en-US')} rows)`, { sqlDatabaseId: db.id });
+
+  ctx.step('Wait for the OneLake replica (SQL analytics endpoint)');
+  const ep = await F.waitSqlEndpoint(ws.id, db.id, 'SQLDatabase', { signal: ctx.signal });
+  await waitForReplica(ctx, ws.id, ep, expected, { from: 70, to: 97, verify: salesTotalsMatch });
+
+  const glossaryPath = join(REPO_ROOT, ADVENTUREWORKS.glossaryFile);
+  updateProject({
+    scenario: 'sample',
+    source: { kind: 'sample', id: 'adventureworks-dw', label: 'AdventureWorksDW2022 (Fabric SQL database)', method: 'sql-database', itemId: db.id, tables: Object.keys(expected) },
+    glossary: existsSync(glossaryPath) ? readFileSync(glossaryPath, 'utf8') : getProject().glossary,
+  });
+  setModelSource({ itemType: 'SQLDatabase', itemId: db.id, itemName: AWDW.databaseName, workspaceId: ws.id, server: ep.server, endpointId: ep.endpointId, database: ep.database }, 'AdventureWorksDW2022 loaded');
+  return { sqlDatabaseId: db.id, tables: Object.keys(expected).length, rows, reused: load.reused };
 }
 
-export async function runAzureSqlSample(ctx, { subscriptionId, resourceGroup, location, serverName, adminUser, adminPassword, databaseName = 'AdventureWorksLT' }) {
-  if (!subscriptionId || !resourceGroup || !location || !serverName || !adminUser || !adminPassword) throw new Error('All fields are required.');
-  const sub = ['--subscription', subscriptionId];
-  ctx.step('Create resource group');
-  await az(['group', 'create', '-n', resourceGroup, '-l', location, ...sub, '--tags', 'createdBy=fabric-mcp-studio'], ctx);
-  ctx.progress(10);
-  ctx.step('Create Azure SQL logical server (managed identity on)');
-  const existing = await az(['sql', 'server', 'show', '-g', resourceGroup, '-n', serverName, ...sub], ctx).catch(() => null);
-  if (!existing) {
-    await az(['sql', 'server', 'create', '-g', resourceGroup, '-n', serverName, '-l', location, '--admin-user', adminUser, '--admin-password', adminPassword, '--assign-identity', '--enable-public-network', 'true', ...sub], ctx);
-  } else {
-    await az(['sql', 'server', 'update', '-g', resourceGroup, '-n', serverName, '--assign_identity', ...sub], ctx).catch(() => null);
+/** Fabric replicates SQL database tables to OneLake automatically; wait until every table matches the source. */
+async function waitForReplica(ctx, workspaceId, ep, expected, { from, to, verify = null, timeoutMs = 25 * 60 * 1000 }) {
+  const want = Object.entries(expected);
+  const synced = new Set();
+  const deadline = Date.now() + timeoutMs;
+  let lastMsg = '';
+  let verified = !verify;
+  for (let i = 0; Date.now() < deadline; i++) {
+    if (ctx.signal?.aborted) throw new Error('Cancelled');
+    if (i % 4 === 0) await F.refreshSqlEndpoint(workspaceId, ep.endpointId);
+    try {
+      await withPool({ server: ep.server, database: ep.database }, async (pool) => {
+        const present = new Set((await pool.request().query("SELECT name FROM sys.tables WHERE SCHEMA_NAME(schema_id) = 'dbo'")).recordset.map((r) => r.name));
+        for (const [t, n] of want) {
+          if (synced.has(t) || !present.has(t)) continue;
+          const c = Number((await pool.request().query(`SELECT COUNT_BIG(*) AS n FROM dbo.[${t}]`)).recordset[0].n);
+          if (c === n) synced.add(t);
+        }
+        if (synced.size === want.length && !verified) verified = await verify(pool);
+      });
+    } catch (e) {
+      if (!/Invalid object|does not exist|Login failed|not found/i.test(e.message)) ctx.log(`Waiting for the SQL analytics endpoint: ${e.message.split('\n')[0]}`);
+    }
+    const msg = `OneLake replica: ${synced.size}/${want.length} tables in sync${synced.size === want.length && !verified ? ' · waiting for the latest values' : ''}`;
+    if (msg !== lastMsg) { ctx.log(msg); lastMsg = msg; }
+    ctx.progress(from + (to - from) * (synced.size / want.length) * (verified ? 1 : 0.97));
+    if (synced.size === want.length && verified) return;
+    await sleep(15000);
   }
-  ctx.progress(40);
-  ctx.step('Allow Azure services (Fabric) through the firewall');
-  await az(['sql', 'server', 'firewall-rule', 'create', '-g', resourceGroup, '-s', serverName, '-n', 'AllowAzureServices', '--start-ip-address', '0.0.0.0', '--end-ip-address', '0.0.0.0', ...sub], ctx);
-  ctx.progress(50);
-  ctx.step('Create AdventureWorksLT database (serverless, auto-pause)');
-  const dbExists = await az(['sql', 'db', 'show', '-g', resourceGroup, '-s', serverName, '-n', databaseName, ...sub], ctx).catch(() => null);
-  if (!dbExists) {
-    await az(['sql', 'db', 'create', '-g', resourceGroup, '-s', serverName, '-n', databaseName, '--sample-name', 'AdventureWorksLT', '--edition', 'GeneralPurpose', '--family', 'Gen5', '--capacity', '2', '--compute-model', 'Serverless', '--auto-pause-delay', '60', '--backup-storage-redundancy', 'Local', ...sub], ctx);
-  }
-  ctx.progress(95);
-  const server = `${serverName}.database.windows.net`;
-  updateProject({ azureSample: { subscriptionId, resourceGroup, serverName, server, database: databaseName, createdAt: new Date().toISOString() } });
-  logActivity('azure.sample', `Provisioned AdventureWorksLT on ${server}`, { resourceGroup });
-  return { server, database: databaseName, adminUser };
+  const missing = want.filter(([t]) => !synced.has(t)).map(([t]) => t);
+  throw new Error(`OneLake replication didn't finish in time (${missing.length} tables pending: ${missing.slice(0, 5).join(', ')}). The data is in the SQL database; run the sample again in a few minutes to continue.`);
 }
 
 // ---------------- teardown ----------------
 
-export async function runTeardown(ctx, { deleteWorkspace = false, deleteAzureSample = false } = {}) {
+export async function runTeardown(ctx, { deleteWorkspace = false } = {}) {
   const p = getProject();
   if (deleteWorkspace && p.workspace?.created) {
     ctx.step(`Delete workspace ${p.workspace.name}`);
     await F.deleteWorkspace(p.workspace.id);
     // Everything lived in that workspace; keep only the glossary for the next project.
-    updateProject({ workspace: null, lakehouse: null, source: null, modelSource: null, semanticModel: null, ontology: null, teamsAgent: null, scenario: null, tenant: null, steps: {} });
+    updateProject({ workspace: null, lakehouse: null, sqlDatabase: null, source: null, modelSource: null, semanticModel: null, ontology: null, teamsAgent: null, scenario: null, tenant: null, steps: {} });
   } else if (p.workspace) {
     ctx.step('Delete items created by the studio');
     for (const it of [p.ontology, p.semanticModel].filter(Boolean)) {
@@ -464,12 +499,11 @@ export async function runTeardown(ctx, { deleteWorkspace = false, deleteAzureSam
     if (p.lakehouse?.id) {
       try { await F.deleteItem(p.workspace.id, p.lakehouse.id); ctx.log(`Deleted ${p.lakehouse.name}`); } catch (e) { ctx.log(e.message); }
     }
+    if (p.sqlDatabase?.id) {
+      try { await F.deleteItem(p.workspace.id, p.sqlDatabase.id); ctx.log(`Deleted SQL database ${p.sqlDatabase.name}`); } catch (e) { ctx.log(e.message); }
+    }
     const keep = p.steps?.workspace;
-    updateProject({ lakehouse: null, source: null, modelSource: null, semanticModel: null, ontology: null, teamsAgent: null, scenario: null, steps: keep ? { workspace: keep } : {} });
-  }
-  if (deleteAzureSample && p.azureSample?.resourceGroup) {
-    ctx.step(`Delete Azure resource group ${p.azureSample.resourceGroup}`);
-    await az(['group', 'delete', '-n', p.azureSample.resourceGroup, '--subscription', p.azureSample.subscriptionId, '--yes', '--no-wait'], ctx, { json: false });
+    updateProject({ lakehouse: null, sqlDatabase: null, source: null, modelSource: null, semanticModel: null, ontology: null, teamsAgent: null, scenario: null, steps: keep ? { workspace: keep } : {} });
   }
   return { ok: true };
 }

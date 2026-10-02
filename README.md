@@ -16,7 +16,7 @@ A local web app the customer installs and runs. One place to:
 |---|---|
 | **Choose your AI** | GitHub Copilot (any plan) or bring your own key: Azure AI Foundry/Azure OpenAI (Entra ID, no keys), OpenAI, Anthropic, local OpenAI-compatible model |
 | **Workspace** | Create a new workspace on any capacity, or use an existing one |
-| **Data** | Sample data (Contoso Retail, or AdventureWorksLT provisioned on Azure SQL) · mirror **Azure SQL DB, SQL Managed Instance, SQL Server on-premises, Azure PostgreSQL** · reuse **Fabric lakehouses, warehouses, mirrored databases** (in place or shortcuts) |
+| **Data** | Sample data (Contoso Retail lakehouse, or **AdventureWorksDW2022 created as a Fabric SQL database**) · mirror **Azure SQL DB, SQL Managed Instance, SQL Server on-premises, Azure PostgreSQL** · reuse **Fabric lakehouses, warehouses, mirrored databases, SQL databases** (in place or shortcuts) |
 | **Semantic model** | Direct Lake model generated from your tables and keys, then enriched by Copilot: measures from your glossary, descriptions, RLS, translations, best-practice review |
 | **Ontology** | Entities, relationships and plain-English business rules from your glossary |
 | **Ask & share** | Chat with governed answers (Fabric IQ), install the Microsoft 365 Copilot / Teams agent, connect other AI clients, create a Fabric data agent, export the audit log |
