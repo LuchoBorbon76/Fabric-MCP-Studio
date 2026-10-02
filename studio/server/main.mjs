@@ -170,6 +170,7 @@ route('POST', '/api/sources/connection', (_, b) => P.createConnection(b));
 route('GET', '/api/sources/items', (_, __, q) => P.listSourceItems(q.get('workspaceId'), q.get('itemType')));
 route('POST', '/api/sources/item-tables', (_, b) => P.listTablesOfItem(b));
 route('POST', '/api/sources/in-place', (_, b) => P.useInPlace(b));
+route('GET', '/api/sources/current/mirroring', () => P.currentMirroringStatus());
 
 route('GET', '/api/model/describe', (_, __, q) => P.describeModelSource({ refresh: q.get('refresh') === '1' }));
 route('GET', '/api/ontology/preview', () => P.ontologyPreview());

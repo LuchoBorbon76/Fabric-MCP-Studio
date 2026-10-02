@@ -141,7 +141,7 @@ function renderKpis() {
     { id: 'ai', view: 'settings', label: 'AI provider', value: store.provider?.name || '–', sub: store.provider?.model || (aiCheck?.detail ?? 'Not checked yet'), state: aiCheck ? (aiCheck.status === 'ok' ? 'done' : aiCheck.status === 'error' ? 'err' : 'todo') : 'todo' },
     { id: 'fabric', view: 'settings', label: 'Microsoft Fabric', value: store.user?.signedIn ? (store.user.tenantDomain || 'Signed in') : 'Not signed in', sub: store.user?.signedIn ? store.user.upn : 'Select Sign in', state: store.user?.signedIn ? 'done' : 'err' },
     { id: 'workspace', view: 'workspace', label: 'Workspace', value: p.workspace?.name || 'Not selected', sub: p.workspace ? (p.workspace.created ? 'Created by the studio' : 'Existing workspace') : 'New or existing', state: st.workspace },
-    { id: 'data', view: 'data', label: 'Data', value: p.source?.label || 'Not connected', sub: p.modelSource ? `${p.modelSource.itemType} · ${p.modelSource.itemName}` : 'Sample or your data', state: st.data },
+    { id: 'data', view: 'data', label: 'Data', value: p.source?.label || 'Not connected', sub: p.modelSource ? `${{ MirroredDatabase: 'Mirrored database', SQLDatabase: 'SQL database' }[p.modelSource.itemType] || p.modelSource.itemType} · ${p.modelSource.itemName}` : 'Sample or your data', state: st.data },
     { id: 'model', view: 'model', label: 'Semantic model', value: p.semanticModel?.name || 'Not created', sub: p.semanticModel ? `${p.semanticModel.tables} tables · ${p.semanticModel.measures} measures` : 'Direct Lake', state: st.model },
     { id: 'ontology', view: 'ontology', label: 'Ontology', value: p.ontology?.name || 'Not created', sub: p.ontology ? `${p.ontology.entities?.length || 0} entities · ${p.ontology.rules?.length || 0} rules` : 'Fabric IQ', state: st.ontology },
   ];
@@ -352,11 +352,17 @@ on('server.down', () => {
 on('server.up', () => { $('#offline').hidden = true; });
 
 let presetSource;
+let dataSourceKey;
+const dataKey = (p) => [p?.source?.kind, p?.source?.method, p?.source?.itemId, p?.modelSource?.itemId].join('|');
 on('project.updated', async () => {
   const sid = store.project?.source?.id || null;
   if (sid !== presetSource) { presetSource = sid; try { store.preset = await get('/preset'); } catch { /* keep */ } }
   renderHeader(); renderKpis(); refreshSuggestions();
-  if (['home', 'model', 'ontology', 'share', 'workspace'].includes(current)) renderView(current);
+  // The Data tab keeps in-progress forms, so it only re-renders when the data source itself changes.
+  const dk = dataKey(store.project);
+  const dataChanged = dk !== dataSourceKey;
+  dataSourceKey = dk;
+  if (['home', 'model', 'ontology', 'share', 'workspace'].includes(current) || (current === 'data' && dataChanged)) renderView(current);
 });
 on('provider', (e) => { store.provider = e.provider; renderHeader(); renderKpis(); });
 on('auth', (e) => { store.user = e.user; renderAll(); });
@@ -367,6 +373,7 @@ async function refresh() {
     const b = await get('/bootstrap');
     Object.assign(store, { user: b.user, settings: b.settings, provider: b.provider, providers: b.providers, project: b.project, catalog: b.catalog, chats: b.chats, approvals: b.approvals, preset: b.preset, platform: b.platform });
     presetSource = b.project?.source?.id || null;
+    dataSourceKey = dataKey(b.project);
     for (const j of b.jobs) {
       store.jobs.set(j.id, j);
       if (j.status === 'running') dockJobs.add(j.id);

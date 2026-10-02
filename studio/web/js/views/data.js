@@ -1,14 +1,80 @@
 import { store, get, post, on } from '../api.js';
-import { h, toast, busy, field, input, select, seg, fmtNum, $ } from '../ui.js';
+import { h, toast, busy, field, input, select, seg, fmtNum, fmtDate, $ } from '../ui.js';
 import { app, copilotSlot } from '../app.js';
 
 let tab = 'samples';
 let selectedType = null;
 let wiz = null;           // wizard state for database sources
 let fabricState = { itemType: 'Lakehouse', workspaceId: '', itemId: '', tables: [], selected: new Set() };
+let alignedTo;            // data source the tabs below were last filled from
+let workspaceNames = null;
+
+const ITEM_LABEL = { Lakehouse: 'Lakehouse', Warehouse: 'Warehouse', MirroredDatabase: 'Mirrored database', SQLDatabase: 'SQL database' };
+const ITEM_ICON = { Lakehouse: '🏞️', Warehouse: '🏛️', MirroredDatabase: '🪞', SQLDatabase: '🗄️' };
+const ITEM_PATH = { Lakehouse: 'lakehouses', Warehouse: 'warehouses', MirroredDatabase: 'mirroreddatabases', SQLDatabase: 'sqldatabases' };
+const METHOD_LABEL = {
+  files: 'Parquet files loaded into Lakehouse tables',
+  'sql-database': 'Fabric SQL database, replicated to OneLake automatically',
+  mirror: 'Fabric Mirroring (near real-time replication into OneLake)',
+  'in-place': 'Used in place – no data copied',
+  shortcut: 'OneLake shortcuts in the project lakehouse – no data copied',
+};
+const itemUrl = (type, ws, id) => `https://app.fabric.microsoft.com/groups/${ws}${ITEM_PATH[type] && id ? `/${ITEM_PATH[type]}/${id}` : ''}`;
+const sourceKey = (p) => (p.modelSource ? [p.source?.kind, p.source?.method, p.source?.itemId, p.modelSource.itemId].join('|') : '');
+
+/** The Fabric item that holds the current data – what you would pick under "Existing Fabric data". */
+function originItem(p) {
+  const ms = p.modelSource;
+  const s = p.source || {};
+  if (s.kind === 'fabric' && s.itemId) {
+    const typeOf = (store.catalog?.sources || []).find((x) => x.id === s.type)?.itemType;
+    const itemType = s.itemType || (ITEM_LABEL[s.type] ? s.type : typeOf) || ms.itemType;
+    const itemName = s.itemName || (s.method === 'in-place' ? ms.itemName : (s.label || '').match(/· (.+) \(shortcuts\)$/)?.[1] || '');
+    return { itemType, itemName, workspaceId: s.workspaceId || ms.workspaceId, itemId: s.itemId };
+  }
+  return { itemType: ms.itemType, itemName: ms.itemName, workspaceId: ms.workspaceId, itemId: ms.itemId };
+}
+
+const mirroredDatabaseName = (s) => s.database || (s.label || '').split(' · ').slice(1).join(' · ');
+
+/** Open the tab that matches the connected source, with its details filled in (once per source, so user choices stick). */
+function alignWithSource(p) {
+  const key = sourceKey(p);
+  if (key === alignedTo) return;
+  alignedTo = key;
+  if (!p.modelSource) return;
+  const s = p.source || {};
+  tab = s.kind === 'database' ? 'databases' : s.kind === 'fabric' ? 'fabric' : 'samples';
+  const o = originItem(p);
+  fabricState = { itemType: ITEM_LABEL[o.itemType] ? o.itemType : 'Lakehouse', workspaceId: o.workspaceId, itemId: o.itemId, itemName: o.itemName, tables: [], selected: new Set() };
+  const t = s.kind === 'database' ? (store.catalog?.sources || []).find((x) => x.id === s.type) : null;
+  if (t) { selectedType = t.id; wiz = newWizard(t, p); }
+}
+
+/** Wizard state for a database source – filled in from the project when that source is the one in use. */
+function newWizard(t, p) {
+  const s = p.modelSource && p.source?.kind === 'database' && p.source.type === t.id ? p.source : null;
+  return {
+    step: 1, typeId: t.id, auth: t.auth[0], tables: null, selected: new Set(),
+    values: s ? { server: s.server || '', database: mirroredDatabaseName(s), ...(s.port ? { port: String(s.port) } : {}) } : {},
+    connectionId: s?.connectionId || '', connectionName: s?.connectionName || '',
+    connMode: s?.connectionId || !t.connectionCredentials.includes('Basic') ? 'existing' : 'new',
+    mirrorName: s ? p.modelSource.itemName : undefined,
+  };
+}
+
+function workspaceLabel(p, id) {
+  if (id === p.workspace?.id) return h('span', {}, `${p.workspace.name} (project workspace)`);
+  const el = h('span', { class: 'muted' }, '…');
+  const set = () => { el.className = ''; el.textContent = workspaceNames?.get(id) || id; };
+  if (workspaceNames) set();
+  else get('/fabric/workspaces').then((ws) => { workspaceNames = new Map(ws.map((w) => [w.id, w.name])); set(); }).catch(() => set());
+  return el;
+}
 
 export function renderData(el) {
   const p = store.project || {};
+  alignWithSource(p);
   if (!p.workspace) {
     el.append(h('div', { class: 'banner warn' }, h('div', {}, h('b', {}, 'Select a workspace first. '), 'Data lands in the project workspace.'), h('button', { class: 'btn pri', onclick: () => app.go('workspace') }, 'Choose workspace')));
   }
@@ -27,15 +93,65 @@ export function renderData(el) {
 
 function currentSource(p) {
   const ms = p.modelSource;
+  const s = p.source || {};
+  const o = originItem(p);
+  const sample = s.kind === 'sample' ? (store.catalog?.samples || []).find((x) => x.id === s.id) : null;
+  const dbType = s.kind === 'database' ? (store.catalog?.sources || []).find((x) => x.id === s.type) : null;
+  const itemLabel = `${ITEM_LABEL[o.itemType] || o.itemType} · ${o.itemName || ms.itemName}`;
+
+  const kv = h('dl', { class: 'kv mt' });
+  const add = (k, v) => { if (v !== null && v !== undefined && v !== '') kv.append(h('dt', {}, k), h('dd', {}, v)); };
+  add('Source', sample ? `Sample data · ${sample.name}` : dbType ? `${dbType.name} · ${[s.server, mirroredDatabaseName(s)].filter(Boolean).join(' / ')}` : itemLabel);
+  add('How it lands', METHOD_LABEL[s.method] || METHOD_LABEL['in-place']);
+  if (s.connectionId) add('Fabric connection', s.connectionName || h('span', { class: 'mono tiny' }, s.connectionId));
+  add('Fabric item', h('a', { href: itemUrl(o.itemType, o.workspaceId, o.itemId), target: '_blank', rel: 'noopener' }, `${itemLabel} ↗`));
+  add('Workspace', workspaceLabel(p, o.workspaceId));
+  if (s.method === 'shortcut') add('Project lakehouse', h('a', { href: itemUrl('Lakehouse', ms.workspaceId, ms.itemId), target: '_blank', rel: 'noopener' }, `${ms.itemName} ↗`));
+  add('SQL analytics endpoint', h('span', { class: 'mono small' }, ms.server));
+  add('Database', ms.database);
+  const stats = h('span', { class: 'muted' }, h('span', { class: 'spin' }), ' Reading tables from the SQL analytics endpoint…');
+  add('Tables', stats);
+  const data = p.steps?.data;
+  if (data?.at) add('Connected', `${fmtDate(data.at)}${data.note ? ` · ${data.note}` : ''}`);
+
+  const tablesBox = h('div');
+  const mirrorBox = h('div', { class: 'mt' });
+  const load = (refresh) => {
+    get(`/model/describe${refresh ? '?refresh=1' : ''}`).then((d) => {
+      const rows = d.tables.reduce((a, t) => a + (Number(t.rows) || 0), 0);
+      stats.className = '';
+      stats.textContent = `${d.tables.length} tables · ${fmtNum(rows)} rows · ${d.relationships.length} relationships`;
+      tablesBox.innerHTML = '';
+      if (!d.tables.length) { tablesBox.append(h('div', { class: 'banner warn mt' }, 'No tables yet. If the data was just loaded or mirrored, wait a minute and refresh.')); return; }
+      const t = h('table', { class: 't' }, h('tr', {}, h('th', {}, 'Table'), h('th', { class: 'num' }, 'Rows'), h('th', { class: 'num' }, 'Columns'), h('th', {}, 'Key')));
+      for (const x of d.tables) {
+        const k = x.columns.find((c) => c.isPk || c.isKey);
+        t.append(h('tr', {}, h('td', {}, `${x.schema}.${x.name}`), h('td', { class: 'num' }, fmtNum(x.rows)), h('td', { class: 'num' }, x.columns.length), h('td', { class: 'mono tiny' }, k?.name || '–')));
+      }
+      tablesBox.append(h('details', { class: 'mt', open: true }, h('summary', { class: 'small' }, 'Tables, row counts and keys'), h('div', { class: 'scroll mt' }, t)));
+    }).catch((e) => { stats.className = ''; stats.textContent = ''; stats.append(h('span', { class: 'pill err' }, 'Not readable'), ` ${e.message}`); });
+    if (ms.itemType === 'MirroredDatabase') {
+      get('/sources/current/mirroring').then((d) => { if (d.status || d.tables?.length) renderMirrorTables(mirrorBox, d); }).catch((e) => { mirrorBox.innerHTML = ''; mirrorBox.append(h('div', { class: 'banner warn mt' }, e.message)); });
+    }
+  };
+  load(false);
+
   return h('div', { class: 'card', style: { marginBottom: '14px' } },
     h('div', { class: 'row sp' },
-      h('div', {}, h('div', { class: 'row' }, h('h2', {}, p.source?.label || ms.itemName), h('span', { class: 'pill ok' }, 'Connected')),
-        h('div', { class: 'muted small' }, `${ms.itemType} · ${ms.itemName} · method: ${p.source?.method || 'in place'}`)),
+      h('div', {}, h('div', { class: 'row' }, h('h2', {}, s.kind === 'fabric' ? `${itemLabel}${s.method === 'shortcut' ? ' (shortcuts)' : ''}` : s.label || ms.itemName), h('span', { class: 'pill ok' }, 'Connected')),
+        h('div', { class: 'muted small' }, `${ITEM_LABEL[ms.itemType] || ms.itemType} · ${ms.itemName} · ${METHOD_LABEL[s.method] || METHOD_LABEL['in-place']}`)),
       h('div', { class: 'row' },
-        h('a', { class: 'btn', href: `https://app.fabric.microsoft.com/groups/${ms.workspaceId}`, target: '_blank', rel: 'noopener' }, 'Open in Fabric ↗'),
+        h('button', { class: 'btn', title: 'Read the tables and status again', onclick: () => { stats.className = 'muted'; stats.innerHTML = '<span class="spin"></span> Reading tables from the SQL analytics endpoint…'; load(true); } }, '↻ Refresh'),
+        h('a', { class: 'btn', href: itemUrl(o.itemType, o.workspaceId, o.itemId), target: '_blank', rel: 'noopener' }, 'Open in Fabric ↗'),
         h('button', { class: 'btn ai', onclick: () => app.ask('Describe my data source: tables, row counts, keys and relationships. Then suggest a star schema.') }, '✦ Explain my data'),
         h('button', { class: 'btn pri', onclick: () => app.go('model') }, 'Next: semantic model →'))),
-    h('dl', { class: 'kv mt' }, h('dt', {}, 'SQL endpoint'), h('dd', { class: 'mono small' }, ms.server), h('dt', {}, 'Database'), h('dd', {}, ms.database)));
+    kv, tablesBox, mirrorBox);
+}
+
+/** One-line reminder in tabs that don't match the connected source. */
+function inUseNote(p) {
+  if (!p.modelSource) return null;
+  return h('div', { class: 'banner mb' }, h('div', {}, h('b', {}, 'Current data source: '), `${p.source?.kind === 'fabric' ? `${ITEM_LABEL[originItem(p).itemType] || ''} · ${originItem(p).itemName}` : p.source?.label || p.modelSource.itemName}. `, 'Choosing a source here replaces it for the semantic model and ontology.'));
 }
 
 // ---------------- job helper ----------------
@@ -58,50 +174,64 @@ function requireWs() {
 
 // ---------------- samples ----------------
 function samples() {
+  const p = store.project || {};
   const [retail, aw] = store.catalog?.samples || [];
-  const out = h('div', { class: 'grid g2' });
+  const inUse = (id) => p.modelSource && p.source?.kind === 'sample' && p.source.id === id;
+  const inUseBanner = (id) => (inUse(id) ? h('div', { class: 'banner ok mt' }, h('div', {}, h('b', {}, 'In use. '), `${ITEM_LABEL[p.modelSource.itemType] || p.modelSource.itemType} ${p.modelSource.itemName} in ${p.workspace?.name || 'the project workspace'} – tables, keys and row counts are shown above.`)) : null);
+  const out = h('div', {}, p.modelSource && p.source?.kind !== 'sample' ? inUseNote(p) : null);
+  const grid = h('div', { class: 'grid g2' });
+  out.append(grid);
 
   const rJob = h('div', { class: 'mt' });
-  const rBtn = h('button', { class: 'btn pri big', 'data-busy': 'Starting…' }, 'Load sample');
+  const rBtn = h('button', { class: 'btn pri big', 'data-busy': 'Starting…', title: inUse(retail.id) ? 'Uploads the files and reloads the tables' : null }, inUse(retail.id) ? 'Load again' : 'Load sample');
   rBtn.addEventListener('click', busy(rBtn, async () => {
     if (!requireWs()) return;
     const job = await post('/jobs/sample');
     watch(rJob, job, (j) => { if (j.status === 'succeeded') { toast('Sample data is ready', 'ok'); app.refresh(); } });
   }));
-  out.append(h('div', { class: 'card' },
-    h('div', { class: 'row' }, h('div', { class: 'src', style: { cursor: 'default', border: 0, padding: 0 } }, h('div', { class: 'h' }, h('div', { class: 'ic' }, '🛍️'), retail.name))),
+  grid.append(h('div', { class: 'card' },
+    h('div', { class: 'row sp' }, h('div', { class: 'src', style: { cursor: 'default', border: 0, padding: 0 } }, h('div', { class: 'h' }, h('div', { class: 'ic' }, '🛍️'), retail.name)), inUse(retail.id) ? h('span', { class: 'pill ok' }, 'In use') : null),
     h('p', { class: 'small' }, retail.tagline), h('div', { class: 'tiny muted' }, retail.details),
     h('div', { class: 'row mt' }, h('span', { class: 'pill brand' }, retail.lands), h('span', { class: 'pill' }, retail.needs), h('span', { class: 'pill' }, `~${retail.minutes} min`)),
+    inUseBanner(retail.id),
     h('div', { class: 'row mt' }, rBtn, h('button', { class: 'btn ai', onclick: () => app.ask('Load the Contoso Retail sample data into my workspace, then tell me what tables were created.') }, '✦ Ask Copilot')),
     rJob));
 
   const awJob = h('div', { class: 'mt' });
-  const awBtn = h('button', { class: 'btn pri big', 'data-busy': 'Starting…' }, 'Create in my workspace');
+  const awBtn = h('button', { class: 'btn pri big', 'data-busy': 'Starting…', title: inUse(aw.id) ? 'Reuses the database when its data is complete and verified' : null }, inUse(aw.id) ? 'Check again' : 'Create in my workspace');
   awBtn.addEventListener('click', busy(awBtn, async () => {
     if (!requireWs()) return;
     const job = await post('/jobs/sample', { dataset: 'adventureworks' });
     watch(awJob, job, (j) => { if (j.status === 'succeeded') { toast('AdventureWorksDW2022 is ready', 'ok'); app.refresh(); } });
   }));
-  out.append(h('div', { class: 'card' },
-    h('div', { class: 'row' }, h('div', { class: 'src', style: { cursor: 'default', border: 0, padding: 0 } }, h('div', { class: 'h' }, h('div', { class: 'ic' }, '🚲'), aw.name))),
+  grid.append(h('div', { class: 'card' },
+    h('div', { class: 'row sp' }, h('div', { class: 'src', style: { cursor: 'default', border: 0, padding: 0 } }, h('div', { class: 'h' }, h('div', { class: 'ic' }, '🚲'), aw.name)), inUse(aw.id) ? h('span', { class: 'pill ok' }, 'In use') : null),
     h('p', { class: 'small' }, aw.tagline), h('div', { class: 'tiny muted' }, aw.details),
     h('div', { class: 'row mt' }, h('span', { class: 'pill brand' }, aw.lands), h('span', { class: 'pill' }, aw.needs), h('span', { class: 'pill' }, `~${aw.minutes} min`)),
-    h('ul', { class: 'pre tiny' },
+    inUse(aw.id) ? null : h('ul', { class: 'pre tiny' },
       h('li', {}, 'Creates the SQL database AdventureWorksDW2022 in the project workspace and loads Microsoft\'s official AdventureWorksDW install kit (tables, keys, views and data).'),
       h('li', {}, 'Fabric replicates the tables to OneLake automatically; the semantic model and ontology use that replica.'),
       h('li', {}, 'Uses your Microsoft Entra sign-in. No Azure subscription, passwords or connections needed.')),
+    inUseBanner(aw.id),
     h('div', { class: 'row mt' }, awBtn, h('button', { class: 'btn ai', onclick: () => app.ask('Create the AdventureWorksDW2022 sample in my workspace (studio_load_sample_data with dataset adventureworks), then describe the tables that were created.') }, '✦ Ask Copilot')),
     awJob));
   return out;
 }
 // ---------------- databases ----------------
 function databases() {
+  const p = store.project || {};
   const types = (store.catalog?.sources || []).filter((s) => s.engine);
+  const mirrored = p.modelSource && p.source?.kind === 'database' ? p.source : null;
   const box = h('div');
+  if (p.modelSource && !mirrored) box.append(inUseNote(p));
+  if (mirrored) {
+    const t = types.find((x) => x.id === mirrored.type);
+    box.append(h('div', { class: 'banner ok mb' }, h('div', {}, h('b', {}, 'In use. '), `${t?.name || 'Your database'} ${mirroredDatabaseName(mirrored)} is mirrored into ${p.modelSource.itemName}. Its details are filled in below; the live replication status is shown above.`)));
+  }
   const cards = h('div', { class: 'srcs' });
   for (const t of types) {
-    cards.append(h('div', { class: `src ${selectedType === t.id ? 'on' : ''}`, onclick: () => { selectedType = t.id; wiz = { step: 1, typeId: t.id, values: {}, auth: t.auth[0], tables: null, selected: new Set(), connectionId: '', connMode: t.connectionCredentials.includes('Basic') ? 'new' : 'existing' }; redraw(); } },
-      h('div', { class: 'h' }, h('div', { class: 'ic' }, { sql: '🗄️', server: '🏢', pg: '🐘' }[t.icon] || '🗄️'), t.name),
+    cards.append(h('div', { class: `src ${selectedType === t.id ? 'on' : ''}`, onclick: () => { if (selectedType === t.id) return; selectedType = t.id; wiz = newWizard(t, p); redraw(); } },
+      h('div', { class: 'h' }, h('div', { class: 'ic' }, { sql: '🗄️', server: '🏢', pg: '🐘' }[t.icon] || '🗄️'), t.name, mirrored?.type === t.id ? h('span', { class: 'pill ok', style: { marginLeft: 'auto' } }, 'In use') : null),
       h('div', { class: 'meta' }, `${t.group} · Fabric Mirroring${t.gateway ? ' · on-premises data gateway' : ''}`)));
   }
   const redraw = () => { box.innerHTML = ''; box.append(databases()); };
@@ -239,7 +369,7 @@ function wizard(t, redraw) {
       if (!requireWs()) return;
       w.mirrorName = name.value;
       const tables = w.tables && w.selected.size !== w.tables.length ? [...w.selected].map((k) => { const [schema, ...n] = k.split('.'); return { schema, name: n.join('.') }; }) : [];
-      const j = await post('/jobs/mirror', { typeId: t.id, connectionId: w.connectionId, database: w.values.database, tables, name: name.value, sourceLabel: `${t.name} · ${w.values.database}` });
+      const j = await post('/jobs/mirror', { typeId: t.id, connectionId: w.connectionId, connectionName: w.connectionName || undefined, server: w.values.server, port: w.values.port || undefined, database: w.values.database, tables, name: name.value, sourceLabel: `${t.name} · ${w.values.database}` });
       watch(job, j, (done) => { if (done.status === 'succeeded') { toast('Mirroring is running', 'ok'); app.refresh(); } }, (d) => renderMirrorTables(live, d));
     }));
     el.append(
@@ -281,43 +411,77 @@ function renderMirrorTables(el, d) {
 
 // ---------------- existing Fabric data ----------------
 function fabricData() {
+  const p = store.project || {};
   const s = fabricState;
+  const origin = p.modelSource ? originItem(p) : null;
+  const isCurrent = (id) => origin?.itemId === id;
   const box = h('div', { class: 'col' });
+  const note = h('div');
   const wsSel = select([{ value: '', label: 'Loading workspaces…' }]);
   const items = h('div');
   const tablesBox = h('div');
+  let seq = 0;
+  const drawNote = () => { note.innerHTML = ''; if (origin && origin.itemType !== s.itemType) note.append(inUseNote(p)); };
   get('/fabric/workspaces').then((ws) => {
+    workspaceNames = new Map(ws.map((w) => [w.id, w.name]));
     wsSel.innerHTML = '';
     wsSel.append(h('option', { value: '' }, 'Choose the workspace that has your data'));
     for (const w of ws) wsSel.append(h('option', { value: w.id, selected: w.id === s.workspaceId || undefined }, w.name));
-    if (s.workspaceId) loadItems();
+    if (s.workspaceId) loadItems(false);
   }).catch((e) => { wsSel.innerHTML = ''; wsSel.append(h('option', {}, e.message)); });
-  const loadItems = async () => {
+  const loadItems = async (clearTables = true) => {
     s.workspaceId = wsSel.value;
     items.innerHTML = '';
-    tablesBox.innerHTML = '';
+    if (clearTables) { seq++; tablesBox.innerHTML = ''; }
+    drawNote();
     if (!s.workspaceId) return;
     items.append(h('div', { class: 'row muted' }, h('span', { class: 'spin' }), 'Loading items…'));
     try {
       const list = await get(`/sources/items?workspaceId=${s.workspaceId}&itemType=${s.itemType}`);
       items.innerHTML = '';
-      if (!list.length) { items.append(h('div', { class: 'empty' }, `No ${s.itemType} items in this workspace.`)); return; }
+      if (!list.length) { items.append(h('div', { class: 'empty' }, `No ${ITEM_LABEL[s.itemType] || s.itemType} items in this workspace.`)); return; }
       const grid = h('div', { class: 'srcs' });
-      for (const it of list) grid.append(h('div', { class: `src ${s.itemId === it.id ? 'on' : ''}`, onclick: () => { s.itemId = it.id; s.itemName = it.name; loadItems().then(loadTables); } }, h('div', { class: 'h' }, h('div', { class: 'ic' }, { Lakehouse: '🏞️', Warehouse: '🏛️', MirroredDatabase: '🪞', SQLDatabase: '🗄️' }[s.itemType]), it.name), h('div', { class: 'meta' }, s.itemType)));
+      for (const it of list) {
+        if (it.id === s.itemId) s.itemName = it.name;
+        const card = h('div', { class: `src ${s.itemId === it.id ? 'on' : ''}` },
+          h('div', { class: 'h' }, h('div', { class: 'ic' }, ITEM_ICON[s.itemType]), it.name, isCurrent(it.id) ? h('span', { class: 'pill ok', style: { marginLeft: 'auto' } }, 'In use') : null),
+          h('div', { class: 'meta' }, ITEM_LABEL[s.itemType] || s.itemType));
+        card.addEventListener('click', () => {
+          if (s.itemId === it.id) return;
+          s.itemId = it.id; s.itemName = it.name;
+          grid.querySelectorAll('.src.on').forEach((x) => x.classList.remove('on'));
+          card.classList.add('on');
+          loadTables();
+        });
+        grid.append(card);
+      }
       items.append(grid);
     } catch (e) { items.innerHTML = ''; items.append(h('div', { class: 'banner err' }, e.message)); }
   };
+  const readTables = async () => {
+    // The item in use: reuse the schema the studio already read (fast, cached); other items: read their endpoint.
+    const ms = p.modelSource;
+    if (ms && s.itemId === ms.itemId) {
+      const d = await get('/model/describe');
+      return { endpoint: { server: ms.server }, tables: d.tables.map((t) => ({ schema: t.schema, name: t.name, rows: t.rows, columns: t.columns.length })) };
+    }
+    return post('/sources/item-tables', { workspaceId: s.workspaceId, itemId: s.itemId, itemType: s.itemType });
+  };
   const loadTables = async () => {
+    const my = ++seq;
     tablesBox.innerHTML = '';
     if (!s.itemId) return;
     tablesBox.append(h('div', { class: 'row muted mt' }, h('span', { class: 'spin' }), 'Reading tables from the SQL analytics endpoint…'));
     try {
-      const r = await post('/sources/item-tables', { workspaceId: s.workspaceId, itemId: s.itemId, itemType: s.itemType });
+      const r = await readTables();
+      if (my !== seq) return;
       s.tables = r.tables;
       s.selected = new Set(r.tables.map((t) => `${t.schema}.${t.name}`));
       tablesBox.innerHTML = '';
+      const current = isCurrent(s.itemId);
+      const inUse = current && p.source?.method !== 'shortcut';
       const job = h('div', { class: 'mt' });
-      const inPlace = h('button', { class: 'btn pri', 'data-busy': 'Selecting…' }, 'Use in place');
+      const inPlace = h('button', { class: 'btn pri', 'data-busy': 'Selecting…', disabled: inUse || undefined }, inUse ? '✓ In use' : 'Use in place');
       inPlace.addEventListener('click', busy(inPlace, async () => {
         if (!requireWs()) return;
         await post('/sources/in-place', { workspaceId: s.workspaceId, itemId: s.itemId, itemType: s.itemType });
@@ -333,15 +497,20 @@ function fabricData() {
         const j = await post('/jobs/shortcuts', { sourceWorkspaceId: s.workspaceId, sourceItemId: s.itemId, sourceItemType: s.itemType, tables });
         watch(job, j, (done) => { if (done.status === 'succeeded') { toast('Shortcuts created', 'ok'); app.refresh(); } });
       }));
-      tablesBox.append(h('div', { class: 'banner ok mt' }, `${r.tables.length} tables in ${s.itemName} · ${r.endpoint.server}`), tablePicker(s.tables, s.selected),
+      tablesBox.append(
+        h('div', { class: 'banner ok mt' }, h('div', {}, current ? h('b', {}, `In use${p.source?.method === 'shortcut' ? ' (OneLake shortcuts)' : ''}. `) : null, `${r.tables.length} tables in ${s.itemName} · ${r.endpoint.server}`)),
+        tablePicker(s.tables, s.selected),
         h('div', { class: 'row mt' }, inPlace, !['MirroredDatabase', 'SQLDatabase'].includes(s.itemType) ? shortcut : null),
-        h('p', { class: 'tiny muted' }, 'Use in place builds the model directly on this item (it can live in another workspace). Shortcuts reference the selected tables from the project lakehouse without copying data.'),
+        h('p', { class: 'tiny muted' }, inUse
+          ? 'This item is your current data source. Pick another item to use it in place instead, or keep this one and continue with the semantic model.'
+          : 'Use in place builds the model directly on this item (it can live in another workspace). Shortcuts reference the selected tables from the project lakehouse without copying data.'),
         job);
-    } catch (e) { tablesBox.innerHTML = ''; tablesBox.append(h('div', { class: 'banner err mt' }, e.message)); }
+    } catch (e) { if (my === seq) { tablesBox.innerHTML = ''; tablesBox.append(h('div', { class: 'banner err mt' }, e.message)); } }
   };
   wsSel.addEventListener('change', () => { s.itemId = ''; loadItems(); });
-  box.append(h('div', { class: 'row' },
-    seg([{ value: 'Lakehouse', label: 'Lakehouse' }, { value: 'Warehouse', label: 'Warehouse' }, { value: 'MirroredDatabase', label: 'Mirrored database' }, { value: 'SQLDatabase', label: 'SQL database' }], s.itemType, (v) => { s.itemType = v; s.itemId = ''; loadItems(); }),
+  drawNote();
+  box.append(note, h('div', { class: 'row' },
+    seg(Object.entries(ITEM_LABEL).map(([value, label]) => ({ value, label })), s.itemType, (v) => { s.itemType = v; s.itemId = ''; loadItems(); }),
     h('div', { style: { flex: 1, minWidth: '260px' } }, wsSel)), items, tablesBox);
   if (s.itemId) setTimeout(loadTables, 0);
   return box;

@@ -32,7 +32,9 @@ are working in (no separate window) and asks for your approval before each chang
 | Your database | *Your databases* › source › details › Fabric connection (new or existing) › *Start mirroring* |
 | Existing Fabric data | *Existing Fabric data* › workspace › item › *Use in place* or *Create shortcuts* |
 
-Mirroring shows live replication status per table. When it finishes, the **Data** card shows the SQL analytics endpoint.
+Mirroring shows live replication status per table. Once data is connected, the **Data** tab shows the full source: where
+it lives, how it lands in Fabric, the SQL analytics endpoint, every table with row counts and keys, and live mirroring
+status for mirrored databases. The source tabs below open on the source in use, with its details filled in.
 
 > Ask Copilot: *Describe my data source: tables, row counts, keys and relationships. Then suggest a star schema.*
 

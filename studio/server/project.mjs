@@ -18,7 +18,7 @@ const EMPTY = {
   workspace: null,                // { id, name, capacityId, created }
   lakehouse: null,                // { id, name, sqlEndpointId, sqlEndpointServer }
   sqlDatabase: null,              // { id, name, server, database } – Fabric SQL database created by the studio (AdventureWorksDW2022 sample)
-  source: null,                   // { kind, type, label, details, connectionId, tables[], method }
+  source: null,                   // { kind, type, label, method, itemId, tables[] } + mirror: connectionId, connectionName, server, port, database; fabric: itemType, itemName, workspaceId
   modelSource: null,              // { itemType, itemId, itemName, workspaceId, server, endpointId, database, schema, tables[] }
   semanticModel: null,            // { id, name }
   ontology: null,                 // { id, name }

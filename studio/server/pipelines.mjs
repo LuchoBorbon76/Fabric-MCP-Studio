@@ -145,7 +145,7 @@ export async function createConnection({ typeId, server, database, port, credent
 }
 
 /** Mirror a database into Fabric. Credentials never reach this function: it takes a Fabric connection ID. */
-export async function runMirror(ctx, { typeId, connectionId, database, tables = [], name, sqlVersionMajor, sourceLabel }) {
+export async function runMirror(ctx, { typeId, connectionId, connectionName, server, port, database, tables = [], name, sqlVersionMajor, sourceLabel }) {
   const ws = requireWorkspace();
   const st = sourceType(typeId);
   if (!st?.mirrorType) throw new Error(`${typeId} can't be mirrored.`);
@@ -189,7 +189,7 @@ export async function runMirror(ctx, { typeId, connectionId, database, tables = 
   await F.refreshSqlEndpoint(ws.id, ep.endpointId);
   ctx.progress(95);
 
-  updateProject({ scenario: 'byod', source: { kind: 'database', type: typeId, label: sourceLabel || `${st.name} · ${database}`, method: 'mirror', connectionId, itemId: item.id, tables: last.map((t) => `${t.sourceSchemaName}.${t.sourceTableName}`) } });
+  updateProject({ scenario: 'byod', source: { kind: 'database', type: typeId, label: sourceLabel || `${st.name} · ${database}`, method: 'mirror', connectionId, connectionName: connectionName || null, server: server || null, port: port || null, database, itemId: item.id, tables: last.map((t) => `${t.sourceSchemaName}.${t.sourceTableName}`) } });
   setModelSource({ itemType: 'MirroredDatabase', itemId: item.id, itemName, workspaceId: ws.id, server: ep.server, endpointId: ep.endpointId, database: itemName }, `${st.name} mirrored`);
   return { mirroredDatabaseId: item.id, tables: last.length };
 }
@@ -211,11 +211,13 @@ export async function listTablesOfItem({ workspaceId, itemId, itemType }) {
   return { endpoint: ep, tables: d.tables.map((t) => ({ schema: t.schema, name: t.name, rows: t.rows, columns: t.columns.length })) };
 }
 
+const ITEM_LABEL = { Lakehouse: 'Lakehouse', Warehouse: 'Warehouse', MirroredDatabase: 'Mirrored database', SQLDatabase: 'SQL database' };
+
 export async function useInPlace({ workspaceId, itemId, itemType, typeId }) {
   await assertProjectTenant();
   requireWorkspace();
   const ep = await endpointFor(workspaceId, itemId, itemType);
-  updateProject({ scenario: 'byod', source: { kind: 'fabric', type: typeId || itemType, label: `${itemType} · ${ep.itemName}`, method: 'in-place', itemId, workspaceId } });
+  updateProject({ scenario: 'byod', source: { kind: 'fabric', type: typeId || itemType, itemType, itemName: ep.itemName, label: `${ITEM_LABEL[itemType] || itemType} · ${ep.itemName}`, method: 'in-place', itemId, workspaceId } });
   setModelSource({ itemType, itemId, itemName: ep.itemName, workspaceId, server: ep.server, endpointId: ep.endpointId, database: ep.database }, `Using ${ep.itemName} in place`);
   return getProject().modelSource;
 }
@@ -238,7 +240,7 @@ export async function runShortcuts(ctx, { sourceWorkspaceId, sourceItemId, sourc
   await sleep(5000);
   await F.refreshSqlEndpoint(ws.id, lh.sqlEndpointId);
   const src = await F.getItem(sourceWorkspaceId, sourceItemId);
-  updateProject({ scenario: 'byod', source: { kind: 'fabric', type: typeId || sourceItemType, label: `${sourceItemType} · ${src.displayName} (shortcuts)`, method: 'shortcut', itemId: sourceItemId, workspaceId: sourceWorkspaceId, tables: tables.map((t) => t.name) } });
+  updateProject({ scenario: 'byod', source: { kind: 'fabric', type: typeId || sourceItemType, itemType: sourceItemType, itemName: src.displayName, label: `${ITEM_LABEL[sourceItemType] || sourceItemType} · ${src.displayName} (shortcuts)`, method: 'shortcut', itemId: sourceItemId, workspaceId: sourceWorkspaceId, tables: tables.map((t) => t.name) } });
   setModelSource({ itemType: 'Lakehouse', itemId: lh.id, itemName: lh.name, workspaceId: ws.id, server: lh.sqlEndpointServer, endpointId: lh.sqlEndpointId, database: lh.name }, `${tables.length} tables shortcut into ${lh.name}`);
   return { lakehouseId: lh.id, shortcuts: tables.length };
 }
@@ -259,6 +261,18 @@ export async function describeModelSource({ refresh = false } = {}) {
   d.source = ms;
   discoveryCache = { key, at: Date.now(), data: d };
   return d;
+}
+
+/** Live replication status when the current data source is a mirrored database (mirrored by the studio or used in place). */
+export async function currentMirroringStatus() {
+  await assertProjectTenant();
+  const ms = getProject().modelSource;
+  if (ms?.itemType !== 'MirroredDatabase') return { kind: 'mirroring', status: null, tables: [] };
+  const [status, tables] = await Promise.all([
+    F.mirroringStatus(ms.workspaceId, ms.itemId).catch(() => ({})),
+    F.tablesMirroringStatus(ms.workspaceId, ms.itemId).catch(() => []),
+  ]);
+  return { kind: 'mirroring', status: status?.status || null, tables: tables || [] };
 }
 
 export async function queryModelSource(query) {
