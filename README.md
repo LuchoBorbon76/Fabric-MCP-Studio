@@ -77,7 +77,7 @@ data/retail/           Synthetic CSV + typed Parquet, business glossary
 docs/                  Walkthrough, architecture, prerequisites, troubleshooting
 ontology/retail/       Reference ontology (TMDL) – 5 entities, 4 relationships, 5 rules
 scripts/               setup, prereq-check, deploy-fabric, deploy-ontology, reset, install-teams-agent,
-                       generate-sample-data, validate-agent-package
+                       create-shortcut, generate-sample-data, validate-agent-package
 .vscode/ .cursor/ .mcp.json   Default client configs (hosted authoring, no ontology)
 ```
 
@@ -90,6 +90,7 @@ scripts/               setup, prereq-check, deploy-fabric, deploy-ontology, rese
 | `deploy-fabric.ps1` | Workspace + lakehouse + Contoso Retail tables without an agent |
 | `deploy-ontology.ps1` | Deploy `ontology/<domain>` TMDL as a Fabric Ontology item |
 | `install-teams-agent.ps1` | Install/publish/uninstall the Microsoft 365 Copilot agent in any tenant |
+| `create-shortcut.ps1` | Desktop (and optional Start menu) shortcut for Fabric MCP Studio; `-Remove` to delete it |
 | `reset.ps1` | Delete what the scripts created |
 
 All scripts run on Windows PowerShell 5.1 and PowerShell 7.

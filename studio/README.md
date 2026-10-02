@@ -19,12 +19,13 @@ Everything runs on the customer's computer, signs in to Fabric as the customer, 
 
 | OS | Command |
 |---|---|
-| Windows | Double-click `Start-Studio.cmd` (repository root or this folder) |
+| Windows | Double-click `Start-Studio.cmd` (repository root or this folder), or run `.\scripts\create-shortcut.ps1` once for a **Fabric MCP Studio** desktop icon (`-StartMenu` adds it to the Start menu) |
 | macOS / Linux | `./studio/start-studio.sh` |
 | Any | `cd studio && npm install && npm start` |
 
 The first run installs dependencies (~150 MB, includes the GitHub Copilot runtime). The app opens at
-`http://127.0.0.1:4870`. Options: `--port 5000`, `--no-open`, `--check` (readiness checks only).
+`http://127.0.0.1:4870`. Launching it again while it is running just reopens the running copy in your browser.
+Options: `--port 5000`, `--no-open`, `--check` (readiness checks only), `--new-instance` (start another copy).
 
 **Requirements:** Node.js 20.19+ (LTS), a Microsoft Entra work account with access to Microsoft Fabric, and one AI
 provider (below). Optional: Azure CLI (sign-in reuse), PowerShell (Teams agent installer). The AdventureWorksDW2022 sample
@@ -99,6 +100,7 @@ analytics endpoint) and infers relationships from naming conventions when no for
 | `server/samples/adventureworks-dw.mjs` | AdventureWorksDW2022 loader for Fabric SQL database (install kit → tables, keys, bulk load, verification) |
 | `server/agent-instructions.md` | System instructions for the agent |
 | `web/` | UI (vanilla ES modules, MSX Command Center design, 9 themes) |
+| `assets/` | App icon (`fabric-mcp-studio.ico` / `.png`) used by the desktop shortcut |
 | `data/` | Local state (git-ignored): project, activity log, chat transcripts, Copilot runtime home |
 
 ## Troubleshooting
