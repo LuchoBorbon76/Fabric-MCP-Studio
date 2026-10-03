@@ -319,12 +319,14 @@ img.rpreview{height:auto}
 .rrow.app{background:linear-gradient(135deg,color-mix(in srgb,var(--brand) 9%,var(--panel)),var(--panel));border-color:color-mix(in srgb,var(--brand) 40%,var(--line))}
 
 /* Real-time */
-.rtflow{display:flex;align-items:stretch;gap:8px;flex-wrap:wrap;margin-top:12px}
+.rtflow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px}
 .rtnode{flex:1 1 150px;display:flex;flex-direction:column;gap:2px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);min-width:0}
 .rtnode b{font-size:13px}.rtnode span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rtnode.ok{border-color:color-mix(in srgb,var(--good) 45%,var(--line));background:color-mix(in srgb,var(--good) 7%,var(--panel))}
 .rtnode.todo{border-style:dashed}
 .rtarrow{align-self:center;color:var(--muted);font-weight:700}
+.rtbranch{flex:1 1 190px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.rtbranch .rtnode{flex:none;padding:6px 10px}
 .rtstats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-top:10px}
 .rtstats>div{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-radius:9px;background:var(--chip);min-width:0}
 .rtstats b{font-size:15px;font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

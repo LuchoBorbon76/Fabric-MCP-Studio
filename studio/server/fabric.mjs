@@ -117,7 +117,7 @@ export async function findItem(workspaceId, type, name) {
 }
 
 // Item types whose display names only allow letters, numbers and underscores (and must start with a letter).
-const STRICT_NAME_TYPES = new Set(['Lakehouse', 'Ontology', 'MirroredDatabase', 'Eventhouse', 'KQLDatabase', 'Eventstream']);
+const STRICT_NAME_TYPES = new Set(['Lakehouse', 'Ontology', 'MirroredDatabase', 'Eventhouse', 'KQLDatabase', 'Eventstream', 'Reflex']);
 
 export function itemName(type, name, fallback = 'Item') {
   if (!STRICT_NAME_TYPES.has(type)) return String(name || fallback).trim().slice(0, 256);

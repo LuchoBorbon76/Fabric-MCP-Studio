@@ -5,6 +5,8 @@ import { app, copilotSlot } from '../app.js';
 // Live events → Eventstream → Eventhouse → Real-Time Dashboard. The view keeps one subscription to the simulator's
 // progress and refreshes the Eventhouse numbers while it is open.
 let offSim = null;
+// Element.append() would print null/false as text; h() already skips them.
+const put = (el, ...kids) => el.append(...kids.flat().filter((x) => x !== null && x !== undefined && x !== false));
 let pollTimer = null;
 
 const money = (n) => (n === null || n === undefined ? '–' : Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 }));
@@ -43,6 +45,7 @@ function draw(wrap, s) {
       flow(s)),
     h('div', { class: 'grid g2', style: { marginTop: '14px', alignItems: 'start' } }, setupCard(s, p), simulatorCard(s)),
     h('div', { class: 'grid g2', style: { marginTop: '14px', alignItems: 'start' } }, dashboardCard(s), nowCard(s)),
+    h('div', { class: 'grid g2', style: { marginTop: '14px', alignItems: 'start' } }, ontologyCard(s), alertsCard(s)),
     setup ? endpointCard(s) : null);
 }
 
@@ -52,12 +55,17 @@ function flow(s) {
     ['Live events', s.simulator.running ? `Streaming ${s.simulator.rate}/min` : 'Simulator or your app', s.simulator.running ? 'ok' : st ? '' : 'todo'],
     ['Eventstream', st ? st.eventstream.name : 'Custom endpoint', st ? 'ok' : 'todo'],
     ['Eventhouse', st ? `${st.database.name}.${st.table}` : 'KQL table', st ? 'ok' : 'todo'],
-    ['Real-Time Dashboard', st?.dashboard ? st.dashboard.name : 'Auto-refresh', st?.dashboard ? 'ok' : 'todo'],
   ];
-  return h('div', { class: 'rtflow' }, steps.map(([t, sub, state], i) => [
-    i ? h('span', { class: 'rtarrow' }, '→') : null,
-    h('div', { class: `rtnode ${state}`, 'data-k': i ? null : 'events' }, h('b', {}, t), h('span', { class: 'tiny muted' }, sub)),
-  ]));
+  const outs = [
+    ['Real-Time Dashboard', st?.dashboard ? st.dashboard.name : 'Auto-refresh', st?.dashboard ? 'ok' : 'todo'],
+    ['Ontology', st?.ontology ? `Live on ${st.ontology.entities.length} entity types` : 'Time-series properties', st?.ontology ? 'ok' : 'todo'],
+    ['Activator', st?.alerts ? `${st.alerts.rules.length} rule alert${st.alerts.rules.length === 1 ? '' : 's'}` : 'Alerts on rule breaks', st?.alerts ? 'ok' : 'todo'],
+  ];
+  const node = ([t, sub, state], k) => h('div', { class: `rtnode ${state}`, 'data-k': k || null }, h('b', {}, t), h('span', { class: 'tiny muted' }, sub));
+  return h('div', { class: 'rtflow' },
+    steps.map((x, i) => [i ? h('span', { class: 'rtarrow' }, '→') : null, node(x, i ? null : 'events')]),
+    h('span', { class: 'rtarrow' }, '→'),
+    h('div', { class: 'rtbranch' }, outs.map((x) => node(x))));
 }
 
 // ---------------- setup ----------------
@@ -70,7 +78,7 @@ function setupCard(s, p) {
     const name = input({ value: defName, placeholder: 'Letters, numbers and underscores' });
     const go = h('button', { class: 'btn pri', 'data-busy': 'Starting…' }, 'Set up live data');
     go.addEventListener('click', busy(go, async () => { await startJob('/jobs/realtime-setup', { name: name.value.trim() }, job, 'Live data is ready – start the events'); }));
-    card.append(
+    put(card, 
       h('h3', {}, '1 · Set up live data'),
       h('p', { class: 'small muted' }, `Creates an Eventhouse with a table shaped like your ${s.scenarioKind === 'generic' ? 'semantic model' : 'sample data'} and an Eventstream with a custom endpoint that feeds it. About 2 minutes.`),
       field('Eventhouse name', name),
@@ -91,7 +99,7 @@ function setupCard(s, p) {
   });
   const rerun = h('button', { class: 'btn', 'data-busy': 'Starting…', title: 'Check the table and the Eventstream again' }, '↻ Check setup');
   rerun.addEventListener('click', busy(rerun, async () => { await startJob('/jobs/realtime-setup', { name: st.eventhouse.name }, job, 'Live data setup checked'); }));
-  card.append(
+  put(card, 
     h('div', { class: 'row sp' }, h('h3', { style: { margin: 0 } }, '1 · Live data'), h('span', { class: 'pill ok' }, 'Ready')),
     h('dl', { class: 'kv', style: { marginTop: '10px' } },
       h('dt', {}, 'Events'), h('dd', {}, st.scenario.label, h('div', { class: 'tiny muted' }, st.scenario.description)),
@@ -129,7 +137,7 @@ function simulatorCard(s) {
   const stats = h('div', { class: 'rtstats' });
   const recent = h('div');
   const note = h('div', { class: 'tiny muted' });
-  card.append(
+  put(card, 
     h('div', { class: 'row sp' }, h('h3', { style: { margin: 0 } }, '2 · Live events'), status),
     h('p', { class: 'small muted' }, 'Simulated events use real keys, names and prices from your data, with a share of business-rule breaks. They stop on their own.'),
     h('div', { class: 'grid', style: { gridTemplateColumns: '1fr 1fr', gap: '10px' } },
@@ -175,7 +183,7 @@ function dashboardCard(s) {
   const job = h('div');
   const build = h('button', { class: 'btn pri', 'data-busy': 'Starting…', disabled: !st || undefined, title: st ? '' : 'Set up live data first' }, d ? '↻ Update dashboard' : 'Build dashboard');
   build.addEventListener('click', busy(build, async () => { await startJob('/jobs/realtime-dashboard', d ? { name: d.name } : {}, job, 'Real-Time Dashboard ready'); }));
-  card.append(
+  put(card, 
     h('div', { class: 'row sp' }, h('h3', { style: { margin: 0 } }, '3 · Real-Time Dashboard'), d ? h('span', { class: 'pill ok' }, 'Built') : h('span', { class: 'pill brand' }, 'Recommended')),
     h('p', { class: 'small muted' }, 'An auto-refreshing dashboard over the live table. Every tile query is checked against the Eventhouse before it is deployed.'),
     h('div', { class: 'rtpages' },
@@ -197,7 +205,7 @@ function nowCard(s) {
   const st = s.setup;
   const body = h('div');
   const label = st?.scenario.columns.find((c) => c.role === 'amount')?.label || 'Amount';
-  card.append(h('div', { class: 'row sp' }, h('h3', { style: { margin: 0 } }, 'In the Eventhouse now'), h('span', { class: 'tiny muted' }, 'Last 15 minutes · KQL')), body);
+  put(card, h('div', { class: 'row sp' }, h('h3', { style: { margin: 0 } }, 'In the Eventhouse now'), h('span', { class: 'tiny muted' }, 'Last 15 minutes · KQL')), body);
   if (!st) { body.append(h('p', { class: 'small muted' }, 'Numbers appear here once live data is set up and events arrive (usually within 30 seconds).')); return card; }
   body.append(h('div', { class: 'row muted' }, h('span', { class: 'spin' }), 'Querying the Eventhouse…'));
   const load = async (first = false) => {
@@ -213,6 +221,94 @@ function nowCard(s) {
   };
   load(true);
   pollTimer = setInterval(load, 15000);
+  return card;
+}
+
+// ---------------- live ontology ----------------
+function ontologyCard(s) {
+  const st = s.setup;
+  const ont = s.ontology;
+  const lo = st?.ontology;
+  const card = h('div', { class: 'card', style: { marginTop: 0 } });
+  const job = h('div');
+  const keys = (st?.scenario.columns || []).filter((c) => /(key|id)$/i.test(c.name) && c.role !== 'order').map((c) => c.name);
+  const ready = Boolean(st && ont);
+  const connect = h('button', { class: 'btn pri', 'data-busy': 'Starting…', disabled: !ready || undefined, title: !st ? 'Set up live data first' : !ont ? 'Create the ontology first' : '' }, lo ? '↻ Update live properties' : 'Connect live events');
+  connect.addEventListener('click', busy(connect, async () => { await startJob('/jobs/realtime-ontology', {}, job, 'Live events are part of the ontology'); }));
+  const unlink = h('button', { class: 'btn ghost', 'data-busy': 'Starting…' }, 'Remove live properties');
+  unlink.addEventListener('click', busy(unlink, async () => {
+    if (!(await confirmDialog('Remove live properties', `Take the live time-series properties and the dashboard link off the entity types in ${ont.name}? The events stay in the Eventhouse.`, 'Remove'))) return;
+    await startJob('/jobs/realtime-ontology', { unlink: true }, job, 'Live properties removed');
+  }));
+  put(card, 
+    h('div', { class: 'row sp' }, h('h3', { style: { margin: 0 } }, '4 · Live ontology'), lo ? h('span', { class: 'pill ok' }, 'Connected') : ready ? h('span', { class: 'pill brand' }, 'Recommended') : h('span', { class: 'pill' }, ont ? 'Needs live data' : 'Needs an ontology')),
+    h('p', { class: 'small muted' }, 'Adds the live events to your ontology as time-series properties of the entity types they mention – each product, customer, reseller or region gets its live sales, discounts, margins and rule breaks – and links the Real-Time Dashboard from them. Agents and people exploring the ontology see history and live data together.'),
+    !ont ? h('div', { class: 'banner warn' }, h('div', {}, h('b', {}, 'Create the ontology first. '), 'The live properties are added to its entity types.'), h('button', { class: 'btn', onclick: () => app.go('ontology') }, 'Go to Ontology')) : null,
+    lo ? h('dl', { class: 'kv', style: { marginTop: '10px' } },
+      h('dt', {}, 'Ontology'), h('dd', {}, h('a', { href: s.links.ontology, target: '_blank', rel: 'noopener' }, ont?.name || lo.name, ' ↗')),
+      h('dt', {}, 'Entity types'), h('dd', {}, h('div', { class: 'chips' }, lo.entities.map((e) => h('span', { class: 'pill ok', title: `${st.table}.${e.eventColumn} → ${e.key}\n${e.properties.join(', ')}` }, `${e.entity} · ${e.properties.length}`)))),
+      h('dt', {}, 'Properties'), h('dd', {}, h('span', { class: 'small' }, lo.entities[0]?.properties.join(', ') || '–'), h('div', { class: 'tiny muted' }, 'Time series ordered by event time, read live from the Eventhouse')),
+      h('dt', {}, 'Dashboard link'), h('dd', {}, lo.dashboardLinked ? 'On each entity type' : h('span', { class: 'muted' }, 'Build the dashboard, then update to link it')),
+      h('dt', {}, 'Updated'), h('dd', {}, new Date(lo.linkedAt).toLocaleString()))
+      : st ? h('ul', { class: 'pre small' },
+        h('li', {}, keys.length ? `Matches entity keys to the event columns ${keys.join(', ')}` : 'Matches entity keys to the event columns'),
+        h('li', {}, 'One Eventhouse-backed table and join per entity type, no data copied'),
+        h('li', {}, 'Also lets Fabric preview the instances of every entity type')) : null,
+    h('div', { class: 'row', style: { marginTop: '10px' } }, connect, lo ? unlink : null, s.links?.ontology ? h('a', { class: 'btn', href: s.links.ontology, target: '_blank', rel: 'noopener' }, 'Open ontology ↗') : null,
+      h('button', { class: 'btn ai', disabled: !ready || undefined, onclick: () => app.ask('Connect my live events to the ontology with studio_connect_live_ontology, then explain which entity types got live properties and how to use them.') }, '✦ With Copilot')),
+    job);
+  return card;
+}
+
+// ---------------- Activator alerts ----------------
+function alertsCard(s) {
+  const st = s.setup;
+  const a = st?.alerts;
+  const card = h('div', { class: 'card', style: { marginTop: 0 } });
+  const job = h('div');
+  const amountLabel = st?.scenario.columns.find((c) => c.role === 'amount')?.label || 'Amount';
+  const channel = select([{ value: 'teams', label: 'Teams message', selected: (a?.channel || 'teams') === 'teams' }, { value: 'email', label: 'Email', selected: a?.channel === 'email' }]);
+  const recipients = input({ value: (a?.recipients || [store.user?.upn].filter(Boolean)).join(', '), placeholder: 'name@contoso.com, …' });
+  const minAmount = input({ type: 'number', min: 0, step: 100, value: a?.minAmount || 0 });
+  const rules = (st?.scenario.rules || []).map((r) => ({ r, cb: h('input', { type: 'checkbox', checked: (!a || a.rules.includes(r.label)) || undefined }) }));
+  const volume = h('div', { class: 'tiny muted' });
+  const estimate = () => {
+    const sim = store.realtime?.simulator || s.simulator;
+    const share = rules.length ? rules.filter((x) => x.cb.checked).length / rules.length : 1;
+    const perMin = (sim.rate || 60) * ((sim.ruleBreakPct ?? 3) / 100) * share;
+    volume.textContent = `With ${sim.rate || 60} simulated events per minute and ${sim.ruleBreakPct ?? 3}% rule breaks, expect about ${perMin < 1 ? 'one message every few minutes' : `${Math.round(perMin)} message${Math.round(perMin) === 1 ? '' : 's'} per minute`}${Number(minAmount.value) > 0 ? ' (fewer with the amount filter)' : ''}.`;
+  };
+  rules.forEach((x) => x.cb.addEventListener('change', estimate));
+  minAmount.addEventListener('input', estimate);
+  estimate();
+  const save = h('button', { class: 'btn pri', 'data-busy': 'Starting…', disabled: !st || undefined, title: st ? '' : 'Set up live data first' }, a ? '↻ Update alerts' : 'Create alerts');
+  save.addEventListener('click', busy(save, async () => {
+    const picked = rules.filter((x) => x.cb.checked).map((x) => x.r.id);
+    if (!picked.length) throw new Error('Pick at least one business rule.');
+    await startJob('/jobs/realtime-alerts', { channel: channel.value, recipients: recipients.value, rules: picked, minAmount: Number(minAmount.value) || 0 }, job, 'Activator alerts are running');
+  }));
+  const remove = h('button', { class: 'btn ghost', 'data-busy': 'Removing…' }, 'Remove alerts');
+  remove.addEventListener('click', busy(remove, async () => {
+    if (!(await confirmDialog('Remove alerts', `Delete the Activator ${a.name} from Fabric? No more messages are sent.`, 'Delete', true))) return;
+    await del('/realtime/alerts');
+    toast('Alerts removed', 'ok');
+    app.refresh();
+  }));
+  put(card, 
+    h('div', { class: 'row sp' }, h('h3', { style: { margin: 0 } }, '5 · Alerts on rule breaks'), a ? h('span', { class: 'pill ok' }, '● Running') : st ? h('span', { class: 'pill brand' }, 'Recommended') : h('span', { class: 'pill' }, 'Needs live data')),
+    h('p', { class: 'small muted' }, 'A Fabric Activator checks the live events every minute and sends a message for each business-rule break, with the order, buyer, region, amount and discount – so the right people act while it matters.'),
+    a ? h('dl', { class: 'kv', style: { marginTop: '10px' } },
+      h('dt', {}, 'Activator'), h('dd', {}, h('a', { href: s.links.activator, target: '_blank', rel: 'noopener' }, a.name, ' ↗')),
+      h('dt', {}, 'Sends'), h('dd', {}, `${a.channel === 'email' ? 'Email' : 'Teams message'} to ${a.recipients.length} recipient${a.recipients.length === 1 ? '' : 's'}${a.minAmount ? ` · ${amountLabel} ≥ ${money(a.minAmount)}` : ''}`),
+      h('dt', {}, 'Rules'), h('dd', {}, h('div', { class: 'chips' }, a.rules.map((r) => h('span', { class: 'pill warn' }, r)))),
+      h('dt', {}, 'Updated'), h('dd', {}, new Date(a.updatedAt).toLocaleString())) : null,
+    st ? h('div', { class: 'grid', style: { gridTemplateColumns: '1fr 2fr', gap: '10px', marginTop: '10px' } }, field('Send as', channel), field('Recipients', recipients, 'Email addresses, separated by commas')) : null,
+    st ? h('div', { class: 'f' }, 'Business rules', h('div', { class: 'row', style: { flexWrap: 'wrap', gap: '12px' } }, rules.map(({ r, cb }) => h('label', { class: 'row small', title: r.description }, cb, r.label)))) : null,
+    st ? field(`Only when ${amountLabel.toLowerCase()} is at least`, minAmount, '0 alerts on every rule break') : null,
+    st ? volume : null,
+    h('div', { class: 'row', style: { marginTop: '10px' } }, save, a ? remove : null, a ? h('a', { class: 'btn', href: s.links.activator, target: '_blank', rel: 'noopener' }, 'Open Activator ↗') : null,
+      h('button', { class: 'btn ai', disabled: !st || undefined, onclick: () => app.ask('Set up Activator alerts on my live business-rule breaks with studio_create_live_alerts. Ask me for the channel and recipients first, and suggest a minimum amount if the event rate is high.') }, '✦ With Copilot')),
+    job);
   return card;
 }
 
@@ -242,7 +338,7 @@ function endpointCard() {
       h('pre', { class: 'code' }, JSON.stringify(sample, null, 2)));
     show.hidden = true;
   }));
-  card.append(
+  put(card, 
     h('div', { class: 'row sp' },
       h('div', {}, h('h3', { style: { margin: 0 } }, 'Stream your own events'), h('p', { class: 'small muted', style: { margin: '4px 0 0' } }, 'Point an app, device or service at the Eventstream\'s custom endpoint. Events with the same columns appear on the same dashboard. The connection string is a secret: it is never shown to Copilot.')),
       show),

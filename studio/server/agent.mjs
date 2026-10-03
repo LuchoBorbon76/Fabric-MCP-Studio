@@ -3,7 +3,7 @@ import { CopilotClient, ToolSet, BuiltInTools, defineTool } from '@github/copilo
 import { join } from 'node:path';
 import { existsSync, readFileSync, mkdirSync } from 'node:fs';
 import { COPILOT_HOME, DATA_DIR, REPO_ROOT, STUDIO_ROOT, getSettings, envApiKey, newId, truncate, readJson, writeJson } from './config.mjs';
-import { getToken, tokenExpiresOn, SCOPES } from './auth.mjs';
+import { getToken, tokenExpiresOn, SCOPES, whoAmI } from './auth.mjs';
 import { emit } from './events.mjs';
 import { getProject, updateProject, logActivity, assertProjectTenant } from './project.mjs';
 import { startJob, waitForJob } from './jobs.mjs';
@@ -319,6 +319,8 @@ const STUDIO_TOOLS_META = {
   studio_start_live_events: { write: true, title: 'Start streaming live events' },
   studio_stop_live_events: { write: false, title: 'Stop live events' },
   studio_create_realtime_dashboard: { write: true, title: 'Create Real-Time Dashboard' },
+  studio_connect_live_ontology: { write: true, title: 'Bind live events to the ontology' },
+  studio_create_live_alerts: { write: true, title: 'Set up Activator alerts on rule breaks' },
 };
 
 async function runAsJob(kind, title, fn) {
@@ -340,7 +342,11 @@ function projectSummary() {
     modelProposal: p.modelProposal ? { name: p.modelProposal.name, createdAt: p.modelProposal.createdAt, appliedAt: p.modelProposal.appliedAt || null } : null,
     reports: (p.reports || []).map((r) => ({ name: r.name, theme: r.theme, pages: r.pages, url: r.url })),
     orgApp: p.orgApp ? { name: p.orgApp.name, reports: p.orgApp.reports.length } : null,
-    realtime: p.realtime ? { eventhouse: p.realtime.eventhouse?.name, table: p.realtime.table, eventstream: p.realtime.eventstream?.name, dashboard: p.realtime.dashboard?.name || null, rules: (p.realtime.scenario?.rules || []).map((r) => r.label) } : null,
+    realtime: p.realtime ? {
+      eventhouse: p.realtime.eventhouse?.name, table: p.realtime.table, eventstream: p.realtime.eventstream?.name, dashboard: p.realtime.dashboard?.name || null, rules: (p.realtime.scenario?.rules || []).map((r) => r.label),
+      liveOntology: p.realtime.ontology ? p.realtime.ontology.entities.map((e) => e.entity) : null,
+      alerts: p.realtime.alerts ? { activator: p.realtime.alerts.name, channel: p.realtime.alerts.channel, rules: p.realtime.alerts.rules, recipients: p.realtime.alerts.recipients?.length || 0 } : null,
+    } : null,
     links: p.workspace ? { workspace: `https://app.fabric.microsoft.com/groups/${p.workspace.id}` } : {},
   };
 }
@@ -574,6 +580,8 @@ function studioTools(chatId) {
           setUp: Boolean(s.setup), scenario: s.setup?.scenario || s.scenarioKind,
           eventhouse: s.setup?.eventhouse?.name, database: s.setup?.database?.name, table: s.setup?.table, eventstream: s.setup?.eventstream?.name,
           dashboard: s.setup?.dashboard ? { name: s.setup.dashboard.name, url: s.setup.dashboard.url, pages: s.setup.dashboard.pages } : null,
+          liveOntology: s.setup?.ontology ? { ontology: s.setup.ontology.name, entities: s.setup.ontology.entities } : null,
+          alerts: s.setup?.alerts ? { activator: s.setup.alerts.name, url: s.setup.alerts.url, channel: s.setup.alerts.channel, rules: s.setup.alerts.rules, recipients: s.setup.alerts.recipients?.length || 0, minAmount: s.setup.alerts.minAmount } : null,
           streaming: { running: sim.running, eventsPerMinute: sim.rate, ruleBreakPct: sim.ruleBreakPct, sent: sim.sent, stopsAt: sim.stopsAt, lastError: sim.lastError || null },
           last15Minutes: live, links: s.links,
         };
@@ -611,6 +619,24 @@ function studioTools(chatId) {
       description: 'Create or update a Real-Time Dashboard over the live events table: a live overview page (KPIs, trend per minute, mix, regions, top items, latest events) and a business-rules page (rule-break counts, trend, who breaks the rules, latest breaks). Auto-refreshes. Every tile query is checked before deploying.',
       parameters: obj({ name: str('Optional dashboard name'), refreshSeconds: { type: 'number', enum: [30, 60, 300], description: 'Auto refresh interval (default 30)' } }),
       handler: async (a) => runAsJob('realtime-dashboard', `Build Real-Time Dashboard ${a.name || ''}`.trim(), (ctx) => RT.runRealtimeDashboard(ctx, { name: a.name, refreshSeconds: a.refreshSeconds })),
+    }),
+    studioTool('studio_connect_live_ontology', {
+      description: 'Bind the live events table (Eventhouse) to the ontology: every entity type whose key is a column of the events (for example Product, Customer, Reseller, Sales territory) gets time-series properties such as LiveSalesAmount, LiveDiscountPct and LiveRuleBreak, plus a link to the Real-Time Dashboard. Also tags the ontology tables with their source so Fabric can preview instances. Set unlink=true to remove the live properties. Needs live data and an ontology.',
+      parameters: obj({ unlink: { type: 'boolean', description: 'Remove the live properties instead of adding them' } }),
+      handler: async (a) => runAsJob('realtime-ontology', a.unlink ? 'Remove live properties from the ontology' : 'Bind live events to the ontology', (ctx) => RT.runLiveOntology(ctx, { unlink: Boolean(a.unlink) })),
+    }),
+    studioTool('studio_create_live_alerts', {
+      description: 'Create or update a Fabric Activator that checks the live events every minute and sends a Teams message (or email) for each business-rule break, with the order, buyer, region, amount and discount. One Activator rule per business rule. Recipients default to the signed-in user. Use minAmount to alert only on larger sales.',
+      parameters: obj({
+        channel: { type: 'string', enum: ['teams', 'email'], description: 'teams (default) or email' },
+        recipients: { type: 'array', items: { type: 'string' }, description: 'Email addresses (default: the signed-in user)' },
+        rules: { type: 'array', items: { type: 'string' }, description: 'Business rules to alert on, by name (default: all)' },
+        minAmount: { type: 'number', description: 'Only alert when the event amount is at least this value (default 0)' },
+      }),
+      handler: async (a) => {
+        const recipients = a.recipients?.length ? a.recipients : [(await whoAmI()).upn].filter(Boolean);
+        return runAsJob('realtime-alerts', 'Set up Activator alerts on rule breaks', (ctx) => RT.runRealtimeAlerts(ctx, { channel: a.channel || 'teams', recipients, rules: a.rules, minAmount: a.minAmount }));
+      },
     }),
   ];
 }

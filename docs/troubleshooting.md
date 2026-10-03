@@ -100,6 +100,10 @@ when it expires.
 | Events are sent but the Eventhouse shows 0 | The Eventstream destination is still starting (about a minute after setup), or ingestion is catching up | Wait a minute; *In the Eventhouse now* refreshes every 15 seconds |
 | *The Eventstream endpoint rejected the events (401)* | The custom endpoint key was rotated | Stop and start the events again (the studio reads the key again) |
 | Dashboard tiles say *No results found* | No events in the selected time range | Start events, or widen the time range at the top of the dashboard |
+| *No entity type's key matches a column of …* | The events don't carry any ontology entity key | Live properties need events with the entity key (for example `ProductKey`); for other models, bind in the ontology editor |
+| Ontology *Instances* says the item kind couldn't be identified | The ontology was created before the studio tagged its tables | **Connect live events** (or re-deploy the ontology) – it tags every table with its source item |
+| No Teams messages or emails from the alerts | No rule breaks since the alerts were created, the amount filter is too high, or the recipient isn't in your organization | Start events with some rule breaks; open the Activator › a rule › *History* to see activations; use work addresses in your tenant |
+| *The name … is still reserved by a deleted item* | Fabric keeps a deleted item's name for a few minutes | The studio picks a numbered name automatically; or wait a few minutes |
 
 ## Repo location
 

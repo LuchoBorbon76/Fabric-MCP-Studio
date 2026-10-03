@@ -8,8 +8,11 @@ import { kusto, assertReadOnlyKql, kqlName } from './kusto.mjs';
 import { loadScenario, scenarioKind, scenarioSummary, tableCommand } from './scenarios.mjs';
 import { buildDashboard, tileQueries } from './dashboard.mjs';
 import * as SIM from './simulator.mjs';
+import { applyLiveOntology, liveEventsOf, ontologySourceOf } from '../generators/ontology-live.mjs';
+import { ALERT_CHANNELS, alertEntities, alertQuery, cleanRecipients } from './alerts.mjs';
 
 export const dashboardUrl = (ws, id) => `https://app.fabric.microsoft.com/groups/${ws}/kustodashboards/${id}`;
+export const activatorUrl = (ws, id) => `https://app.fabric.microsoft.com/groups/${ws}/reflexes/${id}`;
 
 function requireWorkspace() {
   const p = getProject();
@@ -33,11 +36,14 @@ export function realtimeState() {
     available: Boolean(p.workspace && (p.semanticModel || scenarioKind(p) !== 'generic')),
     scenarioKind: scenarioKind(p),
     setup: rt,
+    ontology: p.ontology ? { id: p.ontology.id, name: p.ontology.name, entities: p.ontology.entities || [] } : null,
     links: rt ? {
       eventhouse: fabricUrl('Eventhouse', p.workspace.id, rt.eventhouse.id),
       database: fabricUrl('KQLDatabase', p.workspace.id, rt.database.id),
       eventstream: fabricUrl('Eventstream', p.workspace.id, rt.eventstream.id),
       dashboard: rt.dashboard ? dashboardUrl(p.workspace.id, rt.dashboard.id) : null,
+      ontology: p.ontology ? fabricUrl('Ontology', p.workspace.id, p.ontology.id) : null,
+      activator: rt.alerts ? activatorUrl(p.workspace.id, rt.alerts.id) : null,
     } : null,
     simulator: SIM.simulatorStatus(),
     limits: SIM.LIMITS,
@@ -153,13 +159,16 @@ export async function runRealtimeSetup(ctx, { name } = {}) {
   ctx.progress(90);
 
   const prev = getProject().realtime;
+  const same = prev?.eventhouse?.id === eh.id && prev?.table === scenario.table;
   const realtime = {
     scenario: scenarioSummary(scenario),
     eventhouse: { id: eh.id, name: ehName, queryUri: cluster },
     database: { id: db.id, name: db.displayName },
     table: scenario.table,
     eventstream: { id: es.id, name: esName },
-    dashboard: prev?.eventhouse?.id === eh.id && prev?.table === scenario.table ? prev.dashboard || null : null,
+    dashboard: same ? prev.dashboard || null : null,
+    ontology: same ? prev.ontology || null : null,
+    alerts: same ? prev.alerts || null : null,
     createdAt: prev?.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -262,6 +271,114 @@ export async function endpointInfo({ withKey = false } = {}) {
   };
 }
 
+// ---------------- live ontology ----------------
+
+async function readOntology(p) {
+  const def = await F.getDefinition(p.workspace.id, p.ontology.id);
+  const files = Object.fromEntries((def?.parts || []).map((x) => [x.path, Buffer.from(x.payload, 'base64').toString('utf8')]));
+  if (!Object.keys(files).some((k) => /^entities\/.+\.tmdl$/.test(k))) throw new Error(`${p.ontology.name} has no TMDL entity types. Create it again in the Ontology tab.`);
+  return files;
+}
+
+/**
+ * Bind the live events table to the ontology: every entity type whose key is a column of the events gets time-series
+ * properties (amount, quantity, discount, margin, rule broken…) and a link to the Real-Time Dashboard. `unlink` removes them.
+ */
+export async function runLiveOntology(ctx, { unlink = false } = {}) {
+  const p = requireRealtime();
+  if (!p.ontology?.id) throw new Error('Create the ontology first (Ontology tab).');
+  const ws = p.workspace;
+  ctx.step(`Read the ontology "${p.ontology.name}"`);
+  const files = await readOntology(p);
+  ctx.progress(25);
+
+  ctx.step(unlink ? 'Remove the live properties' : `Bind ${p.realtime.database.name}.${p.realtime.table} to the entity types`);
+  const out = applyLiveOntology(files, { events: liveEventsOf(p), link: !unlink, source: ontologySourceOf(p), dashboard: p.realtime.dashboard, workspaceId: ws.id });
+  if (!unlink && !out.linked.length) {
+    const keys = p.realtime.scenario.columns.filter((c) => /key$|id$/i.test(c.name)).map((c) => c.name);
+    throw new Error(`No entity type's key matches a column of ${p.realtime.table}${keys.length ? ` (${keys.join(', ')})` : ''}. Live properties need events that carry the entity key.`);
+  }
+  for (const l of out.linked) ctx.log(`${l.entity}: ${l.properties.length} live properties (${l.properties.join(', ')}) · ${p.realtime.table}.${l.eventColumn} → ${l.keyColumn}`);
+  if (out.removed.length) ctx.log(`Replaced ${out.removed.length} earlier live binding${out.removed.length === 1 ? '' : 's'}`);
+  if (out.annotated) ctx.log(`${out.annotated} tables tagged with their source item so Fabric can preview instances`);
+  if (!unlink && p.realtime.dashboard) ctx.log(`Linked "${p.realtime.dashboard.name}" from each of these entity types`);
+  ctx.progress(55);
+
+  ctx.step(`Update "${p.ontology.name}"`);
+  await F.updateDefinition(ws.id, p.ontology.id, F.toParts(Object.fromEntries(Object.entries(out.files).filter(([k]) => k !== '.platform'))));
+  const ontology = unlink ? null : {
+    id: p.ontology.id, name: p.ontology.name, linkedAt: new Date().toISOString(), dashboardLinked: Boolean(p.realtime.dashboard),
+    entities: out.linked.map((l) => ({ entity: l.entity, key: l.keyColumn, eventColumn: l.eventColumn, properties: l.properties })),
+  };
+  updateProject({ realtime: { ...getProject().realtime, ontology } });
+  logActivity('realtime.ontology', unlink ? `Removed the live properties from "${p.ontology.name}"` : `Live events bound to ${out.linked.map((l) => l.entity).join(', ')} in "${p.ontology.name}"`, {});
+  return unlink ? { ontology: p.ontology.name, removed: out.removed.length } : { ontology: p.ontology.name, entities: ontology.entities, url: fabricUrl('Ontology', ws.id, p.ontology.id) };
+}
+
+// ---------------- Activator alerts ----------------
+
+/** Create or update an Activator that sends a Teams message or email for every live business-rule break. */
+export async function runRealtimeAlerts(ctx, { channel = 'teams', recipients, rules: ruleIds, minAmount = 0, name } = {}) {
+  const p = requireRealtime();
+  const rt = p.realtime;
+  const ws = p.workspace;
+  if (!ALERT_CHANNELS.includes(channel)) throw new Error(`Channel must be one of: ${ALERT_CHANNELS.join(', ')}.`);
+  const to = cleanRecipients(recipients);
+  const rules = Array.isArray(ruleIds) && ruleIds.length ? rt.scenario.rules.filter((r) => ruleIds.includes(r.id) || ruleIds.includes(r.label)) : rt.scenario.rules;
+  if (!rules.length) throw new Error(`Pick at least one business rule (${rt.scenario.rules.map((r) => r.label).join(', ')}).`);
+  const min = Math.max(0, Number(minAmount) || 0);
+
+  ctx.step('Check the alert query against the Eventhouse');
+  const ruleCol = rt.scenario.columns.find((c) => c.role === 'rule')?.name || 'RuleBreak';
+  const probe = alertQuery(rt.scenario, { minAmount: min }).replace(/^declare query_parameters\(.*\);/, 'let startTime = ago(60m); let endTime = now();');
+  const counts = await kusto(rt.eventhouse.queryUri, rt.database.name, `${probe}\n| summarize Breaks = count() by ${kqlName(ruleCol)}`, { signal: ctx.signal });
+  ctx.log(counts.length ? `Last hour: ${counts.map((c) => `${c.Breaks} × ${c[ruleCol]}`).join(', ')}` : 'No rule breaks in the last hour yet – alerts start with the next ones');
+  ctx.progress(30);
+
+  let itemName = F.itemName('Reflex', name || rt.alerts?.name || `${rt.eventhouse.name}_Alerts`, 'Alerts');
+  ctx.step(`${rt.alerts ? 'Update' : 'Create'} the Activator "${itemName}"`);
+  const entities = alertEntities({ workspaceId: ws.id, database: rt.database, scenario: rt.scenario, rules, channel, recipients: to, minAmount: min });
+  const definition = F.toParts({ 'ReflexEntities.json': entities });
+  let item = rt.alerts?.id ? await F.getItem(ws.id, rt.alerts.id).catch(() => null) : null;
+  item ||= await F.findItem(ws.id, 'Reflex', itemName);
+  if (item) {
+    await F.updateDefinition(ws.id, item.id, definition);
+    ctx.log('Updated the existing Activator');
+  } else {
+    const create = (n) => F.createItem(ws.id, { name: n, type: 'Reflex', description: `Alerts on live business-rule breaks in ${rt.database.name}.${rt.table}, generated by Fabric MCP Studio.`, definition });
+    // A just-deleted item keeps its name reserved for a few minutes: fall back to a numbered name.
+    for (let i = 1; !item; i++) {
+      const n = i === 1 ? itemName : F.itemName('Reflex', `${itemName}_${i}`, 'Alerts');
+      try {
+        item = await create(n);
+        itemName = n;
+      } catch (e) {
+        if (i >= 5 || !/not available yet|NotAvailableYet|already in use/i.test(e.message)) throw e;
+        ctx.log(`The name ${n} is still reserved by a deleted item – trying another`);
+      }
+    }
+    recordArtifact({ type: 'Reflex', id: item.id, name: itemName, workspaceId: ws.id, url: activatorUrl(ws.id, item.id) });
+  }
+  ctx.log(`${rules.length} rule${rules.length === 1 ? '' : 's'} running: ${rules.map((r) => r.label).join(', ')} · ${channel === 'email' ? 'email' : 'Teams message'} to ${to.length} recipient${to.length === 1 ? '' : 's'}${min ? ` · ${rt.scenario.columns.find((c) => c.role === 'amount')?.label || 'amount'} ≥ ${min}` : ''} · checked every minute`);
+  ctx.progress(90);
+
+  const now = new Date().toISOString();
+  const alerts = { id: item.id, name: itemName, url: activatorUrl(ws.id, item.id), channel, recipients: to, rules: rules.map((r) => r.label), minAmount: min, intervalSeconds: 60, createdAt: rt.alerts?.createdAt || now, updatedAt: now };
+  updateProject({ realtime: { ...getProject().realtime, alerts } });
+  logActivity('realtime.alerts', `Activator "${itemName}": ${rules.length} rule alert${rules.length === 1 ? '' : 's'} by ${channel === 'email' ? 'email' : 'Teams'}`, {});
+  return { ...alerts, recipients: to.length };
+}
+
+/** Stop the alerts (deletes the Activator unless `keepItem`). */
+export async function removeAlerts({ keepItem = false } = {}) {
+  const p = requireRealtime();
+  const a = p.realtime.alerts;
+  if (a?.id && !keepItem) await F.deleteItem(p.workspace.id, a.id).catch((e) => { if (!/not\s*found|404/i.test(e.message)) throw e; });
+  updateProject({ realtime: { ...getProject().realtime, alerts: null } });
+  if (a) logActivity('realtime.alerts', `Activator "${a.name}" removed`, {});
+  return { ok: true };
+}
+
 /** Forget the real-time setup (optionally deleting the Fabric items). */
 export async function removeRealtime({ deleteItems = false } = {}) {
   const p = getProject();
@@ -269,7 +386,12 @@ export async function removeRealtime({ deleteItems = false } = {}) {
   SIM.forgetEndpoint();
   const rt = p.realtime;
   if (rt && deleteItems && p.workspace) {
-    for (const id of [rt.dashboard?.id, rt.eventstream?.id, rt.eventhouse?.id].filter(Boolean)) await F.deleteItem(p.workspace.id, id).catch(() => {});
+    // The ontology would point at a deleted table: take the live properties off first.
+    if (rt.ontology && p.ontology?.id) {
+      const quiet = { step() {}, log() {}, progress() {} };
+      await runLiveOntology(quiet, { unlink: true }).catch(() => {});
+    }
+    for (const id of [rt.alerts?.id, rt.dashboard?.id, rt.eventstream?.id, rt.eventhouse?.id].filter(Boolean)) await F.deleteItem(p.workspace.id, id).catch(() => {});
   }
   updateProject({ realtime: null });
   return { ok: true };

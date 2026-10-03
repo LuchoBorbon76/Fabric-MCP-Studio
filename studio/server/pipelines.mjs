@@ -9,6 +9,7 @@ import { discoverSqlServer, testSqlServer, readOnlyQuery, withPool } from './sql
 import { discoverPostgres, testPostgres } from './pg.mjs';
 import { sourceType } from './sources.mjs';
 import { buildPlan, semanticModelFiles, ontologyFiles, defaultMeasures } from './generators/tmdl.mjs';
+import { applyLiveOntology, liveEventsOf, ontologySourceOf } from './generators/ontology-live.mjs';
 import { RETAIL, ADVENTUREWORKS, presetFor } from './presets.mjs';
 import { AWDW, getKit, loadAdventureWorksDW, salesTotalsMatch } from './samples/adventureworks-dw.mjs';
 import { resetProfileCache } from './reports/index.mjs';
@@ -408,12 +409,20 @@ export async function runOntology(ctx, { name, include, entityNames, rules, desc
   ctx.progress(25);
 
   ctx.step('Generate the ontology (entities, relationships, rules)');
-  const out = ontologyFiles({ name: ontName, src: { server: p.modelSource.server, endpointId: p.modelSource.endpointId }, plan, rules: ruleSet, entityNames: entityNames || preset?.ontology?.entityNames || {}, descriptions: descriptions || {} });
+  const out = ontologyFiles({ name: ontName, src: { server: p.modelSource.server, endpointId: p.modelSource.endpointId, item: ontologySourceOf(p) }, plan, rules: ruleSet, entityNames: entityNames || preset?.ontology?.entityNames || {}, descriptions: descriptions || {} });
   ctx.log(`${Object.keys(out.entities).length} entities · ${out.relationships.length} relationships · ${out.rules.length} rules`);
+  // Keep the live time-series properties when the ontology was connected to the live events before.
+  let files = out.files;
+  const events = p.realtime?.ontology ? liveEventsOf(p) : null;
+  if (events) {
+    const live = applyLiveOntology(files, { events, dashboard: p.realtime.dashboard, workspaceId: ws.id });
+    files = live.files;
+    if (live.linked.length) ctx.log(`Live events kept on ${live.linked.map((l) => l.entity).join(', ')}`);
+  }
   ctx.progress(45);
 
   ctx.step(`Deploy ontology "${ontName}"`);
-  const definition = F.toParts(out.files);
+  const definition = F.toParts(files);
   let item = await F.findItem(ws.id, 'Ontology', ontName);
   if (item) await F.updateDefinition(ws.id, item.id, definition);
   else {
@@ -558,7 +567,7 @@ export async function runTeardown(ctx, { deleteWorkspace = false } = {}) {
   } else if (p.workspace) {
     ctx.step('Delete items created by the studio');
     stopSimulator('clean up');
-    for (const it of [p.orgApp, ...(p.reports || []), p.realtime?.dashboard, p.realtime?.eventstream, p.realtime?.eventhouse, p.ontology, p.semanticModel].filter(Boolean)) {
+    for (const it of [p.orgApp, ...(p.reports || []), p.realtime?.alerts, p.realtime?.dashboard, p.realtime?.eventstream, p.realtime?.eventhouse, p.ontology, p.semanticModel].filter(Boolean)) {
       try { await F.deleteItem(p.workspace.id, it.id); ctx.log(`Deleted ${it.name}`); } catch (e) { ctx.log(`Could not delete ${it.name}: ${e.message}`); }
     }
     if (p.ontology?.id) {

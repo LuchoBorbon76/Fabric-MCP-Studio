@@ -96,7 +96,12 @@ Ontology is in preview; the Ontology MCP endpoint (used by agents) needs a paid 
    cards show what was sent and what has landed in the Eventhouse in the last 15 minutes (usually within 30 seconds).
 3. **Real-Time Dashboard** › *Build dashboard*, then *Open dashboard*: a live overview page and a business rules page,
    refreshed every 30 seconds.
-4. Optional: **Stream your own events** – copy the connection string and send events with the same columns from your app.
+4. **Live ontology** › *Connect live events* (needs the ontology): Product, Customer, Reseller and Sales territory get
+   live time-series properties and a link to the dashboard. In Fabric, open the ontology › an entity type › *Configure*
+   to see the *Timeseries* properties, or *Instances* to browse them.
+5. **Alerts on rule breaks** › pick Teams or email, the recipients and the rules, then *Create alerts*. The Activator
+   checks the live events every minute; open it to see each rule running and its activation history.
+6. Optional: **Stream your own events** – copy the connection string and send events with the same columns from your app.
 
 > Ask Copilot: *What is happening in my live data right now?* Copilot queries the Eventhouse with KQL and points out
 > rule breaks and where they come from. Simulated events are labeled `Studio simulator` in the `Source` column.

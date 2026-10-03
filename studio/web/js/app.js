@@ -27,7 +27,7 @@ export const STEPS = [
   { id: 'model', view: 'model', title: 'Semantic model', desc: 'Direct Lake model with business measures' },
   { id: 'ontology', view: 'ontology', title: 'Ontology', desc: 'Entities, relationships and business rules' },
   { id: 'reports', view: 'reports', title: 'Reports & apps', desc: 'Polished Power BI reports from templates and themes' },
-  { id: 'realtime', view: 'realtime', title: 'Real-time', desc: 'Live events in an Eventhouse and a Real-Time Dashboard' },
+  { id: 'realtime', view: 'realtime', title: 'Real-time', desc: 'Live events, Real-Time Dashboard, live ontology and alerts' },
   { id: 'share', view: 'share', title: 'Ask & share', desc: 'Governed answers in Copilot, Teams and more' },
 ];
 
@@ -91,6 +91,8 @@ export function suggestions(project, preset) {
     ];
   }
   if (p.realtime && !p.realtime.dashboard) return ['Build the Real-Time Dashboard for my live data', 'What is happening in my live data right now?'];
+  if (p.realtime && p.ontology && !p.realtime.ontology) return ['Connect my live events to the ontology', 'What is happening in my live data right now?', 'Alert me in Teams when a business rule is broken'];
+  if (p.realtime && !p.realtime.alerts) return ['Alert me in Teams when a business rule is broken', 'What is happening in my live data right now?'];
   return preset?.starterQuestions?.length ? ['What is happening in my live data right now?', ...preset.starterQuestions.slice(0, 3)] : [
     'What are the key numbers in my semantic model?',
     'Which business rules are defined in my ontology?',

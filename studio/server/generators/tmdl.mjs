@@ -137,6 +137,18 @@ export function defaultMeasures(plan) {
   return out.filter((m) => (seenNames.has(m.name.toLowerCase()) ? false : seenNames.add(m.name.toLowerCase())));
 }
 
+/**
+ * Partition annotations that tell Fabric which item a backing table comes from (the ontology editor needs them to
+ * preview instances and edit bindings). item: { kind, id, name, workspaceId, workspaceName }.
+ */
+export function ontSourceAnnotations(item, indent = `${T}${T}`) {
+  const pairs = [
+    ['ONT_WorkspaceId', item.workspaceId], ['ONT_ItemId', item.id], ['ONT_ItemKind', item.kind],
+    ['ONT_ItemName', item.name], ['ONT_WorkspaceName', item.workspaceName], ['ONT_PinnedAtUtc', item.pinnedAt || new Date().toISOString()],
+  ].filter(([, v]) => v);
+  return pairs.flatMap(([k, v]) => [`${indent}annotation ${k} = ${String(v).replace(/[\r\n]+/g, ' ')}`, '']);
+}
+
 function docLines(text, indent) {
   if (!text) return [];
   return String(text).split(/\r?\n/).filter(Boolean).map((l) => `${indent}/// ${l.trim()}`);
@@ -259,6 +271,7 @@ function fileSafe(name) { return String(name).replace(/[\\/:*?"<>|]/g, '_'); }
 
 /**
  * Generate a Fabric IQ ontology (new experience, TMDL) bound to the same SQL endpoint.
+ * src: { server, endpointId, item?: { kind, id, name, workspaceId, workspaceName } } – item tags the partitions.
  * rules: [{ name, statement, entities: [{ entity, properties?: [] }], relationships?: [names] }]
  */
 export function ontologyFiles({ name, src, plan, rules = [], entityNames = {}, descriptions = {} }) {
@@ -306,6 +319,7 @@ export function ontologyFiles({ name, src, plan, rules = [], entityNames = {}, d
       lines.push(`${T}${T}lineageTag: ${tag('column', t.key, c.name)}`, `${T}${T}sourceColumn: ${c.name}`, '');
     }
     lines.push(`${T}partition ${tn} = entity`, `${T}${T}mode: directLake`, `${T}${T}source`, `${T}${T}${T}entityName: ${t.source}`, `${T}${T}${T}schemaName: ${t.schema}`, `${T}${T}${T}expressionSource: DatabaseQuery`, '');
+    if (src.item?.id) lines.push(...ontSourceAnnotations(src.item));
     files[`tables/${tn}.tmdl`] = lines.join('\n');
   }
 

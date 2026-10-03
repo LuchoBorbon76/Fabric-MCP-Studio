@@ -201,6 +201,9 @@ route('PATCH', '/api/realtime/simulator', (_, b) => RT.updateLiveEvents({ rate: 
 route('POST', '/api/realtime/simulator/stop', () => RT.stopLiveEvents());
 route('GET', '/api/realtime/endpoint', (_, __, q) => RT.endpointInfo({ withKey: q.get('key') === '1' }));
 route('DELETE', '/api/realtime', async (_, __, q) => { if (q.get('delete') === '1') await assertProjectTenant(); return RT.removeRealtime({ deleteItems: q.get('delete') === '1' }); });
+route('POST', '/api/jobs/realtime-ontology', (_, b) => startJob('realtime-ontology', b.unlink ? 'Remove live properties from the ontology' : 'Bind live events to the ontology', (ctx) => RT.runLiveOntology(ctx, { unlink: Boolean(b.unlink) })));
+route('POST', '/api/jobs/realtime-alerts', (_, b) => startJob('realtime-alerts', 'Set up Activator alerts on rule breaks', (ctx) => RT.runRealtimeAlerts(ctx, { channel: b.channel, recipients: b.recipients, rules: Array.isArray(b.rules) ? b.rules : undefined, minAmount: b.minAmount })));
+route('DELETE', '/api/realtime/alerts', async (_, __, q) => { await assertProjectTenant(); return RT.removeAlerts({ keepItem: q.get('keep') === '1' }); });
 route('DELETE', '/api/reports/:id', (p, _, q) => R.removeReport(p.id, { deleteItem: q.get('delete') === '1' }));
 route('POST', '/api/jobs/teardown', (_, b) => startJob('teardown', 'Clean up demo resources', (ctx) => P.runTeardown(ctx, b)));
 route('GET', '/api/jobs', () => listJobs());

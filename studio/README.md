@@ -13,7 +13,7 @@ chatting with the **AI the customer already licenses**:
 - **Ontology** – Fabric IQ entities, relationships and plain-English business rules.
 - **Reports & apps** – polished Power BI reports built on your semantic model from page templates and themes.
 - **Real-time** – live events shaped like your data streamed through an Eventstream into an Eventhouse, with an
-  auto-refreshing Real-Time Dashboard.
+  auto-refreshing Real-Time Dashboard, live time-series properties in the ontology and Activator alerts on rule breaks.
 - **Ask & share** – governed answers in the app chat, Microsoft 365 Copilot / Teams agent, other AI clients, Fabric data agent.
 
 Everything runs on the customer's computer, signs in to Fabric as the customer, and **asks before every change**.
@@ -126,7 +126,8 @@ it in Fabric, add an audience and publish it. Rebuilding updates the app in plac
 
 ## Real-time
 
-**Real-time** streams live events into Real-Time Intelligence and builds a dashboard over them.
+**Real-time** streams live events into Real-Time Intelligence, builds a dashboard over them, adds them to the
+ontology and alerts people when a business rule is broken.
 
 1. **Set up live data** – creates (or reuses) an Eventhouse and a table shaped like the project's data, and an
    Eventstream with a **custom endpoint** source and the Eventhouse as destination. For the samples the table holds
@@ -141,11 +142,22 @@ it in Fabric, add an audience and publish it. Rebuilding updates the app in plac
    channel, mix, regions, top items, latest events) and a *Business rules* page (a count per rule, share of events
    breaking a rule, loss below cost, breaks per minute, who breaks the rules, latest breaks). It refreshes every 30
    seconds; every tile query is checked against the Eventhouse before the dashboard is deployed.
-4. **Stream your own events** – copy the custom endpoint's connection string and send JSON events with the same columns
-   from any app; they land in the same table and dashboard.
+4. **Live ontology** – binds the live table to the ontology. Every entity type whose key the events carry (for
+   AdventureWorks: Product, Customer, Reseller, Sales territory) gets time-series properties – `LiveSalesAmount`,
+   `LiveQuantity`, `LiveDiscountPct`, `LiveMargin`, `LiveRuleBreak` and more, ordered by event time and read live from
+   the Eventhouse (no copy) – plus a link to the Real-Time Dashboard. The ontology's tables are also tagged with their
+   source item so Fabric can preview instances. Re-running replaces the earlier bindings; *Remove live properties*
+   takes them off again, and re-deploying the ontology from the Ontology tab keeps them.
+5. **Alerts on rule breaks** – a Fabric **Activator** queries the live table every minute and, for each business-rule
+   break, sends a Teams message or an email with the order, buyer, region, amount, discount and margin. One Activator
+   rule per business rule; pick the rules, the recipients and an optional minimum amount. The card estimates how many
+   messages to expect at the current event rate.
+6. **Stream your own events** – copy the custom endpoint's connection string and send JSON events with the same columns
+   from any app; they land in the same table, dashboard, ontology properties and alerts.
 
 Copilot tools: `studio_realtime_status`, `studio_query_live_events` (read-only KQL), `studio_setup_live_data`,
-`studio_start_live_events`, `studio_stop_live_events` and `studio_create_realtime_dashboard`.
+`studio_start_live_events`, `studio_stop_live_events`, `studio_create_realtime_dashboard`,
+`studio_connect_live_ontology` and `studio_create_live_alerts`.
 
 ## Files
 
@@ -160,7 +172,8 @@ Copilot tools: `studio_realtime_status`, `studio_query_live_events` (read-only K
 | `server/generators/pbir.mjs` | Power BI report (PBIR) generator: pages, visuals, filters, theme registration |
 | `server/reports/` | Model profile (`profile.mjs`), page templates, report themes and the report build/preview pipeline |
 | `server/powerbi.mjs` | Power BI REST: DAX queries, model metadata (`INFO.VIEW`), report export for previews |
-| `server/realtime/` | Live data: Eventhouse/Eventstream setup (`index.mjs`), event scenarios shaped like the data (`scenarios.mjs`), simulator sending to the custom endpoint (`simulator.mjs`), Real-Time Dashboard generator (`dashboard.mjs`), KQL client (`kusto.mjs`) |
+| `server/realtime/` | Live data: Eventhouse/Eventstream setup, live ontology and alerts (`index.mjs`), event scenarios shaped like the data (`scenarios.mjs`), simulator sending to the custom endpoint (`simulator.mjs`), Real-Time Dashboard generator (`dashboard.mjs`), Activator alert definition (`alerts.mjs`), KQL client (`kusto.mjs`) |
+| `server/generators/ontology-live.mjs` | Adds or removes Eventhouse time-series bindings and dashboard links on an existing TMDL ontology |
 | `server/presets.mjs` | Sample presets (names, relationships, measures, rules) |
 | `server/samples/adventureworks-dw.mjs` | AdventureWorksDW2022 loader for Fabric SQL database (install kit → tables, keys, bulk load, verification) |
 | `server/agent-instructions.md` | System instructions for the agent |
