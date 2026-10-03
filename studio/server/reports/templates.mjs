@@ -1,7 +1,7 @@
 // Report templates: page archetypes (executive summary, performance drivers, scorecard) built from a model profile
 // (reports/profile.mjs). Layouts follow the archetypes of Microsoft's Power BI report design guidance on a 1280x720
 // canvas: 24 px margins, 16 px gutters, header band, KPI row, hero visual, supporting visuals.
-import { V_, PAGE, topNFilter, hexId } from '../generators/pbir.mjs';
+import { V_, PAGE, topNFilter, notBlankFilter, hexId, ruleParagraphs } from '../generators/pbir.mjs';
 
 const M = PAGE.margin;
 const G = PAGE.gutter;
@@ -13,6 +13,7 @@ export const PAGE_TEMPLATES = [
   { id: 'executive', name: 'Executive summary', archetype: 'Executive summary', description: 'Headline KPIs, trend by channel, share of the main measure, top breakdown and top 10 list.', needs: ['kpis'] },
   { id: 'drivers', name: 'Performance drivers', archetype: 'Analytical canvas', description: 'Drill-down matrix (category → item), year-over-year comparison by segment, and the biggest contributors.', needs: ['kpis'] },
   { id: 'scorecard', name: 'Scorecard', archetype: 'Operational monitor', description: 'Segment × year scorecard, margin trend by segment, and a ranked breakdown with data bars.', needs: ['kpis'] },
+  { id: 'rules', name: 'Business rules', archetype: 'Operational monitor', description: 'Ontology rules in plain English with live counts, rule breaks by year, and where they happen.', needs: ['rules'] },
 ];
 
 /** Page-level filter: column IN values (e.g. full years only). */
@@ -79,7 +80,7 @@ function executive(theme, profile, { subtitle }) {
   if (p.time) visuals.push({ key: 'trend', pos: { x: M, y: row2, w: leftW, h: row2h }, visual: V_.trend(theme, { measures: p.channels.length > 1 ? p.channels : [p.primary], axis: p.time.axis, title: trendTitle(p) }) });
   if (p.share) visuals.push({ key: 'share', pos: { x: M + leftW + G, y: row2, w: W - leftW - G, h: row2h }, visual: V_.donut(theme, { measure: p.primary, category: p.share, title: `${p.primary.label} by ${p.share.label.toLowerCase()}` }) });
   const barsW = p.entity ? 480 : W;
-  if (p.breakdown) visuals.push({ key: 'breakdown', pos: { x: M, y: row3, w: barsW, h: row3h }, visual: V_.bars(theme, { measures: [p.primary], category: p.breakdown, title: `${p.primary.label} by ${p.breakdown.label.toLowerCase()}` }) });
+  if (p.breakdown) visuals.push({ key: 'breakdown', pos: { x: M, y: row3, w: barsW, h: row3h }, visual: V_.bars(theme, { measures: [p.primary], category: p.breakdown, title: `${p.primary.label} by ${p.breakdown.label.toLowerCase()}` }), filterConfig: notBlankFilter(p.breakdown) });
   if (p.entity) {
     const second = p.kpis.find((k) => k.percent) || p.kpis[1];
     visuals.push({
@@ -130,12 +131,54 @@ function scorecard(theme, profile, { subtitle }) {
   const y2 = y + h1 + G;
   const rank = p.breakdown || p.share;
   if (rank) {
-    visuals.push({ key: 'ranked', pos: { x: M, y: y2, w: W, h: PAGE.height - M - y2 }, visual: V_.table(theme, { columns: [rank], measures: p.kpis.slice(0, 4), title: `${rank.label} ranking`, bars: true }) });
+    visuals.push({ key: 'ranked', pos: { x: M, y: y2, w: W, h: PAGE.height - M - y2 }, visual: V_.table(theme, { columns: [rank], measures: p.kpis.slice(0, 4), title: `${rank.label} ranking`, bars: true }), filterConfig: notBlankFilter(rank) });
   }
   return { displayName: 'Scorecard', visuals };
 }
 
-const BUILDERS = { executive, drivers, scorecard };
+const KIND_COLOR = { violation: '#DC2626', watch: '#D97706' };
+
+function rules(theme, profile, { subtitle }) {
+  const p = profile;
+  const set = p.ruleSet || { rules: [] };
+  const withMetrics = set.rules.filter((r) => r.metrics.length);
+  const order = ['violation', 'watch', 'segment'];
+  const metrics = withMetrics.flatMap((r) => r.metrics.map((m) => ({ ...m, rule: r }))).sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind)).slice(0, 5);
+  const sub = `${set.rules.length} rules from ${set.source}${subtitle ? ` · ${subtitle}` : ''}`;
+  const visuals = [...header(theme, p, 'Business rules', sub)];
+  if (metrics.length) {
+    const w = (W - (metrics.length - 1) * G) / metrics.length;
+    metrics.forEach((m, i) => visuals.push({ key: `rule-${m.ref.table}-${m.ref.name}`, pos: { x: M + i * (w + G), y: TOP, w, h: 96 }, visual: V_.card(theme, m.ref, { label: m.ref.label, accent: KIND_COLOR[m.kind] || theme.accent, exact: m.type === 'count', labelSize: metrics.length > 4 ? 9 : 10 }) }));
+  }
+  const y = TOP + (metrics.length ? 96 + G : 0);
+  const h = PAGE.height - M - y;
+  const leftW = 500;
+  const violations = metrics.filter((m) => m.kind !== 'segment');
+  const segment = p.breakdown || p.share;
+  const textH = segment && violations.length ? Math.min(h, 256) : h;
+  visuals.push({ key: 'rule-text', pos: { x: M, y, w: leftW, h: textH }, visual: V_.paragraphs(ruleParagraphs(theme, set.rules.slice(0, 7)), { theme, title: 'What each rule means' }) });
+  if (segment && violations.length && h - textH - G > 120) {
+    visuals.push({ key: 'rule-segment', pos: { x: M, y: y + textH + G, w: leftW, h: h - textH - G }, visual: V_.table(theme, { columns: [segment], measures: violations.slice(0, 2).map((m) => m.ref), title: `Rule breaks by ${segment.label.toLowerCase()}`, bars: true }), filterConfig: notBlankFilter(segment) });
+  }
+  const rx = M + leftW + G;
+  const rw = W - leftW - G;
+  const timed = violations.filter((m) => m.type === 'count' && (p.dateLinked || []).includes(m.ref.table));
+  const half = (h - G) / 2;
+  if (p.time && timed.length) {
+    visuals.push({ key: 'rule-years', pos: { x: rx, y, w: rw, h: half }, visual: V_.bars(theme, { measures: timed.slice(0, 3).map((m) => m.ref), category: { ...p.time.year, sortByValue: false }, horizontal: false, title: 'Rule breaks by year', exact: true }) });
+  }
+  const top = timed[0] || violations[0];
+  if (p.entity && top) {
+    visuals.push({
+      key: 'rule-where', pos: { x: rx, y: p.time && timed.length ? y + half + G : y, w: rw, h: p.time && timed.length ? half : h },
+      visual: V_.table(theme, { columns: [p.entity], measures: [top.ref, ...violations.filter((m) => m !== top).slice(0, 2).map((m) => m.ref)], title: `Where rules break · top ${p.entity.label.toLowerCase()}s`, bars: true }),
+      filterConfig: topNFilter(p.entity, top.ref, 10),
+    });
+  }
+  return { displayName: 'Business rules', visuals };
+}
+
+const BUILDERS = { executive, drivers, scorecard, rules };
 
 /**
  * Report plan for a model profile: { pages: [{ name, displayName, visuals, filterConfig }] } ready for reportFiles().

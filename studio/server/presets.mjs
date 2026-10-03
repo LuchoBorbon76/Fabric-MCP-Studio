@@ -198,6 +198,26 @@ export function presetFor(project) {
   return null;
 }
 
+// Business-rule metrics for the rules dashboard: which measure shows each ontology rule. A measure missing from the
+// semantic model is added to the report as a report-level measure (expression below or the preset measure's DAX).
+RETAIL.ruleMetrics = {
+  MinimumMargin: [{ table: 'Product', name: 'Products Below Minimum Margin', label: 'Products below minimum margin', type: 'count', kind: 'violation', dataType: 'Integer', formatString: '#,0', expression: 'COALESCE ( COUNTROWS ( FILTER ( Product, Product[ListPrice] < Product[UnitCost] * 1.2 ) ), 0 )' }],
+  DiscountCap: [{ table: 'Sales', name: 'Discounts Above Cap', label: 'Discounts above 20% outside Nov–Dec', type: 'count', kind: 'violation', dataType: 'Integer', formatString: '#,0', expression: 'COALESCE ( COUNTROWS ( FILTER ( Sales, Sales[DiscountPct] > 0.2 && NOT ( MONTH ( Sales[OrderDate] ) IN { 11, 12 } ) ) ), 0 )' }],
+  ReturnWindow: [{ table: 'Returns', name: 'Returns Outside Window', label: 'Returns after 30 days', type: 'count', kind: 'violation', dataType: 'Integer', formatString: '#,0', expression: 'COALESCE ( COUNTROWS ( FILTER ( Returns, DATEDIFF ( RELATED ( Sales[OrderDate] ), Returns[ReturnDate], DAY ) > 30 ) ), 0 )' }],
+  AtRiskCustomer: [{ table: 'Customer', name: 'At-Risk Customers', label: 'At-risk customers', type: 'count', kind: 'watch' }],
+  ActiveCustomer: [{ table: 'Customer', name: 'Active Customers', label: 'Active customers', type: 'count', kind: 'segment' }],
+};
+ADVENTUREWORKS.ruleMetrics = {
+  SalesBelowCost: [
+    { table: 'Reseller Sales', name: 'Reseller Sales Below Cost', label: 'Reseller lines below cost', type: 'count', kind: 'violation', dataType: 'Integer' },
+    { table: 'Reseller Sales', name: 'Reseller Loss Below Cost', label: 'Loss on sales below cost', type: 'amount', kind: 'violation', dataType: 'Decimal' },
+  ],
+  DiscountApproval: [{ table: 'Reseller Sales', name: 'Discounts Needing Approval', label: 'Discounts needing approval', type: 'count', kind: 'violation', dataType: 'Integer' }],
+  MinimumMargin: [{ table: 'Product', name: 'Products Below Minimum Margin', label: 'Products below minimum margin', type: 'count', kind: 'violation', dataType: 'Integer' }],
+  DiscontinuedProduct: [{ table: 'Product', name: 'Discontinued Products', label: 'Discontinued products', type: 'count', kind: 'watch', dataType: 'Integer', formatString: '#,0', expression: 'COALESCE ( COUNTROWS ( FILTER ( Product, Product[Status] <> "Current" ) ), 0 )' }],
+  HighValueCustomer: [{ table: 'Customer', name: 'High-Value Customers', label: 'High-value customers', type: 'count', kind: 'segment', dataType: 'Integer' }],
+};
+
 /** What the UI needs from a sample preset (curated tables, business names, model name, measures, questions). */
 export function presetSummary(project) {
   const p = presetFor(project);

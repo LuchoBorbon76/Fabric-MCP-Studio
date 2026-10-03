@@ -314,3 +314,5 @@ img.rpreview{height:auto}
 .rec ul.pre{margin:0;color:var(--ink)}
 .recsw{display:flex;gap:3px;flex:0 0 auto}
 .recsw i{width:12px;height:22px;border-radius:3px;display:block}
+.lthumb .lt.alert{border-left:2px solid #DC2626}
+.lthumb .lt.text{background-image:repeating-linear-gradient(180deg,transparent 0 9%,rgba(0,0,0,.12) 9% 11%,transparent 11% 16%)!important;background-size:80% 100%;background-position:10% 0;background-repeat:no-repeat}

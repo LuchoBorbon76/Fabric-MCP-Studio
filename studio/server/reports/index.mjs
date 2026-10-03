@@ -9,6 +9,7 @@ import { profileModel } from './profile.mjs';
 import { THEMES, themeById } from './themes.mjs';
 import { PAGE_TEMPLATES, buildReportPages } from './templates.mjs';
 import { recommendations } from './recommend.mjs';
+import { ruleSet, ruleValues } from './rules.mjs';
 import { reportFiles } from '../generators/pbir.mjs';
 import { newId } from '../config.mjs';
 
@@ -45,7 +46,13 @@ export function resetProfileCache() { profileCache = { key: null, at: 0, data: n
 /** Recommended reports (and later dashboards and apps) for the project, with reasons from the model profile. */
 export async function currentRecommendations({ refresh = false } = {}) {
   const profile = await currentProfile({ refresh });
-  return { recommendations: recommendations(profile, getProject()), insights: profile.insights };
+  const project = getProject();
+  const rules = ruleSet(profile, project);
+  let values = [];
+  if (rules.rules.some((r) => r.metrics.length)) {
+    try { values = await ruleValues(project.workspace.id, project.semanticModel.id, rules); } catch { values = []; }
+  }
+  return { recommendations: recommendations(profile, project, { rules, values }), insights: profile.insights, rules: { source: rules.source, count: rules.rules.length, values } };
 }
 
 const PAGE_IDS = PAGE_TEMPLATES.map((x) => x.id);
@@ -80,16 +87,28 @@ export async function runReport(ctx, { name, theme: themeId = 'studio', pages = 
   const ws = p.workspace;
   const theme = themeById(themeId);
   ctx.step('Read the semantic model (measures, dimensions, time)');
-  const profile = await currentProfile({ refresh: true });
+  const profile = { ...(await currentProfile({ refresh: true })) };
   for (const w of profile.warnings) ctx.log(w);
   ctx.log(`Main measure ${profile.primary.name} · ${profile.kpis.length} KPIs · time ${profile.time?.grain || 'none'} · share ${profile.share?.label || '–'} · breakdown ${profile.breakdown?.label || '–'} · top list ${profile.entity?.label || '–'}`);
   ctx.progress(25);
 
   ctx.step(`Design ${pages.length} page${pages.length === 1 ? '' : 's'} with the ${theme.name} theme`);
+  let extensions = [];
+  if (pages.includes('rules')) {
+    const set = ruleSet(profile, p);
+    if (set.rules.length) {
+      profile.ruleSet = set;
+      extensions = set.extensions;
+      ctx.log(`${set.rules.length} business rules from ${set.source} · ${set.rules.reduce((a, r) => a + r.metrics.length, 0)} rule measures${extensions.length ? ` (${extensions.length} added to the report)` : ''}`);
+    } else {
+      pages = pages.filter((x) => x !== 'rules');
+      ctx.log('No business rules found (deploy the ontology or add rule measures); the Business rules page was left out.');
+    }
+  }
   const built = buildReportPages(profile, theme, { pages });
-  if (!built.length) throw new Error('Select at least one page template.');
+  if (!built.length) throw new Error('Select at least one page.');
   const reportName = F.itemName('Report', name || `${p.semanticModel.name} report`);
-  const files = reportFiles({ semanticModelId: p.semanticModel.id, theme, pages: built });
+  const files = reportFiles({ semanticModelId: p.semanticModel.id, theme, pages: built, extensions });
   ctx.log(`${built.length} pages · ${built.reduce((a, x) => a + x.visuals.length, 0)} visuals · ${Object.keys(files).length} definition parts`);
   ctx.progress(40);
 

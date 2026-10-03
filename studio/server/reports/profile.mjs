@@ -81,7 +81,7 @@ function dateInfo(meta) {
 }
 
 const col = (c, label) => ({ kind: 'column', table: c.table, name: c.name, label: label || columnLabel(c.name) });
-const meas = (m, label) => ({ kind: 'measure', table: m.table, name: m.name, label: label || m.name, formatString: m.formatString, percent: isPercent(m) });
+const meas = (m, label) => ({ kind: 'measure', table: m.table, name: m.name, label: label || m.name, formatString: m.formatString, percent: isPercent(m), displayFolder: m.displayFolder || '', description: m.description || '' });
 
 /**
  * Profile a semantic model for report design.
@@ -184,8 +184,12 @@ export async function profileModel(workspaceId, datasetId, { modelName = '' } = 
   }
 
   const slicers = [time?.year, share ? col(share) : null].filter(Boolean);
+  // Tables a date filter reaches (facts with an active relationship to the date table): rule counts on them trend by year.
+  const dateLinked = date ? [...new Set(meta.relationships.filter((r) => r.active && r.toTable === date.table).map((r) => r.fromTable))] : [];
   return {
     model: { workspaceId, id: datasetId, name: modelName, tables: meta.tables.length, measures: measures.length, relationships: meta.relationships.length },
+    tables: meta.tables.map((t) => t.name),
+    dateLinked,
     measures: measures.map((m) => meas(m)),
     primary: meas(primary),
     kpis: kpis.map((m) => meas(m)),

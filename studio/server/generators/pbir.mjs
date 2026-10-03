@@ -19,9 +19,9 @@ const props = (p, selector) => ({ properties: p, ...(selector ? { selector } : {
 
 export const hexId = (...parts) => createHash('sha1').update(parts.join('|')).digest('hex').slice(0, 20);
 
-/** ref: { kind: 'measure' | 'column', table, name } */
+/** ref: { kind: 'measure' | 'column', table, name, extension? } – report-level measures carry Schema "extension". */
 export function fieldOf(ref) {
-  const source = { Expression: { SourceRef: { Entity: ref.table } }, Property: ref.name };
+  const source = { Expression: { SourceRef: { ...(ref.extension ? { Schema: 'extension' } : {}), Entity: ref.table } }, Property: ref.name };
   return ref.kind === 'measure' ? { Measure: source } : { Column: source };
 }
 const queryRef = (ref) => `${ref.table}.${ref.name}`;
@@ -76,29 +76,31 @@ export const V_ = {
   },
 
   textbox(lines) {
+    return V_.paragraphs(lines.map((l) => ({
+      textRuns: [{ value: l.text, textStyle: { fontFamily: l.bold ? 'Segoe UI Semibold' : 'Segoe UI', fontSize: `${l.size}px`, ...(l.bold ? { fontWeight: 'bold' } : {}), color: l.color } }],
+      horizontalTextAlignment: l.align || 'left',
+    })));
+  },
+
+  paragraphs(paragraphs, { theme, title } = {}) {
     return {
       visualType: 'textbox',
-      objects: {
-        general: [props({
-          paragraphs: lines.map((l) => ({
-            textRuns: [{ value: l.text, textStyle: { fontFamily: l.bold ? 'Segoe UI Semibold' : 'Segoe UI', fontSize: `${l.size}px`, ...(l.bold ? { fontWeight: 'bold' } : {}), color: l.color } }],
-            horizontalTextAlignment: l.align || 'left',
-          })),
-        })],
-      },
-      visualContainerObjects: { background: [props({ show: bool(false) })], border: [props({ show: bool(false) })], padding: [props({ top: dec(0), bottom: dec(0), left: dec(0), right: dec(0) })], title: [props({ show: bool(false) })] },
+      objects: { general: [props({ paragraphs })] },
+      visualContainerObjects: theme
+        ? frame(theme, { title, alt: title })
+        : { background: [props({ show: bool(false) })], border: [props({ show: bool(false) })], padding: [props({ top: dec(0), bottom: dec(0), left: dec(0), right: dec(0) })], title: [props({ show: bool(false) })] },
     };
   },
 
-  card(theme, measure, { label, accent } = {}) {
+  card(theme, measure, { label, accent, exact = false, labelSize = 10 } = {}) {
     const f = frame(theme, { alt: `${label || measure.name} card` });
     f.padding = [props({ top: dec(0), bottom: dec(0), left: dec(0), right: dec(0) })];
     return {
       visualType: 'cardVisual',
       query: { queryState: { Data: { projections: [projection(measure)] } } },
       objects: {
-        value: [props({ fontSize: dec(24), fontColor: color(theme.ink), bold: bool(true) }, { id: 'default' })],
-        label: [props({ show: bool(true), ...(label ? { text: text(label) } : {}), fontSize: dec(10), fontColor: color(theme.muted) }, { id: 'default' })],
+        value: [props({ fontSize: dec(24), fontColor: color(theme.ink), bold: bool(true), ...(exact ? { displayUnits: dec(1), labelDisplayUnits: dec(1) } : {}) }, { id: 'default' })],
+        label: [props({ show: bool(true), ...(label ? { text: text(label) } : {}), fontSize: dec(labelSize), fontColor: color(theme.muted) }, { id: 'default' })],
         accentBar: [props({ show: bool(true), position: text('Left'), width: dec(4), color: color(accent || theme.accent) }, { id: 'default' })],
         outline: [props({ show: bool(false) }, { id: 'default' })],
         padding: [props({ paddingUniform: dec(14) }, { id: 'default' })],
@@ -129,7 +131,7 @@ export const V_ = {
     };
   },
 
-  bars(theme, { measures, category, title, horizontal = true, series }) {
+  bars(theme, { measures, category, title, horizontal = true, series, exact = false }) {
     return {
       visualType: horizontal ? 'clusteredBarChart' : 'clusteredColumnChart',
       query: {
@@ -141,7 +143,7 @@ export const V_ = {
         sortDefinition: horizontal || category.sortByValue ? sortBy([[measures[0], 'Descending']]) : sortBy([[category, 'Ascending']]),
       },
       objects: {
-        labels: [props({ show: bool(true), fontSize: dec(9) })],
+        labels: [props({ show: bool(true), fontSize: dec(9), ...(exact ? { labelDisplayUnits: dec(1) } : {}) })],
         legend: [props({ show: bool(measures.length > 1 || Boolean(series)), position: text('Top'), showTitle: bool(false) })],
         valueAxis: [props({ show: bool(false), start: dec(0) })],
         ...(horizontal ? { categoryAxis: [props({ maxMarginFactor: int(40) })] } : {}),
@@ -212,13 +214,39 @@ export const V_ = {
   },
 };
 
+/** One textbox paragraph per rule: bold label, then the plain-English statement. */
+export function ruleParagraphs(theme, rules) {
+  return rules.flatMap((r) => [
+    { textRuns: [{ value: r.label, textStyle: { fontFamily: 'Segoe UI Semibold', fontSize: '12px', fontWeight: 'bold', color: theme.ink } }], horizontalTextAlignment: 'left' },
+    { textRuns: [{ value: r.statement || '–', textStyle: { fontFamily: 'Segoe UI', fontSize: '11px', color: theme.muted } }], horizontalTextAlignment: 'left' },
+  ]);
+}
+
+/** Visual or page filter: hide blank values of a column (for example products without a category). */
+export function notBlankFilter(column) {
+  return {
+    filters: [{
+      name: `Filter${hexId('notblank', queryRef(column)).slice(0, 18)}`,
+      field: fieldOf(column),
+      type: 'Advanced',
+      filter: {
+        Version: 2,
+        From: [{ Name: 'c', Entity: column.table, Type: 0 }],
+        Where: [{ Condition: { Not: { Expression: { Comparison: { ComparisonKind: 0, Left: { Column: { Expression: { SourceRef: { Source: 'c' } }, Property: column.name } }, Right: { Literal: { Value: 'null' } } } } } } }],
+      },
+      howCreated: 'User',
+    }],
+  };
+}
+
 /** Top N filter on a category by a measure (visual level). Every entity used in the subquery must be in its From. */
 export function topNFilter(category, measure, n) {
-  const sameTable = measure.table === category.table;
+  const sameTable = measure.table === category.table && !measure.extension;
   const mSource = sameTable ? 'c' : 'm';
   const orderBy = measure.kind === 'measure'
     ? { Measure: { Expression: { SourceRef: { Source: mSource } }, Property: measure.name } }
     : { Aggregation: { Expression: { Column: { Expression: { SourceRef: { Source: mSource } }, Property: measure.name } }, Function: 0 } };
+  const measureFrom = sameTable ? [] : [{ Name: 'm', Entity: measure.table, ...(measure.extension ? { Schema: 'extension' } : {}), Type: 0 }];
   return {
     filters: [{
       name: `Filter${hexId('topn', queryRef(category), queryRef(measure), n).slice(0, 18)}`,
@@ -233,7 +261,7 @@ export function topNFilter(category, measure, n) {
               Subquery: {
                 Query: {
                   Version: 2,
-                  From: [{ Name: 'c', Entity: category.table, Type: 0 }, ...(sameTable ? [] : [{ Name: 'm', Entity: measure.table, Type: 0 }])],
+                  From: [{ Name: 'c', Entity: category.table, Type: 0 }, ...measureFrom],
                   Select: [{ Column: { Expression: { SourceRef: { Source: 'c' } }, Property: category.name }, Name: 'field' }],
                   OrderBy: [{ Direction: 2, Expression: orderBy }],
                   Top: n,
@@ -280,6 +308,15 @@ export function reportFiles(report) {
     [`StaticResources/RegisteredResources/${themeName}`]: themeFile,
     'definition/pages/pages.json': { $schema: `${S}/pagesMetadata/${V.pages}/schema.json`, pageOrder: report.pages.map((p) => p.name), activePageName: report.pages[0].name },
   };
+  // Report-level measures (for example business-rule counts the semantic model doesn't have yet).
+  if (report.extensions?.length) {
+    const byTable = new Map();
+    for (const e of report.extensions) {
+      if (!byTable.has(e.table)) byTable.set(e.table, []);
+      if (!byTable.get(e.table).some((x) => x.name === e.name)) byTable.get(e.table).push({ name: e.name, dataType: e.dataType || 'Decimal', expression: e.expression, formatString: e.formatString || undefined, displayFolder: e.displayFolder || undefined, description: e.description || undefined });
+    }
+    files['definition/reportExtensions.json'] = { $schema: `${S}/reportExtension/1.0.0/schema.json`, name: 'extension', entities: [...byTable].map(([name, measures]) => ({ name, measures })) };
+  }
   for (const p of report.pages) {
     files[`definition/pages/${p.name}/page.json`] = {
       $schema: `${S}/page/${V.page}/schema.json`,

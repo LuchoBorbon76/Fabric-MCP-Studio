@@ -73,11 +73,12 @@ Ontology is in preview; the Ontology MCP endpoint (used by agents) needs a paid 
 **Reports & apps** tab:
 
 1. Review **Recommended for your data**: reports picked for your model and audience (for example an executive report
-   in the Executive Navy theme and a performance scorecard), each with the reasons from your data. *Build* it in one
+   in the Executive Navy theme, a **business rules dashboard** built from your ontology rules with their live counts,
+   and a performance scorecard), each with the reasons from your data. *Build* it in one
    click, or *Customize* it in the designer.
 2. Review **What we found in your model**: headline KPIs, channels, time (with full years), share and breakdown
    dimensions, the top-10 list and the drill path, plus a few insights from your data.
-3. Or pick **pages** (Executive summary, Performance drivers, Scorecard) and a **theme** yourself, name the report, *Build report*.
+3. Or pick **pages** (Executive summary, Performance drivers, Scorecard, Business rules) and a **theme** yourself, name the report, *Build report*.
 4. *Open in Power BI*, or expand **Preview** to see the rendered pages.
 
 > Ask Copilot: *Recommend the best Power BI report for my semantic model.* Copilot explains its choice and shows

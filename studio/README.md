@@ -103,8 +103,11 @@ Fabric REST API – no Power BI Desktop needed.
 1. **What we found in your model** – read-only DAX (`INFO.VIEW` functions and a short data profile) picks the headline
    KPIs, channel measures, the time grain and full years, a share dimension, a breakdown, the top-10 entity and a drill
    path. It works for any model you can query, including models the studio didn't create.
-2. **Pages** – executive summary, performance drivers (drill-down matrix, year by segment, top contributors) and
-   scorecard (segment × year, ratio trend, ranked table). Layouts follow Microsoft's Power BI report design guidance:
+2. **Pages** – executive summary, performance drivers (drill-down matrix, year by segment, top contributors),
+   scorecard (segment × year, ratio trend, ranked table) and **business rules** – the ontology dashboard: every
+   ontology rule in plain English next to its live count, rule breaks by year and by segment, and where they happen.
+   Rule measures the semantic model doesn't have yet are added to the report as report-level measures, so no model
+   change is needed. Layouts follow Microsoft's Power BI report design guidance:
    1280×720, 24 px margins, header band, KPI row, hero visual, sorted bars, top-N lists.
 3. **Themes** – Fabric Studio, Executive Navy, Teal Modern, Slate Minimal, Accessible (color-blind safe) and Midnight.
    All formatting lives in a custom report theme, so you can switch themes later in Power BI.

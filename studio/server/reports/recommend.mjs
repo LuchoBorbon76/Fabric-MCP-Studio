@@ -29,7 +29,7 @@ function reasonsFor(profile, focus) {
  * Recommended deliverables for the current project.
  * Returns [{ id, kind: 'report' | 'rules-dashboard' | 'app', title, audience, theme, pages, name, reasons[], built, available, note }]
  */
-export function recommendations(profile, project) {
+export function recommendations(profile, project, { rules = null, values = [] } = {}) {
   const model = project.semanticModel?.name || profile.model.name || 'Semantic model';
   const built = new Map((project.reports || []).map((r) => [r.name.toLowerCase(), r]));
   const out = [];
@@ -39,6 +39,21 @@ export function recommendations(profile, project) {
   const exec = { id: 'executive-report', kind: 'report', title: 'Executive report', audience: 'Leadership', theme: 'executive', pages: ['executive', 'drivers', 'scorecard'].filter((x) => x !== 'scorecard' || (hasTime && hasSegments)), name: `${model} – Executive report` };
   exec.reasons = reasonsFor(profile, 'executive');
   out.push(exec);
+
+  if (rules?.rules.some((r) => r.metrics.length)) {
+    const fmt = (v) => (v === null || v === undefined ? '–' : Number(v).toLocaleString('en-US', { maximumFractionDigits: 0 }));
+    const breaks = values.filter((v) => v.kind === 'violation' && Number(v.value)).slice(0, 3);
+    const dash = {
+      id: 'rules-dashboard', kind: 'report', title: 'Business rules dashboard', audience: 'Operations and governance', theme: 'slate', pages: ['rules'],
+      name: `${model} – Business rules`,
+      reasons: [
+        `${rules.rules.length} rules from ${rules.source}, each explained in plain English next to its live count.`,
+        ...breaks.map((v) => `${v.label}: ${fmt(v.value)} right now.`),
+        rules.extensions.length ? `${rules.extensions.length} rule measure${rules.extensions.length === 1 ? ' is' : 's are'} added to the report, so no model change is needed.` : 'Every rule uses a measure from your semantic model.',
+      ].slice(0, 4),
+    };
+    out.push(dash);
+  }
 
   if (hasSegments && hasTime) {
     const ops = { id: 'scorecard-report', kind: 'report', title: 'Performance scorecard', audience: 'Managers and analysts', theme: 'teal', pages: ['scorecard', 'drivers'], name: `${model} – Scorecard` };

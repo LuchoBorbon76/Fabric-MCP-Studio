@@ -84,6 +84,7 @@ when it expires.
 | A visual shows an error after you renamed measures | The report binds to measure and column names | **Rebuild** the report in **Reports & apps** |
 | Month names sort alphabetically in your own model | The month-name column has no *Sort by column* | Set *Sort by column* to the month number in the model; models the studio generates do this automatically |
 | Report building fails with *Forbidden* | You need Contributor or higher on the workspace and Build permission on the semantic model | Ask the workspace admin |
+| The Business rules page is missing | No ontology rules or rule measures were found | Deploy the ontology (**Ontology** tab), or add measures in a *Business rules* display folder of your model |
 
 ## Repo location
 
