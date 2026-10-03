@@ -9,6 +9,7 @@ import { renderWorkspace } from './views/workspace.js';
 import { renderData } from './views/data.js';
 import { renderModel } from './views/model.js';
 import { renderOntology } from './views/ontology.js';
+import { renderReports } from './views/reports.js';
 import { renderShare } from './views/share.js';
 import { renderActivity } from './views/activity.js';
 import { renderSettings } from './views/settings.js';
@@ -20,6 +21,7 @@ const VIEWS = {
   data: { label: 'Data', render: renderData },
   model: { label: 'Semantic model', render: renderModel },
   ontology: { label: 'Ontology', render: renderOntology },
+  reports: { label: 'Reports & apps', render: renderReports },
   share: { label: 'Ask & share', render: renderShare },
   activity: { label: 'Activity', render: renderActivity },
   settings: { label: 'Settings', render: renderSettings },
@@ -144,12 +146,13 @@ function renderKpis() {
     { id: 'data', view: 'data', label: 'Data', value: p.source?.label || 'Not connected', sub: p.modelSource ? `${{ MirroredDatabase: 'Mirrored database', SQLDatabase: 'SQL database' }[p.modelSource.itemType] || p.modelSource.itemType} · ${p.modelSource.itemName}` : 'Sample or your data', state: st.data },
     { id: 'model', view: 'model', label: 'Semantic model', value: p.semanticModel?.name || 'Not created', sub: p.semanticModel ? `${p.semanticModel.tables} tables · ${p.semanticModel.measures} measures` : 'Direct Lake', state: st.model },
     { id: 'ontology', view: 'ontology', label: 'Ontology', value: p.ontology?.name || 'Not created', sub: p.ontology ? `${p.ontology.entities?.length || 0} entities · ${p.ontology.rules?.length || 0} rules` : 'Fabric IQ', state: st.ontology },
+    { id: 'reports', view: 'reports', label: 'Reports & apps', value: p.reports?.length ? `${p.reports.length} report${p.reports.length === 1 ? '' : 's'}` : 'Not built', sub: p.reports?.length ? p.reports[0].name : 'Power BI', state: st.reports },
   ];
   const running = [...store.jobs.values()].filter((j) => j.status === 'running');
   const el = $('#kpis');
   el.innerHTML = '';
   for (const x of k) {
-    const isRun = running.some((j) => (x.id === 'data' && ['sample', 'mirror', 'shortcut'].includes(j.kind)) || (x.id === 'model' && j.kind === 'semantic-model') || (x.id === 'ontology' && j.kind === 'ontology'));
+    const isRun = running.some((j) => (x.id === 'data' && ['sample', 'mirror', 'shortcut'].includes(j.kind)) || (x.id === 'model' && j.kind === 'semantic-model') || (x.id === 'ontology' && j.kind === 'ontology') || (x.id === 'reports' && j.kind === 'report'));
     const state = isRun ? 'run' : x.state;
     el.append(h('div', { class: `kpi ${state}`, onclick: () => go(x.view), title: `Open ${x.label}` },
       h('div', { class: 'l' }, statusDot(state === 'done' ? 'ok' : state === 'err' ? 'error' : state === 'run' ? 'running' : ''), x.label),
@@ -362,7 +365,7 @@ on('project.updated', async () => {
   const dk = dataKey(store.project);
   const dataChanged = dk !== dataSourceKey;
   dataSourceKey = dk;
-  if (['home', 'model', 'ontology', 'share', 'workspace'].includes(current) || (current === 'data' && dataChanged)) renderView(current);
+  if (['home', 'model', 'ontology', 'reports', 'share', 'workspace'].includes(current) || (current === 'data' && dataChanged)) renderView(current);
 });
 on('provider', (e) => { store.provider = e.provider; renderHeader(); renderKpis(); });
 on('auth', (e) => { store.user = e.user; renderAll(); });

@@ -24,7 +24,7 @@ function ontologyCard(p) {
         h('div', { class: 'muted small' }, `${o.entities?.length || 0} entities · ${o.relationships?.length || 0} relationships · ${o.rules?.length || 0} business rules`)),
       h('div', { class: 'row' },
         h('a', { class: 'btn', href: `https://app.fabric.microsoft.com/groups/${ws}/ontologies/${o.id}`, target: '_blank', rel: 'noopener' }, 'Open in Fabric ↗'),
-        h('button', { class: 'btn pri', onclick: () => app.go('share') }, 'Next: ask & share →'))),
+        h('button', { class: 'btn pri', onclick: () => app.go('reports') }, 'Next: reports & apps →'))),
     h('dl', { class: 'kv mt' },
       h('dt', {}, 'Entities'), h('dd', {}, (o.entities || []).join(', ')),
       h('dt', {}, 'Rules'), h('dd', {}, (o.rules || []).join(', ') || '–'),

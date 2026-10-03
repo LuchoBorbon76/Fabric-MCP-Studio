@@ -26,6 +26,7 @@ export const STEPS = [
   { id: 'data', view: 'data', title: 'Data', desc: 'Sample data, your databases, or existing Fabric data' },
   { id: 'model', view: 'model', title: 'Semantic model', desc: 'Direct Lake model with business measures' },
   { id: 'ontology', view: 'ontology', title: 'Ontology', desc: 'Entities, relationships and business rules' },
+  { id: 'reports', view: 'reports', title: 'Reports & apps', desc: 'Polished Power BI reports from templates and themes' },
   { id: 'share', view: 'share', title: 'Ask & share', desc: 'Governed answers in Copilot, Teams and more' },
 ];
 
@@ -36,6 +37,7 @@ export function stepStatus(project, store) {
   s.data = project?.modelSource ? 'done' : 'todo';
   s.model = project?.semanticModel ? 'done' : 'todo';
   s.ontology = project?.ontology ? 'done' : 'todo';
+  s.reports = project?.reports?.length ? 'done' : 'todo';
   s.share = project?.teamsAgent || project?.steps?.share ? 'done' : 'todo';
   const firstTodo = STEPS.find((x) => s[x.id] !== 'done');
   if (firstTodo) s.current = firstTodo.id;
@@ -70,7 +72,14 @@ export function suggestions(project, preset) {
     return [
       'Add descriptions to every measure and column in plain business language',
       'Deploy an ontology with the business rules from my glossary',
-      'Run a best-practice review of my semantic model',
+      'Recommend and build a Power BI report for my semantic model',
+    ];
+  }
+  if (!p.reports?.length) {
+    return [
+      'Recommend and build a Power BI report for my semantic model',
+      'Which KPIs and breakdowns should an executive report show for my data?',
+      ...(preset?.starterQuestions?.slice(0, 1) || ['What are the key numbers in my semantic model?']),
     ];
   }
   return preset?.starterQuestions?.length ? preset.starterQuestions.slice(0, 4) : [

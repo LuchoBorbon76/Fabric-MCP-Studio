@@ -8,6 +8,7 @@ import { emit } from './events.mjs';
 import { getProject, updateProject, logActivity, assertProjectTenant } from './project.mjs';
 import { startJob, waitForJob } from './jobs.mjs';
 import * as P from './pipelines.mjs';
+import * as R from './reports/index.mjs';
 import * as F from './fabric.mjs';
 import { presetFor } from './presets.mjs';
 
@@ -260,6 +261,8 @@ const STUDIO_TOOLS_META = {
   studio_query_data: { write: false, title: 'Query data (read-only)' },
   studio_create_semantic_model: { write: true, title: 'Create semantic model' },
   studio_propose_semantic_model: { write: false, title: 'Suggest semantic model design' },
+  studio_describe_report_options: { write: false, title: 'Read report options (model profile, themes, pages)' },
+  studio_create_report: { write: true, title: 'Create Power BI report' },
   studio_deploy_ontology: { write: true, title: 'Deploy ontology' },
   studio_get_glossary: { write: false, title: 'Read business glossary' },
   studio_save_glossary: { write: false, title: 'Save business glossary' },
@@ -420,6 +423,32 @@ function studioTools(chatId) {
         const d = modelDesign(a);
         return runAsJob('semantic-model', `Create semantic model ${a.name || ''}`.trim(), (ctx) => P.runSemanticModel(ctx, d));
       },
+    }),
+    studioTool('studio_describe_report_options', {
+      description: 'Read what the studio found in the project semantic model for report design (main measure, KPIs, time grain and full years, share/breakdown dimensions, top-N entity, drill hierarchy, insights) plus the available report themes and page templates. Read-only.',
+      parameters: obj({ refresh: { type: 'boolean' } }),
+      handler: async ({ refresh }) => {
+        const pr = await R.currentProfile({ refresh });
+        const ref = (r) => (r ? `${r.table}[${r.name}] (${r.label})` : null);
+        return {
+          model: pr.model, primary: ref(pr.primary), kpis: pr.kpis.map(ref), channels: pr.channels.map(ref),
+          time: pr.time && { grain: pr.time.grain, years: pr.time.years, fullYears: pr.time.fullYears, axis: pr.time.axis.map(ref) },
+          share: ref(pr.share), breakdown: ref(pr.breakdown), topList: ref(pr.entity), hierarchy: pr.hierarchy.map(ref),
+          insights: pr.insights.map((i) => i.text), warnings: pr.warnings,
+          themes: R.reportsCatalog().themes.map((t) => `${t.id}: ${t.name} – ${t.description}`),
+          pages: R.reportsCatalog().pages.map((x) => `${x.id}: ${x.name} – ${x.description}`),
+          reports: (getProject().reports || []).map((x) => ({ id: x.id, name: x.name, theme: x.theme, pages: x.pages, url: x.url })),
+        };
+      },
+    }),
+    studioTool('studio_create_report', {
+      description: 'Build a professional Power BI report on the project semantic model from the studio templates and deploy it to the project workspace (an existing report with the same name is updated). Pages: executive (Executive summary), drivers (Performance drivers), scorecard (Scorecard). Themes: studio, executive, teal, slate, accessible, midnight. Call studio_describe_report_options first to recommend pages and a theme.',
+      parameters: obj({
+        name: str('Report name (default: "<semantic model> report")'),
+        theme: { type: 'string', enum: ['studio', 'executive', 'teal', 'slate', 'accessible', 'midnight'] },
+        pages: { type: 'array', items: { type: 'string', enum: ['executive', 'drivers', 'scorecard'] }, description: 'Pages in order (default: all three)' },
+      }),
+      handler: async (a) => runAsJob('report', `Build Power BI report ${a.name || ''}`.trim(), (ctx) => R.runReport(ctx, { name: a.name, theme: a.theme, pages: a.pages?.length ? a.pages : undefined })),
     }),
     studioTool('studio_deploy_ontology', {
       description: 'Create or update a Fabric IQ ontology bound to the model source: entity types from tables, relationships, and business rules written in plain English (one sentence, no colons). Then the ontology MCP endpoint becomes available.',

@@ -75,6 +75,16 @@ when it expires.
 | Secret expired | Client secret older than `-SecretValidityMonths` | Delete `agents/contoso-retail-analyst/.deploy/env/.env.<env>.user` and re-run the installer (creates a new secret; the OAuth registration is updated with `oauth/update` in the Teams developer portal) |
 | `atk validate` crashes when run from automation | It opens an interactive Microsoft 365 sign-in | Use `python scripts/validate-agent-package.py <zip>` for offline checks |
 
+## Reports & apps
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| *Create the semantic model first* | Reports are built on the project's semantic model | Create it in **Semantic model** |
+| Preview not available / *Export report … is disabled* | Tenant settings for exporting reports turned off | Open the report in Power BI. To get previews, a Fabric admin enables *Export reports as PDF documents* (or *as image files*) |
+| A visual shows an error after you renamed measures | The report binds to measure and column names | **Rebuild** the report in **Reports & apps** |
+| Month names sort alphabetically in your own model | The month-name column has no *Sort by column* | Set *Sort by column* to the month number in the model; models the studio generates do this automatically |
+| Report building fails with *Forbidden* | You need Contributor or higher on the workspace and Build permission on the semantic model | Ask the workspace admin |
+
 ## Repo location
 
 Clone the repo **outside** OneDrive/SharePoint-synced folders. Sync clients and `.git` don't mix well.

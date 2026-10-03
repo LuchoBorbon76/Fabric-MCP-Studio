@@ -11,6 +11,7 @@ chatting with the **AI the customer already licenses**:
 - **Semantic model** – Direct Lake model generated from your tables and relationships, then enriched by Copilot
   (business measures from your glossary, descriptions, RLS, translations, best-practice review).
 - **Ontology** – Fabric IQ entities, relationships and plain-English business rules.
+- **Reports & apps** – polished Power BI reports built on your semantic model from page templates and themes.
 - **Ask & share** – governed answers in the app chat, Microsoft 365 Copilot / Teams agent, other AI clients, Fabric data agent.
 
 Everything runs on the customer's computer, signs in to Fabric as the customer, and **asks before every change**.
@@ -94,6 +95,25 @@ flowchart LR
 Schema discovery reads tables, keys and foreign keys (from the source when reachable, or from the Fabric SQL
 analytics endpoint) and infers relationships from naming conventions when no foreign keys exist.
 
+## Reports
+
+**Reports & apps** builds Power BI reports (PBIR format) on the project's semantic model and deploys them with the
+Fabric REST API – no Power BI Desktop needed.
+
+1. **What we found in your model** – read-only DAX (`INFO.VIEW` functions and a short data profile) picks the headline
+   KPIs, channel measures, the time grain and full years, a share dimension, a breakdown, the top-10 entity and a drill
+   path. It works for any model you can query, including models the studio didn't create.
+2. **Pages** – executive summary, performance drivers (drill-down matrix, year by segment, top contributors) and
+   scorecard (segment × year, ratio trend, ranked table). Layouts follow Microsoft's Power BI report design guidance:
+   1280×720, 24 px margins, header band, KPI row, hero visual, sorted bars, top-N lists.
+3. **Themes** – Fabric Studio, Executive Navy, Teal Modern, Slate Minimal, Accessible (color-blind safe) and Midnight.
+   All formatting lives in a custom report theme, so you can switch themes later in Power BI.
+4. **Build** – creates or updates the Report item, then renders a PDF preview with Power BI export (if your tenant turns
+   export off, open the report in Power BI instead). Partial years are filtered out so comparisons use full years.
+
+Copilot can recommend pages and a theme for your audience (`studio_describe_report_options`) and build the report
+(`studio_create_report`, with your approval).
+
 ## Files
 
 | Path | Purpose |
@@ -104,6 +124,9 @@ analytics endpoint) and infers relationships from naming conventions when no for
 | `server/fabric.mjs` | Fabric REST client (LRO, pagination, OneLake, connections, mirroring) |
 | `server/sql.mjs`, `server/pg.mjs` | Schema discovery for SQL Server family, Fabric SQL endpoints and PostgreSQL |
 | `server/generators/tmdl.mjs` | Direct Lake semantic model and ontology TMDL generators |
+| `server/generators/pbir.mjs` | Power BI report (PBIR) generator: pages, visuals, filters, theme registration |
+| `server/reports/` | Model profile (`profile.mjs`), page templates, report themes and the report build/preview pipeline |
+| `server/powerbi.mjs` | Power BI REST: DAX queries, model metadata (`INFO.VIEW`), report export for previews |
 | `server/presets.mjs` | Sample presets (names, relationships, measures, rules) |
 | `server/samples/adventureworks-dw.mjs` | AdventureWorksDW2022 loader for Fabric SQL database (install kit → tables, keys, bulk load, verification) |
 | `server/agent-instructions.md` | System instructions for the agent |

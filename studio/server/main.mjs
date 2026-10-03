@@ -10,6 +10,7 @@ import * as auth from './auth.mjs';
 import * as F from './fabric.mjs';
 import * as A from './agent.mjs';
 import * as P from './pipelines.mjs';
+import * as R from './reports/index.mjs';
 import { catalog } from './sources.mjs';
 import { getProject, updateProject, resetProject, getActivity, clearActivity, logActivity, assertProjectTenant } from './project.mjs';
 import { startJob, listJobs, getJob, cancelJob, flushRunningJobs } from './jobs.mjs';
@@ -183,6 +184,10 @@ route('POST', '/api/jobs/shortcuts', (_, b) => startJob('shortcut', 'Create OneL
 route('POST', '/api/jobs/semantic-model', (_, b) => startJob('semantic-model', `Create semantic model ${b.name || ''}`.trim(), (ctx) => P.runSemanticModel(ctx, b)));
 route('POST', '/api/jobs/ontology', (_, b) => startJob('ontology', `Deploy ontology ${b.name || ''}`.trim(), (ctx) => P.runOntology(ctx, b)));
 route('POST', '/api/jobs/teams-agent', (_, b) => startJob('teams-agent', b.dryRun ? 'Validate Teams agent package' : 'Install Teams agent', (ctx) => P.runTeamsAgent(ctx, b)));
+route('POST', '/api/jobs/report', (_, b) => startJob('report', `Build Power BI report ${b.name || ''}`.trim(), (ctx) => R.runReport(ctx, { name: b.name, theme: b.theme, pages: Array.isArray(b.pages) ? b.pages : undefined })));
+route('GET', '/api/reports/catalog', () => R.reportsCatalog());
+route('GET', '/api/reports/profile', (_, __, q) => R.currentProfile({ refresh: q.get('refresh') === '1' }));
+route('DELETE', '/api/reports/:id', (p, _, q) => R.removeReport(p.id, { deleteItem: q.get('delete') === '1' }));
 route('POST', '/api/jobs/teardown', (_, b) => startJob('teardown', 'Clean up demo resources', (ctx) => P.runTeardown(ctx, b)));
 route('GET', '/api/jobs', () => listJobs());
 route('GET', '/api/jobs/:id', (p) => getJob(p.id));
@@ -207,6 +212,15 @@ const server = createServer(async (req, res) => {
     if (pathname === '/api/events') {
       if (url.searchParams.get('t') !== TOKEN) return send(res, 401, { error: 'Unauthorized' });
       return addClient(res);
+    }
+    // Report previews load in an <iframe>/<img>, which can't send headers: the token comes as a query parameter.
+    const pv = pathname.match(/^\/api\/reports\/([0-9a-f-]{36})\/preview$/i);
+    if (pv && req.method === 'GET') {
+      if (url.searchParams.get('t') !== TOKEN) return send(res, 401, { error: 'Unauthorized' });
+      const file = R.reportPreview(pv[1]);
+      if (!file) return send(res, 404, { error: 'No preview yet' });
+      res.writeHead(200, { 'Content-Type': file.contentType, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Disposition': 'inline' });
+      return res.end(file.bytes);
     }
     if (pathname.startsWith('/api/')) {
       if (req.headers['x-studio-token'] !== TOKEN) return send(res, 401, { error: 'Unauthorized' });

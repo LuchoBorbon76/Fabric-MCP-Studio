@@ -23,6 +23,7 @@ const EMPTY = {
   modelProposal: null,            // Copilot's suggested semantic model design, applied from the chat or the Semantic model tab
   semanticModel: null,            // { id, name }
   ontology: null,                 // { id, name }
+  reports: [],                    // Power BI reports built by the studio: [{ id, name, theme, pages[], url, builtAt, preview }]
   glossary: '',
   teamsAgent: null,
   steps: {},                      // stepId -> { status, at, note }

@@ -62,6 +62,7 @@ function stepDetail(id, p) {
   if (id === 'data' && p.source) return p.source.label;
   if (id === 'model' && p.semanticModel) return `${p.semanticModel.name} · ${p.semanticModel.measures} measures`;
   if (id === 'ontology' && p.ontology) return `${p.ontology.name} · ${p.ontology.rules?.length || 0} rules`;
+  if (id === 'reports' && p.reports?.length) return `${p.reports.length} report${p.reports.length === 1 ? '' : 's'} · ${p.reports[0].name}`;
   if (id === 'ai' && store.provider) return `${store.provider.name}${store.provider.model ? ` · ${store.provider.model}` : ''}`;
   return '';
 }
@@ -73,6 +74,7 @@ function nextPrompt(step, p) {
     case 'data': return 'Help me choose a data source: load the Contoso Retail sample, or show me the lakehouses and connections I could use.';
     case 'model': return 'Describe my data, propose a star schema with business measures, and create the semantic model.';
     case 'ontology': return 'Read my glossary and deploy an ontology with entities, relationships and business rules.';
+    case 'reports': return 'Recommend the best Power BI report for my semantic model: read studio_describe_report_options, explain the pages and theme you would use and why, then build it with studio_create_report after I confirm.';
     default: return `Summarize what we built in workspace ${p.workspace?.name || ''} and answer a first business question with Fabric IQ.`;
   }
 }

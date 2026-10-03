@@ -49,6 +49,20 @@ function columnFormat(dataType, name) {
   return null;
 }
 
+/** Month and weekday name columns sort by their number column (e.g. EnglishMonthName by MonthNumberOfYear). */
+function sortByColumns(columns) {
+  const out = new Map();
+  const numberCol = (rx) => columns.find((c) => c.dataType === 'int64' && rx.test(c.name));
+  const month = numberCol(/^(month(number)?(ofyear)?|monthno|month_?num(ber)?(_?of_?year)?|month number( of year)?)$/i);
+  const day = numberCol(/^(day(number)?ofweek|weekday(number)?|day of week( number)?|day_?of_?week)$/i);
+  for (const c of columns) {
+    if (c.dataType !== 'string') continue;
+    if (month && /month( ?name)?$/i.test(c.name) && !/number/i.test(c.name)) out.set(c.name, month.name);
+    else if (day && /(day ?name(ofweek)?|dayofweek ?name|weekday ?name)$/i.test(c.name)) out.set(c.name, day.name);
+  }
+  return out;
+}
+
 /**
  * Normalize a discovered schema into a model plan.
  * schema: { tables:[{schema,name,columns:[{name,type,isPk,isKey}]}], relationships:[{from:{schema,table,column},to:{...}}] }
@@ -202,14 +216,16 @@ export function semanticModelFiles({ name, src, plan, measures = [], dateTable =
       lines.push(`${T}${T}lineageTag: ${tag('measure', t.key, m.name)}`, '');
     }
     const fks = fkByTable.get(t.name) || new Set();
+    const sortBy = sortByColumns(t.columns);
     for (const c of t.columns) {
       const hidden = fks.has(c.name) || (c.isKey && t.role !== 'table' && !(isDate && c.name === dateTable.column));
       const fmt = columnFormat(c.dataType, c.name);
-      const summarize = ['int64', 'decimal', 'double'].includes(c.dataType) && !c.isKey && !fks.has(c.name) && !ID_RX.test(c.name) ? 'sum' : 'none';
+      const summarize = !isDate && !/year$/i.test(c.name) && ['int64', 'decimal', 'double'].includes(c.dataType) && !c.isKey && !fks.has(c.name) && !ID_RX.test(c.name) ? 'sum' : 'none';
       lines.push(...docLines(c.description, T), `${T}column ${quoteName(c.name)}`, `${T}${T}dataType: ${c.dataType}`);
       if (hidden) lines.push(`${T}${T}isHidden`);
       if (isDate && c.name === dateTable.column) lines.push(`${T}${T}isKey`);
       if (fmt) lines.push(`${T}${T}formatString: ${fmt}`);
+      if (sortBy.has(c.name)) lines.push(`${T}${T}sortByColumn: ${quoteName(sortBy.get(c.name))}`);
       lines.push(`${T}${T}lineageTag: ${tag('column', t.key, c.name)}`, `${T}${T}summarizeBy: ${summarize}`, `${T}${T}sourceColumn: ${c.name}`, '');
       lines.push(`${T}${T}annotation SummarizationSetBy = Automatic`, '');
     }

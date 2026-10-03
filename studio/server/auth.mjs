@@ -11,6 +11,7 @@ export const SCOPES = {
   arm: 'https://management.azure.com/.default',
   cognitive: 'https://cognitiveservices.azure.com/.default',
   graph: 'https://graph.microsoft.com/.default',
+  powerbi: 'https://analysis.windows.net/powerbi/api/.default',
 };
 
 const cache = new Map();          // scope -> { token, expiresOn }

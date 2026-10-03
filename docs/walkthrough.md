@@ -68,7 +68,18 @@ Then improve it with Copilot (Power BI Authoring MCP):
 
 Ontology is in preview; the Ontology MCP endpoint (used by agents) needs a paid F2+ or P1+ capacity. Agents use it to read entities and business rules; ontology questions (`ask_ontology`) are turned off for now, so numbers come from Fabric IQ.
 
-## 5. Ask and share
+## 5. Reports & apps
+
+**Reports & apps** tab:
+
+1. Review **What we found in your model**: headline KPIs, channels, time (with full years), share and breakdown
+   dimensions, the top-10 list and the drill path, plus a few insights from your data.
+2. Pick **pages** (Executive summary, Performance drivers, Scorecard) and a **theme**, name the report, *Build report*.
+3. *Open in Power BI*, or expand **Preview** to see the rendered pages.
+
+> Ask Copilot: *Recommend the best Power BI report for my semantic model and build it after I confirm.*
+
+## 6. Ask and share
 
 **Ask & share** tab:
 
@@ -103,7 +114,7 @@ More in [fabric-demo-ask](../.github/skills/fabric-demo-ask/SKILL.md).
 ## Clean up
 
 **Settings › Clean up** deletes what the studio created (lakehouse, SQL database, mirrored database, semantic model,
-ontology – or the whole workspace if the studio created it). *Start a new project* clears local state only.
+reports, ontology – or the whole workspace if the studio created it). *Start a new project* clears local state only.
 
 ## Without the studio
 
