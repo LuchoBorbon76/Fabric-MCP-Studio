@@ -9,6 +9,7 @@ import { getProject, updateProject, logActivity, assertProjectTenant } from './p
 import { startJob, waitForJob } from './jobs.mjs';
 import * as P from './pipelines.mjs';
 import * as R from './reports/index.mjs';
+import * as APPS from './reports/apps.mjs';
 import * as F from './fabric.mjs';
 import { presetFor } from './presets.mjs';
 
@@ -264,6 +265,7 @@ const STUDIO_TOOLS_META = {
   studio_describe_report_options: { write: false, title: 'Read report options (model profile, themes, pages)' },
   studio_propose_report: { write: false, title: 'Suggest a Power BI report' },
   studio_create_report: { write: true, title: 'Create Power BI report' },
+  studio_create_org_app: { write: true, title: 'Create org app' },
   studio_deploy_ontology: { write: true, title: 'Deploy ontology' },
   studio_get_glossary: { write: false, title: 'Read business glossary' },
   studio_save_glossary: { write: false, title: 'Save business glossary' },
@@ -287,6 +289,7 @@ function projectSummary() {
     sample: preset ? { semanticModelName: preset.semanticModelName, ontologyName: preset.ontologyName, measures: (preset.measures || []).map((m) => `${m.table}[${m.name}]`) } : null,
     modelProposal: p.modelProposal ? { name: p.modelProposal.name, createdAt: p.modelProposal.createdAt, appliedAt: p.modelProposal.appliedAt || null } : null,
     reports: (p.reports || []).map((r) => ({ name: r.name, theme: r.theme, pages: r.pages, url: r.url })),
+    orgApp: p.orgApp ? { name: p.orgApp.name, reports: p.orgApp.reports.length } : null,
     links: p.workspace ? { workspace: `https://app.fabric.microsoft.com/groups/${p.workspace.id}` } : {},
   };
 }
@@ -462,6 +465,17 @@ function studioTools(chatId) {
           next: 'Summarize the recommendation briefly and tell the user to select "Apply suggestions" below your message to review and build it. Do not call studio_create_report unless the user asks you to in chat.',
         };
       },
+    }),
+    studioTool('studio_create_org_app', {
+      description: 'Create or update a Fabric org app that bundles the studio\'s Power BI reports (overview page, Reports and Business rules sections, theme colors). People get the app without workspace access once the user adds an audience and publishes it in Fabric. Default: all reports the studio built.',
+      parameters: obj({
+        name: str('App name (default: "<semantic model> app")'),
+        theme: { type: 'string', enum: ['studio', 'executive', 'teal', 'slate', 'accessible', 'midnight'] },
+        reportIds: { type: 'array', items: { type: 'string' }, description: 'Report IDs to include (default: all studio reports)' },
+        title: str('Overview page title'),
+        body: str('Overview page text: what the app is for, in two or three sentences'),
+      }),
+      handler: async (a) => runAsJob('org-app', `Create org app ${a.name || ''}`.trim(), (ctx) => APPS.runOrgApp(ctx, a)),
     }),
     studioTool('studio_create_report', {
       description: 'Build a professional Power BI report on the project semantic model from the studio templates and deploy it to the project workspace (an existing report with the same name is updated). Pages: executive (Executive summary), drivers (Performance drivers), scorecard (Scorecard), rules (Business rules dashboard: ontology rules with live counts; rule measures the model lacks are added to the report). Themes: studio, executive, teal, slate, accessible, midnight. Call studio_describe_report_options first to recommend pages and a theme.',

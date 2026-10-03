@@ -25,6 +25,7 @@ const EMPTY = {
   semanticModel: null,            // { id, name }
   ontology: null,                 // { id, name }
   reports: [],                    // Power BI reports built by the studio: [{ id, name, theme, pages[], url, builtAt, preview }]
+  orgApp: null,                   // Org app bundling the reports: { id, name, theme, reports[], url, builtAt }
   glossary: '',
   teamsAgent: null,
   steps: {},                      // stepId -> { status, at, note }

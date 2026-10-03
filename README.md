@@ -19,7 +19,7 @@ A local web app the customer installs and runs. One place to:
 | **Data** | Sample data (Contoso Retail lakehouse, or **AdventureWorksDW2022 created as a Fabric SQL database**) · mirror **Azure SQL DB, SQL Managed Instance, SQL Server on-premises, Azure PostgreSQL** · reuse **Fabric lakehouses, warehouses, mirrored databases, SQL databases** (in place or shortcuts) |
 | **Semantic model** | Direct Lake model generated from your tables and keys, then enriched by Copilot: measures from your glossary, descriptions, RLS, translations, best-practice review |
 | **Ontology** | Entities, relationships and plain-English business rules from your glossary |
-| **Reports & apps** | Professional Power BI reports generated from your semantic model: the studio reads your measures, dates and dimensions, then fills page templates (executive summary, performance drivers, scorecard) with one of 6 themes and deploys the report |
+| **Reports & apps** | Professional Power BI reports generated from your semantic model: the studio reads your measures, dates and dimensions, recommends reports with reasons from your data, fills page templates (executive summary, performance drivers, scorecard, **business rules dashboard** from your ontology) with one of 6 themes, deploys them, and bundles them into a **Fabric org app** |
 | **Ask & share** | Chat with governed answers (Fabric IQ), install the Microsoft 365 Copilot / Teams agent, connect other AI clients, create a Fabric data agent, export the audit log |
 
 Every step has a quick action **and** a Copilot path. Copilot calls the Fabric MCP servers as the signed-in user and

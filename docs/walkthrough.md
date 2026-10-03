@@ -80,6 +80,8 @@ Ontology is in preview; the Ontology MCP endpoint (used by agents) needs a paid 
    dimensions, the top-10 list and the drill path, plus a few insights from your data.
 3. Or pick **pages** (Executive summary, Performance drivers, Scorecard, Business rules) and a **theme** yourself, name the report, *Build report*.
 4. *Open in Power BI*, or expand **Preview** to see the rendered pages.
+5. **Org app for your organization** › *Create app*: one app with an overview page and your reports in sections. Then
+   *Publish in Fabric*: add an audience (who can see it) and publish – people don't need access to the workspace.
 
 > Ask Copilot: *Recommend the best Power BI report for my semantic model.* Copilot explains its choice and shows
 > **Apply suggestions**, which opens a review and builds the report in one click.
@@ -119,7 +121,7 @@ More in [fabric-demo-ask](../.github/skills/fabric-demo-ask/SKILL.md).
 ## Clean up
 
 **Settings › Clean up** deletes what the studio created (lakehouse, SQL database, mirrored database, semantic model,
-reports, ontology – or the whole workspace if the studio created it). *Start a new project* clears local state only.
+reports, org app, ontology – or the whole workspace if the studio created it). *Start a new project* clears local state only.
 
 ## Without the studio
 

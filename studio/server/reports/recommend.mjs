@@ -66,5 +66,23 @@ export function recommendations(profile, project, { rules = null, values = [] } 
     r.built = b ? { id: b.id, url: b.url, builtAt: b.builtAt } : null;
     r.available = true;
   }
+
+  // The org app shares what was built; recommend it once there is something to share.
+  const reports = project.reports || [];
+  const app = {
+    id: 'org-app', kind: 'app', title: 'Org app for your organization', audience: 'Everyone who needs the numbers',
+    theme: project.orgApp?.theme || reports[0]?.theme || 'executive', pages: [], name: project.orgApp?.name || `${model} app`,
+    reasons: reports.length
+      ? [
+        `Bundles your ${reports.length} report${reports.length === 1 ? '' : 's'} (${reports.slice(0, 3).map((r) => r.name).join(', ')}) behind one overview page.`,
+        'People get the app without access to the workspace; you choose the audience in Fabric.',
+        'Uses your report theme colors, and updates in place when you rebuild.',
+      ]
+      : ['Build a report first – the app shares your reports with your organization in one place.'],
+    built: project.orgApp ? { id: project.orgApp.id, url: project.orgApp.url, builtAt: project.orgApp.builtAt } : null,
+    available: reports.length > 0,
+    reportCount: reports.length,
+  };
+  out.push(app);
   return out;
 }

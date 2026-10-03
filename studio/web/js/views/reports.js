@@ -43,6 +43,7 @@ function drawRecommendations(card, p, designer) {
 }
 
 function recCard(rec, p, designer) {
+  if (rec.kind === 'app') return appRecCard(rec);
   const theme = catalog.themes.find((t) => t.id === rec.theme);
   const pages = rec.pages.map((id) => catalog.pages.find((x) => x.id === id)?.name || id);
   const job = h('div');
@@ -62,6 +63,34 @@ function recCard(rec, p, designer) {
     h('ul', { class: 'pre small' }, rec.reasons.map((x) => h('li', {}, x))),
     h('div', { class: 'row', style: { marginTop: 'auto' } }, build, customize, rec.built ? h('a', { class: 'btn', href: rec.built.url, target: '_blank', rel: 'noopener' }, 'Open ↗') : null),
     job);
+}
+
+// ---------------- org app ----------------
+function appRecCard(rec) {
+  const theme = catalog.themes.find((t) => t.id === rec.theme);
+  const job = h('div');
+  const build = h('button', { class: 'btn pri', 'data-busy': 'Starting…', disabled: !rec.available || undefined, title: rec.available ? 'Create or update the org app with all your reports' : 'Build a report first' }, rec.built ? '↻ Update app' : 'Create app');
+  build.addEventListener('click', busy(build, async () => { await startJob('/jobs/org-app', { name: rec.name, theme: rec.theme }, job, 'Org app ready – add an audience and publish it in Fabric'); }));
+  return h('div', { class: `rec ${rec.built ? 'built' : ''}` },
+    h('div', { class: 'row sp', style: { alignItems: 'flex-start' } },
+      h('div', {}, h('div', { class: 'row' }, h('b', {}, rec.title), rec.built ? h('span', { class: 'pill ok' }, 'Created') : h('span', { class: 'pill brand' }, rec.available ? 'Recommended' : 'Next')), h('div', { class: 'tiny muted' }, `Fabric org app · ${theme?.name || rec.theme} colors`)),
+      theme ? h('div', { class: 'recsw', title: theme.name }, h('i', { style: { background: theme.header } }), ...theme.dataColors.slice(0, 4).map((c) => h('i', { style: { background: c } }))) : null),
+    h('div', { class: 'chips' }, h('span', { class: 'pill' }, 'Overview page'), h('span', { class: 'pill' }, `${rec.reportCount} report${rec.reportCount === 1 ? '' : 's'}`), h('span', { class: 'pill' }, 'Audiences in Fabric')),
+    h('ul', { class: 'pre small' }, rec.reasons.map((x) => h('li', {}, x))),
+    h('div', { class: 'row', style: { marginTop: 'auto' } }, build, rec.built ? h('a', { class: 'btn', href: rec.built.url, target: '_blank', rel: 'noopener', title: 'Open the workspace in Fabric to add an audience and publish the app' }, 'Publish in Fabric ↗') : null),
+    job);
+}
+
+async function startJob(path, payload, container, doneText) {
+  const j = await post(path, payload);
+  app.watchJob(j.id);
+  const render = (x) => { container.querySelector(':scope > .jobcard-slot')?.remove(); container.append(h('div', { class: 'jobcard-slot mt' }, app.jobCard(x))); };
+  render(j);
+  const off = on('job', (e) => {
+    if (e.job.id !== j.id) return;
+    render(e.job);
+    if (e.job.status !== 'running') { off(); if (e.job.status === 'succeeded') { toast(doneText, 'ok'); app.refresh(); } }
+  });
 }
 
 // ---------------- Copilot's suggested report ----------------
@@ -129,6 +158,14 @@ export async function applyReportProposal(pr) {
 // ---------------- reports already built ----------------
 function reportsCard(p, reports) {
   const list = h('div', { class: 'col', style: { gap: '12px' } });
+  if (p.orgApp) {
+    list.append(h('div', { class: 'rrow app' },
+      h('div', { class: 'row sp' },
+        h('div', {},
+          h('div', { class: 'row' }, h('span', {}, '▦'), h('b', {}, p.orgApp.name), h('span', { class: 'pill ok' }, 'Org app')),
+          h('div', { class: 'tiny muted' }, `${p.orgApp.reports.length} report${p.orgApp.reports.length === 1 ? '' : 's'} · updated ${fmtDate(p.orgApp.builtAt)} · add an audience and publish it in Fabric to share it`)),
+        h('a', { class: 'btn pri', href: p.orgApp.url, target: '_blank', rel: 'noopener' }, 'Publish in Fabric ↗'))));
+  }
   for (const r of reports) {
     const preview = h('div');
     const showPreview = () => {
@@ -162,7 +199,7 @@ function reportsCard(p, reports) {
       preview));
   }
   return h('div', { class: 'card' },
-    h('div', { class: 'row sp' }, h('div', {}, h('h2', {}, 'Your reports'), h('p', { class: 'lead' }, 'Power BI reports built on your semantic model, with your security and measures.')),
+    h('div', { class: 'row sp' }, h('div', {}, h('h2', {}, p.orgApp ? 'Your reports and app' : 'Your reports'), h('p', { class: 'lead' }, 'Power BI reports built on your semantic model, with your security and measures.')),
       h('button', { class: 'btn ai', onclick: () => app.ask('Review my Power BI reports against my model and glossary. What is missing for executives, and which page would you add or change? Use studio_describe_report_options.') }, '✦ Review with Copilot')),
     list);
 }
@@ -284,13 +321,5 @@ function drawDesigner(card, p) {
 }
 
 async function startBuild(payload, container) {
-  const j = await post('/jobs/report', payload);
-  app.watchJob(j.id);
-  const render = (x) => { container.querySelector(':scope > .jobcard-slot')?.remove(); const slot = h('div', { class: 'jobcard-slot mt' }, app.jobCard(x)); container.append(slot); };
-  render(j);
-  const off = on('job', (e) => {
-    if (e.job.id !== j.id) return;
-    render(e.job);
-    if (e.job.status !== 'running') { off(); if (e.job.status === 'succeeded') { toast('Report deployed', 'ok'); app.refresh(); } }
-  });
+  await startJob('/jobs/report', payload, container, 'Report deployed');
 }

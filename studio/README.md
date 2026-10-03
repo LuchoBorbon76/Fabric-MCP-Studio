@@ -118,6 +118,10 @@ Copilot can recommend pages and a theme for your audience (`studio_describe_repo
 (`studio_propose_report`); **Apply suggestions** reviews and builds it in one click. The tab also shows
 **Recommended for your data** – ready-made report recommendations with the reasons from your model.
 
+**Org app** – *Create app* bundles the studio's reports into a Fabric org app: an overview page, a *Reports* section
+and a *Business rules* section, in the report theme's colors. People get the app without access to the workspace: open
+it in Fabric, add an audience and publish it. Rebuilding updates the app in place (`studio_create_org_app` for Copilot).
+
 ## Files
 
 | Path | Purpose |
