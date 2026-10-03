@@ -15,11 +15,16 @@ export function renderReports(el) {
     return;
   }
   const reports = p.reports || [];
-  const recs = h('div', { class: 'card', style: { marginBottom: '14px' } });
+  // What's already built comes first; recommendations and the designer follow.
+  if (reports.length || p.orgApp) {
+    const built = reportsCard(p, reports);
+    built.style.marginBottom = '14px';
+    el.append(built);
+  }
+  const recs = h('div', { class: 'card' });
   el.append(recs);
-  if (reports.length) el.append(reportsCard(p, reports));
   const findings = h('div', { class: 'card' });
-  const designer = h('div', { class: 'card' });
+  const designer = h('div', { class: 'card', style: { marginTop: 0 } });
   el.append(h('div', { class: 'grid g2', style: { marginTop: '14px', alignItems: 'start' } }, findings, designer), copilotSlot());
   drawRecommendations(recs, p, designer);
   drawFindings(findings, p);
