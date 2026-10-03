@@ -32,6 +32,7 @@
 | Double-clicking the desktop icon shows *Fabric MCP Studio could not start* | The server stopped during start-up (the dialog shows the last lines of `studio/data/studio.log`) | Fix the error shown, for example install Node.js 20.19+ or free the port. Run `Start-Studio.cmd` to see the full output in a console |
 | Nothing opens and there is no message | Windows Script Host is turned off by policy | Run `.\scripts\create-shortcut.ps1` again: it detects this and creates a console shortcut. Or use `Start-Studio.cmd` |
 | How do I stop the studio started from the icon? | It runs in the background, without a window | **Shut down** in the app. Starting the icon again while it runs just reopens the browser |
+| Copilot chat says *GitHub Copilot isn't signed in*, or *Session was not created with authentication info* | No GitHub sign-in with Copilot access. A `GITHUB_TOKEN` / `GH_TOKEN` environment variable set for other tools (without Copilot access) is skipped automatically and the GitHub CLI sign-in is used instead | **Settings › AI provider › Sign in with GitHub CLI**, or paste a token that has Copilot access, or choose another AI provider. *Check setup* shows which sign-in is used |
 
 ## Studio sign-in and tenants
 

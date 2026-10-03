@@ -64,7 +64,7 @@ export async function health() {
   const cs = await copilotStatus();
   const prov = providerSummary();
   if (prov.id === 'github') {
-    add('copilot', 'GitHub Copilot', cs.isAuthenticated ? 'ok' : 'error', cs.isAuthenticated ? cs.statusMessage || cs.login : (cs.statusMessage || 'Not signed in'), cs.isAuthenticated ? '' : 'Settings › AI provider › Sign in to GitHub, or choose another provider.');
+    add('copilot', 'GitHub Copilot', cs.isAuthenticated ? 'ok' : 'error', cs.isAuthenticated ? `${cs.statusMessage || cs.login}${cs.note ? ` · ${cs.note}` : ''}` : (cs.statusMessage || 'Not signed in'), cs.isAuthenticated ? '' : 'Settings › AI provider › Sign in with GitHub CLI (or paste a token with Copilot access), or choose another provider. A GITHUB_TOKEN environment variable without Copilot access is skipped automatically.');
   } else {
     add('copilot', 'AI provider', 'ok', `${prov.name} · ${prov.model || 'model not set'}`, 'Use Settings › AI provider › Test.');
   }

@@ -62,7 +62,10 @@ export const PROVIDERS = [
 
 let client = null;
 let clientStarting = null;
-let memGitHubToken = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || '';
+// Token pasted in Settings (memory only). Environment tokens are tried by the runtime itself; see getClient().
+let memGitHubToken = '';
+let authNote = '';
+const ENV_TOKENS = ['COPILOT_GITHUB_TOKEN', 'GH_TOKEN', 'GITHUB_TOKEN'];
 const chats = new Map();               // chatId -> { session, title, busy, tokenExp, transcript[] }
 const approvals = new Map();           // approvalId -> { resolve, info }
 const CHAT_DIR = join(DATA_DIR, 'chats');
@@ -70,18 +73,45 @@ if (!existsSync(CHAT_DIR)) mkdirSync(CHAT_DIR, { recursive: true });
 
 export function setGitHubToken(t) { memGitHubToken = t || ''; restartClient(); }
 
+async function startRuntime({ token = '', env } = {}) {
+  const c = new CopilotClient({
+    mode: 'empty',
+    baseDirectory: COPILOT_HOME,
+    workingDirectory: REPO_ROOT,
+    logLevel: 'error',
+    ...(token ? { gitHubToken: token } : {}),
+    ...(env ? { env } : {}),
+  });
+  await c.start();
+  return c;
+}
+
+/**
+ * GitHub Copilot sign-in, in order: a token pasted in Settings, then the runtime's defaults (COPILOT_GITHUB_TOKEN,
+ * GH_TOKEN or GITHUB_TOKEN environment variables, then the GitHub CLI sign-in). Many people set GITHUB_TOKEN for other
+ * tools with a token that has no Copilot access; when that token isn't accepted, retry with the GitHub CLI sign-in.
+ */
 async function getClient() {
   if (client) return client;
   if (clientStarting) return clientStarting;
   clientStarting = (async () => {
-    const c = new CopilotClient({
-      mode: 'empty',
-      baseDirectory: COPILOT_HOME,
-      workingDirectory: REPO_ROOT,
-      logLevel: 'error',
-      ...(memGitHubToken ? { gitHubToken: memGitHubToken } : {}),
-    });
-    await c.start();
+    authNote = '';
+    const withoutEnvTokens = () => Object.fromEntries(Object.entries(process.env).filter(([k]) => !ENV_TOKENS.includes(k.toUpperCase())));
+    let c;
+    if (memGitHubToken) c = await startRuntime({ token: memGitHubToken, env: withoutEnvTokens() });
+    else {
+      c = await startRuntime();
+      const envToken = ENV_TOKENS.find((k) => process.env[k]);
+      if (envToken && getSettings().provider.id === 'github') {
+        let ok = false;
+        try { ok = (await c.getAuthStatus())?.isAuthenticated; } catch { ok = false; }
+        if (!ok) {
+          try { await c.stop(); } catch { /* ignore */ }
+          c = await startRuntime({ env: withoutEnvTokens() });
+          authNote = `The ${envToken} environment variable has no GitHub Copilot access, so it was skipped.`;
+        }
+      }
+    }
     client = c;
     clientStarting = null;
     return c;
@@ -102,10 +132,21 @@ export async function copilotStatus() {
   try {
     const c = await getClient();
     const auth = await c.getAuthStatus();
-    return { ok: true, ...auth };
+    return { ok: true, ...auth, ...(authNote ? { note: authNote } : {}) };
   } catch (e) {
     return { ok: false, isAuthenticated: false, statusMessage: e.message };
   }
+}
+
+const NOT_SIGNED_IN = 'GitHub Copilot isn\'t signed in. Open Settings › AI provider and select "Sign in with GitHub CLI" (or paste a token), or choose another AI provider.';
+
+/** Fail early with a clear message instead of the runtime's "Session was not created with authentication info". */
+async function assertCopilotSignedIn() {
+  if (getSettings().provider.id !== 'github') return;
+  const c = await getClient();
+  let ok = false;
+  try { ok = (await c.getAuthStatus())?.isAuthenticated; } catch { ok = false; }
+  if (!ok) throw Object.assign(new Error(NOT_SIGNED_IN), { code: 'COPILOT_AUTH', status: 401 });
 }
 
 export async function listModels() {
@@ -116,6 +157,8 @@ export async function listModels() {
   }
   const c = await getClient();
   const models = await c.listModels();
+  // The list can come back empty (for example on Copilot Free); "auto" always works.
+  if (!models.some((m) => m.id === 'auto')) models.unshift({ id: 'auto', name: 'auto' });
   return models.map((m) => ({ id: m.id, name: m.name || m.id, reasoning: Boolean(m.capabilities?.supports?.reasoningEffort) }));
 }
 
@@ -587,12 +630,14 @@ function wire(chat) {
       case 'session.title_changed':
         if (d.title) { chat.title = d.title; emit('chat.title', { chatId: chat.id, title: d.title }); }
         break;
-      case 'session.error':
+      case 'session.error': {
         chat.busy = false;
-        chat.transcript.push({ role: 'error', content: d.message || 'Session error', at: Date.now() });
-        emit('chat.error', { chatId: chat.id, message: d.message || 'The AI session reported an error.' });
+        const message = /not created with authentication info|not authenticated/i.test(d.message || '') ? NOT_SIGNED_IN : d.message || 'The AI session reported an error.';
+        chat.transcript.push({ role: 'error', content: message, at: Date.now() });
+        emit('chat.error', { chatId: chat.id, message });
         persist(chat);
         break;
+      }
       case 'session.idle':
         chat.busy = false;
         emit('chat.idle', { chatId: chat.id });
@@ -610,6 +655,7 @@ function wire(chat) {
 }
 
 export async function createChat() {
+  await assertCopilotSignedIn();
   const c = await getClient();
   const id = newId();
   const session = await c.createSession({ sessionId: id, ...(await sessionConfig(id)) });
@@ -648,6 +694,7 @@ async function getChat(id) {
 export async function sendMessage(chatId, prompt) {
   const chat = await getChat(chatId);
   if (chat.busy) throw new Error('The assistant is still working on the previous message. Stop it or wait.');
+  await assertCopilotSignedIn();
   if (!chat.ontologyId) chat.ontologyId = getProject().ontology?.id;
   await ensureFresh(chat);
   chat.busy = true;

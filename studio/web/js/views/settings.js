@@ -28,6 +28,7 @@ function providerCard() {
     get('/copilot/status').then((s) => {
       status.innerHTML = '';
       status.append(statusDot(s.isAuthenticated ? 'ok' : 'error'), h('span', {}, s.isAuthenticated ? `Signed in: ${s.statusMessage || s.login}` : (s.statusMessage || 'Not signed in')));
+      if (s.note) status.append(h('span', { class: 'tiny muted', style: { flexBasis: '100%' } }, s.note));
     }).catch((e) => { status.textContent = e.message; });
     const model = select([{ value: d.model || 'auto', label: d.model || 'auto' }]);
     get('/copilot/models').then((ms) => { model.innerHTML = ''; for (const m of ms) model.append(h('option', { value: m.id, selected: m.id === (d.model || 'auto') || undefined }, m.id === 'auto' ? 'auto (best available)' : m.name)); }).catch(() => {});
