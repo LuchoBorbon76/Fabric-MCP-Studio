@@ -69,7 +69,8 @@ flowchart LR
 - **Copilot inside every step**: Copilot opens right in the tab you are working in (for example below the tables and
   relationships in *Semantic model*), never in a separate window. The **Copilot** tab shows the same conversation full size.
 - **Approvals**: every tool call that creates or changes something opens a review dialog with the exact request.
-  Modes: *Ask every time* (default), *Auto-approve*, *Read-only*.
+  Modes: *Ask every time* (default), *Auto-approve*, *Read-only*. When Copilot suggests a semantic model design, an
+  **Apply suggestions** button reviews and creates it in one click – no need to type a confirmation.
 - **Secrets never reach the AI**: database credentials are entered in the Data tab and sent straight to Fabric to
   create a connection; Copilot only sees the connection ID.
 - **Identity**: Microsoft Entra tokens (Azure CLI sign-in or browser) are minted locally and passed to the MCP

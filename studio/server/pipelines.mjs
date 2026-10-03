@@ -2,7 +2,7 @@
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, basename, extname } from 'node:path';
 import { spawn } from 'node:child_process';
-import { REPO_ROOT, sleep, stableUuid } from './config.mjs';
+import { REPO_ROOT, sleep, stableUuid, newId } from './config.mjs';
 import * as F from './fabric.mjs';
 import { getProject, updateProject, setStep, recordArtifact, logActivity, assertProjectTenant } from './project.mjs';
 import { discoverSqlServer, testSqlServer, readOnlyQuery, withPool } from './sql.mjs';
@@ -71,7 +71,8 @@ async function ensureProjectLakehouse(name, log) {
 
 function setModelSource(ms, label) {
   discoveryCache = { key: null, at: 0, data: null };
-  updateProject({ modelSource: ms });
+  // A suggested design is tied to the old schema.
+  updateProject({ modelSource: ms, modelProposal: null });
   setStep('data', 'done', label);
 }
 
@@ -284,7 +285,7 @@ export async function queryModelSource(query) {
 
 // ---------------- semantic model ----------------
 
-export async function runSemanticModel(ctx, { name, include, names, relationships, measures, descriptions, useDefaults = true } = {}) {
+export async function runSemanticModel(ctx, { name, include, names, relationships, measures, descriptions, useDefaults = true, proposalId } = {}) {
   const ws = requireWorkspace();
   const p = getProject();
   const preset = presetFor(p);
@@ -296,9 +297,7 @@ export async function runSemanticModel(ctx, { name, include, names, relationship
   ctx.log(`${plan.tables.length} tables, ${plan.relationships.length} relationships`);
   ctx.progress(25);
 
-  let m = measures;
-  if (!m?.length) m = preset?.measures || (useDefaults ? defaultMeasures(plan) : []);
-  m = (m || []).filter((x) => plan.tables.some((t) => t.name === x.table));
+  const m = modelMeasures(plan, preset, measures, useDefaults);
   const dateTable = preset?.dateTable && plan.tables.some((t) => t.name === preset.dateTable.table) ? preset.dateTable : null;
   const modelName = name || p.semanticModel?.name || preset?.semanticModelName || `${p.modelSource.itemName} Model`;
 
@@ -318,9 +317,70 @@ export async function runSemanticModel(ctx, { name, include, names, relationship
     recordArtifact({ type: 'SemanticModel', id: item.id, name: modelName, workspaceId: ws.id });
   }
   ctx.progress(90);
-  updateProject({ semanticModel: { id: item.id, name: modelName, tables: plan.tables.length, measures: m.length, relationships: plan.relationships.length } });
+  const proposal = getProject().modelProposal;
+  updateProject({
+    semanticModel: { id: item.id, name: modelName, tables: plan.tables.length, measures: m.length, relationships: plan.relationships.length },
+    ...(proposalId && proposal?.id === proposalId ? { modelProposal: { ...proposal, appliedAt: new Date().toISOString(), semanticModelId: item.id } } : {}),
+  });
   setStep('model', 'done', modelName);
   return { id: item.id, name: modelName, tables: plan.tables.map((t) => t.name), measures: m.map((x) => x.name), relationships: plan.relationships.length };
+}
+
+/**
+ * Measures for a model: sample presets keep their glossary measures and add or replace Copilot's by name;
+ * other sources use Copilot's measures, or starter measures when there are none. Measures on excluded tables are dropped.
+ */
+function modelMeasures(plan, preset, measures, useDefaults = true) {
+  let m;
+  if (preset?.measures?.length) {
+    const given = measures || [];
+    const names = new Set(given.map((x) => x.name.toLowerCase()));
+    m = [...preset.measures.filter((x) => !names.has(x.name.toLowerCase())), ...given];
+  } else m = measures?.length ? measures : useDefaults ? defaultMeasures(plan) : [];
+  return m.filter((x) => plan.tables.some((t) => t.name === x.table));
+}
+
+// ---------------- Copilot suggestions ----------------
+
+/** Keep Copilot's suggested semantic model design, checked against the schema, so the user can review and apply it. Nothing changes in Fabric. */
+export async function proposeSemanticModel({ name, include, names, relationships, measures, summary }, { chatId = null } = {}) {
+  await assertProjectTenant();
+  const p = getProject();
+  if (!p.modelSource) throw new Error('No data source yet. Load sample data or connect data first (Data tab).');
+  const preset = presetFor(p);
+  const schema = await describeModelSource();
+  const known = new Set(schema.tables.flatMap((t) => [`${t.schema}.${t.name}`, t.name]));
+  const plan = buildPlan({ ...schema, relationships: relationships?.length ? relationships : schema.relationships }, { include: include?.length ? include : preset?.include, names: { ...(preset?.names || {}), ...(names || {}) } });
+  if (!plan.tables.length) throw new Error('None of the suggested tables exist in the data source. Call studio_describe_data and use schema.table names.');
+  const given = (measures || []).filter((x) => x?.table && x?.name && x?.expression);
+  const effective = modelMeasures(plan, preset, given);
+  const warnings = [
+    ...(include || []).filter((k) => !known.has(k)).map((k) => `Table ${k} doesn't exist in the data source and was left out.`),
+    ...given.filter((x) => !plan.tables.some((t) => t.name === x.table)).map((x) => `Measure ${x.name} uses table "${x.table}", which isn't one of the model's business table names, and was left out.`),
+    ...(relationships?.length && plan.relationships.length < relationships.length ? [`${relationships.length - plan.relationships.length} relationship(s) use tables or columns that aren't in the model and were left out.`] : []),
+  ];
+  const modelName = name || p.semanticModel?.name || preset?.semanticModelName || `${p.modelSource.itemName} Model`;
+  // Snowflaked dimensions (Product → Subcategory) are on the "from" side too; only tables nothing points to are facts.
+  const role = (t) => (plan.relationships.some((r) => r.to === t) ? 'dimension' : plan.relationships.some((r) => r.from === t) ? 'fact' : 'table');
+  const text = String(summary || '').trim();
+  const proposal = {
+    id: newId(), kind: 'semantic-model', chatId, createdAt: new Date().toISOString(), summary: text.length > 1200 ? `${text.slice(0, 1200).replace(/\s+\S*$/, '')}…` : text,
+    name: modelName,
+    include: plan.tables.map((t) => t.key),
+    names: names || {},
+    relationships: relationships?.length ? relationships : null,
+    measures: given,
+    updatesExisting: p.semanticModel?.name === modelName,
+    preview: {
+      tables: plan.tables.map((t) => ({ key: t.key, name: t.name, role: role(t) })),
+      relationships: plan.relationships.map((r) => ({ from: `${r.from.name}[${r.fromColumn}]`, to: `${r.to.name}[${r.toColumn}]`, active: r.active })),
+      measures: effective.map((x) => ({ table: x.table, name: x.name, expression: x.expression, suggested: given.includes(x) })),
+    },
+    warnings,
+  };
+  updateProject({ modelProposal: proposal });
+  logActivity('copilot.proposal', `Copilot suggested semantic model "${modelName}" (${plan.tables.length} tables, ${plan.relationships.length} relationships, ${effective.length} measures)`, { chatId });
+  return proposal;
 }
 
 // ---------------- ontology ----------------
@@ -490,7 +550,7 @@ export async function runTeardown(ctx, { deleteWorkspace = false } = {}) {
     ctx.step(`Delete workspace ${p.workspace.name}`);
     await F.deleteWorkspace(p.workspace.id);
     // Everything lived in that workspace; keep only the glossary for the next project.
-    updateProject({ workspace: null, lakehouse: null, sqlDatabase: null, source: null, modelSource: null, semanticModel: null, ontology: null, teamsAgent: null, scenario: null, tenant: null, steps: {} });
+    updateProject({ workspace: null, lakehouse: null, sqlDatabase: null, source: null, modelSource: null, modelProposal: null, semanticModel: null, ontology: null, teamsAgent: null, scenario: null, tenant: null, steps: {} });
   } else if (p.workspace) {
     ctx.step('Delete items created by the studio');
     for (const it of [p.ontology, p.semanticModel].filter(Boolean)) {
@@ -518,7 +578,7 @@ export async function runTeardown(ctx, { deleteWorkspace = false } = {}) {
       try { await F.deleteItem(p.workspace.id, p.sqlDatabase.id); ctx.log(`Deleted SQL database ${p.sqlDatabase.name}`); } catch (e) { ctx.log(e.message); }
     }
     const keep = p.steps?.workspace;
-    updateProject({ lakehouse: null, sqlDatabase: null, source: null, modelSource: null, semanticModel: null, ontology: null, teamsAgent: null, scenario: null, steps: keep ? { workspace: keep } : {} });
+    updateProject({ lakehouse: null, sqlDatabase: null, source: null, modelSource: null, modelProposal: null, semanticModel: null, ontology: null, teamsAgent: null, scenario: null, steps: keep ? { workspace: keep } : {} });
   }
   return { ok: true };
 }

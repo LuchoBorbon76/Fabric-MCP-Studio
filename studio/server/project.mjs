@@ -20,6 +20,7 @@ const EMPTY = {
   sqlDatabase: null,              // { id, name, server, database } – Fabric SQL database created by the studio (AdventureWorksDW2022 sample)
   source: null,                   // { kind, type, label, method, itemId, tables[] } + mirror: connectionId, connectionName, server, port, database; fabric: itemType, itemName, workspaceId
   modelSource: null,              // { itemType, itemId, itemName, workspaceId, server, endpointId, database, schema, tables[] }
+  modelProposal: null,            // Copilot's suggested semantic model design, applied from the chat or the Semantic model tab
   semanticModel: null,            // { id, name }
   ontology: null,                 // { id, name }
   glossary: '',

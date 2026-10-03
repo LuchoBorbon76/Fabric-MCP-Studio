@@ -44,6 +44,10 @@ status for mirrored databases. The source tabs below open on the source in use, 
 The studio generates a Direct Lake model. With the samples it also adds business measures from the glossary
 (18 for Contoso Retail, 24 for AdventureWorksDW2022 – a star schema of internet and reseller sales).
 
+Or select *Design it with Copilot*: Copilot suggests the tables, business names, relationships and measures, then shows
+an **Apply suggestions** button (in the chat and above *Create semantic model*). It opens a review of exactly what will
+be created; confirm it to deploy the model. With the samples, Copilot's measures are added to the glossary measures.
+
 Then improve it with Copilot (Power BI Authoring MCP):
 
 - *Add business measures from my glossary*

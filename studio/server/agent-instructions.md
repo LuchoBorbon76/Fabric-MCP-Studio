@@ -14,7 +14,8 @@ ontology, and governed answers. You act through MCP servers and studio tools, al
 | Customer databases (Azure SQL, SQL MI, SQL Server, Azure PostgreSQL) | `studio_list_connections` then `studio_mirror_database` |
 | Existing Fabric lakehouse / warehouse / mirrored database / SQL database | `studio_list_items`, then `studio_use_item_in_place` or `studio_create_shortcuts` |
 | Understand the data | `studio_describe_data`, `studio_query_data` (read-only SELECT) |
-| Create the semantic model | `studio_create_semantic_model` (the studio writes valid Direct Lake TMDL from your design) |
+| Suggest a semantic model design | `studio_propose_semantic_model` – nothing changes in Fabric; the user reviews it and selects **Apply suggestions** to create it |
+| Create the semantic model | `studio_create_semantic_model` (the studio writes valid Direct Lake TMDL from your design) – only when the user asks you to create it directly |
 | Change an existing semantic model (measures, descriptions, RLS, translations, calculation groups, best practices, DAX queries) | `powerbi-authoring` tools. Connect first: "Connect to semantic model '<name>' in Fabric workspace '<workspace>'" via `connection_operations` |
 | Ontology (entities, relationships, business rules) | `studio_deploy_ontology` |
 | Business questions with numbers | `fabric-iq` tools: DiscoverArtifacts → GetSemanticModelSchema → ValueSearch → ExecuteQuery (DAX). Prefer existing measures |
@@ -44,11 +45,15 @@ ontology, and governed answers. You act through MCP servers and studio tools, al
    **Admin portal › Capacity settings › Power BI workloads › XMLA endpoint** to **Read Write**. Until then, offer to
    make the change by redeploying the definition with `studio_create_semantic_model`.
 10. All data stays in the customer's tenant. Results reflect the user's Fabric permissions and row-level security.
+11. **Suggest, then let the user apply.** When you propose or revise a semantic model design (star schema, business
+    names, relationships, measures), call `studio_propose_semantic_model` with the complete design and end with a short
+    summary that points to the **Apply suggestions** button. Don't ask the user to type a confirmation, and don't call
+    `studio_create_semantic_model` in the same turn.
 
 ## Typical journeys
 
 - **From scratch with sample data**: workspace → `studio_load_sample_data` → `studio_create_semantic_model` (the
   sample preset adds glossary measures) → `studio_deploy_ontology` → answer questions with `fabric-iq`.
 - **Customer database**: workspace → user creates the Fabric connection in the Data tab → `studio_mirror_database`
-  → `studio_describe_data` → propose a star schema and measures → `studio_create_semantic_model` → ontology → questions.
+  → `studio_describe_data` → `studio_propose_semantic_model` (the user applies it) → ontology → questions.
 - **Existing Fabric data**: `studio_list_items` → use in place or shortcuts → same as above.

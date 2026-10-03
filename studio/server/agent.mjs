@@ -259,6 +259,7 @@ const STUDIO_TOOLS_META = {
   studio_describe_data: { write: false, title: 'Describe data source' },
   studio_query_data: { write: false, title: 'Query data (read-only)' },
   studio_create_semantic_model: { write: true, title: 'Create semantic model' },
+  studio_propose_semantic_model: { write: false, title: 'Suggest semantic model design' },
   studio_deploy_ontology: { write: true, title: 'Deploy ontology' },
   studio_get_glossary: { write: false, title: 'Read business glossary' },
   studio_save_glossary: { write: false, title: 'Save business glossary' },
@@ -279,7 +280,8 @@ function projectSummary() {
     workspace: p.workspace, lakehouse: p.lakehouse, source: p.source, modelSource: p.modelSource,
     semanticModel: p.semanticModel, ontology: p.ontology, steps: p.steps,
     glossaryChars: (p.glossary || '').length,
-    sample: preset ? { semanticModelName: preset.semanticModelName, ontologyName: preset.ontologyName } : null,
+    sample: preset ? { semanticModelName: preset.semanticModelName, ontologyName: preset.ontologyName, measures: (preset.measures || []).map((m) => `${m.table}[${m.name}]`) } : null,
+    modelProposal: p.modelProposal ? { name: p.modelProposal.name, createdAt: p.modelProposal.createdAt, appliedAt: p.modelProposal.appliedAt || null } : null,
     links: p.workspace ? { workspace: `https://app.fabric.microsoft.com/groups/${p.workspace.id}` } : {},
   };
 }
@@ -287,34 +289,66 @@ function projectSummary() {
 const obj = (properties, required = []) => ({ type: 'object', properties, required, additionalProperties: false });
 const str = (description) => ({ type: 'string', description });
 
-function studioTools() {
+// Same design fields for suggesting and for creating a semantic model.
+const MODEL_DESIGN = {
+  name: str('Semantic model name'),
+  tables: { type: 'array', items: { type: 'string' }, description: 'Source tables to include as schema.table (default: all)' },
+  tableNames: { type: 'object', additionalProperties: { type: 'string' }, description: 'Map source table (schema.table) to business name' },
+  relationships: {
+    type: 'array', description: 'Many-to-one relationships (from fact column to dimension key) using source table names',
+    items: obj({ fromTable: str('schema.table'), fromColumn: str('column'), toTable: str('schema.table'), toColumn: str('column'), active: { type: 'boolean' } }, ['fromTable', 'fromColumn', 'toTable', 'toColumn']),
+  },
+  measures: {
+    type: 'array', description: 'DAX measures',
+    items: obj({ table: str('Business table name'), name: str('Measure name'), expression: str('DAX expression'), formatString: str('Format string'), description: str('Plain-language description'), displayFolder: str('Display folder') }, ['table', 'name', 'expression']),
+  },
+};
+
+function modelDesign(a) {
+  const split = (s) => { const [schema, ...rest] = String(s).split('.'); return rest.length ? { schema, table: rest.join('.') } : { schema: 'dbo', table: schema }; };
+  const relationships = a.relationships?.map((r) => ({ from: { ...split(r.fromTable), column: r.fromColumn }, to: { ...split(r.toTable), column: r.toColumn }, active: r.active !== false }));
+  return { name: a.name, include: a.tables, names: a.tableNames, relationships, measures: a.measures };
+}
+
+// The SDK reports a thrown error only as "Tool execution failed"; return the cause so Copilot can explain it
+// (for example a paused capacity or a missing permission).
+function studioTool(name, def) {
+  return defineTool(name, {
+    ...def,
+    handler: async (a) => {
+      try { return await def.handler(a); } catch (e) { return { ok: false, error: e.message || String(e) }; }
+    },
+  });
+}
+
+function studioTools(chatId) {
   return [
-    defineTool('studio_get_project_state', {
+    studioTool('studio_get_project_state', {
       description: 'Get the Fabric MCP Studio project state: selected workspace, lakehouse, data source, model source (SQL endpoint), semantic model, ontology and completed steps. Call this first.',
       parameters: obj({}), handler: async () => projectSummary(),
     }),
-    defineTool('studio_list_capacities', {
+    studioTool('studio_list_capacities', {
       description: 'List Fabric capacities the user can use (id, name, SKU, region, state).',
       parameters: obj({}), handler: async () => (await F.listCapacities()).map((c) => ({ id: c.id, name: c.displayName, sku: c.sku, region: c.region, state: c.state })),
     }),
-    defineTool('studio_use_workspace', {
+    studioTool('studio_use_workspace', {
       description: 'Select an existing workspace (by id) or create a new one (name + capacityId) and make it the project workspace. Always use this instead of fabric-core create_workspace so the studio tracks it.',
       parameters: obj({ workspaceId: str('Existing workspace ID'), name: str('Name for a new workspace'), capacityId: str('Capacity ID for a new workspace') }),
       handler: async (a) => P.selectWorkspace(a),
     }),
-    defineTool('studio_load_sample_data', {
+    studioTool('studio_load_sample_data', {
       description: 'Load a sample dataset into the project workspace and set it as the model source. "retail": Contoso Retail (6 tables) into a lakehouse, about 3 minutes. "adventureworks": Microsoft\'s AdventureWorksDW2022 created as a Fabric SQL database and replicated to OneLake, about 8 minutes.',
       parameters: obj({ dataset: { type: 'string', enum: ['retail', 'adventureworks'] } }, ['dataset']),
       handler: async ({ dataset }) => (dataset === 'adventureworks'
         ? runAsJob('sample', 'Create AdventureWorksDW2022 in a Fabric SQL database', (ctx) => P.runSampleAdventureWorks(ctx))
         : runAsJob('sample', 'Load Contoso Retail sample', (ctx) => P.runSampleRetail(ctx))),
     }),
-    defineTool('studio_list_connections', {
+    studioTool('studio_list_connections', {
       description: 'List Fabric connections the user can use for mirroring (SQL, AzurePostgreSQL…), including on-premises gateway connections.',
       parameters: obj({ type: str('Optional connection type filter, e.g. SQL or AzurePostgreSQL') }),
       handler: async ({ type }) => (await F.listConnections()).filter((c) => !type || c.type === type),
     }),
-    defineTool('studio_mirror_database', {
+    studioTool('studio_mirror_database', {
       description: 'Mirror a database into the project workspace with Fabric Mirroring using an existing Fabric connection ID (never ask for passwords in chat; the user creates connections in the Data tab). sourceType: azure-sql | sql-mi | sql-server | azure-postgres.',
       parameters: obj({
         sourceType: { type: 'string', enum: ['azure-sql', 'sql-mi', 'sql-server', 'azure-postgres'] },
@@ -324,17 +358,17 @@ function studioTools() {
       }, ['sourceType', 'connectionId', 'database']),
       handler: async (a) => runAsJob('mirror', `Mirror ${a.database}`, (ctx) => P.runMirror(ctx, { typeId: a.sourceType, connectionId: a.connectionId, database: a.database, tables: a.tables || [], name: a.name })),
     }),
-    defineTool('studio_list_items', {
+    studioTool('studio_list_items', {
       description: 'List Lakehouse, Warehouse, MirroredDatabase or SQLDatabase items in a workspace (to use the customer\'s existing Fabric data).',
       parameters: obj({ workspaceId: str('Workspace ID'), itemType: { type: 'string', enum: ['Lakehouse', 'Warehouse', 'MirroredDatabase', 'SQLDatabase'] } }, ['workspaceId', 'itemType']),
       handler: async ({ workspaceId, itemType }) => P.listSourceItems(workspaceId, itemType),
     }),
-    defineTool('studio_use_item_in_place', {
+    studioTool('studio_use_item_in_place', {
       description: 'Use an existing Lakehouse, Warehouse or MirroredDatabase directly as the model source (no data copy).',
       parameters: obj({ workspaceId: str('Workspace ID of the item'), itemId: str('Item ID'), itemType: { type: 'string', enum: ['Lakehouse', 'Warehouse', 'MirroredDatabase', 'SQLDatabase'] } }, ['workspaceId', 'itemId', 'itemType']),
       handler: async (a) => P.useInPlace(a),
     }),
-    defineTool('studio_create_shortcuts', {
+    studioTool('studio_create_shortcuts', {
       description: 'Create OneLake shortcuts in the project lakehouse to tables of an existing Lakehouse or Warehouse, then use the project lakehouse as the model source.',
       parameters: obj({
         sourceWorkspaceId: str('Workspace ID of the source item'), sourceItemId: str('Source item ID'),
@@ -343,7 +377,7 @@ function studioTools() {
       }, ['sourceWorkspaceId', 'sourceItemId', 'sourceItemType', 'tables']),
       handler: async (a) => runAsJob('shortcut', 'Create OneLake shortcuts', (ctx) => P.runShortcuts(ctx, a)),
     }),
-    defineTool('studio_describe_data', {
+    studioTool('studio_describe_data', {
       description: 'Describe the model source: tables (schema, row counts), columns (types, keys) and relationships (foreign keys or inferred). Use before designing a semantic model or ontology.',
       parameters: obj({ refresh: { type: 'boolean' } }),
       handler: async ({ refresh }) => {
@@ -355,33 +389,39 @@ function studioTools() {
         };
       },
     }),
-    defineTool('studio_query_data', {
+    studioTool('studio_query_data', {
       description: 'Run one read-only T-SQL SELECT against the model source SQL analytics endpoint to profile data (max 200 rows returned). Use TOP/aggregations.',
       parameters: obj({ sql: str('A single SELECT statement') }, ['sql']),
       handler: async ({ sql }) => P.queryModelSource(sql),
     }),
-    defineTool('studio_create_semantic_model', {
-      description: 'Create or update a Direct Lake semantic model over the model source. The studio generates valid TMDL. Provide business table names, relationships and DAX measures (measure.table uses the business table name). Omitted values use sensible defaults.',
-      parameters: obj({
-        name: str('Semantic model name'),
-        tables: { type: 'array', items: { type: 'string' }, description: 'Source tables to include as schema.table (default: all)' },
-        tableNames: { type: 'object', additionalProperties: { type: 'string' }, description: 'Map source table (schema.table) to business name' },
-        relationships: {
-          type: 'array', description: 'Many-to-one relationships (from fact column to dimension key) using source table names',
-          items: obj({ fromTable: str('schema.table'), fromColumn: str('column'), toTable: str('schema.table'), toColumn: str('column'), active: { type: 'boolean' } }, ['fromTable', 'fromColumn', 'toTable', 'toColumn']),
-        },
-        measures: {
-          type: 'array', description: 'DAX measures',
-          items: obj({ table: str('Business table name'), name: str('Measure name'), expression: str('DAX expression'), formatString: str('Format string'), description: str('Plain-language description'), displayFolder: str('Display folder') }, ['table', 'name', 'expression']),
-        },
-      }),
+    studioTool('studio_propose_semantic_model', {
+      description: 'Suggest a semantic model design. Nothing changes in Fabric: the studio checks the design against the schema and shows the user an "Apply suggestions" button that reviews and creates it in one click. Use this every time you propose or revise a semantic model design, instead of asking the user to type a confirmation. With sample data, the sample\'s glossary measures (project state sample.measures) are always kept; list only measures to add or change.',
+      parameters: obj({ ...MODEL_DESIGN, summary: str('Two or three sentences describing the design for the user (shown in the review)') }),
       handler: async (a) => {
-        const split = (s) => { const [schema, ...rest] = String(s).split('.'); return rest.length ? { schema, table: rest.join('.') } : { schema: 'dbo', table: schema }; };
-        const relationships = a.relationships?.map((r) => ({ from: { ...split(r.fromTable), column: r.fromColumn }, to: { ...split(r.toTable), column: r.toColumn }, active: r.active !== false }));
-        return runAsJob('semantic-model', `Create semantic model ${a.name || ''}`.trim(), (ctx) => P.runSemanticModel(ctx, { name: a.name, include: a.tables, names: a.tableNames, relationships, measures: a.measures }));
+        const proposal = await P.proposeSemanticModel({ ...modelDesign(a), summary: a.summary }, { chatId });
+        const chat = chats.get(chatId);
+        chat?.transcript.push({ role: 'proposal', proposalId: proposal.id, at: Date.now() });
+        emit('chat.proposal', { chatId, proposal });
+        return {
+          ok: true,
+          model: proposal.name,
+          tables: proposal.preview.tables.map((t) => `${t.key} as ${t.name} (${t.role})`),
+          relationships: proposal.preview.relationships.length,
+          measures: proposal.preview.measures.map((m) => `${m.table}[${m.name}]${m.suggested ? '' : ' (sample)'}`),
+          warnings: proposal.warnings,
+          next: 'Summarize the design briefly and tell the user to select "Apply suggestions" below your message to review and create it. Do not call studio_create_semantic_model unless the user asks you to in chat. If there are warnings, fix the design and suggest it again.',
+        };
       },
     }),
-    defineTool('studio_deploy_ontology', {
+    studioTool('studio_create_semantic_model', {
+      description: 'Create or update a Direct Lake semantic model over the model source. The studio generates valid TMDL. Provide business table names, relationships and DAX measures (measure.table uses the business table name). Omitted values use sensible defaults. To suggest a design for the user to review, use studio_propose_semantic_model instead.',
+      parameters: obj(MODEL_DESIGN),
+      handler: async (a) => {
+        const d = modelDesign(a);
+        return runAsJob('semantic-model', `Create semantic model ${a.name || ''}`.trim(), (ctx) => P.runSemanticModel(ctx, d));
+      },
+    }),
+    studioTool('studio_deploy_ontology', {
       description: 'Create or update a Fabric IQ ontology bound to the model source: entity types from tables, relationships, and business rules written in plain English (one sentence, no colons). Then the ontology MCP endpoint becomes available.',
       parameters: obj({
         name: str('Ontology name'),
@@ -398,11 +438,11 @@ function studioTools() {
       }),
       handler: async (a) => runAsJob('ontology', `Deploy ontology ${a.name || ''}`.trim(), (ctx) => P.runOntology(ctx, { name: a.name, include: a.tables, entityNames: a.entityNames, rules: a.rules })),
     }),
-    defineTool('studio_get_glossary', {
+    studioTool('studio_get_glossary', {
       description: 'Get the customer business glossary (definitions, measures, rules) used to ground measures and ontology rules.',
       parameters: obj({}), handler: async () => ({ glossary: getProject().glossary || '(no glossary yet)' }),
     }),
-    defineTool('studio_save_glossary', {
+    studioTool('studio_save_glossary', {
       description: 'Save or replace the business glossary text (markdown).',
       parameters: obj({ text: str('Glossary markdown') }, ['text']),
       handler: async ({ text }) => { updateProject({ glossary: text }); return { ok: true }; },
@@ -428,7 +468,7 @@ async function sessionConfig(chatId) {
     workingDirectory: REPO_ROOT,
     availableTools: new ToolSet().addBuiltIn(BuiltInTools.Isolated).addMcp('*').addCustom('*').toArray(),
     mcpServers: await mcpServerConfig(),
-    tools: studioTools(),
+    tools: studioTools(chatId),
     systemMessage: { mode: 'append', content: instructions() },
     hooks: { onPreToolUse: (input) => approve(chatId, input) },
     onPermissionRequest: async () => ({ kind: 'approved' }),
@@ -472,10 +512,10 @@ function wire(chat) {
       }
       case 'tool.execution_complete': {
         const card = toolIndex.get(d.toolCallId) || { id: d.toolCallId };
-        card.status = d.success === false ? 'failed' : 'done';
-        card.ms = Date.now() - (card.at || Date.now());
         const content = d.result?.content ?? d.result ?? d.error;
+        card.ms = Date.now() - (card.at || Date.now());
         card.result = truncate(typeof content === 'string' ? content : JSON.stringify(content), 4000);
+        card.status = d.success === false || /^\s*\{\s*"ok"\s*:\s*false/.test(card.result) ? 'failed' : 'done';
         emit('chat.tool.done', { chatId: chat.id, tool: card });
         break;
       }

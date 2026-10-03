@@ -2,6 +2,7 @@
 import { api, post, put, get, store, on } from './api.js';
 import { h, $, toast, esc, SERVER_LABEL } from './ui.js';
 import { md } from './md.js';
+import { applyModelProposal, proposalCounts } from './views/model.js';
 
 let root;               // component root element
 let msgsEl, inputEl, sendBtn, titleEl, providerEl, modelSel, histSel, closeBtn, footEl;
@@ -10,6 +11,7 @@ let busyState = false;
 let streamBubble = null;
 let streamText = '';
 let thinkEl = null;
+let turnProposal = null; // shown when Copilot finishes its answer, so the button sits below the explanation
 const toolCards = new Map();
 let suggestionsFn = () => [];
 let onCloseFn = () => {};
@@ -137,6 +139,36 @@ function prettyResult(r) {
   try { return JSON.stringify(JSON.parse(r), null, 2).slice(0, 6000); } catch { return String(r).slice(0, 6000); }
 }
 
+// ---- Copilot's suggestions: one-click apply ----
+function proposalCard(pr) {
+  const btn = h('button', { class: 'btn pri', onclick: () => applyModelProposal(store.project?.modelProposal?.id === pr.id ? store.project.modelProposal : pr) }, '✓ Apply suggestions');
+  const card = h('div', { class: 'pcard', 'data-proposal': pr.id },
+    h('div', { class: 'ph' }, h('span', {}, '✦'), 'Semantic model design ready'),
+    pr.preview ? h('div', { class: 'small muted' }, proposalCounts(pr)) : null,
+    h('div', { class: 'row' }, btn, h('span', { class: 'pstate small muted' }, 'Review it, then create it in one click.')));
+  syncProposalCard(card);
+  return h('div', { class: 'msg bot' }, card);
+}
+
+function syncProposalCard(card) {
+  const cur = store.project?.modelProposal;
+  const btn = $('button', card);
+  const state = $('.pstate', card);
+  const mine = cur?.id === card.dataset.proposal;
+  if (mine && cur.appliedAt) card.dataset.applied = '1';
+  const applied = card.dataset.applied === '1';
+  btn.hidden = !mine || applied;
+  state.textContent = applied ? '✓ Applied' : !mine ? (cur ? 'Replaced by newer suggestions.' : 'No longer available.') : 'Review it, then create it in one click.';
+  state.classList.toggle('ok', applied);
+}
+
+function flushProposal() {
+  if (!turnProposal) return;
+  msgsEl.append(proposalCard(turnProposal));
+  turnProposal = null;
+  scrollDown();
+}
+
 function setBusy(b) {
   busyState = b;
   sendBtn.textContent = b ? '■' : '➤';
@@ -179,10 +211,12 @@ function wireEvents() {
   });
   on('chat.tool.start', (e) => { if (mine(e)) { endStream(); thinkEl = null; toolCard(e.tool); } });
   on('chat.tool.done', (e) => { if (mine(e)) toolCard(e.tool); });
-  on('chat.idle', (e) => { if (mine(e)) { endStream(); setBusy(false); refreshHeader(); } });
-  on('chat.error', (e) => { if (mine(e)) { endStream(); addMsg('err', e.message); setBusy(false); } });
+  on('chat.proposal', (e) => { if (mine(e)) turnProposal = e.proposal; });
+  on('chat.idle', (e) => { if (mine(e)) { endStream(); flushProposal(); setBusy(false); refreshHeader(); } });
+  on('chat.error', (e) => { if (mine(e)) { endStream(); flushProposal(); addMsg('err', e.message); setBusy(false); } });
   on('chat.title', (e) => { if (mine(e)) titleEl.textContent = e.title; });
   on('provider', () => { modelSel.innerHTML = ''; refreshHeader(); });
+  on('project.updated', () => { if (msgsEl) msgsEl.querySelectorAll('.pcard').forEach(syncProposalCard); });
 }
 
 async function ensureChat() {
@@ -202,6 +236,7 @@ export async function newChat() {
   store.activeChat = null;
   titleEl.textContent = 'Copilot';
   toolCards.clear();
+  turnProposal = null;
   endStream();
   setBusy(false);
   renderWelcome();
@@ -216,13 +251,15 @@ export async function loadChat(id) {
     msgsEl.innerHTML = '';
     toolCards.clear();
     endStream();
+    turnProposal = null;
+    // Suggestion cards go after Copilot's explanation of that turn, as they did live.
     for (const m of c.transcript) {
-      if (m.role === 'user') addMsg('user', m.content);
-      else if (m.role === 'assistant') addMsg('bot', m.content);
+      if (m.role === 'user') { flushProposal(); addMsg('user', m.content); } else if (m.role === 'assistant') addMsg('bot', m.content);
       else if (m.role === 'error') addMsg('err', m.content);
       else if (m.role === 'tool') toolCard(m);
+      else if (m.role === 'proposal') { flushProposal(); turnProposal = store.project?.modelProposal?.id === m.proposalId ? store.project.modelProposal : { id: m.proposalId }; }
     }
-    setBusy(Boolean(c.busy));
+    if (c.busy) setBusy(true); else { flushProposal(); setBusy(false); }
   } catch (e) { toast(e.message, 'err'); }
 }
 
