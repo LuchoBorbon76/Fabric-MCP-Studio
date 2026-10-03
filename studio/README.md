@@ -111,8 +111,9 @@ Fabric REST API – no Power BI Desktop needed.
 4. **Build** – creates or updates the Report item, then renders a PDF preview with Power BI export (if your tenant turns
    export off, open the report in Power BI instead). Partial years are filtered out so comparisons use full years.
 
-Copilot can recommend pages and a theme for your audience (`studio_describe_report_options`) and build the report
-(`studio_create_report`, with your approval).
+Copilot can recommend pages and a theme for your audience (`studio_describe_report_options`) and suggest the report
+(`studio_propose_report`); **Apply suggestions** reviews and builds it in one click. The tab also shows
+**Recommended for your data** – ready-made report recommendations with the reasons from your model.
 
 ## Files
 

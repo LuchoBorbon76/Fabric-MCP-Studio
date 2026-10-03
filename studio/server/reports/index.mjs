@@ -8,7 +8,9 @@ import { getProject, updateProject, setStep, recordArtifact, assertProjectTenant
 import { profileModel } from './profile.mjs';
 import { THEMES, themeById } from './themes.mjs';
 import { PAGE_TEMPLATES, buildReportPages } from './templates.mjs';
+import { recommendations } from './recommend.mjs';
 import { reportFiles } from '../generators/pbir.mjs';
+import { newId } from '../config.mjs';
 
 const PREVIEW_DIR = join(DATA_DIR, 'previews');
 let profileCache = { key: null, at: 0, data: null };
@@ -40,8 +42,40 @@ export async function currentProfile({ refresh = false } = {}) {
 
 export function resetProfileCache() { profileCache = { key: null, at: 0, data: null }; }
 
+/** Recommended reports (and later dashboards and apps) for the project, with reasons from the model profile. */
+export async function currentRecommendations({ refresh = false } = {}) {
+  const profile = await currentProfile({ refresh });
+  return { recommendations: recommendations(profile, getProject()), insights: profile.insights };
+}
+
+const PAGE_IDS = PAGE_TEMPLATES.map((x) => x.id);
+const THEME_IDS = THEMES.map((t) => t.id);
+
+/** Keep Copilot's suggested report design so the user can review and apply it. Nothing changes in Fabric. */
+export async function proposeReport({ name, theme, pages, audience, summary }, { chatId = null } = {}) {
+  const p = requireModel();
+  const pg = (pages || []).filter((x) => PAGE_IDS.includes(x));
+  const warnings = [];
+  if (pages?.length && pg.length < pages.length) warnings.push(`Unknown pages left out: ${pages.filter((x) => !PAGE_IDS.includes(x)).join(', ')}.`);
+  if (theme && !THEME_IDS.includes(theme)) warnings.push(`Unknown theme "${theme}" – using Fabric Studio.`);
+  const reportName = F.itemName('Report', name || `${p.semanticModel.name} report`);
+  const text = String(summary || '').trim();
+  const proposal = {
+    id: newId(), kind: 'report', chatId, createdAt: new Date().toISOString(),
+    name: reportName,
+    theme: THEME_IDS.includes(theme) ? theme : 'studio',
+    pages: pg.length ? pg : PAGE_IDS,
+    audience: String(audience || '').slice(0, 120),
+    summary: text.length > 1200 ? `${text.slice(0, 1200).replace(/\s+\S*$/, '')}…` : text,
+    updatesExisting: (p.reports || []).some((r) => r.name.toLowerCase() === reportName.toLowerCase()),
+    warnings,
+  };
+  updateProject({ reportProposal: proposal });
+  return proposal;
+}
+
 /** Build (or rebuild) a Power BI report from templates and deploy it to the project workspace. */
-export async function runReport(ctx, { name, theme: themeId = 'studio', pages = ['executive', 'drivers', 'scorecard'], preview = true } = {}) {
+export async function runReport(ctx, { name, theme: themeId = 'studio', pages = ['executive', 'drivers', 'scorecard'], preview = true, proposalId } = {}) {
   const p = requireModel();
   const ws = p.workspace;
   const theme = themeById(themeId);
@@ -72,6 +106,8 @@ export async function runReport(ctx, { name, theme: themeId = 'studio', pages = 
   ctx.progress(70);
   const entry = { id: item.id, name: reportName, theme: theme.id, pages: built.map((x) => x.displayName), semanticModelId: p.semanticModel.id, url: reportUrl(ws.id, item.id), builtAt: new Date().toISOString(), preview: null };
   saveReport(entry);
+  const proposal = getProject().reportProposal;
+  if (proposalId && proposal?.id === proposalId) updateProject({ reportProposal: { ...proposal, appliedAt: new Date().toISOString(), reportId: item.id } });
 
   if (preview) {
     ctx.step('Render a preview');

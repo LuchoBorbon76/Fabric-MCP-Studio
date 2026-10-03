@@ -184,9 +184,10 @@ route('POST', '/api/jobs/shortcuts', (_, b) => startJob('shortcut', 'Create OneL
 route('POST', '/api/jobs/semantic-model', (_, b) => startJob('semantic-model', `Create semantic model ${b.name || ''}`.trim(), (ctx) => P.runSemanticModel(ctx, b)));
 route('POST', '/api/jobs/ontology', (_, b) => startJob('ontology', `Deploy ontology ${b.name || ''}`.trim(), (ctx) => P.runOntology(ctx, b)));
 route('POST', '/api/jobs/teams-agent', (_, b) => startJob('teams-agent', b.dryRun ? 'Validate Teams agent package' : 'Install Teams agent', (ctx) => P.runTeamsAgent(ctx, b)));
-route('POST', '/api/jobs/report', (_, b) => startJob('report', `Build Power BI report ${b.name || ''}`.trim(), (ctx) => R.runReport(ctx, { name: b.name, theme: b.theme, pages: Array.isArray(b.pages) ? b.pages : undefined })));
+route('POST', '/api/jobs/report', (_, b) => startJob('report', `Build Power BI report ${b.name || ''}`.trim(), (ctx) => R.runReport(ctx, { name: b.name, theme: b.theme, pages: Array.isArray(b.pages) ? b.pages : undefined, proposalId: b.proposalId })));
 route('GET', '/api/reports/catalog', () => R.reportsCatalog());
 route('GET', '/api/reports/profile', (_, __, q) => R.currentProfile({ refresh: q.get('refresh') === '1' }));
+route('GET', '/api/reports/recommendations', (_, __, q) => R.currentRecommendations({ refresh: q.get('refresh') === '1' }));
 route('DELETE', '/api/reports/:id', (p, _, q) => R.removeReport(p.id, { deleteItem: q.get('delete') === '1' }));
 route('POST', '/api/jobs/teardown', (_, b) => startJob('teardown', 'Clean up demo resources', (ctx) => P.runTeardown(ctx, b)));
 route('GET', '/api/jobs', () => listJobs());

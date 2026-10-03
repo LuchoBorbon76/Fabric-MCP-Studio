@@ -1,5 +1,5 @@
 import { store, get, post, del, on } from '../api.js';
-import { h, toast, busy, field, input, fmtDate, confirmDialog } from '../ui.js';
+import { h, toast, busy, field, input, fmtDate, confirmDialog, modal } from '../ui.js';
 import { app, copilotSlot } from '../app.js';
 
 const TOKEN = document.querySelector('meta[name="studio-token"]').content;
@@ -15,12 +15,115 @@ export function renderReports(el) {
     return;
   }
   const reports = p.reports || [];
+  const recs = h('div', { class: 'card', style: { marginBottom: '14px' } });
+  el.append(recs);
   if (reports.length) el.append(reportsCard(p, reports));
   const findings = h('div', { class: 'card' });
   const designer = h('div', { class: 'card' });
-  el.append(h('div', { class: 'grid g2', style: { marginTop: reports.length ? '14px' : 0, alignItems: 'start' } }, findings, designer), copilotSlot());
+  el.append(h('div', { class: 'grid g2', style: { marginTop: '14px', alignItems: 'start' } }, findings, designer), copilotSlot());
+  drawRecommendations(recs, p, designer);
   drawFindings(findings, p);
   drawDesigner(designer, p);
+}
+
+// ---------------- recommendations ----------------
+function drawRecommendations(card, p, designer) {
+  card.innerHTML = '';
+  const grid = h('div', { class: 'recs' }, h('div', { class: 'row muted' }, h('span', { class: 'spin' }), 'Looking at your model to recommend reports…'));
+  card.append(...[
+    h('div', { class: 'row sp' },
+      h('div', {}, h('h2', {}, 'Recommended for your data'), h('p', { class: 'lead' }, 'Based on your measures, dates, segments and what the data shows. Build one in a click, or customize it below.')),
+      h('button', { class: 'btn ai', onclick: () => app.ask('Recommend the best Power BI report for my semantic model and audience. Read studio_describe_report_options, explain which pages and theme fit and why (use the insights), then suggest it with studio_propose_report so I can apply it.') }, '✦ Recommend with Copilot')),
+    pendingReportProposal(p) ? proposalBanner(p.reportProposal) : null,
+    grid].filter(Boolean));
+  Promise.all([get('/reports/recommendations'), loadCatalog()]).then(([r]) => {
+    grid.innerHTML = '';
+    for (const rec of r.recommendations) grid.append(recCard(rec, p, designer));
+  }).catch((e) => { grid.innerHTML = ''; grid.append(h('div', { class: 'banner err' }, e.message)); });
+}
+
+function recCard(rec, p, designer) {
+  const theme = catalog.themes.find((t) => t.id === rec.theme);
+  const pages = rec.pages.map((id) => catalog.pages.find((x) => x.id === id)?.name || id);
+  const job = h('div');
+  const build = h('button', { class: 'btn pri', 'data-busy': 'Starting…' }, rec.built ? '↻ Rebuild' : 'Build');
+  build.addEventListener('click', busy(build, async () => { await startBuild({ name: rec.name, theme: rec.theme, pages: rec.pages }, job); }));
+  const customize = h('button', { class: 'btn', title: 'Load into the designer below' }, 'Customize');
+  customize.addEventListener('click', () => {
+    design.theme = rec.theme; design.pages = new Set(rec.pages); design.name = rec.name;
+    drawDesigner(designer, p);
+    designer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  return h('div', { class: `rec ${rec.built ? 'built' : ''}` },
+    h('div', { class: 'row sp', style: { alignItems: 'flex-start' } },
+      h('div', {}, h('div', { class: 'row' }, h('b', {}, rec.title), rec.built ? h('span', { class: 'pill ok' }, 'Built') : h('span', { class: 'pill brand' }, 'Recommended')), h('div', { class: 'tiny muted' }, `For ${rec.audience.toLowerCase()} · ${theme?.name || rec.theme} theme`)),
+      theme ? h('div', { class: 'recsw', title: theme.name }, h('i', { style: { background: theme.header } }), ...theme.dataColors.slice(0, 4).map((c) => h('i', { style: { background: c } }))) : null),
+    h('div', { class: 'chips' }, pages.map((x) => h('span', { class: 'pill' }, x))),
+    h('ul', { class: 'pre small' }, rec.reasons.map((x) => h('li', {}, x))),
+    h('div', { class: 'row', style: { marginTop: 'auto' } }, build, customize, rec.built ? h('a', { class: 'btn', href: rec.built.url, target: '_blank', rel: 'noopener' }, 'Open ↗') : null),
+    job);
+}
+
+// ---------------- Copilot's suggested report ----------------
+const pendingReportProposal = (p) => Boolean(p?.reportProposal && !p.reportProposal.appliedAt);
+
+export function reportProposalText(pr) {
+  const pages = (pr.pages || []).map((id) => catalog?.pages.find((x) => x.id === id)?.name || id);
+  const theme = catalog?.themes.find((t) => t.id === pr.theme)?.name || pr.theme;
+  return `${pr.name} · ${pages.join(', ')} · ${theme} theme`;
+}
+
+function proposalBanner(pr) {
+  return h('div', { class: 'banner ok mb' },
+    h('div', { style: { flex: 1 } }, h('b', {}, 'Copilot suggested a report. '), reportProposalText(pr)),
+    h('button', { class: 'btn pri', onclick: () => applyReportProposal(pr) }, '✓ Apply suggestions'));
+}
+
+/** Review Copilot's suggested report, then build it exactly as shown. */
+export async function applyReportProposal(pr) {
+  const current = store.project?.reportProposal;
+  if (!pr || !current) { toast('There are no suggestions to apply.', 'err'); return; }
+  if (current.id !== pr.id) { toast('Copilot made newer suggestions – apply the latest ones.', 'err'); return; }
+  if (current.appliedAt) { toast('These suggestions are already applied.', 'ok'); return; }
+  const cat = await loadCatalog();
+  const theme = cat.themes.find((t) => t.id === current.theme) || cat.themes[0];
+  const body = h('div', { class: 'col' },
+    current.summary ? h('p', { class: 'small', style: { margin: 0 } }, current.summary) : null,
+    h('dl', { class: 'kv' },
+      h('dt', {}, 'Report'), h('dd', {}, h('b', {}, current.name), current.updatesExisting ? ' – updates the existing report' : ' – new report'),
+      current.audience ? [h('dt', {}, 'Audience'), h('dd', {}, current.audience)] : null,
+      h('dt', {}, 'Semantic model'), h('dd', {}, store.project.semanticModel?.name || ''),
+      h('dt', {}, 'Theme'), h('dd', {}, theme.name)),
+    current.warnings?.length ? h('div', { class: 'banner warn' }, current.warnings.join(' ')) : null,
+    h('h3', {}, `Pages (${current.pages.length})`),
+    h('div', { class: 'ptiles' }, current.pages.map((id) => {
+      const pg = cat.pages.find((x) => x.id === id);
+      return h('div', { class: 'ptile on', style: { cursor: 'default' } }, layoutThumb(id, theme), h('b', {}, pg?.name || id), h('div', { class: 'tiny muted' }, pg?.description || ''));
+    })),
+    h('p', { class: 'tiny muted', style: { margin: 0 } }, 'Nothing changes in Fabric until you select the button below.'));
+  modal({
+    title: 'Apply Copilot\'s suggestions', className: 'appr wide', body,
+    actions: [
+      { label: 'Cancel' },
+      {
+        label: current.updatesExisting ? 'Update report' : 'Build report', class: 'pri',
+        onClick: async () => {
+          try {
+            design.theme = current.theme; design.pages = new Set(current.pages); design.name = current.name;
+            const j = await post('/jobs/report', { name: current.name, theme: current.theme, pages: current.pages, proposalId: current.id });
+            app.watchJob(j.id);
+            toast(`Building ${current.name}…`);
+            const off = on('job', (e) => {
+              if (e.job.id !== j.id || e.job.status === 'running') return;
+              off();
+              if (e.job.status === 'succeeded') { toast('Report deployed with Copilot\'s suggestions', 'ok'); app.refresh(); } else toast(e.job.error || 'The report was not built.', 'err');
+            });
+          } catch (e) { toast(e.message, 'err'); return false; }
+          return true;
+        },
+      },
+    ],
+  });
 }
 
 // ---------------- reports already built ----------------

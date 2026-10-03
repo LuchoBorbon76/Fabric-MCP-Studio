@@ -3,6 +3,7 @@ import { api, post, put, get, store, on } from './api.js';
 import { h, $, toast, esc, SERVER_LABEL } from './ui.js';
 import { md } from './md.js';
 import { applyModelProposal, proposalCounts } from './views/model.js';
+import { applyReportProposal, reportProposalText } from './views/reports.js';
 
 let root;               // component root element
 let msgsEl, inputEl, sendBtn, titleEl, providerEl, modelSel, histSel, closeBtn, footEl;
@@ -140,25 +141,35 @@ function prettyResult(r) {
 }
 
 // ---- Copilot's suggestions: one-click apply ----
+const PROPOSALS = {
+  'semantic-model': { key: 'modelProposal', title: 'Semantic model design ready', text: (pr) => proposalCounts(pr), apply: (pr) => applyModelProposal(pr), hint: 'Review it, then create it in one click.' },
+  report: { key: 'reportProposal', title: 'Power BI report ready to build', text: (pr) => reportProposalText(pr), apply: (pr) => applyReportProposal(pr), hint: 'Review it, then build it in one click.' },
+};
+const kindOf = (pr) => (PROPOSALS[pr?.kind] ? pr.kind : 'semantic-model');
+const currentOf = (kind) => store.project?.[PROPOSALS[kind].key] || null;
+
 function proposalCard(pr) {
-  const btn = h('button', { class: 'btn pri', onclick: () => applyModelProposal(store.project?.modelProposal?.id === pr.id ? store.project.modelProposal : pr) }, '✓ Apply suggestions');
-  const card = h('div', { class: 'pcard', 'data-proposal': pr.id },
-    h('div', { class: 'ph' }, h('span', {}, '✦'), 'Semantic model design ready'),
-    pr.preview ? h('div', { class: 'small muted' }, proposalCounts(pr)) : null,
-    h('div', { class: 'row' }, btn, h('span', { class: 'pstate small muted' }, 'Review it, then create it in one click.')));
+  const kind = kindOf(pr);
+  const def = PROPOSALS[kind];
+  const btn = h('button', { class: 'btn pri', onclick: () => def.apply(currentOf(kind)?.id === pr.id ? currentOf(kind) : pr) }, '✓ Apply suggestions');
+  const card = h('div', { class: 'pcard', 'data-proposal': pr.id, 'data-kind': kind },
+    h('div', { class: 'ph' }, h('span', {}, '✦'), def.title),
+    pr.name ? h('div', { class: 'small muted' }, def.text(pr)) : null,
+    h('div', { class: 'row' }, btn, h('span', { class: 'pstate small muted' }, def.hint)));
   syncProposalCard(card);
   return h('div', { class: 'msg bot' }, card);
 }
 
 function syncProposalCard(card) {
-  const cur = store.project?.modelProposal;
+  const def = PROPOSALS[card.dataset.kind] || PROPOSALS['semantic-model'];
+  const cur = currentOf(card.dataset.kind || 'semantic-model');
   const btn = $('button', card);
   const state = $('.pstate', card);
   const mine = cur?.id === card.dataset.proposal;
   if (mine && cur.appliedAt) card.dataset.applied = '1';
   const applied = card.dataset.applied === '1';
   btn.hidden = !mine || applied;
-  state.textContent = applied ? '✓ Applied' : !mine ? (cur ? 'Replaced by newer suggestions.' : 'No longer available.') : 'Review it, then create it in one click.';
+  state.textContent = applied ? '✓ Applied' : !mine ? (cur ? 'Replaced by newer suggestions.' : 'No longer available.') : def.hint;
   state.classList.toggle('ok', applied);
 }
 
@@ -257,7 +268,7 @@ export async function loadChat(id) {
       if (m.role === 'user') { flushProposal(); addMsg('user', m.content); } else if (m.role === 'assistant') addMsg('bot', m.content);
       else if (m.role === 'error') addMsg('err', m.content);
       else if (m.role === 'tool') toolCard(m);
-      else if (m.role === 'proposal') { flushProposal(); turnProposal = store.project?.modelProposal?.id === m.proposalId ? store.project.modelProposal : { id: m.proposalId }; }
+      else if (m.role === 'proposal') { flushProposal(); const kind = PROPOSALS[m.kind] ? m.kind : 'semantic-model'; turnProposal = currentOf(kind)?.id === m.proposalId ? currentOf(kind) : { id: m.proposalId, kind }; }
     }
     if (c.busy) setBusy(true); else { flushProposal(); setBusy(false); }
   } catch (e) { toast(e.message, 'err'); }

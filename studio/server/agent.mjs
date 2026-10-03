@@ -262,6 +262,7 @@ const STUDIO_TOOLS_META = {
   studio_create_semantic_model: { write: true, title: 'Create semantic model' },
   studio_propose_semantic_model: { write: false, title: 'Suggest semantic model design' },
   studio_describe_report_options: { write: false, title: 'Read report options (model profile, themes, pages)' },
+  studio_propose_report: { write: false, title: 'Suggest a Power BI report' },
   studio_create_report: { write: true, title: 'Create Power BI report' },
   studio_deploy_ontology: { write: true, title: 'Deploy ontology' },
   studio_get_glossary: { write: false, title: 'Read business glossary' },
@@ -285,6 +286,7 @@ function projectSummary() {
     glossaryChars: (p.glossary || '').length,
     sample: preset ? { semanticModelName: preset.semanticModelName, ontologyName: preset.ontologyName, measures: (preset.measures || []).map((m) => `${m.table}[${m.name}]`) } : null,
     modelProposal: p.modelProposal ? { name: p.modelProposal.name, createdAt: p.modelProposal.createdAt, appliedAt: p.modelProposal.appliedAt || null } : null,
+    reports: (p.reports || []).map((r) => ({ name: r.name, theme: r.theme, pages: r.pages, url: r.url })),
     links: p.workspace ? { workspace: `https://app.fabric.microsoft.com/groups/${p.workspace.id}` } : {},
   };
 }
@@ -403,7 +405,7 @@ function studioTools(chatId) {
       handler: async (a) => {
         const proposal = await P.proposeSemanticModel({ ...modelDesign(a), summary: a.summary }, { chatId });
         const chat = chats.get(chatId);
-        chat?.transcript.push({ role: 'proposal', proposalId: proposal.id, at: Date.now() });
+        chat?.transcript.push({ role: 'proposal', kind: 'semantic-model', proposalId: proposal.id, at: Date.now() });
         emit('chat.proposal', { chatId, proposal });
         return {
           ok: true,
@@ -438,6 +440,25 @@ function studioTools(chatId) {
           themes: R.reportsCatalog().themes.map((t) => `${t.id}: ${t.name} – ${t.description}`),
           pages: R.reportsCatalog().pages.map((x) => `${x.id}: ${x.name} – ${x.description}`),
           reports: (getProject().reports || []).map((x) => ({ id: x.id, name: x.name, theme: x.theme, pages: x.pages, url: x.url })),
+        };
+      },
+    }),
+    studioTool('studio_propose_report', {
+      description: 'Suggest a Power BI report for the user to review. Nothing changes in Fabric: the studio shows an "Apply suggestions" button that reviews and builds it in one click. Use this whenever you recommend a report, instead of asking the user to type a confirmation. Call studio_describe_report_options first and ground the summary in its insights.',
+      parameters: obj({
+        name: str('Report name'),
+        theme: { type: 'string', enum: ['studio', 'executive', 'teal', 'slate', 'accessible', 'midnight'] },
+        pages: { type: 'array', items: { type: 'string', enum: ['executive', 'drivers', 'scorecard'] }, description: 'Pages in order' },
+        audience: str('Who the report is for, e.g. Leadership, Sales managers'),
+        summary: str('Two or three sentences: why these pages and this theme fit the data and audience (shown in the review)'),
+      }, ['pages', 'theme']),
+      handler: async (a) => {
+        const proposal = await R.proposeReport(a, { chatId });
+        chats.get(chatId)?.transcript.push({ role: 'proposal', kind: 'report', proposalId: proposal.id, at: Date.now() });
+        emit('chat.proposal', { chatId, proposal });
+        return {
+          ok: true, report: proposal.name, theme: proposal.theme, pages: proposal.pages, updatesExisting: proposal.updatesExisting, warnings: proposal.warnings,
+          next: 'Summarize the recommendation briefly and tell the user to select "Apply suggestions" below your message to review and build it. Do not call studio_create_report unless the user asks you to in chat.',
         };
       },
     }),

@@ -308,3 +308,9 @@ img.rpreview{height:auto}
 .tsbars{flex:1;margin:0 5px 5px;border-radius:3px;display:flex;align-items:flex-end;gap:3px;padding:3px 6px;box-shadow:0 0 0 1px rgba(0,0,0,.06)}
 .tsbars b{flex:1;border-radius:2px 2px 0 0}
 .tsname{font-size:12px;font-weight:600;margin-top:6px;text-align:center}
+.recs{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.rec{border:1px solid var(--line);border-radius:12px;padding:14px;background:linear-gradient(135deg,color-mix(in srgb,var(--brand) 6%,var(--panel)),var(--panel));display:flex;flex-direction:column;gap:8px}
+.rec.built{background:var(--panel)}
+.rec ul.pre{margin:0;color:var(--ink)}
+.recsw{display:flex;gap:3px;flex:0 0 auto}
+.recsw i{width:12px;height:22px;border-radius:3px;display:block}
