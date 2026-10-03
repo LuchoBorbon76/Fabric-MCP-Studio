@@ -26,6 +26,7 @@ const EMPTY = {
   ontology: null,                 // { id, name }
   reports: [],                    // Power BI reports built by the studio: [{ id, name, theme, pages[], url, builtAt, preview }]
   orgApp: null,                   // Org app bundling the reports: { id, name, theme, reports[], url, builtAt }
+  realtime: null,                 // Live data: { scenario, eventhouse, database, table, eventstream, dashboard } (no endpoint keys)
   glossary: '',
   teamsAgent: null,
   steps: {},                      // stepId -> { status, at, note }
@@ -154,6 +155,10 @@ export function fabricUrl(type, workspaceId, id) {
     Ontology: `/ontologies/${id}`,
     Report: `/reports/${id}`,
     DataAgent: `/aiskills/${id}`,
+    Eventhouse: `/eventhouses/${id}`,
+    KQLDatabase: `/databases/${id}`,
+    Eventstream: `/eventstreams/${id}`,
+    KQLDashboard: `/kustodashboards/${id}`,
   }[type];
   return seg === undefined ? `${base}/list` : `${base}${seg}`;
 }

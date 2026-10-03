@@ -12,6 +12,7 @@ import { buildPlan, semanticModelFiles, ontologyFiles, defaultMeasures } from '.
 import { RETAIL, ADVENTUREWORKS, presetFor } from './presets.mjs';
 import { AWDW, getKit, loadAdventureWorksDW, salesTotalsMatch } from './samples/adventureworks-dw.mjs';
 import { resetProfileCache } from './reports/index.mjs';
+import { stopSimulator } from './realtime/simulator.mjs';
 
 const safeName = (s, fallback = 'Item') => (String(s || '').replace(/[^A-Za-z0-9_]/g, '_').replace(/^_+|_+$/g, '').replace(/_+/g, '_') || fallback).slice(0, 120);
 
@@ -549,13 +550,15 @@ async function waitForReplica(ctx, workspaceId, ep, expected, { from, to, verify
 export async function runTeardown(ctx, { deleteWorkspace = false } = {}) {
   const p = getProject();
   if (deleteWorkspace && p.workspace?.created) {
+    stopSimulator('clean up');
     ctx.step(`Delete workspace ${p.workspace.name}`);
     await F.deleteWorkspace(p.workspace.id);
     // Everything lived in that workspace; keep only the glossary for the next project.
-    updateProject({ workspace: null, lakehouse: null, sqlDatabase: null, source: null, modelSource: null, modelProposal: null, reportProposal: null, semanticModel: null, ontology: null, reports: [], orgApp: null, teamsAgent: null, scenario: null, tenant: null, steps: {} });
+    updateProject({ workspace: null, lakehouse: null, sqlDatabase: null, source: null, modelSource: null, modelProposal: null, reportProposal: null, semanticModel: null, ontology: null, reports: [], orgApp: null, teamsAgent: null, scenario: null, realtime: null, tenant: null, steps: {} });
   } else if (p.workspace) {
     ctx.step('Delete items created by the studio');
-    for (const it of [p.orgApp, ...(p.reports || []), p.ontology, p.semanticModel].filter(Boolean)) {
+    stopSimulator('clean up');
+    for (const it of [p.orgApp, ...(p.reports || []), p.realtime?.dashboard, p.realtime?.eventstream, p.realtime?.eventhouse, p.ontology, p.semanticModel].filter(Boolean)) {
       try { await F.deleteItem(p.workspace.id, it.id); ctx.log(`Deleted ${it.name}`); } catch (e) { ctx.log(`Could not delete ${it.name}: ${e.message}`); }
     }
     if (p.ontology?.id) {
@@ -580,7 +583,7 @@ export async function runTeardown(ctx, { deleteWorkspace = false } = {}) {
       try { await F.deleteItem(p.workspace.id, p.sqlDatabase.id); ctx.log(`Deleted SQL database ${p.sqlDatabase.name}`); } catch (e) { ctx.log(e.message); }
     }
     const keep = p.steps?.workspace;
-    updateProject({ lakehouse: null, sqlDatabase: null, source: null, modelSource: null, modelProposal: null, reportProposal: null, semanticModel: null, ontology: null, reports: [], orgApp: null, teamsAgent: null, scenario: null, steps: keep ? { workspace: keep } : {} });
+    updateProject({ lakehouse: null, sqlDatabase: null, source: null, modelSource: null, modelProposal: null, reportProposal: null, semanticModel: null, ontology: null, reports: [], orgApp: null, teamsAgent: null, scenario: null, realtime: null, steps: keep ? { workspace: keep } : {} });
   }
   return { ok: true };
 }

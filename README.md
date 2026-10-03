@@ -20,6 +20,7 @@ A local web app the customer installs and runs. One place to:
 | **Semantic model** | Direct Lake model generated from your tables and keys, then enriched by Copilot: measures from your glossary, descriptions, RLS, translations, best-practice review |
 | **Ontology** | Entities, relationships and plain-English business rules from your glossary |
 | **Reports & apps** | Professional Power BI reports generated from your semantic model: the studio reads your measures, dates and dimensions, recommends reports with reasons from your data, fills page templates (executive summary, performance drivers, scorecard, **business rules dashboard** from your ontology) with one of 6 themes, deploys them, and bundles them into a **Fabric org app** |
+| **Real-time** | An **Eventhouse** table fed by an **Eventstream** (custom endpoint), a live event simulator shaped like your data (real products, customers, regions and prices, with business-rule breaks), and a generated, auto-refreshing **Real-Time Dashboard**; Copilot answers "what is happening right now" with KQL |
 | **Ask & share** | Chat with governed answers (Fabric IQ), install the Microsoft 365 Copilot / Teams agent, connect other AI clients, create a Fabric data agent, export the audit log |
 
 Every step has a quick action **and** a Copilot path. Copilot calls the Fabric MCP servers as the signed-in user and

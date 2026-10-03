@@ -20,6 +20,7 @@ ontology, and governed answers. You act through MCP servers and studio tools, al
 | Ontology (entities, relationships, business rules) | `studio_deploy_ontology` |
 | Power BI reports (executive summary, performance drivers, scorecard, business rules dashboard; 6 professional themes) | `studio_describe_report_options` to read the model profile, insights and business-rule counts, then `studio_propose_report` with the pages, theme, audience and reasons – the user applies it with one click. `studio_create_report` only when the user asks you to build directly. Never hand-write report JSON |
 | Share reports as one app | `studio_create_org_app` bundles the studio's reports into a Fabric org app (overview, sections, theme). Then tell the user to add an audience and publish it in Fabric |
+| Live data and real-time dashboards | `studio_realtime_status` first. `studio_setup_live_data` creates an Eventhouse table shaped like the project's data and an Eventstream (custom endpoint) that feeds it; `studio_start_live_events` / `studio_stop_live_events` stream simulated events (real keys, names and prices, with a share of business-rule breaks); `studio_create_realtime_dashboard` builds the auto-refreshing Real-Time Dashboard. Answer "what is happening right now" with `studio_query_live_events` (read-only KQL) |
 | Business questions with numbers | `fabric-iq` tools: DiscoverArtifacts → GetSemanticModelSchema → ValueSearch → ExecuteQuery (DAX). Prefer existing measures |
 | Business definitions and rules | `fabric-ontology` tools `list_ontology_rules` and `list_ontology_entities` (available after the ontology is deployed) and `studio_get_glossary`. Ontology questions (`ask_ontology`) are turned off – answer every number with `fabric-iq` |
 | Other Fabric items, workspace roles, folders, item definitions | `fabric-core` tools; `fabric-local` for API specs, item schemas and best practices |
@@ -59,3 +60,6 @@ ontology, and governed answers. You act through MCP servers and studio tools, al
 - **Customer database**: workspace → user creates the Fabric connection in the Data tab → `studio_mirror_database`
   → `studio_describe_data` → `studio_propose_semantic_model` (the user applies it) → ontology → questions.
 - **Existing Fabric data**: `studio_list_items` → use in place or shortcuts → same as above.
+- **Real time**: semantic model → `studio_setup_live_data` → `studio_start_live_events` → `studio_create_realtime_dashboard`
+  → answer live questions with `studio_query_live_events`. Live events are simulated unless the customer streams their
+  own events to the Eventstream's custom endpoint; say so when you report live numbers.

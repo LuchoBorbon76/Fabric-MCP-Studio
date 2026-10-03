@@ -89,6 +89,18 @@ when it expires.
 | Creating the org app fails | Org apps need a Fabric capacity workspace and Contributor or higher | Check the workspace role; the app shares only reports in the same workspace |
 | People can't see the org app | The app has no audience yet | Open it in Fabric, add an audience (people or groups) and publish |
 
+## Real-time
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| *Create the semantic model first* | Live events are shaped like your model's data | Create it in **Semantic model** (the samples read their reference data from the source tables) |
+| Setup fails creating the Eventhouse or Eventstream | Real-Time Intelligence items need a Fabric capacity (F2+ or trial) and Contributor or higher on the workspace | Check the capacity is running and your workspace role |
+| *Eventstream … is Warning* | The Eventhouse destination couldn't start | Open the Eventstream in Fabric to see the error, then **Check setup** |
+| *The table … already exists with different column types* | An earlier table with the same name but other columns | Use another Eventhouse name in **Set up live data** |
+| Events are sent but the Eventhouse shows 0 | The Eventstream destination is still starting (about a minute after setup), or ingestion is catching up | Wait a minute; *In the Eventhouse now* refreshes every 15 seconds |
+| *The Eventstream endpoint rejected the events (401)* | The custom endpoint key was rotated | Stop and start the events again (the studio reads the key again) |
+| Dashboard tiles say *No results found* | No events in the selected time range | Start events, or widen the time range at the top of the dashboard |
+
 ## Repo location
 
 Clone the repo **outside** OneDrive/SharePoint-synced folders. Sync clients and `.git` don't mix well.

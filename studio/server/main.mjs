@@ -12,6 +12,7 @@ import * as A from './agent.mjs';
 import * as P from './pipelines.mjs';
 import * as R from './reports/index.mjs';
 import * as APPS from './reports/apps.mjs';
+import * as RT from './realtime/index.mjs';
 import { catalog } from './sources.mjs';
 import { getProject, updateProject, resetProject, getActivity, clearActivity, logActivity, assertProjectTenant } from './project.mjs';
 import { startJob, listJobs, getJob, cancelJob, flushRunningJobs } from './jobs.mjs';
@@ -101,7 +102,7 @@ const route = (method, pattern, handler) => {
 route('GET', '/api/bootstrap', async () => {
   const me = await auth.whoAmI();
   const p = getProject();
-  return { version: VERSION, user: me, settings: publicSettings(), provider: A.providerSummary(), providers: A.PROVIDERS, project: p, preset: presetSummary(p), catalog: catalog(), jobs: listJobs().slice(0, 20), chats: A.listChats(), approvals: A.pendingApprovals(), platform: process.platform };
+  return { version: VERSION, user: me, settings: publicSettings(), provider: A.providerSummary(), providers: A.PROVIDERS, project: p, preset: presetSummary(p), catalog: catalog(), jobs: listJobs().slice(0, 20), chats: A.listChats(), approvals: A.pendingApprovals(), realtime: RT.realtimeState(), platform: process.platform };
 });
 route('GET', '/api/health', () => health());
 
@@ -190,6 +191,16 @@ route('GET', '/api/reports/catalog', () => R.reportsCatalog());
 route('GET', '/api/reports/profile', (_, __, q) => R.currentProfile({ refresh: q.get('refresh') === '1' }));
 route('GET', '/api/reports/recommendations', (_, __, q) => R.currentRecommendations({ refresh: q.get('refresh') === '1' }));
 route('POST', '/api/jobs/org-app', (_, b) => startJob('org-app', `Create org app ${b.name || ''}`.trim(), (ctx) => APPS.runOrgApp(ctx, { name: b.name, theme: b.theme, reportIds: Array.isArray(b.reportIds) ? b.reportIds : undefined, title: b.title, body: b.body })));
+route('GET', '/api/realtime', () => RT.realtimeState());
+route('GET', '/api/realtime/summary', (_, __, q) => RT.liveSummary({ minutes: Math.min(1440, Math.max(1, Number(q.get('minutes')) || 15)) }));
+route('POST', '/api/realtime/query', (_, b) => RT.liveQuery(String(b.kql || ''), { maxRows: Math.min(500, Number(b.maxRows) || 50) }));
+route('POST', '/api/jobs/realtime-setup', (_, b) => startJob('realtime', 'Set up live data (Eventhouse + Eventstream)', (ctx) => RT.runRealtimeSetup(ctx, { name: b.name })));
+route('POST', '/api/jobs/realtime-dashboard', (_, b) => startJob('realtime-dashboard', `Build Real-Time Dashboard ${b.name || ''}`.trim(), (ctx) => RT.runRealtimeDashboard(ctx, { name: b.name, refreshSeconds: b.refreshSeconds })));
+route('POST', '/api/realtime/simulator/start', async (_, b) => { await assertProjectTenant(); return RT.startLiveEvents({ rate: b.rate, ruleBreakPct: b.ruleBreakPct, minutes: b.minutes, backfillMinutes: b.backfillMinutes }); });
+route('PATCH', '/api/realtime/simulator', (_, b) => RT.updateLiveEvents({ rate: b.rate, ruleBreakPct: b.ruleBreakPct }));
+route('POST', '/api/realtime/simulator/stop', () => RT.stopLiveEvents());
+route('GET', '/api/realtime/endpoint', (_, __, q) => RT.endpointInfo({ withKey: q.get('key') === '1' }));
+route('DELETE', '/api/realtime', async (_, __, q) => { if (q.get('delete') === '1') await assertProjectTenant(); return RT.removeRealtime({ deleteItems: q.get('delete') === '1' }); });
 route('DELETE', '/api/reports/:id', (p, _, q) => R.removeReport(p.id, { deleteItem: q.get('delete') === '1' }));
 route('POST', '/api/jobs/teardown', (_, b) => startJob('teardown', 'Clean up demo resources', (ctx) => P.runTeardown(ctx, b)));
 route('GET', '/api/jobs', () => listJobs());
@@ -202,6 +213,7 @@ route('GET', '/api/export', () => ({ exportedAt: new Date().toISOString(), versi
 route('POST', '/api/shutdown', () => {
   const running = listJobs().filter((j) => j.status === 'running');
   for (const j of running) cancelJob(j.id);
+  RT.stopLiveEvents();
   setTimeout(async () => { await A.stopAgent(); process.exit(0); }, running.length ? 1500 : 300);
   return { ok: true, cancelled: running.length };
 });

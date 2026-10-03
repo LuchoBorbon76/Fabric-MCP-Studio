@@ -16,7 +16,7 @@ export function renderReports(el) {
   }
   const reports = p.reports || [];
   // What's already built comes first; recommendations and the designer follow.
-  if (reports.length || p.orgApp) {
+  if (reports.length || p.orgApp || p.realtime?.dashboard) {
     const built = reportsCard(p, reports);
     built.style.marginBottom = '14px';
     el.append(built);
@@ -44,6 +44,7 @@ function drawRecommendations(card, p, designer) {
   Promise.all([get('/reports/recommendations'), loadCatalog()]).then(([r]) => {
     grid.innerHTML = '';
     for (const rec of r.recommendations) grid.append(recCard(rec, p, designer));
+    grid.append(realtimeRecCard(p));
   }).catch((e) => { grid.innerHTML = ''; grid.append(h('div', { class: 'banner err' }, e.message)); });
 }
 
@@ -161,8 +162,35 @@ export async function applyReportProposal(pr) {
 }
 
 // ---------------- reports already built ----------------
+// ---------------- live dashboard (built in the Real-time tab) ----------------
+function realtimeRecCard(p) {
+  const d = p.realtime?.dashboard;
+  const reasons = [
+    'Watch orders, amounts and margin minute by minute, refreshed every 30 seconds',
+    p.ontology ? 'Business-rule breaks are flagged the moment events arrive, next to your ontology\'s rules' : 'Business-rule breaks are flagged the moment events arrive',
+    'Events carry your real products, customers, regions and prices, so it matches this model',
+  ];
+  return h('div', { class: `rec ${d ? 'built' : ''}` },
+    h('div', { class: 'row sp', style: { alignItems: 'flex-start' } },
+      h('div', {}, h('div', { class: 'row' }, h('b', {}, 'Real-Time Dashboard'), d ? h('span', { class: 'pill ok' }, 'Built') : h('span', { class: 'pill brand' }, 'Live')), h('div', { class: 'tiny muted' }, 'For operations · Eventhouse + auto refresh'))),
+    h('div', { class: 'chips' }, h('span', { class: 'pill' }, 'Live overview'), h('span', { class: 'pill' }, 'Business rules')),
+    h('ul', { class: 'pre small' }, reasons.map((x) => h('li', {}, x))),
+    h('div', { class: 'row', style: { marginTop: 'auto' } },
+      h('button', { class: `btn ${d ? '' : 'pri'}`, onclick: () => app.go('realtime') }, d ? 'Real-time tab' : 'Set up in Real-time'),
+      d ? h('a', { class: 'btn', href: d.url, target: '_blank', rel: 'noopener' }, 'Open ↗') : null));
+}
+
 function reportsCard(p, reports) {
   const list = h('div', { class: 'col', style: { gap: '12px' } });
+  if (p.realtime?.dashboard) {
+    const d = p.realtime.dashboard;
+    list.append(h('div', { class: 'rrow app' },
+      h('div', { class: 'row sp' },
+        h('div', {},
+          h('div', { class: 'row' }, h('span', {}, '⚡'), h('b', {}, d.name), h('span', { class: 'pill ok' }, 'Real-Time Dashboard')),
+          h('div', { class: 'tiny muted' }, `${d.tiles} tiles on ${d.pages.length} pages · refreshes every ${d.refreshSeconds} seconds · live events from ${p.realtime.eventhouse?.name || 'the Eventhouse'}`)),
+        h('div', { class: 'row' }, h('button', { class: 'btn', onclick: () => app.go('realtime') }, 'Real-time tab'), h('a', { class: 'btn pri', href: d.url, target: '_blank', rel: 'noopener' }, 'Open ↗')))));
+  }
   if (p.orgApp) {
     list.append(h('div', { class: 'rrow app' },
       h('div', { class: 'row sp' },

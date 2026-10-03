@@ -10,6 +10,7 @@ import { startJob, waitForJob } from './jobs.mjs';
 import * as P from './pipelines.mjs';
 import * as R from './reports/index.mjs';
 import * as APPS from './reports/apps.mjs';
+import * as RT from './realtime/index.mjs';
 import * as F from './fabric.mjs';
 import { presetFor } from './presets.mjs';
 
@@ -312,6 +313,12 @@ const STUDIO_TOOLS_META = {
   studio_deploy_ontology: { write: true, title: 'Deploy ontology' },
   studio_get_glossary: { write: false, title: 'Read business glossary' },
   studio_save_glossary: { write: false, title: 'Save business glossary' },
+  studio_realtime_status: { write: false, title: 'Read live data status' },
+  studio_query_live_events: { write: false, title: 'Query live events (read-only KQL)' },
+  studio_setup_live_data: { write: true, title: 'Set up live data (Eventhouse + Eventstream)' },
+  studio_start_live_events: { write: true, title: 'Start streaming live events' },
+  studio_stop_live_events: { write: false, title: 'Stop live events' },
+  studio_create_realtime_dashboard: { write: true, title: 'Create Real-Time Dashboard' },
 };
 
 async function runAsJob(kind, title, fn) {
@@ -333,6 +340,7 @@ function projectSummary() {
     modelProposal: p.modelProposal ? { name: p.modelProposal.name, createdAt: p.modelProposal.createdAt, appliedAt: p.modelProposal.appliedAt || null } : null,
     reports: (p.reports || []).map((r) => ({ name: r.name, theme: r.theme, pages: r.pages, url: r.url })),
     orgApp: p.orgApp ? { name: p.orgApp.name, reports: p.orgApp.reports.length } : null,
+    realtime: p.realtime ? { eventhouse: p.realtime.eventhouse?.name, table: p.realtime.table, eventstream: p.realtime.eventstream?.name, dashboard: p.realtime.dashboard?.name || null, rules: (p.realtime.scenario?.rules || []).map((r) => r.label) } : null,
     links: p.workspace ? { workspace: `https://app.fabric.microsoft.com/groups/${p.workspace.id}` } : {},
   };
 }
@@ -554,6 +562,55 @@ function studioTools(chatId) {
       description: 'Save or replace the business glossary text (markdown).',
       parameters: obj({ text: str('Glossary markdown') }, ['text']),
       handler: async ({ text }) => { updateProject({ glossary: text }); return { ok: true }; },
+    }),
+    studioTool('studio_realtime_status', {
+      description: 'Read the real-time setup: Eventhouse, KQL database, live events table (columns, business rules), Eventstream, Real-Time Dashboard and whether live events are streaming now. With live data set up, also returns headline numbers for the last 15 minutes. Read-only.',
+      parameters: obj({}),
+      handler: async () => {
+        const s = RT.realtimeState();
+        const live = s.setup ? await RT.liveSummary({ minutes: 15 }).catch((e) => ({ error: e.message })) : null;
+        const sim = s.simulator;
+        return {
+          setUp: Boolean(s.setup), scenario: s.setup?.scenario || s.scenarioKind,
+          eventhouse: s.setup?.eventhouse?.name, database: s.setup?.database?.name, table: s.setup?.table, eventstream: s.setup?.eventstream?.name,
+          dashboard: s.setup?.dashboard ? { name: s.setup.dashboard.name, url: s.setup.dashboard.url, pages: s.setup.dashboard.pages } : null,
+          streaming: { running: sim.running, eventsPerMinute: sim.rate, ruleBreakPct: sim.ruleBreakPct, sent: sim.sent, stopsAt: sim.stopsAt, lastError: sim.lastError || null },
+          last15Minutes: live, links: s.links,
+        };
+      },
+    }),
+    studioTool('studio_query_live_events', {
+      description: 'Run one read-only KQL query against the live events table in the Eventhouse (max 100 rows). Use it to answer questions about what is happening right now, e.g. "SalesEvents | where EventTime > ago(15m) | summarize sum(SalesAmount) by Region". Call studio_realtime_status first for the table and columns. Management commands are not allowed.',
+      parameters: obj({ kql: str('A read-only KQL query') }, ['kql']),
+      handler: async ({ kql }) => RT.liveQuery(kql, { maxRows: 100 }),
+    }),
+    studioTool('studio_setup_live_data', {
+      description: 'Set up live data: create (or reuse) an Eventhouse with a live events table shaped like the project\'s data, and an Eventstream with a custom endpoint that feeds it. About 2 minutes. Needs a semantic model (or one of the samples).',
+      parameters: obj({ name: str('Optional Eventhouse name (letters, numbers, underscores)') }),
+      handler: async ({ name }) => runAsJob('realtime', 'Set up live data (Eventhouse + Eventstream)', (ctx) => RT.runRealtimeSetup(ctx, { name })),
+    }),
+    studioTool('studio_start_live_events', {
+      description: 'Start streaming simulated live events (real keys, names and prices from the project\'s data, with a share of business-rule breaks) into the Eventstream. Stops automatically after `minutes`. When the table has no recent data, the last hour is filled first so charts are not empty.',
+      parameters: obj({
+        eventsPerMinute: { type: 'number', description: 'Events per minute (6–600, default 60)' },
+        ruleBreakPct: { type: 'number', description: 'Share of events that break a business rule, in percent (0–50, default 3)' },
+        minutes: { type: 'number', description: 'Stop automatically after this many minutes (1–240, default 60)' },
+      }),
+      handler: async (a) => {
+        await assertProjectTenant();
+        const s = await RT.startLiveEvents({ rate: a.eventsPerMinute, ruleBreakPct: a.ruleBreakPct, minutes: a.minutes });
+        return { ok: true, running: s.running, eventsPerMinute: s.rate, ruleBreakPct: s.ruleBreakPct, stopsAt: s.stopsAt, backfilled: s.backfilled };
+      },
+    }),
+    studioTool('studio_stop_live_events', {
+      description: 'Stop streaming simulated live events.',
+      parameters: obj({}),
+      handler: async () => { const s = RT.stopLiveEvents(); return { ok: true, sent: s.sent }; },
+    }),
+    studioTool('studio_create_realtime_dashboard', {
+      description: 'Create or update a Real-Time Dashboard over the live events table: a live overview page (KPIs, trend per minute, mix, regions, top items, latest events) and a business-rules page (rule-break counts, trend, who breaks the rules, latest breaks). Auto-refreshes. Every tile query is checked before deploying.',
+      parameters: obj({ name: str('Optional dashboard name'), refreshSeconds: { type: 'number', enum: [30, 60, 300], description: 'Auto refresh interval (default 30)' } }),
+      handler: async (a) => runAsJob('realtime-dashboard', `Build Real-Time Dashboard ${a.name || ''}`.trim(), (ctx) => RT.runRealtimeDashboard(ctx, { name: a.name, refreshSeconds: a.refreshSeconds })),
     }),
   ];
 }

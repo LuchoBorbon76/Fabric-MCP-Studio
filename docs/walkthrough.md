@@ -86,6 +86,21 @@ Ontology is in preview; the Ontology MCP endpoint (used by agents) needs a paid 
 > Ask Copilot: *Recommend the best Power BI report for my semantic model.* Copilot explains its choice and shows
 > **Apply suggestions**, which opens a review and builds the report in one click.
 
+## 5b. Real-time
+
+**Real-time** tab:
+
+1. **Set up live data** (about 2 minutes): an Eventhouse with a table shaped like your data, and an Eventstream whose
+   custom endpoint feeds it.
+2. **Live events** › *Start events*: pick events per minute, the share of business-rule breaks and when to stop. The
+   cards show what was sent and what has landed in the Eventhouse in the last 15 minutes (usually within 30 seconds).
+3. **Real-Time Dashboard** › *Build dashboard*, then *Open dashboard*: a live overview page and a business rules page,
+   refreshed every 30 seconds.
+4. Optional: **Stream your own events** – copy the connection string and send events with the same columns from your app.
+
+> Ask Copilot: *What is happening in my live data right now?* Copilot queries the Eventhouse with KQL and points out
+> rule breaks and where they come from. Simulated events are labeled `Studio simulator` in the `Source` column.
+
 ## 6. Ask and share
 
 **Ask & share** tab:

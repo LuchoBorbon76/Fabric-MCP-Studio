@@ -12,6 +12,8 @@ chatting with the **AI the customer already licenses**:
   (business measures from your glossary, descriptions, RLS, translations, best-practice review).
 - **Ontology** – Fabric IQ entities, relationships and plain-English business rules.
 - **Reports & apps** – polished Power BI reports built on your semantic model from page templates and themes.
+- **Real-time** – live events shaped like your data streamed through an Eventstream into an Eventhouse, with an
+  auto-refreshing Real-Time Dashboard.
 - **Ask & share** – governed answers in the app chat, Microsoft 365 Copilot / Teams agent, other AI clients, Fabric data agent.
 
 Everything runs on the customer's computer, signs in to Fabric as the customer, and **asks before every change**.
@@ -122,6 +124,29 @@ Copilot can recommend pages and a theme for your audience (`studio_describe_repo
 and a *Business rules* section, in the report theme's colors. People get the app without access to the workspace: open
 it in Fabric, add an audience and publish it. Rebuilding updates the app in place (`studio_create_org_app` for Copilot).
 
+## Real-time
+
+**Real-time** streams live events into Real-Time Intelligence and builds a dashboard over them.
+
+1. **Set up live data** – creates (or reuses) an Eventhouse and a table shaped like the project's data, and an
+   Eventstream with a **custom endpoint** source and the Eventhouse as destination. For the samples the table holds
+   order lines (`SalesEvents`: products, customers or resellers, territories, quantity, price, discount, cost, margin,
+   rule broken); for any other model it holds `BusinessEvents` with the model's main measure and top dimensions.
+2. **Live events** – the simulator sends events to the custom endpoint (Event Hubs protocol over HTTPS). Events use
+   real keys, names and prices read from your data, and a share of them break the business rules (for AdventureWorks:
+   *discount needs approval* at 30% or more, *sold below cost*). Choose events per minute, the share of rule breaks and
+   when to stop (it always stops on its own). When the table has no recent data, the last hour is filled first so the
+   charts aren't empty. The endpoint key stays in memory in the studio – it is never saved or shown to Copilot.
+3. **Real-Time Dashboard** – a *Live overview* page (orders, amount, margin and rule-break KPIs, amount per minute by
+   channel, mix, regions, top items, latest events) and a *Business rules* page (a count per rule, share of events
+   breaking a rule, loss below cost, breaks per minute, who breaks the rules, latest breaks). It refreshes every 30
+   seconds; every tile query is checked against the Eventhouse before the dashboard is deployed.
+4. **Stream your own events** – copy the custom endpoint's connection string and send JSON events with the same columns
+   from any app; they land in the same table and dashboard.
+
+Copilot tools: `studio_realtime_status`, `studio_query_live_events` (read-only KQL), `studio_setup_live_data`,
+`studio_start_live_events`, `studio_stop_live_events` and `studio_create_realtime_dashboard`.
+
 ## Files
 
 | Path | Purpose |
@@ -135,6 +160,7 @@ it in Fabric, add an audience and publish it. Rebuilding updates the app in plac
 | `server/generators/pbir.mjs` | Power BI report (PBIR) generator: pages, visuals, filters, theme registration |
 | `server/reports/` | Model profile (`profile.mjs`), page templates, report themes and the report build/preview pipeline |
 | `server/powerbi.mjs` | Power BI REST: DAX queries, model metadata (`INFO.VIEW`), report export for previews |
+| `server/realtime/` | Live data: Eventhouse/Eventstream setup (`index.mjs`), event scenarios shaped like the data (`scenarios.mjs`), simulator sending to the custom endpoint (`simulator.mjs`), Real-Time Dashboard generator (`dashboard.mjs`), KQL client (`kusto.mjs`) |
 | `server/presets.mjs` | Sample presets (names, relationships, measures, rules) |
 | `server/samples/adventureworks-dw.mjs` | AdventureWorksDW2022 loader for Fabric SQL database (install kit → tables, keys, bulk load, verification) |
 | `server/agent-instructions.md` | System instructions for the agent |
