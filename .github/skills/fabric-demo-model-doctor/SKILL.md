@@ -5,7 +5,7 @@ description: Demo step 3 - audit an existing Power BI semantic model against mod
 
 # Model doctor
 
-Works on the demo `Retail Sales` model **or a customer's own model** – that's the point: show value on day one
+Works on the demo `Retail_SM_Sales_DEMO` model **or a customer's own model** – that's the point: show value on day one
 without building anything new.
 
 ## Steps

@@ -1,5 +1,10 @@
 // Presets for the bundled sample datasets: business names, relationships, measures and rules from the glossary.
+import { itemNameFor } from './naming.mjs';
+
 export const RETAIL = {
+  // Default domain, environment and purposes for the naming standard ([Domain]_[Object]_[Purpose]_[Environment]).
+  naming: { domain: 'Retail', environment: 'DEMO', lakehouse: 'Raw', model: 'Sales' },
+  // Names older versions of the studio used: items with these names are still found and reused.
   lakehouseName: 'RetailLakehouse',
   semanticModelName: 'Retail Sales',
   ontologyName: 'Contoso_Retail_Ontology',
@@ -89,6 +94,8 @@ const RS = "'Reseller Sales'";
 
 // AdventureWorksDW2022 in a Fabric SQL database: a curated star schema over the internet and reseller channels.
 export const ADVENTUREWORKS = {
+  naming: { domain: 'Sales', environment: 'DEMO', database: 'AdventureWorksDW', model: 'AdventureWorks' },
+  // Names older versions of the studio used.
   semanticModelName: 'AdventureWorks Sales',
   ontologyName: 'AdventureWorks_Ontology',
   glossaryFile: 'data/adventureworks/business-glossary.md',
@@ -226,8 +233,9 @@ export function presetSummary(project) {
     label: p === RETAIL ? 'Contoso Retail' : 'AdventureWorksDW2022',
     include: p.include || null,
     names: p.names || {},
-    semanticModelName: p.semanticModelName,
-    ontologyName: p.ontologyName,
+    // The names the model and ontology get (the current ones are kept).
+    semanticModelName: itemNameFor('SemanticModel', { current: project.semanticModel?.name, purpose: p.naming.model }, project),
+    ontologyName: itemNameFor('Ontology', { current: project.ontology?.name, purpose: p.naming.model }, project),
     measureCount: p.measures?.length || 0,
     measureNames: (p.measures || []).map((m) => m.name),
     starterQuestions: p.starterQuestions || [],

@@ -3,6 +3,7 @@ import { h, statusDot, fmtDate } from '../ui.js';
 import { app } from '../app.js';
 import { buildGraph, getNode, upstream, downstream, nodePrompt, icon, CAT, VIEW_LABEL } from '../lineage.js';
 import { askCard } from '../prompts.js';
+import { namingCard } from '../naming.js';
 
 // Overview: the solution map above shows every part; this page explains the selected one (or the suggested next
 // step) and keeps the setup checks and the items the studio created in one place.
@@ -13,8 +14,10 @@ export function renderHome(el) {
   const g = buildGraph();
   const sel = app.selectedNode?.();
   const n = (sel && getNode(g, sel)) || getNode(g, g.next || 'model');
+  // Ask what the environment is for before anything is created; afterwards a one-line summary.
   el.append(h('div', { class: 'sheet' },
     inspector(g, n),
+    g.signedIn ? namingCard({ compact: true }) : null,
     store.project?.semanticModel ? askCard({ title: 'Start asking', lead: `Questions from "${store.project.semanticModel.name}", your reports, rules, plan and live data. Select one and Copilot answers with the numbers.`, perGroup: 2 }) : null,
     h('div', { class: 'sheetrow' }, checksSection(), createdSection())));
 }

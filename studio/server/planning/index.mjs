@@ -9,6 +9,7 @@ import { currentProfile, resetProfileCache } from '../reports/index.mjs';
 import { previewPlan, typesOf, monthName, RUN_RATE } from './design.mjs';
 import { applyPlanToModel, planMeasureNames, planCheckQuery } from './model.mjs';
 import { planTarget, writePlanRows, waitForPlanRows, dropPlanTable, PLAN_SCHEMA, PLAN_TABLE } from './store.mjs';
+import { itemNameFor, numberedName } from '../naming.mjs';
 
 export { isPlanTable } from './store.mjs';
 export const MODEL_TABLE = 'Plan';
@@ -199,7 +200,7 @@ export async function runPlanItem(ctx, { name, connection } = {}) {
   const p = requireModel();
   const ws = p.workspace;
   if (!p.planning) throw new Error('Build the plan first – the plan item uses its Budget and Forecast measures.');
-  const itemName = F.itemName('Plan', name || p.planning.planItem?.name || `${p.semanticModel.name}_Plan`, 'Plan');
+  const itemName = F.itemName('Plan', itemNameFor('Plan', { name, current: p.planning.planItem?.name, purpose: 'Budget' }), 'Plan');
   ctx.step('Check the plan and the semantic model connections');
   const conns = (await F.listConnections().catch(() => [])).filter((c) => c.type === 'PowerBIDatasets' && c.connectivityType === 'ShareableCloud');
   if (connection && connection !== 'fabric' && !conns.some((c) => c.id === connection)) {
@@ -251,7 +252,7 @@ export async function runPlanItem(ctx, { name, connection } = {}) {
       try { item = await create(finalName); break; } catch (e) {
         if (!nameTaken(e) || attempt >= 8) throw e;
         // A deleted plan's name is released a few minutes later: wait a little, then use the next free name.
-        if (attempt < 3) { ctx.log(`Waiting for Fabric to release the name "${finalName}"…`); await sleep(15000); } else finalName = `${itemName}_${attempt - 1}`;
+        if (attempt < 3) { ctx.log(`Waiting for Fabric to release the name "${finalName}"…`); await sleep(15000); } else finalName = F.itemName('Plan', numberedName(itemName, attempt - 1), 'Plan');
       }
     }
     if (finalName !== itemName) ctx.log(`Fabric hasn't released "${itemName}" yet, so the plan is called "${finalName}"`);

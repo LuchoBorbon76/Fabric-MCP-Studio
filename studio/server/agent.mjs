@@ -16,7 +16,8 @@ import * as DP from './dataprep.mjs';
 import * as DA from './dataagent.mjs';
 import { readiness, cachedReadiness, assertModuleReady, assertLiveEventsAllowed } from './readiness.mjs';
 import * as F from './fabric.mjs';
-import { presetFor } from './presets.mjs';
+import { presetFor, presetSummary } from './presets.mjs';
+import * as N from './naming.mjs';
 
 export const MCP_ENDPOINTS = {
   'fabric-core': 'https://api.fabric.microsoft.com/v1/mcp/core',
@@ -299,6 +300,7 @@ export const pendingApprovals = () => [...approvals.values()].map((a) => a.reque
 const STUDIO_TOOLS_META = {
   studio_get_project_state: { write: false, title: 'Read project state' },
   studio_use_workspace: { write: true, title: 'Use or create workspace' },
+  studio_set_naming: { write: false, title: 'Set the naming standard (domain and environment)' },
   studio_list_capacities: { write: false, title: 'List capacities' },
   studio_load_sample_data: { write: true, title: 'Load sample data' },
   studio_list_connections: { write: false, title: 'List Fabric connections' },
@@ -352,11 +354,17 @@ async function runAsJob(kind, title, fn) {
 function projectSummary() {
   const p = getProject();
   const preset = presetFor(p);
+  const nm = N.namingState(p);
   return {
     workspace: p.workspace, lakehouse: p.lakehouse, source: p.source, modelSource: p.modelSource,
     semanticModel: p.semanticModel, ontology: p.ontology, steps: p.steps,
+    naming: {
+      pattern: nm.pattern, domain: nm.domain, environment: nm.environment, intent: nm.intent,
+      confirmed: nm.configured ? true : 'no – ask the user what this environment is for and the business domain, then call studio_set_naming',
+      examples: nm.examples.map((e) => e.name),
+    },
     glossaryChars: (p.glossary || '').length,
-    sample: preset ? { semanticModelName: preset.semanticModelName, ontologyName: preset.ontologyName, measures: (preset.measures || []).map((m) => `${m.table}[${m.name}]`) } : null,
+    sample: preset ? { semanticModelName: presetSummary(p).semanticModelName, ontologyName: presetSummary(p).ontologyName, measures: (preset.measures || []).map((m) => `${m.table}[${m.name}]`) } : null,
     modelProposal: p.modelProposal ? { name: p.modelProposal.name, createdAt: p.modelProposal.createdAt, appliedAt: p.modelProposal.appliedAt || null } : null,
     reports: (p.reports || []).map((r) => ({ name: r.name, theme: r.theme, pages: r.pages, url: r.url })),
     orgApp: p.orgApp ? { name: p.orgApp.name, reports: p.orgApp.reports.length } : null,
@@ -425,9 +433,14 @@ function studioTools(chatId) {
       parameters: obj({}), handler: async () => (await F.listCapacities()).map((c) => ({ id: c.id, name: c.displayName, sku: c.sku, region: c.region, state: c.state })),
     }),
     studioTool('studio_use_workspace', {
-      description: 'Select an existing workspace (by id) or create a new one (name + capacityId) and make it the project workspace. Always use this instead of fabric-core create_workspace so the studio tracks it.',
-      parameters: obj({ workspaceId: str('Existing workspace ID'), name: str('Name for a new workspace'), capacityId: str('Capacity ID for a new workspace') }),
+      description: 'Select an existing workspace (by id) or create a new one (name + capacityId) and make it the project workspace. Always use this instead of fabric-core create_workspace so the studio tracks it. A new workspace is named with the naming standard ([Domain]_WS_[Purpose]_[Environment]); pass domain and environment when the user told you what the environment is for.',
+      parameters: obj({ workspaceId: str('Existing workspace ID'), name: str('Name (or just the purpose, e.g. "Analytics") for a new workspace'), capacityId: str('Capacity ID for a new workspace'), domain: str('Business domain for the naming standard, e.g. Sales, Finance, Retail'), environment: str('What the environment is for: DEMO, POC, DEV, TEST, UAT, PROD, TRN or SBX') }),
       handler: async (a) => P.selectWorkspace(a),
+    }),
+    studioTool('studio_set_naming', {
+      description: 'Set the naming standard every item the studio creates follows: [Domain]_[Object]_[Purpose]_[Environment] (e.g. Sales_SM_Revenue_PROD). Ask the user what the environment is for (demo, proof of concept, development, test, user acceptance, production, training or sandbox) and the business domain before calling. Existing items keep their names.',
+      parameters: obj({ domain: str('Business domain, e.g. Sales, Finance, Retail (letters and numbers)'), environment: { type: 'string', enum: N.ENVIRONMENTS.map((e) => e.code), description: N.ENVIRONMENTS.map((e) => `${e.code} = ${e.intent}`).join('; ') } }, ['domain', 'environment']),
+      handler: async (a) => N.setNaming(a),
     }),
     studioTool('studio_load_sample_data', {
       description: 'Load a sample dataset into the project workspace and set it as the model source. "retail": Contoso Retail (6 tables) into a lakehouse, about 3 minutes. "adventureworks": Microsoft\'s AdventureWorksDW2022 created as a Fabric SQL database and replicated to OneLake, about 8 minutes.',
@@ -497,7 +510,7 @@ function studioTools(chatId) {
       },
     }),
     studioTool('studio_create_data_prep_notebook', {
-      description: 'When the data source is a lakehouse: create (or update) a Fabric Python notebook for it and, by default, run it. Nothing about the data is fixed in the notebook – every run lists the lakehouse\'s tables and works out from the data: business-friendly column names, logged data fixes, keys and relationships (checked against the values), facts and dimensions, measures (derived columns and a KPI table with matching DAX), curated Delta tables (in a new <source>_Curated lakehouse by default) and charts (bar, pie, trend, Pareto, heatmap, distribution, box plot, treemap, correlation, model diagram, data quality). Running takes a few minutes. Then summarize the results with studio_data_prep_status.',
+      description: 'When the data source is a lakehouse: create (or update) a Fabric Python notebook for it and, by default, run it. Nothing about the data is fixed in the notebook – every run lists the lakehouse\'s tables and works out from the data: business-friendly column names, logged data fixes, keys and relationships (checked against the values), facts and dimensions, measures (derived columns and a KPI table with matching DAX), curated Delta tables (in a new curated lakehouse, <Domain>_LH_Curated_<Env>, by default) and charts (bar, pie, trend, Pareto, heatmap, distribution, box plot, treemap, correlation, model diagram, data quality). Running takes a few minutes. Then summarize the results with studio_data_prep_status.',
       parameters: obj({ run: { type: 'boolean', description: 'Run the notebook after creating it (default true)' }, target: { type: 'string', enum: ['new', 'same'], description: 'new (default): write curated tables to a new "<source>_Curated" lakehouse; same: write them back to the source lakehouse with the Curated_ prefix' } }),
       handler: async (a) => runAsJob('data-prep', a.run === false ? 'Create the data prep notebook' : 'Create and run the data prep notebook', (ctx) => DP.runDataPrep(ctx, { run: a.run !== false, target: a.target === 'same' ? 'same' : 'new' })),
     }),

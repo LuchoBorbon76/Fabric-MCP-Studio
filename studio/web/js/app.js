@@ -53,7 +53,7 @@ export function suggestions(project, preset) {
   const p = project || {};
   if (!p.workspace) {
     return [
-      'Create a new workspace called "Fabric MCP Demo" on one of my capacities',
+      'Ask me what this environment is for, then create a workspace on one of my capacities',
       'Show me my Fabric workspaces and capacities',
       'What can you build for me in Microsoft Fabric?',
     ];

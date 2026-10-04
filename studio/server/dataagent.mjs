@@ -6,6 +6,7 @@ import { newId, stableUuid } from './config.mjs';
 import * as F from './fabric.mjs';
 import { getProject, updateProject, setStep, recordArtifact, logActivity, assertProjectTenant, fabricUrl } from './project.mjs';
 import { modelMetadata } from './powerbi.mjs';
+import { itemNameFor, purposeOf } from './naming.mjs';
 
 const SCHEMA = 'https://developer.microsoft.com/json-schemas/fabric/item/dataAgent/definition';
 const MAX_INSTRUCTIONS = 15000;
@@ -23,8 +24,8 @@ const clip = (s, n) => {
   return t.length > n ? `${t.slice(0, n - 1).replace(/\s+\S*$/, '')}…` : t;
 };
 
-/** "AdventureWorks Sales agent" -> a valid item name. */
-export const agentName = (p, name) => F.itemName('DataAgent', name || `${p.semanticModel.name} agent`, 'DataAgent');
+/** The agent's name: the current agent keeps its name unless another is given; names follow the naming standard. */
+export const agentName = (p, name) => F.itemName('DataAgent', itemNameFor('DataAgent', { name, current: p.dataAgent?.name, purpose: purposeOf(p.semanticModel.name, 'SemanticModel') }, p), 'DataAgent');
 
 // INFO.VIEW data types -> the data agent's.
 const DATA_TYPE = { Text: 'String', String: 'String', Integer: 'Int64', Int64: 'Int64', Number: 'Double', Double: 'Double', Decimal: 'Decimal', Currency: 'Decimal', Date: 'DateTime', DateTime: 'DateTime', Boolean: 'Boolean', 'True/False': 'Boolean' };
@@ -139,7 +140,7 @@ export async function runDataAgent(ctx, { name, instructions, description, publi
   await assertProjectTenant();
   const p = requireModel();
   const ws = p.workspace;
-  const n = agentName(p, name || p.dataAgent?.name);
+  const n = agentName(p, name);
 
   ctx.step(`Read "${p.semanticModel.name}" (tables, columns, measures)`);
   const meta = await modelMetadata(ws.id, p.semanticModel.id);

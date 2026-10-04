@@ -1,7 +1,8 @@
-// The Fabric items that make each medallion layer visible in the workspace (one item per task in the task flow):
-//   KQL queryset  <base>_Bronze_to_Silver  update policies, data-quality checks, quarantine and duplicates
-//   KQL queryset  <base>_Silver_to_Gold    the Gold materialized views, their health and sample queries
-//   Semantic model <label> Gold             DirectQuery over the Gold views (single sign-on), for Power BI and Copilot
+// The Fabric items that make each medallion layer visible in the workspace (one item per task in the task flow),
+// named by the naming standard (naming.mjs):
+//   KQL queryset   <Domain>_KQS_BronzeToSilver_<Env>  update policies, data-quality checks, quarantine and duplicates
+//   KQL queryset   <Domain>_KQS_SilverToGold_<Env>    the Gold materialized views, their health and sample queries
+//   Semantic model <Domain>_SM_LiveGold_<Env>         DirectQuery over the Gold views (single sign-on), for Power BI and Copilot
 import { stableUuid } from '../config.mjs';
 import { kqlName, kqlString } from './kusto.mjs';
 import { quoteName } from '../generators/tmdl.mjs';

@@ -25,7 +25,7 @@ Agent → **Tools** → **Add a tool** → **New tool** → **Model Context Prot
 
 | Server name | Server URL | Description to give the orchestrator |
 |---|---|---|
-| Fabric IQ | `https://fabriciq.svc.cloud.microsoft/v1/mcp/fabriciq` | Answers numeric business questions by querying the Retail Sales Power BI semantic model with DAX. |
+| Fabric IQ | `https://fabriciq.svc.cloud.microsoft/v1/mcp/fabriciq` | Answers numeric business questions by querying the Retail_SM_Sales_DEMO Power BI semantic model with DAX. |
 | Contoso Retail Ontology | `https://api.fabric.microsoft.com/v1/mcp/dataPlane/workspaces/<workspaceId>/items/<ontologyId>/ontologyEndpoint` | Explains Contoso Retail business entities, relationships and rules (at-risk customer, return window, minimum margin). |
 
 After adding the ontology server, open its tool list and keep only **list_ontology_entities** and
@@ -49,7 +49,7 @@ Authentication: **OAuth 2.0 → Manual** (Microsoft Entra ID doesn't support dyn
 
 ```text
 You are the Contoso Retail analyst. Use the Fabric IQ tool for any number and always use the existing measures
-of the "Retail Sales" semantic model. Use the Contoso_Retail_Ontology tool to explain business definitions and
+of the "Retail_SM_Sales_DEMO" semantic model. Use the Retail_ONT_Sales_DEMO tool to explain business definitions and
 rules. Show which measure or rule you used. Never invent numbers.
 ```
 

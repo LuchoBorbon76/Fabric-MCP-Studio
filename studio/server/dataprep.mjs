@@ -8,6 +8,7 @@ import { DATA_DIR, sleep } from './config.mjs';
 import * as F from './fabric.mjs';
 import { getProject, updateProject, recordArtifact, logActivity, assertProjectTenant, fabricUrl } from './project.mjs';
 import { buildDataNotebook, DATA_PREP_FOLDER } from './generators/notebook.mjs';
+import { standardName } from './naming.mjs';
 
 const CHART_DIR = join(DATA_DIR, 'data-prep');
 const CHART_FILE = /^[\w.-]+\.png$/i;
@@ -21,18 +22,32 @@ function lakehouseSource(p = getProject()) {
   return { source: { workspaceId: ms.workspaceId || p.workspace.id, lakehouseId: ms.itemId, name: ms.itemName } };
 }
 
-const curatedName = (name) => F.itemName('Lakehouse', `${name}_Curated`, 'Curated');
-const notebookName = (name) => `${name} data prep`.slice(0, 120);
+// Names follow the naming standard ([Domain]_LH_Curated_[Env], [Domain]_NB_DataPrep_[Env]). Another lakehouse source
+// gets Curated2, DataPrep2… so each source keeps its own items.
+const variant = (purpose, n) => (n === 1 ? purpose : `${purpose}${n}`);
+const curatedName = (n = 1) => F.itemName('Lakehouse', standardName('Lakehouse', variant('Curated', n)), 'Curated');
+const notebookName = (n = 1) => F.itemName('Notebook', standardName('Notebook', variant('DataPrep', n)));
 
 /** Remember every item the data prep job creates (across data sources), so clean up can delete them all. */
-function track(type, item, workspaceId) {
+function track(type, item, workspaceId, sourceId) {
   const list = getProject().dataPrepItems || [];
-  if (!list.some((x) => x.id === item.id)) updateProject({ dataPrepItems: [...list, { type, id: item.id, name: item.name || item.displayName, workspaceId }] });
+  if (!list.some((x) => x.id === item.id)) updateProject({ dataPrepItems: [...list, { type, id: item.id, name: item.name || item.displayName, workspaceId, sourceId }] });
 }
 function untrack(ids) {
   updateProject({ dataPrepItems: (getProject().dataPrepItems || []).filter((x) => !ids.includes(x.id)) });
 }
-const isTracked = (id) => (getProject().dataPrepItems || []).some((x) => x.id === id);
+const tracked = (id) => (getProject().dataPrepItems || []).find((x) => x.id === id);
+const isTracked = (id) => Boolean(tracked(id));
+/** A studio item that may be reused for this source (made for it, or before items recorded their source). */
+const reusableFor = (id, sourceId) => { const t = tracked(id); return Boolean(t && (!t.sourceId || t.sourceId === sourceId)); };
+/** The curated lakehouse name the next run would use for a source. */
+function plannedCuratedName(sourceId) {
+  const list = (getProject().dataPrepItems || []).filter((x) => x.type === 'Lakehouse');
+  const mine = list.find((x) => x.sourceId === sourceId);
+  if (mine) return mine.name;
+  const others = list.filter((x) => x.sourceId && x.sourceId !== sourceId).map((x) => x.name.toLowerCase());
+  for (let n = 1; ; n++) if (!others.includes(curatedName(n).toLowerCase())) return curatedName(n);
+}
 
 /** What the Data page shows: whether the notebook applies, what it reads and writes, and the last run. */
 export function dataPrepState() {
@@ -44,7 +59,7 @@ export function dataPrepState() {
     available: Boolean(source),
     reason: error || null,
     source: source || null,
-    plannedTarget: source ? { name: curatedName(source.name), workspaceId: p.workspace.id } : null,
+    plannedTarget: source ? { name: plannedCuratedName(source.lakehouseId), workspaceId: p.workspace.id } : null,
     current: Boolean(dp && source && dp.source?.lakehouseId === source.lakehouseId),
     dataPrep: dp ? {
       ...dp,
@@ -64,7 +79,7 @@ export function dataPrepChart(file) {
 
 /**
  * Create (or update) the notebook for the current lakehouse and optionally run it.
- * target: 'new' writes to a "<source>_Curated" lakehouse in the project workspace (the source is left alone);
+ * target: 'new' writes to a curated lakehouse ([Domain]_LH_Curated_[Env]) in the project workspace (the source is left alone);
  * 'same' writes back to the source lakehouse with the Curated_ prefix.
  * Only items the studio created are reused or updated: a notebook or lakehouse of the same name that belongs to
  * someone else is left alone and the new one gets a numbered name.
@@ -77,6 +92,13 @@ export async function runDataPrep(ctx, { run = true, target = 'new' } = {}) {
   const ws = p.workspace;
   const prev = p.dataPrep?.source?.lakehouseId === source.lakehouseId ? p.dataPrep : null;
   const items = await F.listItems(ws.id);
+  // The items made for this source before – recorded with the source, or (older versions) named after it – are
+  // reused whatever names the naming standard gives new ones now.
+  const madeFor = (type, legacyName) => {
+    const list = (getProject().dataPrepItems || []).filter((x) => x.type === type && items.some((i) => i.id === x.id));
+    const t = list.find((x) => x.sourceId === source.lakehouseId) || list.find((x) => !x.sourceId && x.name?.toLowerCase() === legacyName.toLowerCase());
+    return t ? items.find((i) => i.id === t.id) : null;
+  };
 
   ctx.step('Prepare the lakehouse for the curated tables');
   let tgt;
@@ -85,15 +107,15 @@ export async function runDataPrep(ctx, { run = true, target = 'new' } = {}) {
   } else {
     const ours = (i) => i?.type === 'Lakehouse' && isTracked(i.id);
     let lh = prev?.target && !prev.target.same ? items.find((i) => i.id === prev.target.id && ours(i)) : null;
-    const base = curatedName(source.name);
+    lh ||= madeFor('Lakehouse', F.itemName('Lakehouse', `${source.name}_Curated`, 'Curated'));
     for (let n = 1; !lh; n++) {
-      const name = n === 1 ? base : `${base}_${n}`;
+      const name = curatedName(n);
       const same = items.find((i) => i.type === 'Lakehouse' && i.displayName.toLowerCase() === name.toLowerCase());
-      if (same && ours(same)) lh = same;
+      if (same && ours(same) && reusableFor(same.id, source.lakehouseId)) lh = same;
       else if (!same) {
         const made = await F.ensureLakehouse(ws.id, name, `Curated tables and charts from ${source.name}, written by the Fabric MCP Studio data prep notebook.`);
         recordArtifact({ type: 'Lakehouse', id: made.id, name, workspaceId: ws.id, note: 'Curated tables (data prep notebook)' });
-        track('Lakehouse', { id: made.id, name }, ws.id);
+        track('Lakehouse', { id: made.id, name }, ws.id, source.lakehouseId);
         lh = { ...made, displayName: name };
       }
     }
@@ -113,14 +135,15 @@ export async function runDataPrep(ctx, { run = true, target = 'new' } = {}) {
   ctx.step('Create the notebook in Fabric');
   const mine = (i) => i?.type === 'Notebook' && isTracked(i.id);
   let item = prev?.notebook?.id ? items.find((i) => i.id === prev.notebook.id && mine(i)) : null;
+  item ||= madeFor('Notebook', `${source.name} data prep`.slice(0, 120));
   for (let n = 1; !item; n++) {
-    const name = n === 1 ? notebookName(source.name) : `${notebookName(source.name)} ${n}`;
+    const name = notebookName(n);
     const same = items.find((i) => i.type === 'Notebook' && i.displayName.toLowerCase() === name.toLowerCase());
-    if (same && mine(same)) item = same;
+    if (same && mine(same) && reusableFor(same.id, source.lakehouseId)) item = same;
     else if (!same) {
       const made = await F.createItem(ws.id, { name, type: 'Notebook', description: `Renames, fixes, models, measures and charts the data in ${source.name}. Generated by Fabric MCP Studio.`, definition });
       recordArtifact({ type: 'Notebook', id: made.id, name, workspaceId: ws.id, note: 'Data prep notebook (Python)' });
-      track('Notebook', { id: made.id, name }, ws.id);
+      track('Notebook', { id: made.id, name }, ws.id, source.lakehouseId);
       ctx.log(`Created notebook ${name}`);
       item = { ...made, displayName: name, created: true };
     }

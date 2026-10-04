@@ -23,9 +23,16 @@ are working in (no separate window) and asks for your approval before each chang
 
 ## 1. Workspace
 
-**Workspace** page (the frame around the Fabric parts of the map) › *Create new* (name + capacity) or *Use existing*.
+First tell the studio **what this environment is for** (Overview or Workspace page): demo, proof of concept,
+development, test, user acceptance, production, training or sandbox, and the business domain (for example Sales). Every
+item it creates is then named `[Domain]_[Object]_[Purpose]_[Environment]` – `Sales_WS_Analytics_PROD`,
+`Sales_SM_Revenue_PROD`, `Sales_RPT_Executive_PROD` – and the page previews the names. Items that already exist keep
+their names.
 
-> Ask Copilot: *Create a new workspace called "Fabric MCP Demo" on one of my capacities.*
+**Workspace** page (the frame around the Fabric parts of the map) › *Create new* (purpose + capacity; the name follows
+the standard) or *Use existing*.
+
+> Ask Copilot: *Ask me what this environment is for, then create a workspace on one of my capacities.*
 
 ## 2. Data
 
@@ -45,9 +52,10 @@ status for mirrored databases. The source tabs below open on the source in use, 
 **Data prep notebook (lakehouse sources).** Tick *Also create a data prep notebook* when you load the Contoso Retail
 sample or pick a lakehouse, or use the **Data prep notebook** card once a lakehouse is connected (≈2 min to run). The
 studio creates a Fabric Python notebook that works everything out from your lakehouse when it runs – clearer column
-names, logged data fixes, keys and relationships, measures with DAX, curated tables in `<source>_Curated` and charts
-(bar, pie, trend, Pareto, heatmap, distribution, box plot, treemap, correlation, model diagram). The card shows the
-results and charts; *Use <source>_Curated as the data source* builds the model on the curated tables.
+names, logged data fixes, keys and relationships, measures with DAX, curated tables in a new curated lakehouse
+(`<Domain>_LH_Curated_<Env>`) and charts (bar, pie, trend, Pareto, heatmap, distribution, box plot, treemap,
+correlation, model diagram). The card shows the results and charts; *Use … as the data source* builds the model on the
+curated tables.
 
 > Ask Copilot: *Describe my data source: tables, row counts, keys and relationships. Then suggest a star schema.*
 

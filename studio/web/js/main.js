@@ -449,7 +449,7 @@ on('auth', (e) => { store.user = e.user; renderAll(); loadReadiness(true); });
 async function refresh() {
   try {
     const b = await get('/bootstrap');
-    Object.assign(store, { version: b.version, build: b.build || null, user: b.user, settings: b.settings, provider: b.provider, providers: b.providers, project: b.project, catalog: b.catalog, chats: b.chats, approvals: b.approvals, preset: b.preset, platform: b.platform, realtime: b.realtime || null, planning: b.planning || null, readiness: b.readiness || store.readiness || null });
+    Object.assign(store, { version: b.version, build: b.build || null, user: b.user, settings: b.settings, provider: b.provider, providers: b.providers, project: b.project, naming: b.naming || null, catalog: b.catalog, chats: b.chats, approvals: b.approvals, preset: b.preset, platform: b.platform, realtime: b.realtime || null, planning: b.planning || null, readiness: b.readiness || store.readiness || null });
     readinessKey = [b.project?.workspace?.id, b.project?.modelSource?.itemId, Boolean(b.project?.realtime)].join('|');
     presetSource = b.project?.source?.id || null;
     dataSourceKey = dataKey(b.project);

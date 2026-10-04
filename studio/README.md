@@ -4,6 +4,9 @@ An interactive app, installed by the customer, that builds a governed data found
 chatting with the **AI the customer already licenses**:
 
 - **Workspace** – create a new one on any capacity, or use an existing workspace.
+- **Naming standard** – every item the studio creates is named `[Domain]_[Object]_[Purpose]_[Environment]`
+  (for example `Sales_SM_Revenue_PROD`). The Overview and Workspace pages ask what the environment is for (demo, proof
+  of concept, development, test, user acceptance, production, training or sandbox) and the business domain.
 - **Data** – start from sample data (Contoso Retail, or AdventureWorksDW2022 created as a Fabric SQL database), mirror
   your databases (Azure SQL Database, Azure SQL Managed Instance, SQL Server on-premises via gateway, Azure Database
   for PostgreSQL), or reuse Fabric lakehouses, warehouses, mirrored databases and SQL databases (in place or with
@@ -106,6 +109,27 @@ flowchart LR
   are disabled; parts that run with limits say so. Jobs and Copilot tools stop before changing anything when their
   step can't run. *Check setup* and `npm run check` show the same list.
 
+## Naming standard
+
+Every item the studio creates follows **`[Domain]_[Object]_[Purpose]_[Environment]`**, so anyone can tell what an item
+is, what it's for and where it runs. The **Overview** and **Workspace** pages ask *What is this environment for?* and the
+business domain, with a live preview of the names; Copilot asks too (`studio_set_naming`) before it creates anything.
+
+| Part | What it is | Examples |
+|---|---|---|
+| Domain | The business area, in PascalCase | `Sales`, `Finance`, `Retail`, `SupplyChain` |
+| Object | A short code for the item type | `WS` workspace · `LH` lakehouse · `WH` warehouse · `SQLDB` SQL database · `MDB` mirrored database · `CONN` connection · `NB` notebook · `PL` pipeline · `SM` semantic model · `RPT` report · `APP` org app · `ONT` ontology · `DA` data agent · `PLAN` plan · `EH` eventhouse · `KQLDB` KQL database · `ES` eventstream · `KQS` KQL queryset · `RTD` Real-Time Dashboard · `ACT` Activator · `TF` task flow |
+| Purpose | What the item does, in PascalCase | `Raw`, `Curated`, `Sales`, `Executive`, `BusinessRules`, `PlanVsActual`, `Budget`, `Live`, `BronzeToSilver` |
+| Environment | What the environment is for | `DEMO` demo · `POC` proof of concept · `DEV` development · `TEST` testing · `UAT` user acceptance · `PROD` production · `TRN` training · `SBX` sandbox |
+
+For example, the Contoso Retail sample in a demo environment gives `Retail_WS_Analytics_DEMO`, `Retail_LH_Raw_DEMO`,
+`Retail_SM_Sales_DEMO`, `Retail_RPT_Executive_DEMO` and `Retail_DA_Sales_DEMO`. Names typed in the app or suggested by
+Copilot become the purpose (`Sales report` → `Retail_RPT_Sales_DEMO`); a full standard name is kept as it is. Until you
+choose, the samples suggest their domain with `DEMO`, and a workspace whose name already follows the standard suggests
+its own. **Items that already exist keep their names**, so nothing is renamed or duplicated when you change the
+standard; a second item with the same purpose gets a number (`Curated2`). Names fit Fabric's strictest rules (letters,
+numbers and underscores, 89 characters).
+
 ## Data source scenarios
 
 | Source | How it lands | Notes |
@@ -138,10 +162,10 @@ Every run works the rest out from the data, so it works for any lakehouse and ca
 | Data fixes | Trims text, blank → missing, consistent category spelling, text → dates and numbers, placeholder dates, empty columns, duplicate rows and keys; negatives, outliers, future dates and unmatched keys are kept and counted. Every fix is logged in a `DataQuality` table |
 | Keys and relationships | Each table's key, and the columns that point to other tables (the name must match **and** at least 80% of the values must be found); facts and dimensions follow from them |
 | New measures | Net amount, total cost, gross margin and margin %, date parts and value bands; a `KPIs` table with the matching DAX. Amounts are summed; temperatures, prices, rates and scores are averaged |
-| Curated tables | Delta tables in a new `<source>_Curated` lakehouse (or back to the source with the `Curated_` prefix) |
+| Curated tables | Delta tables in a new curated lakehouse, `<Domain>_LH_Curated_<Env>` (or back to the source with the `Curated_` prefix) |
 | Charts | KPI tiles, tables overview, model diagram, trend, top items, pie, breakdowns, Pareto, weekday × month heatmap, distribution, box plot, treemap, correlation, missing values and data fixes – each with a one-line insight, shown on the Data page |
 
-**Use `<source>_Curated` as the data source** to build the semantic model, ontology and reports on the curated tables.
+**Use the curated lakehouse as the data source** to build the semantic model, ontology and reports on the curated tables.
 Clean up deletes the notebook and the curated lakehouse.
 
 ## Reports
@@ -291,6 +315,7 @@ Copilot tools: `studio_planning_status`, `studio_preview_plan`, `studio_create_p
 | `server/generators/ontology-live.mjs` | Adds or removes Eventhouse time-series bindings and dashboard links on an existing TMDL ontology |
 | `server/planning/` | Budgets and forecasts: plan design and calculation (`design.mjs`), plan values in the SQL database or warehouse (`store.mjs`), the Plan table patch for the semantic model (`model.mjs`), jobs, plan item and summary (`index.mjs`) |
 | `server/readiness.mjs` | Up-front checks: capacity, workspace role, tenant settings and data-source limits per step, and the guard that stops jobs of steps that can't run |
+| `server/naming.mjs` | Naming standard `[Domain]_[Object]_[Purpose]_[Environment]`: environments, object codes, the name of every item the studio creates (`web/js/naming.js` shows the same names and asks what the environment is for) |
 | `server/presets.mjs` | Sample presets (names, relationships, measures, rules) |
 | `server/samples/adventureworks-dw.mjs` | AdventureWorksDW2022 loader for Fabric SQL database (install kit → tables, keys, bulk load, verification) |
 | `server/agent-instructions.md` | System instructions for the agent |

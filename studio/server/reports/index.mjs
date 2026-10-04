@@ -12,6 +12,7 @@ import { recommendations } from './recommend.mjs';
 import { ruleSet, ruleValues } from './rules.mjs';
 import { reportFiles } from '../generators/pbir.mjs';
 import { newId } from '../config.mjs';
+import { itemNameFor, purposeOf } from '../naming.mjs';
 
 const PREVIEW_DIR = join(DATA_DIR, 'previews');
 let profileCache = { key: null, at: 0, data: null };
@@ -58,6 +59,11 @@ export async function currentRecommendations({ refresh = false } = {}) {
 const PAGE_IDS = PAGE_TEMPLATES.map((x) => x.id);
 const THEME_IDS = THEMES.map((t) => t.id);
 
+/** A report built before keeps its name (so it is updated, not duplicated); a new one follows the naming standard. */
+function reportNameFor(p, name) {
+  return F.itemName('Report', itemNameFor('Report', { name, known: (p.reports || []).map((r) => r.name), purpose: purposeOf(p.semanticModel.name, 'SemanticModel') }));
+}
+
 /** Keep Copilot's suggested report design so the user can review and apply it. Nothing changes in Fabric. */
 export async function proposeReport({ name, theme, pages, audience, summary }, { chatId = null } = {}) {
   const p = requireModel();
@@ -65,7 +71,7 @@ export async function proposeReport({ name, theme, pages, audience, summary }, {
   const warnings = [];
   if (pages?.length && pg.length < pages.length) warnings.push(`Unknown pages left out: ${pages.filter((x) => !PAGE_IDS.includes(x)).join(', ')}.`);
   if (theme && !THEME_IDS.includes(theme)) warnings.push(`Unknown theme "${theme}" – using Fabric Studio.`);
-  const reportName = F.itemName('Report', name || `${p.semanticModel.name} report`);
+  const reportName = reportNameFor(p, name);
   const text = String(summary || '').trim();
   const proposal = {
     id: newId(), kind: 'report', chatId, createdAt: new Date().toISOString(),
@@ -116,7 +122,7 @@ export async function runReport(ctx, { name, theme: themeId = 'studio', pages = 
   }
   const built = buildReportPages(profile, theme, { pages });
   if (!built.length) throw new Error('Select at least one page.');
-  const reportName = F.itemName('Report', name || `${p.semanticModel.name} report`);
+  const reportName = reportNameFor(p, name);
   const files = reportFiles({ semanticModelId: p.semanticModel.id, theme, pages: built, extensions });
   ctx.log(`${built.length} pages · ${built.reduce((a, x) => a + x.visuals.length, 0)} visuals · ${Object.keys(files).length} definition parts`);
   ctx.progress(40);

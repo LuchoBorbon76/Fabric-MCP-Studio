@@ -27,8 +27,15 @@ If a capability has no MCP tool (for example the Lakehouse *Load Table* API), us
 
 ## Naming and modeling conventions
 
-- Workspace: `Fabric MCP Demo - Retail` · Lakehouse: `RetailLakehouse` · Semantic model: `Retail Sales` ·
-  Ontology: `Contoso_Retail_Ontology` (unless the user says otherwise). Lakehouse and Ontology names allow only letters, numbers and underscores.
+- **Every item name follows `[Domain]_[Object]_[Purpose]_[Environment]`** – PascalCase domain and purpose, an object
+  code (`WS` workspace, `LH` lakehouse, `WH` warehouse, `SQLDB`, `MDB` mirrored database, `CONN` connection, `NB`
+  notebook, `PL` pipeline, `SM` semantic model, `RPT` report, `APP` org app, `ONT` ontology, `DA` data agent, `PLAN`,
+  `EH` eventhouse, `KQLDB`, `ES` eventstream, `KQS` KQL queryset, `RTD` Real-Time Dashboard, `ACT` Activator, `TF` task
+  flow) and the environment (`DEMO`, `POC`, `DEV`, `TEST`, `UAT`, `PROD`, `TRN`, `SBX`). Only letters, numbers and
+  underscores, so the names are valid for every item type. Ask what the environment is for when you don't know.
+- Demo defaults: Workspace `Retail_WS_Analytics_DEMO` · Lakehouse `Retail_LH_Raw_DEMO` · Semantic model
+  `Retail_SM_Sales_DEMO` · Ontology `Retail_ONT_Sales_DEMO` (unless the user says otherwise). Earlier deployments keep
+  their names (`config/demo.state.json`); never rename existing items unless asked.
 - Lakehouse tables keep source names (`sales`, `customers`, …). Semantic model tables use business names
   (`Sales`, `Customer`, `Product`, `Store`, `Date`, `Returns`).
 - Star schema, single-direction relationships from dimensions to facts, `Date` marked as date table.

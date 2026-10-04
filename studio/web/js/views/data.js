@@ -2,6 +2,7 @@ import { store, get, post, del, on } from '../api.js';
 import { h, toast, busy, field, input, select, seg, fmtNum, fmtDate, confirmDialog, $ } from '../ui.js';
 import { app, copilotSlot } from '../app.js';
 import { askCard } from '../prompts.js';
+import { standardName, pascal } from '../naming.js';
 
 const TOKEN = document.querySelector('meta[name="studio-token"]').content;
 let tab = 'samples';
@@ -11,7 +12,7 @@ let fabricState = { itemType: 'Lakehouse', workspaceId: '', itemId: '', tables: 
 let alignedTo;            // data source the tabs below were last filled from
 let workspaceNames = null;
 let prepOn = false;       // "also create a data prep notebook" when a lakehouse becomes the data source
-let prepTarget = 'new';   // where the notebook writes: a new <source>_Curated lakehouse, or the same lakehouse
+let prepTarget = 'new';   // where the notebook writes: a new curated lakehouse, or the same lakehouse
 // After a clean up or a new project, nothing picked from Fabric is still valid.
 on('studio.reset', () => { selectedType = null; wiz = null; fabricState = { itemType: 'Lakehouse', workspaceId: '', itemId: '', tables: [], selected: new Set() }; alignedTo = undefined; workspaceNames = null; });
 
@@ -171,7 +172,7 @@ function prepOption() {
   box.addEventListener('change', () => { prepOn = box.checked; });
   return h('label', { class: 'row small mt', style: { alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }, title: PREP_WHAT }, box,
     h('span', {}, h('b', {}, 'Also create a data prep notebook (Python)'), h('span', { class: 'tiny muted', style: { display: 'block' } },
-      'Renames columns, fixes data, finds relationships, adds measures and draws bar, pie, trend and other charts. Curated tables go to a new "…_Curated" lakehouse; the source is never changed.')));
+      'Renames columns, fixes data, finds relationships, adds measures and draws bar, pie, trend and other charts. Curated tables go to a new curated lakehouse; the source is never changed.')));
 }
 
 async function startDataPrep({ run = true, target = prepTarget } = {}) {
@@ -492,7 +493,7 @@ function wizard(t, redraw) {
           if (c.type === 'WorkspaceIdentity') credBox.append(h('p', { class: 'small muted' }, 'Uses the workspace identity (no secrets). Provision it in Workspace settings › Workspace identity, then grant it access in the database: CREATE USER [<workspace name>] FROM EXTERNAL PROVIDER; ALTER ROLE db_owner ADD MEMBER [<workspace name>];'));
         };
         drawCred();
-        const name = input({ value: `${t.name} - ${w.values.server}/${w.values.database}`.slice(0, 100) });
+        const name = input({ value: standardName('Connection', `${pascal(w.values.database)}${pascal(String(w.values.server || '').split('.')[0])}`) });
         const cbtn = h('button', { class: 'btn pri', 'data-busy': 'Creating connection…' }, 'Create connection');
         cbtn.addEventListener('click', busy(cbtn, async () => {
           const r = await post('/sources/connection', { typeId: t.id, server: w.values.server, database: w.values.database, port: w.values.port, credential: c, name: name.value });
@@ -517,7 +518,7 @@ function wizard(t, redraw) {
   }
 
   if (w.step === 3) {
-    const name = input({ value: w.mirrorName || `Mirror_${(w.values.database || 'db').replace(/[^A-Za-z0-9_]/g, '_')}` });
+    const name = input({ value: w.mirrorName || standardName('MirroredDatabase', w.values.database || 'Database') });
     const job = h('div', { class: 'mt' });
     const live = h('div', { class: 'mt' });
     const btn = h('button', { class: 'btn pri big', 'data-busy': 'Starting…' }, 'Start mirroring');

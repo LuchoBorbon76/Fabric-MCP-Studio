@@ -31,6 +31,7 @@
     { "date": "2026-10-04", "type": "improvement", "commit": "8fa41f0", "title": "Fabric data agent created and published by the studio, with Apply suggestions" },
     { "date": "2026-10-04", "type": "improvement", "commit": "978625c", "title": "Disclaimer for internal and external users, shown once and in the footer; What's new" },
     { "date": "2026-10-04", "type": "fix", "commit": "978625c", "title": "Version number calculated from the improvements and fixes" },
-    { "date": "2026-10-04", "type": "fix", "title": "Clean up empties the project: the map shows Choose a workspace instead of the old workspace" }
+    { "date": "2026-10-04", "type": "fix", "commit": "027a702", "title": "Clean up empties the project: the map shows Choose a workspace instead of the old workspace" },
+    { "date": "2026-10-04", "type": "improvement", "title": "Naming standard [Domain]_[Object]_[Purpose]_[Environment] for every item, from what the environment is for" }
   ]
 }

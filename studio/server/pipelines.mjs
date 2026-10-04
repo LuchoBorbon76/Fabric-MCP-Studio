@@ -17,24 +17,26 @@ import { resetProfileCache } from './reports/index.mjs';
 import { stopSimulator } from './realtime/simulator.mjs';
 import { deleteTaskFlow } from './taskflow.mjs';
 import { clearDataPrepFiles } from './dataprep.mjs';
-
-const safeName = (s, fallback = 'Item') => (String(s || '').replace(/[^A-Za-z0-9_]/g, '_').replace(/^_+|_+$/g, '').replace(/_+/g, '_') || fallback).slice(0, 120);
+import { standardName, standardize, itemNameFor, purposeOf, parseName, namingOf, setNaming, suggestNaming, pascal } from './naming.mjs';
 
 // ---------------- workspace ----------------
 
-export async function selectWorkspace({ workspaceId, name, capacityId, description }, log = () => {}) {
+export async function selectWorkspace({ workspaceId, name, capacityId, description, domain, environment, intent }, log = () => {}) {
   await assertProjectTenant();
+  if (domain || environment || intent) setNaming({ domain, environment, intent });
   let ws;
   let created = false;
   if (workspaceId) {
     ws = await F.getWorkspace(workspaceId);
   } else {
     if (!name) throw new Error('Workspace name is required.');
-    ws = await F.findWorkspace(name);
+    // An existing workspace is used as it is; a new one follows the naming standard.
+    const wsName = standardize('Workspace', name, 'Analytics');
+    ws = await F.findWorkspace(name) || (wsName !== name ? await F.findWorkspace(wsName) : null);
     if (!ws) {
       if (!capacityId) throw new Error('Choose a Fabric capacity for the new workspace.');
-      log(`Creating workspace "${name}"…`);
-      ws = await F.createWorkspace({ name, capacityId, description: description || 'Created by Fabric MCP Studio.' });
+      log(`Creating workspace "${wsName}"…`);
+      ws = await F.createWorkspace({ name: wsName, capacityId, description: description || `${namingOf().intent} workspace created by Fabric MCP Studio.` });
       created = true;
     }
   }
@@ -46,8 +48,12 @@ export async function selectWorkspace({ workspaceId, name, capacityId, descripti
   if (!ws.capacityId) throw new Error('This workspace is not on a Fabric capacity. Pick a capacity so the studio can create Fabric items.');
   const prev = getProject().workspace;
   const workspace = { id: ws.id, name: ws.displayName, capacityId: ws.capacityId, created: created || (prev?.id === ws.id && prev.created) };
-  const reset = prev?.id !== ws.id ? { lakehouse: null, modelSource: null, semanticModel: null, ontology: null, source: null, dataPrep: null, dataPrepItems: [], dataAgent: null, dataAgentProposal: null } : {};
+  // Naming guessed for the previous workspace (from its name or a sample) doesn't carry over; a confirmed one does.
+  const reset = prev?.id !== ws.id ? { lakehouse: null, sqlDatabase: null, modelSource: null, semanticModel: null, ontology: null, source: null, dataPrep: null, dataPrepItems: [], dataAgent: null, dataAgentProposal: null, ...(getProject().naming?.inferred ? { naming: null } : {}) } : {};
   updateProject({ workspace, ...reset });
+  // A workspace that already follows the standard tells the domain and environment until the user chooses.
+  const parsed = parseName(ws.displayName);
+  if (parsed?.code === 'WS') suggestNaming({ domain: parsed.domain, environment: parsed.environment });
   setStep('workspace', 'done', workspace.name);
   if (created) recordArtifact({ type: 'Workspace', id: ws.id, name: ws.displayName, workspaceId: ws.id });
   logActivity('workspace.select', `Using workspace ${ws.displayName}`, { workspaceId: ws.id, created });
@@ -60,11 +66,24 @@ function requireWorkspace() {
   return ws;
 }
 
-async function ensureProjectLakehouse(name, log) {
+/**
+ * The project lakehouse for a purpose (named by the naming standard). The current one is reused when it was made for
+ * the same purpose (whatever domain and environment it was named with), and a lakehouse with one of the names older
+ * versions of the studio used (legacy) is reused instead of creating a new one next to it.
+ */
+async function ensureProjectLakehouse(log, { purpose = 'Raw', legacy = [], reuseAny = false } = {}) {
   const ws = requireWorkspace();
   const p = getProject();
-  if (p.lakehouse?.id && (!name || p.lakehouse.name === name)) return p.lakehouse;
-  const lhName = safeName(name || 'StudioLakehouse');
+  const std = standardName('Lakehouse', purpose);
+  const samePurpose = (n) => { const x = parseName(n); return x?.code === 'LH' && x.purpose.toLowerCase() === pascal(purpose).toLowerCase(); };
+  if (p.lakehouse?.id && (reuseAny || samePurpose(p.lakehouse.name) || [std, ...legacy].some((n) => n.toLowerCase() === p.lakehouse.name.toLowerCase()))) return p.lakehouse;
+  let lhName = F.itemName('Lakehouse', std, 'Lakehouse');
+  if (!await F.findItem(ws.id, 'Lakehouse', lhName)) {
+    for (const n of legacy) {
+      const found = await F.findItem(ws.id, 'Lakehouse', n);
+      if (found) { lhName = found.displayName; break; }
+    }
+  }
   log(`Preparing lakehouse ${lhName}…`);
   const lh = await F.ensureLakehouse(ws.id, lhName, 'Project lakehouse created by Fabric MCP Studio.');
   if (lh.created) recordArtifact({ type: 'Lakehouse', id: lh.id, name: lhName, workspaceId: ws.id });
@@ -86,8 +105,9 @@ function setModelSource(ms, label) {
 
 export async function runSampleRetail(ctx) {
   const ws = requireWorkspace();
+  suggestNaming(RETAIL.naming);
   ctx.step('Create the project lakehouse');
-  const lh = await ensureProjectLakehouse(RETAIL.lakehouseName, ctx.log);
+  const lh = await ensureProjectLakehouse(ctx.log, { purpose: RETAIL.naming.lakehouse, legacy: [RETAIL.lakehouseName] });
   ctx.progress(20);
 
   const folder = join(REPO_ROOT, 'data', 'retail', 'parquet');
@@ -140,8 +160,10 @@ export async function discoverSource({ typeId, server, database, port, auth }) {
 export async function createConnection({ typeId, server, database, port, credential, name }) {
   const st = sourceType(typeId);
   const host = st.engine === 'postgres' && port && String(port) !== '5432' ? `${server}:${port}` : server;
+  // Connections are shared across the tenant, so the purpose names the database and its server.
+  const purpose = `${pascal(database)}${pascal(String(server).split('.')[0])}`;
   const conn = await F.createCloudConnection({
-    name: name || `${st.name} - ${server}/${database}`.slice(0, 200),
+    name: itemNameFor('Connection', { name, purpose }).slice(0, 200),
     connectionType: st.connectionType,
     server: host,
     database,
@@ -158,7 +180,7 @@ export async function runMirror(ctx, { typeId, connectionId, connectionName, ser
   if (!st?.mirrorType) throw new Error(`${typeId} can't be mirrored.`);
   if (!connectionId) throw new Error('A Fabric connection is required. Create one in the Data page or pick an existing connection.');
   const mirrorType = (st.mirrorTypeByVersion && st.mirrorTypeByVersion[sqlVersionMajor]) || st.mirrorType;
-  const itemName = safeName(name || `Mirror_${database}`);
+  const itemName = F.itemName('MirroredDatabase', itemNameFor('MirroredDatabase', { name, current: getProject().source?.method === 'mirror' && getProject().source?.database === database ? getProject().modelSource?.itemName : undefined, purpose: pascal(database) }), 'Mirror');
 
   ctx.step(`Create mirrored database ${itemName}`);
   let item = await F.findItem(ws.id, 'MirroredDatabase', itemName);
@@ -233,7 +255,7 @@ export async function runShortcuts(ctx, { sourceWorkspaceId, sourceItemId, sourc
   requireWorkspace();
   const ws = getProject().workspace;
   ctx.step('Prepare the project lakehouse');
-  const lh = await ensureProjectLakehouse(getProject().lakehouse?.name || 'StudioLakehouse', ctx.log);
+  const lh = await ensureProjectLakehouse(ctx.log, { purpose: 'Raw', reuseAny: true });
   ctx.progress(25);
   ctx.step(`Create ${tables.length} OneLake shortcuts`);
   for (const [i, t] of tables.entries()) {
@@ -307,7 +329,7 @@ export async function runSemanticModel(ctx, { name, include, names, relationship
 
   const m = modelMeasures(plan, preset, measures, useDefaults);
   const dateTable = preset?.dateTable && plan.tables.some((t) => t.name === preset.dateTable.table) ? preset.dateTable : null;
-  const modelName = name || p.semanticModel?.name || preset?.semanticModelName || `${p.modelSource.itemName} Model`;
+  const modelName = modelNameFor(p, preset, name);
 
   ctx.step('Generate the Direct Lake model (TMDL)');
   let files = semanticModelFiles({ name: modelName, src: { server: p.modelSource.server, endpointId: p.modelSource.endpointId, itemName: p.modelSource.itemName }, plan, measures: m, dateTable });
@@ -337,6 +359,11 @@ export async function runSemanticModel(ctx, { name, include, names, relationship
   });
   setStep('model', 'done', modelName);
   return { id: item.id, name: modelName, tables: plan.tables.map((t) => t.name), measures: m.map((x) => x.name), relationships: plan.relationships.length };
+}
+
+/** The semantic model's name: the current model keeps its name; a new one follows the naming standard. */
+export function modelNameFor(p, preset, name) {
+  return F.itemName('SemanticModel', itemNameFor('SemanticModel', { name, current: p.semanticModel?.name, purpose: preset?.naming?.model || purposeOf(p.modelSource?.itemName, p.modelSource?.itemType) || 'Main' }));
 }
 
 /**
@@ -372,7 +399,7 @@ export async function proposeSemanticModel({ name, include, names, relationships
     ...given.filter((x) => !plan.tables.some((t) => t.name === x.table)).map((x) => `Measure ${x.name} uses table "${x.table}", which isn't one of the model's business table names, and was left out.`),
     ...(relationships?.length && plan.relationships.length < relationships.length ? [`${relationships.length - plan.relationships.length} relationship(s) use tables or columns that aren't in the model and were left out.`] : []),
   ];
-  const modelName = name || p.semanticModel?.name || preset?.semanticModelName || `${p.modelSource.itemName} Model`;
+  const modelName = modelNameFor(p, preset, name);
   // Snowflaked dimensions (Product → Subcategory) are on the "from" side too; only tables nothing points to are facts.
   const role = (t) => (plan.relationships.some((r) => r.to === t) ? 'dimension' : plan.relationships.some((r) => r.from === t) ? 'fact' : 'table');
   const text = String(summary || '').trim();
@@ -407,7 +434,7 @@ export async function runOntology(ctx, { name, include, entityNames, rules, desc
   const exclude = new Set((preset?.ontology?.exclude || []).map((x) => x.toLowerCase()));
   const inc = include?.length ? include : preset?.ontology?.include || schema.tables.filter((t) => !exclude.has(t.name.toLowerCase()) && !isPlanTable(t)).map((t) => `${t.schema}.${t.name}`);
   const plan = buildPlan(schema, { include: inc, names: preset?.names, descriptions: preset?.descriptions });
-  const ontName = F.itemName('Ontology', name || p.ontology?.name || preset?.ontologyName || `${p.modelSource.itemName}_Ontology`, 'Ontology');
+  const ontName = F.itemName('Ontology', itemNameFor('Ontology', { name, current: p.ontology?.name, purpose: preset?.naming?.model || purposeOf(p.semanticModel?.name, 'SemanticModel') || purposeOf(p.modelSource.itemName, p.modelSource.itemType) }), 'Ontology');
   const presetRules = preset?.ontology?.rules || [];
   const ruleSet = rules?.length
     ? rules.map((r) => {
@@ -494,20 +521,25 @@ export function runTeamsAgent(ctx, { includeOntology = false, publish = false, d
 
 export async function runSampleAdventureWorks(ctx) {
   const ws = requireWorkspace();
+  suggestNaming(ADVENTUREWORKS.naming);
   ctx.step('Get the AdventureWorksDW install kit from Microsoft');
   const kit = await getKit(ctx.log, { signal: ctx.signal });
   ctx.progress(6);
 
-  ctx.step(`Create the Fabric SQL database ${AWDW.databaseName}`);
-  let db = await F.findItem(ws.id, 'SQLDatabase', AWDW.databaseName);
+  // The project's database (or one an older version of the studio created) is reused; a new one follows the standard.
+  const prevDb = getProject().sqlDatabase;
+  const dbName = F.itemName('SQLDatabase', prevDb?.name || standardName('SQLDatabase', ADVENTUREWORKS.naming.database));
+  ctx.step(`Create the Fabric SQL database ${dbName}`);
+  let db = (prevDb?.id && await F.getItem(ws.id, prevDb.id).catch(() => null)) || await F.findItem(ws.id, 'SQLDatabase', dbName) || await F.findItem(ws.id, 'SQLDatabase', AWDW.databaseName);
   if (!db) {
-    db = await F.createSqlDatabase(ws.id, { name: AWDW.databaseName, description: 'AdventureWorksDW2022 sample created by Fabric MCP Studio.' });
-    recordArtifact({ type: 'SQLDatabase', id: db.id, name: AWDW.databaseName, workspaceId: ws.id });
-    ctx.log(`Created ${AWDW.databaseName}`);
-  } else ctx.log(`Reusing ${AWDW.databaseName}`);
+    db = await F.createSqlDatabase(ws.id, { name: dbName, description: 'AdventureWorksDW2022 sample created by Fabric MCP Studio.' });
+    recordArtifact({ type: 'SQLDatabase', id: db.id, name: dbName, workspaceId: ws.id });
+    ctx.log(`Created ${dbName}`);
+  } else ctx.log(`Reusing ${db.displayName || dbName}`);
+  const usedName = db.displayName || dbName;
   const props = (await F.getSqlDatabase(ws.id, db.id))?.properties || {};
   if (!props.serverFqdn || !props.databaseName) throw new Error('The SQL database has no connection details yet. Try again in a minute.');
-  updateProject({ sqlDatabase: { id: db.id, name: AWDW.databaseName, server: props.serverFqdn, database: props.databaseName } });
+  updateProject({ sqlDatabase: { id: db.id, name: usedName, server: props.serverFqdn, database: props.databaseName } });
   ctx.progress(12);
 
   ctx.step('Create the tables and load the data');
@@ -526,7 +558,7 @@ export async function runSampleAdventureWorks(ctx) {
     source: { kind: 'sample', id: 'adventureworks-dw', label: 'AdventureWorksDW2022 (Fabric SQL database)', method: 'sql-database', itemId: db.id, tables: Object.keys(expected) },
     glossary: existsSync(glossaryPath) ? readFileSync(glossaryPath, 'utf8') : getProject().glossary,
   });
-  setModelSource({ itemType: 'SQLDatabase', itemId: db.id, itemName: AWDW.databaseName, workspaceId: ws.id, server: ep.server, endpointId: ep.endpointId, database: ep.database }, 'AdventureWorksDW2022 loaded');
+  setModelSource({ itemType: 'SQLDatabase', itemId: db.id, itemName: usedName, workspaceId: ws.id, server: ep.server, endpointId: ep.endpointId, database: ep.database }, 'AdventureWorksDW2022 loaded');
   return { sqlDatabaseId: db.id, tables: Object.keys(expected).length, rows, reused: load.reused };
 }
 

@@ -188,6 +188,16 @@ function Copy-AgentProject {
         [IO.File]::WriteAllText($target, $text, (New-Object System.Text.UTF8Encoding($false)))
     }
     Remove-Item (Join-Path $Deploy 'appPackage\build') -Recurse -Force -ErrorAction SilentlyContinue
+    # The instructions name the semantic model: use the project's model (the studio names it with the naming standard).
+    $state = Get-DemoState
+    $model = if ($state.Contains('semanticModelName')) { [string]$state.semanticModelName } else { '' }
+    if ($model -and $model -ne 'Retail_SM_Sales_DEMO') {
+        $path = Join-Path $Deploy 'appPackage\instruction.txt'
+        [IO.File]::WriteAllText($path, [IO.File]::ReadAllText($path).Replace('"Retail_SM_Sales_DEMO"', "`"$model`""), (New-Object System.Text.UTF8Encoding($false)))
+        $path = Join-Path $Deploy 'appPackage\manifest.json'
+        [IO.File]::WriteAllText($path, [IO.File]::ReadAllText($path).Replace('the Retail_SM_Sales_DEMO Power BI semantic model', "the $model Power BI semantic model"), (New-Object System.Text.UTF8Encoding($false)))
+        Write-Ok "Agent instructions use the semantic model '$model'"
+    }
 }
 
 function Add-OntologyPlugin {

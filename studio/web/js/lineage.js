@@ -2,6 +2,9 @@
 // sources to the people who use the answers. Parts light up as they are configured; the rest stay greyed out.
 import { store } from './api.js';
 import { h } from './ui.js';
+import { naming } from './naming.js';
+
+const namingFact = () => { const n = naming(); return `${n.domain}_[Object]_[Purpose]_${n.environment} · ${n.intent}${n.configured ? '' : ' (not confirmed)'}`; };
 
 const NS = 'http://www.w3.org/2000/svg';
 
@@ -234,7 +237,7 @@ export function buildGraph(s = store) {
     sub: ws ? (ws.created ? 'Created by the studio' : 'Existing workspace') : signedIn ? 'New or existing' : 'Microsoft Entra account',
     capacity: cap?.visible ? cap : null, role: s.readiness?.role || null,
     url: ws ? `https://app.fabric.microsoft.com/groups/${ws.id}/list` : null,
-    facts: ws ? [['Capacity', cap?.visible ? `${cap.name} · ${cap.sku}${cap.trial ? ' (trial)' : ''} · ${cap.state === 'Active' ? 'Running' : 'Paused'}` : 'Not visible to you'], ['Region', cap?.region || '–'], ['Your role', s.readiness?.role || '–'], ['Created by the studio', ws.created ? 'Yes' : 'No']] : [],
+    facts: ws ? [['Capacity', cap?.visible ? `${cap.name} · ${cap.sku}${cap.trial ? ' (trial)' : ''} · ${cap.state === 'Active' ? 'Running' : 'Paused'}` : 'Not visible to you'], ['Region', cap?.region || '–'], ['Your role', s.readiness?.role || '–'], ['Created by the studio', ws.created ? 'Yes' : 'No'], ['Naming', namingFact()]] : [],
   };
   workspace.state = workspace.done ? (cleaning ? 'running' : 'done') : signedIn ? 'available' : 'off';
   workspace.needs = 'Sign in first';

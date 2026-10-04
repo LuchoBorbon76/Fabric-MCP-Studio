@@ -2,6 +2,7 @@ import { store, get, post, patch, on } from '../api.js';
 import { h, toast, busy, field, input } from '../ui.js';
 import { app, copilotSlot } from '../app.js';
 import { askCard } from '../prompts.js';
+import { standardName, parseName, purposeOf } from '../naming.js';
 
 let rules = null;
 on('studio.reset', () => { rules = null; });
@@ -54,7 +55,7 @@ function glossaryCard(p) {
 
 function designerCard(p) {
   const card = h('div', { class: 'card' });
-  const name = input({ value: p.ontology?.name || store.preset?.ontologyName || (p.source?.id === 'retail' ? 'Contoso_Retail_Ontology' : `${p.modelSource.itemName.replace(/[^A-Za-z0-9_]+/g, '_')}_Ontology`) });
+  const name = input({ value: p.ontology?.name || standardName('Ontology', parseName(store.preset?.ontologyName)?.purpose || purposeOf(p.semanticModel?.name, 'SemanticModel') || purposeOf(p.modelSource.itemName, p.modelSource.itemType) || 'Main') });
   const preview = h('div', {}, h('div', { class: 'row muted' }, h('span', { class: 'spin' }), 'Building a preview from your tables…'));
   const rulesBox = h('div');
   const job = h('div', { class: 'mt' });

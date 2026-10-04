@@ -1,14 +1,15 @@
 ---
 name: fabric-demo-semantic-model
-description: Demo step 2 - build the "Retail Sales" Direct Lake semantic model over the demo lakehouse with the Power BI Authoring MCP server - star schema, relationships, business measures from the glossary, descriptions, and DAX validation. Use when the user asks to create or extend the semantic model.
+description: Demo step 2 - build the "Retail_SM_Sales_DEMO" Direct Lake semantic model over the demo lakehouse with the Power BI Authoring MCP server - star schema, relationships, business measures from the glossary, descriptions, and DAX validation. Use when the user asks to create or extend the semantic model.
 ---
 
-# Build the Retail Sales semantic model
+# Build the Retail_SM_Sales_DEMO semantic model
 
 ## Before you start
 
 - Read [AGENTS.md](../../../AGENTS.md) conventions and [the business glossary](../../../data/retail/business-glossary.md).
-- Get `workspaceId` / `lakehouseId` from `config/demo.state.json`; confirm the six lakehouse tables exist.
+- Get `workspaceId` / `lakehouseId` from `config/demo.state.json`; confirm the six lakehouse tables exist. If the state
+  has a `semanticModelName` (an earlier deployment), use that name instead of `Retail_SM_Sales_DEMO`.
 - Show the target design below and wait for confirmation.
 
 ## Target design
@@ -32,11 +33,12 @@ Relationships (single direction, many-to-one): `Sales[CustomerId]→Customer`, `
    use it. Otherwise create a minimal `SemanticModel` item with `fabric-core` (get the definition schema from
    `fabric-local` item-definitions for `semanticModel`) containing the Direct Lake expression and the six tables,
    then continue with Power BI Authoring.
-2. **Connect**: “Connect to semantic model 'Retail Sales' in Fabric workspace '<workspace>'.”
+2. **Connect**: “Connect to semantic model 'Retail_SM_Sales_DEMO' in Fabric workspace '<workspace>'.”
 3. Rename tables to business names, create relationships, mark `Date` as date table, sort `MonthName` by `MonthNumber`.
 4. Create the measures below (display folders in brackets). Add a plain-English description and format string to each.
 5. Hide foreign keys on facts; `summarizeBy: none` on IDs, `Year`, `MonthNumber`, `WeekOfYear`.
 6. **Validate** with DAX queries and compare to the expected results below (sample data). Report any mismatch – don't silently change the definition.
+7. **Record state**: write `semanticModelId` and `semanticModelName` to `config/demo.state.json` (the Teams agent installer uses the name).
 
 ## Reference measures
 

@@ -7,7 +7,7 @@ description: Demo step 4 - create or evolve a Fabric IQ ontology (entities, rela
 
 Two entry points – pick based on what the user has:
 
-- **A. From a semantic model** – reuse the business meaning already in `Retail Sales` (or a customer model).
+- **A. From a semantic model** – reuse the business meaning already in `Retail_SM_Sales_DEMO` (or a customer model).
 - **B. From a glossary or policy document** – e.g. [data/retail/business-glossary.md](../../../data/retail/business-glossary.md).
 
 Both end with TMDL files under `ontology/<domain>/`, a reviewed diff, and a deployed Ontology item.

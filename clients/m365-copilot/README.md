@@ -46,4 +46,4 @@ Remove it:
 | *Custom app upload* and *Copilot access* enabled for the installer | Sideload (`atk provision`) |
 | Permission to create Entra app registrations (or pass `-ClientId` for an existing app) | OAuth client for the agent |
 | Admin consent for the delegated Power BI permissions, if user consent is restricted | `-GrantAdminConsent` or an admin runs `az ad app permission admin-consent --id <appId>` |
-| Access to the Retail Sales semantic model (and ontology) | Fabric permissions and RLS apply to every answer |
+| Access to the Retail_SM_Sales_DEMO semantic model (and ontology) | Fabric permissions and RLS apply to every answer |

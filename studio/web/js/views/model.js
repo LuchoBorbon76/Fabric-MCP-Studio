@@ -2,6 +2,7 @@ import { store, get, post, on } from '../api.js';
 import { h, toast, busy, field, input, fmtNum, modal } from '../ui.js';
 import { app, copilotSlot } from '../app.js';
 import { askCard } from '../prompts.js';
+import { standardName, parseName, purposeOf } from '../naming.js';
 
 let schema = null;
 let schemaKey = null;
@@ -68,7 +69,7 @@ const presetName = (t) => store.preset?.names?.[`${t.schema}.${t.name}`] || stor
 function drawDesigner(card, p) {
   card.innerHTML = '';
   const preset = store.preset;
-  const smName = input({ value: nameDraft ?? (p.semanticModel?.name || preset?.semanticModelName || `${p.modelSource.itemName.replace(/_/g, ' ')} Model`) });
+  const smName = input({ value: nameDraft ?? (p.semanticModel?.name || standardName('SemanticModel', parseName(preset?.semanticModelName)?.purpose || purposeOf(p.modelSource.itemName, p.modelSource.itemType) || 'Main')) });
   smName.addEventListener('input', () => { nameDraft = smName.value; });
   const body = h('div', {}, h('div', { class: 'row muted' }, h('span', { class: 'spin' }), 'Reading tables, keys and relationships from the SQL analytics endpoint…'));
   const slot = copilotSlot();   // Copilot opens here, right below the tables and relationships

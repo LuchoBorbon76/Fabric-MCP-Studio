@@ -11,7 +11,7 @@ connection and honoring Fabric permissions.
 Follow [Connect agents to Microsoft Fabric with Fabric IQ (preview)](https://learn.microsoft.com/azure/foundry/agents/how-to/tools/fabric-iq):
 
 1. Foundry project with a deployed model (any model the customer is licensed for).
-2. Add a Fabric IQ connection pointing at the **Retail Sales** semantic model. (Ontology questions are turned off
+2. Add a Fabric IQ connection pointing at the **Retail_SM_Sales_DEMO** semantic model. (Ontology questions are turned off
    in this kit for now; use Option B to give the agent the ontology's entities and rules.)
 3. Add the tool to the agent and use the instructions from [copilot-studio/README.md](../copilot-studio/README.md#3-instructions-for-the-agent).
 

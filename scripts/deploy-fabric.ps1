@@ -23,10 +23,11 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$WorkspaceName = 'Fabric MCP Demo - Retail',
+    # Names follow the naming standard [Domain]_[Object]_[Purpose]_[Environment] (see AGENTS.md).
+    [string]$WorkspaceName = 'Retail_WS_Analytics_DEMO',
     [string]$CapacityId,
     [string]$CapacityName,
-    [string]$LakehouseName = 'RetailLakehouse',
+    [string]$LakehouseName = 'Retail_LH_Raw_DEMO',
     [ValidateSet('All', 'Files')][string]$Stage = 'All',
     [string]$DataFolder = (Join-Path (Split-Path -Parent $PSScriptRoot) 'data\retail\parquet'),
     [switch]$DryRun
@@ -36,6 +37,13 @@ param(
 
 $files = @(Get-ChildItem -Path $DataFolder -Filter '*.parquet' -File | Sort-Object Name)
 if ($files.Count -eq 0) { throw "No .parquet files in $DataFolder. Run: python scripts/generate-sample-data.py (requires pyarrow)." }
+
+$state = Get-DemoState
+# An earlier deployment keeps its names (older versions used other defaults).
+if (-not $PSBoundParameters.ContainsKey('WorkspaceName') -and $state.Contains('workspaceName') -and $state.workspaceName) {
+    $WorkspaceName = $state.workspaceName
+    if (-not $PSBoundParameters.ContainsKey('LakehouseName') -and $state.Contains('lakehouseName') -and $state.lakehouseName) { $LakehouseName = $state.lakehouseName }
+}
 
 if ($DryRun) {
     Write-Step 'Dry run - no changes will be made'
@@ -49,7 +57,6 @@ if ($DryRun) {
 }
 
 $token = Get-FabricToken
-$state = Get-DemoState
 
 Write-Step "Workspace '$WorkspaceName'"
 $ws = Find-FabricWorkspace $WorkspaceName $token

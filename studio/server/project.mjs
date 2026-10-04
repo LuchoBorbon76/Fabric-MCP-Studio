@@ -14,6 +14,7 @@ const EMPTY = {
   name: 'My Fabric MCP project',
   createdAt: null,
   tenant: null,                   // { id, domain } – the Microsoft Entra tenant the project's workspace lives in
+  naming: null,                   // Naming standard [Domain]_[Object]_[Purpose]_[Environment]: { domain, environment, intent, inferred } (naming.mjs)
   scenario: null,                 // sample | byod
   workspace: null,                // { id, name, capacityId, created }
   lakehouse: null,                // { id, name, sqlEndpointId, sqlEndpointServer }

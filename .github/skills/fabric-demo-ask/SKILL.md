@@ -1,6 +1,6 @@
 ---
 name: fabric-demo-ask
-description: Demo step 5 - answer business questions with governed definitions, using Fabric IQ MCP (DAX over the Retail Sales semantic model) and the Ontology MCP endpoint (entities, relationships, rules). Use when the user asks business questions about Contoso Retail sales, customers, stores, products, returns, or rule violations.
+description: Demo step 5 - answer business questions with governed definitions, using Fabric IQ MCP (DAX over the Retail_SM_Sales_DEMO semantic model) and the Ontology MCP endpoint (entities, relationships, rules). Use when the user asks business questions about Contoso Retail sales, customers, stores, products, returns, or rule violations.
 ---
 
 # Ask governed questions
@@ -8,7 +8,7 @@ description: Demo step 5 - answer business questions with governed definitions, 
 ## How to answer
 
 1. Pick the source:
-   - **Numbers** (sales, margin, growth, counts) → `fabric-iq`: DiscoverArtifacts("Retail Sales") →
+   - **Numbers** (sales, margin, growth, counts) → `fabric-iq`: DiscoverArtifacts("Retail_SM_Sales_DEMO") →
      GetSemanticModelSchema → ValueSearch (for exact member names) → ExecuteQuery. Prefer the model's
      **existing measures** over writing new math.
    - **Business meaning, rules, relationships** ("what is an at-risk customer?", "which rule applies to returns?") →

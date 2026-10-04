@@ -149,7 +149,7 @@ function dataPrompts(p) {
 
 /** The next build steps (the studio's guided path). */
 function nextPrompts(p, preset) {
-  if (!p.workspace) return ['Create a new workspace called "Fabric MCP Demo" on one of my capacities', 'Show me my Fabric workspaces and capacities', 'What can you build for me in Microsoft Fabric?'];
+  if (!p.workspace) return ['Ask me what this environment is for, then create a workspace on one of my capacities', 'Show me my Fabric workspaces and capacities', 'What can you build for me in Microsoft Fabric?'];
   if (!p.modelSource) return ['Load the Contoso Retail sample data into my workspace', 'List the lakehouses and warehouses I could use as a data source', 'Which Fabric connections can I use to mirror a database?'];
   const out = [];
   if (!p.semanticModel) out.push('Describe my data and propose a star schema', 'Create the semantic model with business measures from my glossary');

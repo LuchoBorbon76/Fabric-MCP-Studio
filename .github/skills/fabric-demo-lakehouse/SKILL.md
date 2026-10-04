@@ -9,9 +9,9 @@ Turn a one-paragraph business description into a populated lakehouse.
 
 ## Inputs (ask only for what is missing)
 
-- Workspace name – default `Fabric MCP Demo - Retail`. Check `config/demo.state.json` first.
+- Workspace name – default `Retail_WS_Analytics_DEMO` (naming standard, see AGENTS.md). Check `config/demo.state.json` first.
 - Capacity – needed only when creating a new workspace. List the capacities the user can see and let them pick.
-- Lakehouse name – default `RetailLakehouse`.
+- Lakehouse name – default `Retail_LH_Raw_DEMO`.
 
 ## Steps
 

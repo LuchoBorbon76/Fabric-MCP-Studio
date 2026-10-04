@@ -1,5 +1,6 @@
 // Recommendations for the Reports & apps step: which reports to build, for whom, with which pages and theme, and why.
 // Grounded in the model profile (KPIs, channels, time, segments, insights), the ontology and the reports already built.
+import { standardName, purposeOf, parseName } from '../naming.mjs';
 
 function reasonsFor(profile, focus) {
   const r = [];
@@ -32,11 +33,17 @@ function reasonsFor(profile, focus) {
 export function recommendations(profile, project, { rules = null, values = [] } = {}) {
   const model = project.semanticModel?.name || profile.model.name || 'Semantic model';
   const built = new Map((project.reports || []).map((r) => [r.name.toLowerCase(), r]));
+  // A report already built for the same purpose (or with the name older versions used) keeps its name, so rebuilding
+  // updates it; new ones follow the naming standard.
+  const nameFor = (purpose, legacy) => {
+    const b = (project.reports || []).find((r) => r.name.toLowerCase() === legacy.toLowerCase() || parseName(r.name)?.purpose.toLowerCase() === purpose.toLowerCase());
+    return b ? b.name : standardName('Report', purpose, project);
+  };
   const out = [];
   const hasTime = Boolean(profile.time);
   const hasSegments = Boolean(profile.share || profile.breakdown);
 
-  const exec = { id: 'executive-report', kind: 'report', title: 'Executive report', audience: 'Leadership', theme: 'executive', pages: ['executive', 'drivers', 'scorecard'].filter((x) => x !== 'scorecard' || (hasTime && hasSegments)), name: `${model} – Executive report` };
+  const exec = { id: 'executive-report', kind: 'report', title: 'Executive report', audience: 'Leadership', theme: 'executive', pages: ['executive', 'drivers', 'scorecard'].filter((x) => x !== 'scorecard' || (hasTime && hasSegments)), name: nameFor('Executive', `${model} – Executive report`) };
   exec.reasons = reasonsFor(profile, 'executive');
   out.push(exec);
 
@@ -45,7 +52,7 @@ export function recommendations(profile, project, { rules = null, values = [] } 
     const breaks = values.filter((v) => v.kind === 'violation' && Number(v.value)).slice(0, 3);
     const dash = {
       id: 'rules-dashboard', kind: 'report', title: 'Business rules dashboard', audience: 'Operations and governance', theme: 'slate', pages: ['rules'],
-      name: `${model} – Business rules`,
+      name: nameFor('BusinessRules', `${model} – Business rules`),
       reasons: [
         `${rules.rules.length} rules from ${rules.source}, each explained in plain English next to its live count.`,
         ...breaks.map((v) => `${v.label}: ${fmt(v.value)} right now.`),
@@ -56,7 +63,7 @@ export function recommendations(profile, project, { rules = null, values = [] } 
   }
 
   if (hasSegments && hasTime) {
-    const ops = { id: 'scorecard-report', kind: 'report', title: 'Performance scorecard', audience: 'Managers and analysts', theme: 'teal', pages: ['scorecard', 'drivers'], name: `${model} – Scorecard` };
+    const ops = { id: 'scorecard-report', kind: 'report', title: 'Performance scorecard', audience: 'Managers and analysts', theme: 'teal', pages: ['scorecard', 'drivers'], name: nameFor('Scorecard', `${model} – Scorecard`) };
     ops.reasons = reasonsFor(profile, 'scorecard');
     out.push(ops);
   }
@@ -68,7 +75,7 @@ export function recommendations(profile, project, { rules = null, values = [] } 
     const v = t.checked?.variance ?? t.varianceToDate;
     out.push({
       id: 'plan-report', kind: 'report', title: 'Plan vs actual', audience: 'Finance and sales leaders', theme: 'executive', pages: ['plan'],
-      name: `${model} – Plan vs actual`,
+      name: nameFor('PlanVsActual', `${model} – Plan vs actual`),
       reasons: [
         `${pl.planYear} budget of ${fmt(t.budget)} from ${pl.baseYear} actuals (${pl.growthPct >= 0 ? '+' : ''}${pl.growthPct}%), forecast ${fmt(t.forecast)}.`,
         v !== undefined && v !== null ? `Actual is ${v >= 0 ? 'ahead of' : 'behind'} budget by ${fmt(Math.abs(v))} for the months with actuals.` : 'Tracks actual against budget month by month.',
@@ -87,7 +94,7 @@ export function recommendations(profile, project, { rules = null, values = [] } 
   const reports = project.reports || [];
   const app = {
     id: 'org-app', kind: 'app', title: 'Org app for your organization', audience: 'Everyone who needs the numbers',
-    theme: project.orgApp?.theme || reports[0]?.theme || 'executive', pages: [], name: project.orgApp?.name || `${model} app`,
+    theme: project.orgApp?.theme || reports[0]?.theme || 'executive', pages: [], name: project.orgApp?.name || standardName('OrgApp', purposeOf(model, 'SemanticModel'), project),
     reasons: reports.length
       ? [
         `Bundles your ${reports.length} report${reports.length === 1 ? '' : 's'} (${reports.slice(0, 3).map((r) => r.name).join(', ')}) behind one overview page.`,

@@ -2,6 +2,7 @@ import { store, get, post, patch, del, on } from '../api.js';
 import { h, toast, busy, field, input, select, fmtNum, confirmDialog } from '../ui.js';
 import { app, copilotSlot } from '../app.js';
 import { askCard } from '../prompts.js';
+import { standardName } from '../naming.js';
 
 // Live events → Eventstream → Eventhouse → Real-Time Dashboard. The view keeps one subscription to the simulator's
 // progress and refreshes the Eventhouse numbers while it is open.
@@ -58,7 +59,7 @@ function setupCard(s, p) {
   const card = h('div', { class: 'card', style: { marginTop: 0 } });
   const job = h('div');
   if (!st) {
-    const defName = `${(p.semanticModel?.name || 'Studio').replace(/\s+(semantic model|model)$/i, '').replace(/[^A-Za-z0-9_]+/g, '_')}_Live`;
+    const defName = standardName('Eventhouse', 'Live');
     const name = input({ value: defName, placeholder: 'Letters, numbers and underscores' });
     const go = h('button', { class: 'btn pri', 'data-busy': 'Starting…' }, 'Set up live data');
     go.addEventListener('click', busy(go, async () => { await startJob('/jobs/realtime-setup', { name: name.value.trim() }, job, 'Live data is ready – start the events'); }));

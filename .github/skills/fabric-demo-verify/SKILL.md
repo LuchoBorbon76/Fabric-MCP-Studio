@@ -18,7 +18,7 @@ Run one **read-only** call per configured server and report a status table. Do n
    | `fabric-core` | List my workspaces | A list (or empty list) returns |
    | `fabric-local` | List the Fabric item types with public API specs | Returns item types such as `lakehouse`, `semanticModel`, `ontology` |
    | `powerbi-authoring` | Describe the available authoring operations (do **not** connect to a model yet) | Tool list returns |
-   | `fabric-iq` | DiscoverArtifacts for "Retail Sales" | Returns results or "none found" without an auth error |
+   | `fabric-iq` | DiscoverArtifacts for "Retail_SM_Sales_DEMO" | Returns results or "none found" without an auth error |
    | `fabric-ontology` (optional) | List entity types | Returns `Customer`, `Product`, `Store`, `Sale`, `ProductReturn` |
 
 3. If `config/demo.state.json` exists, show the workspace, lakehouse and ontology IDs it contains.

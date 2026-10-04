@@ -16,6 +16,7 @@ import * as RT from './realtime/index.mjs';
 import * as PL from './planning/index.mjs';
 import * as DP from './dataprep.mjs';
 import * as DA from './dataagent.mjs';
+import * as N from './naming.mjs';
 import { promptSuggestions } from './prompts.mjs';
 import { readiness, cachedReadiness, resetReadiness, assertModuleReady, assertLiveEventsAllowed } from './readiness.mjs';
 import { catalog } from './sources.mjs';
@@ -121,7 +122,7 @@ const route = (method, pattern, handler) => {
 route('GET', '/api/bootstrap', async () => {
   const me = await auth.whoAmI();
   const p = getProject();
-  return { version: VERSION, build: BUILD, user: me, settings: publicSettings(), provider: A.providerSummary(), providers: A.PROVIDERS, project: p, preset: presetSummary(p), catalog: catalog(), jobs: listJobs().slice(0, 20), chats: A.listChats(), approvals: A.pendingApprovals(), realtime: RT.realtimeState(), planning: PL.planningState(), readiness: cachedReadiness(), platform: process.platform };
+  return { version: VERSION, build: BUILD, user: me, settings: publicSettings(), provider: A.providerSummary(), providers: A.PROVIDERS, project: p, preset: presetSummary(p), naming: N.namingState(p), catalog: catalog(), jobs: listJobs().slice(0, 20), chats: A.listChats(), approvals: A.pendingApprovals(), realtime: RT.realtimeState(), planning: PL.planningState(), readiness: cachedReadiness(), platform: process.platform };
 });
 route('GET', '/api/health', () => health());
 route('GET', '/api/about', () => ({ version: VERSION, build: BUILD, improvements: RELEASES.improvements, fixes: RELEASES.fixes, changes: RELEASES.changes }));
@@ -192,6 +193,9 @@ route('GET', '/api/preset', () => presetSummary(getProject()));
 route('PATCH', '/api/project', (_, b) => { const patch = {}; for (const k of ['name', 'glossary']) if (b[k] !== undefined) patch[k] = b[k]; return updateProject(patch); });
 route('POST', '/api/project/reset', () => { clearActivity(); DP.clearDataPrepFiles(); return resetProject(); });
 route('POST', '/api/project/workspace', (_, b) => P.selectWorkspace(b));
+// Naming standard [Domain]_[Object]_[Purpose]_[Environment]: what the environment is for and the business domain.
+route('GET', '/api/naming', () => N.namingState());
+route('PUT', '/api/naming', (_, b) => N.setNaming({ domain: b.domain, environment: b.environment, intent: b.intent }));
 
 route('GET', '/api/sources/catalog', () => catalog());
 route('POST', '/api/sources/test', (_, b) => P.testSource(b));

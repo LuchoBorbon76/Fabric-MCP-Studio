@@ -2,6 +2,7 @@ import { store, get, post, del, on } from '../api.js';
 import { h, toast, busy, field, input, select, confirmDialog } from '../ui.js';
 import { app, copilotSlot } from '../app.js';
 import { askCard } from '../prompts.js';
+import { standardName } from '../naming.js';
 
 // Budgets and forecasts on the semantic model: design and preview the plan, build it (plan values next to the data +
 // Plan table in the model), the Plan vs actual report, and the Fabric plan item for planning sheets.
@@ -249,8 +250,9 @@ function reportCard(s, p) {
   const pl = s.plan;
   const card = h('div', { class: 'card', style: { marginTop: 0 } });
   const job = h('div');
-  const name = `${p.semanticModel?.name || 'Model'} – Plan vs actual`;
-  const built = (p.reports || []).find((r) => r.name === name || r.pages?.includes('Plan vs actual'));
+  const legacy = `${p.semanticModel?.name || 'Model'} – Plan vs actual`;
+  const name = standardName('Report', 'PlanVsActual');
+  const built = (p.reports || []).find((r) => r.name === name || r.name === legacy || r.pages?.includes('Plan vs actual'));
   const go = h('button', { class: 'btn pri', 'data-busy': 'Starting…', disabled: !pl || undefined, title: pl ? '' : 'Build the plan first' }, built ? '↻ Rebuild report' : 'Build report');
   go.addEventListener('click', busy(go, async () => { await startJob('/jobs/report', { name: built?.name || name, theme: built?.theme || 'executive', pages: ['plan'] }, job, 'Plan vs actual report ready'); }));
   put(card,

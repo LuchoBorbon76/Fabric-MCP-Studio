@@ -5,14 +5,20 @@ import * as F from '../fabric.mjs';
 import { getProject, updateProject, setStep, recordArtifact, assertProjectTenant } from '../project.mjs';
 import { themeById } from './themes.mjs';
 import { tint } from '../generators/pbir.mjs';
+import { itemNameFor, parseName, purposeOf } from '../naming.mjs';
 
 const SCHEMA = 'https://developer.microsoft.com/json-schemas/fabric/item/orgapp/definition/orgAppDefinition/2.0.0/schema.json';
 
 export const appUrl = (workspaceId) => `https://app.fabric.microsoft.com/groups/${workspaceId}/list?experience=power-bi`;
 
-/** Short display name for a report inside the app ("AdventureWorks Sales – Business rules" -> "Business rules"). */
+/** Short display name for a report inside the app ("AdventureWorks Sales – Business rules" or "Sales_RPT_BusinessRules_DEV" -> "Business rules"). */
 function shortName(reportName, modelName) {
   const s = String(reportName);
+  const std = parseName(s);
+  if (std) {
+    const words = std.purpose.replace(/([a-z0-9])([A-Z])/g, '$1 $2').split(' ');
+    return words.map((w, i) => (i === 0 || /^[A-Z0-9]{2,}$/.test(w) ? w : w.toLowerCase())).join(' ');
+  }
   if (modelName && s.toLowerCase().startsWith(modelName.toLowerCase())) {
     const rest = s.slice(modelName.length).replace(/^\s*[–—:-]\s*/, '').trim();
     if (rest) return rest.charAt(0).toUpperCase() + rest.slice(1);
@@ -53,7 +59,7 @@ export async function runOrgApp(ctx, { name, theme: themeId, reportIds, title, b
   if (!reports.length) throw new Error('Build at least one report first – the app shares your reports.');
   const theme = themeById(themeId || reports[0].theme);
   const model = p.semanticModel?.name || '';
-  const appName = F.itemName('OrgApp', name || `${model || 'Fabric'} app`);
+  const appName = F.itemName('OrgApp', itemNameFor('OrgApp', { name, current: p.orgApp?.name, purpose: purposeOf(model, 'SemanticModel') || 'Reports' }));
   ctx.step(`Design the app (${reports.length} report${reports.length === 1 ? '' : 's'}, ${theme.name} colors)`);
   const ws = p.workspace;
   const existingItem = await F.findItem(ws.id, 'OrgApp', appName);

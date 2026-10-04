@@ -19,7 +19,7 @@
     },
     "description": {
         "short": "Governed answers about Contoso Retail from Microsoft Fabric.",
-        "full": "Ask business questions in plain language. The agent queries the Retail Sales Power BI semantic model through the Fabric IQ MCP server and, when configured, the Contoso Retail ontology through the Fabric Ontology MCP server. Answers use your own Fabric permissions and row-level security. Demo agent from the Fabric MCP demo kit; uses synthetic data."
+        "full": "Ask business questions in plain language. The agent queries the Retail_SM_Sales_DEMO Power BI semantic model through the Fabric IQ MCP server and, when configured, the Contoso Retail ontology through the Fabric Ontology MCP server. Answers use your own Fabric permissions and row-level security. Demo agent from the Fabric MCP demo kit; uses synthetic data."
     },
     "accentColor": "#B11F4B",
     "copilotAgents": {

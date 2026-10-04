@@ -2,6 +2,7 @@ import { store, get, post, del, on } from '../api.js';
 import { h, toast, busy, field, input, fmtDate, confirmDialog, modal } from '../ui.js';
 import { app, copilotSlot } from '../app.js';
 import { askCard } from '../prompts.js';
+import { standardName, purposeOf, parseName } from '../naming.js';
 
 const TOKEN = document.querySelector('meta[name="studio-token"]').content;
 let catalog = null;
@@ -315,7 +316,11 @@ function drawDesigner(card, p) {
   card.append(body);
   loadCatalog().then((cat) => {
     body.innerHTML = '';
-    if (!design.name) design.name = `${p.semanticModel.name} report`;
+    if (!design.name) {
+      const purpose = purposeOf(p.semanticModel.name, 'SemanticModel') || 'Main';
+      // A report built before for the same purpose keeps its name (rebuilding updates it).
+      design.name = (p.reports || []).find((r) => parseName(r.name)?.purpose === purpose)?.name || standardName('Report', purpose);
+    }
     const name = input({ value: design.name });
     name.addEventListener('input', () => { design.name = name.value; });
     const theme = () => cat.themes.find((t) => t.id === design.theme) || cat.themes[0];

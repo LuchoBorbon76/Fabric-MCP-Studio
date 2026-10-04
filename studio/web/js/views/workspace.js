@@ -1,8 +1,10 @@
 import { store, get, post, on } from '../api.js';
 import { h, toast, busy, field, input, select, seg, fmtNum } from '../ui.js';
 import { app, copilotSlot } from '../app.js';
+import { naming, namingCard, standardName } from '../naming.js';
 
 let mode = 'new';
+let wsPurpose = 'Analytics';
 let caps = null;
 let workspaces = null;
 let filter = '';
@@ -11,6 +13,8 @@ on('studio.reset', () => { caps = null; workspaces = null; });
 export function renderWorkspace(el) {
   const p = store.project || {};
   if (p.workspace) el.append(currentCard(p));
+  // The naming standard comes first: a new workspace's name depends on it.
+  el.append(namingCard({ compact: true }));
 
   const body = h('div');
   const card = h('div', { class: 'card' },
@@ -43,7 +47,14 @@ function currentCard(p) {
 }
 
 function newForm() {
-  const name = input({ placeholder: 'Fabric MCP Demo', value: 'Fabric MCP Demo' });
+  // A server older than this page has no naming standard: don't hold the form back.
+  const nm = store.naming?.environments ? naming() : { ...naming(), configured: true };
+  const purpose = input({ placeholder: 'Analytics', value: wsPurpose });
+  const preview = h('code', { class: 'nmpat' });
+  const fullName = () => standardName('Workspace', purpose.value || 'Analytics');
+  const drawName = () => { wsPurpose = purpose.value; preview.textContent = fullName(); };
+  purpose.addEventListener('input', drawName);
+  drawName();
   const capSel = select([{ value: '', label: 'Loading capacities…' }]);
   const desc = input({ placeholder: 'Optional description' });
   const loadCaps = async () => {
@@ -58,18 +69,24 @@ function newForm() {
     } catch (e) { capSel.innerHTML = ''; capSel.append(h('option', { value: '' }, e.message)); }
   };
   loadCaps();
-  const btn = h('button', { class: 'btn pri big', 'data-busy': 'Creating workspace…' }, 'Create workspace');
+  const btn = h('button', { class: 'btn pri big', 'data-busy': 'Creating workspace…', disabled: !nm.configured }, 'Create workspace');
   btn.addEventListener('click', busy(btn, async () => {
-    if (!name.value.trim()) throw new Error('Enter a workspace name.');
+    if (!nm.configured && !naming().configured) throw new Error('First choose what this environment is for (above).');
     if (!capSel.value) throw new Error('Choose a capacity.');
-    const ws = await post('/project/workspace', { name: name.value.trim(), capacityId: capSel.value, description: desc.value });
+    const ws = await post('/project/workspace', { name: fullName(), capacityId: capSel.value, description: desc.value });
     toast(`Workspace ${ws.name} is ready`, 'ok');
     await app.refresh();
     app.go('data');
   }));
   return h('div', { class: 'col' },
-    h('div', { class: 'formgrid' }, field('Workspace name', name), field('Capacity', capSel, 'Trial capacities work for everything except the Ontology MCP endpoint, which needs paid F2+.'), field('Description', desc)),
-    h('div', { class: 'row mt' }, btn, h('button', { class: 'btn ai', onclick: () => app.ask(`Create a new Fabric workspace named "${name.value || 'Fabric MCP Demo'}" on the most suitable capacity I have, and make it the project workspace.`) }, '✦ Ask Copilot to do it')),
+    nm.configured ? null : h('div', { class: 'banner warn', style: { marginBottom: 0 } }, h('div', {}, h('b', {}, 'Choose what this environment is for first. '), 'The workspace and everything in it are named from it.')),
+    h('div', { class: 'formgrid' },
+      field('Workspace purpose', purpose, h('span', {}, 'The name will be ', preview)),
+      field('Capacity', capSel, 'Trial capacities work for everything except the Ontology MCP endpoint, which needs paid F2+.'),
+      field('Description', desc)),
+    h('div', { class: 'row mt' }, btn, h('button', { class: 'btn ai', onclick: () => app.ask(nm.configured
+      ? `Create a new Fabric workspace named "${fullName()}" on the most suitable capacity I have, and make it the project workspace.`
+      : 'Help me create the project workspace: first ask what this environment is for and the business domain, then create it on the most suitable capacity I have.') }, '✦ Ask Copilot to do it')),
     h('p', { class: 'tiny muted' }, 'If a workspace with this name already exists and you have access, the studio uses it instead of creating a duplicate.'));
 }
 
