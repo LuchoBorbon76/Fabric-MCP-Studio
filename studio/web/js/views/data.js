@@ -1,13 +1,16 @@
-import { store, get, post, on } from '../api.js';
-import { h, toast, busy, field, input, select, seg, fmtNum, fmtDate, $ } from '../ui.js';
+import { store, get, post, del, on } from '../api.js';
+import { h, toast, busy, field, input, select, seg, fmtNum, fmtDate, confirmDialog, $ } from '../ui.js';
 import { app, copilotSlot } from '../app.js';
 
+const TOKEN = document.querySelector('meta[name="studio-token"]').content;
 let tab = 'samples';
 let selectedType = null;
 let wiz = null;           // wizard state for database sources
 let fabricState = { itemType: 'Lakehouse', workspaceId: '', itemId: '', tables: [], selected: new Set() };
 let alignedTo;            // data source the tabs below were last filled from
 let workspaceNames = null;
+let prepOn = false;       // "also create a data prep notebook" when a lakehouse becomes the data source
+let prepTarget = 'new';   // where the notebook writes: a new <source>_Curated lakehouse, or the same lakehouse
 // After a clean up or a new project, nothing picked from Fabric is still valid.
 on('studio.reset', () => { selectedType = null; wiz = null; fabricState = { itemType: 'Lakehouse', workspaceId: '', itemId: '', tables: [], selected: new Set() }; alignedTo = undefined; workspaceNames = null; });
 
@@ -81,6 +84,7 @@ export function renderData(el) {
     el.append(h('div', { class: 'banner warn' }, h('div', {}, h('b', {}, 'Select a workspace first. '), 'Data lands in the project workspace.'), h('button', { class: 'btn pri', onclick: () => app.go('workspace') }, 'Choose workspace')));
   }
   if (p.modelSource) el.append(currentSource(p));
+  if (p.modelSource?.itemType === 'Lakehouse') el.append(dataPrepCard());
 
   const body = h('div');
   el.append(h('div', { class: 'card' },
@@ -156,6 +160,147 @@ function inUseNote(p) {
   return h('div', { class: 'banner mb' }, h('div', {}, h('b', {}, 'Current data source: '), `${p.source?.kind === 'fabric' ? `${ITEM_LABEL[originItem(p).itemType] || ''} · ${originItem(p).itemName}` : p.source?.label || p.modelSource.itemName}. `, 'Choosing a source here replaces it for the semantic model and ontology.'));
 }
 
+// ---------------- data prep notebook (lakehouse sources) ----------------
+const PREP_WHAT = 'A Fabric Python notebook that finds every table in the lakehouse and works out from the data: clearer column names, logged data fixes, keys and relationships, measures with matching DAX, curated tables and charts. Nothing in it is specific to one dataset, so it can be run again as the data changes.';
+
+/** The checkbox shown wherever a lakehouse becomes the data source. */
+function prepOption() {
+  const box = h('input', { type: 'checkbox', checked: prepOn || undefined });
+  box.addEventListener('change', () => { prepOn = box.checked; });
+  return h('label', { class: 'row small mt', style: { alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }, title: PREP_WHAT }, box,
+    h('span', {}, h('b', {}, 'Also create a data prep notebook (Python)'), h('span', { class: 'tiny muted', style: { display: 'block' } },
+      'Renames columns, fixes data, finds relationships, adds measures and draws bar, pie, trend and other charts. Curated tables go to a new "…_Curated" lakehouse; the source is never changed.')));
+}
+
+async function startDataPrep({ run = true, target = prepTarget } = {}) {
+  const job = await post('/jobs/data-prep', { run, target });
+  app.watchJob(job.id);
+  toast(run ? 'Creating and running the data prep notebook – a few minutes' : 'Creating the data prep notebook', 'ok');
+  return job;
+}
+
+const runningPrepJob = () => [...store.jobs.values()].find((j) => j.kind === 'data-prep' && j.status === 'running');
+const chartUrl = (file, at) => `/api/data-prep/charts/${encodeURIComponent(file)}?t=${encodeURIComponent(TOKEN)}&v=${encodeURIComponent(at || '')}`;
+
+function kpiValue(k) {
+  const v = Number(k.value);
+  if (String(k.format).endsWith('%')) return `${(v * 100).toFixed(1)}%`;
+  return String(k.format).includes('.') ? v.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 }) : Math.round(v).toLocaleString();
+}
+
+/** Data prep notebook for the current lakehouse: create and run it, then the curated tables, KPIs and charts. */
+function dataPrepCard() {
+  const card = h('div', { class: 'card', style: { marginBottom: '14px' } });
+  let state = null;
+  const offs = [];
+  const alive = () => { if (card.isConnected || !state) return true; offs.forEach((f) => f()); return false; };
+  const load = () => get('/data-prep').then((s) => { state = s; draw(); }).catch((e) => { card.innerHTML = ''; card.append(h('div', { class: 'banner err' }, e.message)); });
+  offs.push(on('project.updated', () => { if (alive()) load(); }));
+  offs.push(on('job', (e) => { if (e.job.kind === 'data-prep' && alive()) draw(); }));
+
+  function draw() {
+    card.innerHTML = '';
+    const s = state;
+    if (!s?.available) return;
+    const dp = s.current ? s.dataPrep : null;
+    const run = dp?.lastRun;
+    const job = runningPrepJob();
+    const pill = job ? h('span', { class: 'pill brand' }, 'Running…') : !dp ? h('span', { class: 'pill' }, 'Not created') : run?.status === 'Completed' ? h('span', { class: 'pill ok' }, 'Ran successfully') : run?.status && run.status !== 'InProgress' ? h('span', { class: 'pill err' }, `Last run ${String(run.status).toLowerCase()}`) : run?.status === 'InProgress' ? h('span', { class: 'pill brand' }, 'Running in Fabric') : h('span', { class: 'pill ok' }, 'Created');
+    card.append(h('div', { class: 'row sp' },
+      h('div', {}, h('div', { class: 'row' }, h('h2', {}, '📓 Data prep notebook'), pill), h('p', { class: 'lead', style: { maxWidth: '900px' } }, PREP_WHAT))));
+
+    if (job) card.append(h('div', { class: 'mt' }, app.jobCard(job)));
+    else if (!dp) card.append(createControls(s));
+    else card.append(details(s, dp));
+    if (dp && run?.status === 'Completed' && run.summary) card.append(results(run));
+    else if (dp && run?.error && !job) card.append(h('div', { class: 'banner err mt' }, h('div', {}, h('b', {}, 'The last run stopped. '), run.error)));
+    else if (dp && run?.warning && !job) card.append(h('div', { class: 'banner warn mt' }, h('div', {}, run.warning, ' Open the notebook in Fabric to see its output, then select Check results.')));
+  }
+
+  function createControls(s) {
+    const runBox = h('input', { type: 'checkbox', checked: true });
+    const hint = h('div', { class: 'tiny muted' });
+    const setHint = () => { hint.textContent = prepTarget === 'same' ? `Back to ${s.source.name} with the Curated_ prefix; the source tables are never changed.` : `A new lakehouse in the project workspace; ${s.source.name} is never changed.`; };
+    const targetSeg = seg([{ value: 'new', label: `New lakehouse ${s.plannedTarget.name}` }, { value: 'same', label: 'Same lakehouse (Curated_ tables)' }], prepTarget, (v) => { prepTarget = v; setHint(); });
+    setHint();
+    const btn = h('button', { class: 'btn pri', 'data-busy': 'Starting…' }, 'Create notebook');
+    btn.addEventListener('click', busy(btn, async () => { await startDataPrep({ run: runBox.checked, target: prepTarget }); draw(); }));
+    return h('div', { class: 'mt' },
+      h('div', { class: 'small', style: { fontWeight: 600, marginBottom: '4px' } }, 'Write the curated tables to'), targetSeg, hint,
+      h('label', { class: 'row small mt', style: { cursor: 'pointer' } }, runBox, 'Run it now (a few minutes in a Python session)'),
+      h('div', { class: 'row mt' }, btn, h('button', { class: 'btn ai', onclick: () => app.ask('Create and run the data prep notebook for my lakehouse, then tell me what it renamed, fixed and found.') }, '✦ Ask Copilot')));
+  }
+
+  function details(s, dp) {
+    const run = dp.lastRun;
+    const kv = h('dl', { class: 'kv mt' });
+    const add = (k, v) => { if (v) kv.append(h('dt', {}, k), h('dd', {}, v)); };
+    add('Notebook', dp.notebook ? h('a', { href: dp.notebook.url, target: '_blank', rel: 'noopener' }, `${dp.notebook.name} ↗`) : null);
+    add('Reads', `${dp.source.name} – every table, found when it runs`);
+    add('Writes', dp.target ? h('a', { href: dp.target.url, target: '_blank', rel: 'noopener' }, `${dp.target.name}${dp.target.same ? ' (Curated_ tables)' : ''} ↗`) : null);
+    add('Last run', run ? `${String(run.status)}${run.endedAt ? ` · ${fmtDate(run.endedAt)}` : run.startedAt ? ` · started ${fmtDate(run.startedAt)}` : ''}` : 'Not run yet');
+    const again = h('button', { class: 'btn pri', 'data-busy': 'Starting…', title: 'Regenerates the notebook and runs it' }, run ? 'Run again' : 'Run now');
+    again.addEventListener('click', busy(again, async () => { await startDataPrep({ run: true, target: dp.target?.same ? 'same' : 'new' }); draw(); }));
+    const check = h('button', { class: 'btn', 'data-busy': 'Reading…', title: 'Read the results again, e.g. after running the notebook in Fabric yourself' }, '↻ Check results');
+    check.addEventListener('click', busy(check, async () => { state = await post('/data-prep/refresh'); draw(); }));
+    const useIt = dp.target && !dp.target.same && run?.status === 'Completed' ? h('button', { class: 'btn', 'data-busy': 'Switching…', title: 'Build the semantic model, ontology and reports on the curated tables' }, `Use ${dp.target.name} as the data source`) : null;
+    useIt?.addEventListener('click', busy(useIt, async () => {
+      await post('/sources/in-place', { workspaceId: dp.target.workspaceId, itemId: dp.target.id, itemType: 'Lakehouse' });
+      toast(`Using ${dp.target.name}`, 'ok');
+      await app.refresh();
+    }));
+    const remove = h('button', { class: 'btn ghost', 'data-busy': 'Removing…' }, 'Remove');
+    remove.addEventListener('click', busy(remove, async () => {
+      const what = dp.target?.created && !dp.target.same ? `the notebook ${dp.notebook.name} and the lakehouse ${dp.target.name} (with its curated tables)` : `the notebook ${dp.notebook.name}`;
+      if (!await confirmDialog('Remove the data prep notebook?', `This deletes ${what} from Fabric. Your source data is not touched.`, 'Delete', true)) return;
+      state = await del('/data-prep?delete=1').then(() => get('/data-prep'));
+      draw();
+    }));
+    return h('div', {}, kv, h('div', { class: 'row mt' }, again, check, h('a', { class: 'btn', href: dp.notebook.url, target: '_blank', rel: 'noopener' }, 'Open in Fabric ↗'), useIt,
+      h('button', { class: 'btn ai', onclick: () => app.ask('Summarize the data prep notebook results: what it renamed and fixed, the relationships and KPIs it found, and what the charts show.') }, '✦ Explain the results'), remove));
+  }
+
+  function results(run) {
+    const r = run.summary;
+    const box = h('div', { class: 'mt' });
+    const stat = (n, label) => h('div', { class: 'card', style: { padding: '10px 14px', minWidth: '120px' } }, h('div', { style: { fontSize: '22px', fontWeight: 700 } }, fmtNum(n)), h('div', { class: 'tiny muted' }, label));
+    box.append(h('div', { class: 'row', style: { flexWrap: 'wrap', gap: '10px' } },
+      stat(r.tables.length, 'curated tables'), stat(r.relationships.length, 'relationships found'), stat(r.renames, 'columns renamed'),
+      stat(r.fixes, 'values fixed'), stat(r.findings, 'kept for review'), stat(r.kpis.length, 'KPIs with DAX'), stat((run.charts || []).filter((c) => c.file).length, 'charts')));
+
+    const charts = (run.charts || []).filter((c) => c.file && c.local);
+    if (charts.length) {
+      const grid = h('div', { class: 'grid', style: { gridTemplateColumns: 'repeat(auto-fill,minmax(360px,1fr))', alignItems: 'start', marginTop: '12px' } });
+      for (const c of charts) {
+        grid.append(h('figure', { class: 'card', style: { margin: 0, padding: '10px' } },
+          h('a', { href: chartUrl(c.file, run.endedAt), target: '_blank', rel: 'noopener', title: 'Open full size' }, h('img', { src: chartUrl(c.file, run.endedAt), alt: c.title, loading: 'lazy', style: { width: '100%', borderRadius: '6px', border: '1px solid var(--line)', background: '#fff' } })),
+          h('figcaption', { class: 'small mt' }, h('b', {}, c.title), c.insight ? h('div', { class: 'tiny muted' }, c.insight) : null)));
+      }
+      box.append(h('h3', { class: 'mt' }, 'Charts'), grid);
+    }
+
+    if (r.kpis.length) {
+      const multi = new Set(r.kpis.map((k) => k.table)).size > 1;
+      const t = h('table', { class: 't' }, h('tr', {}, multi ? h('th', {}, 'Table') : null, h('th', {}, 'Measure'), h('th', { class: 'num' }, 'Value'), h('th', {}, 'DAX for your semantic model')));
+      for (const k of r.kpis) t.append(h('tr', {}, multi ? h('td', {}, k.table) : null, h('td', {}, k.measure), h('td', { class: 'num' }, kpiValue(k)), h('td', { class: 'mono tiny' }, k.dax)));
+      box.append(h('details', { class: 'mt', open: true }, h('summary', { class: 'small' }, multi ? `KPIs (${r.kpis.length})` : `KPIs on ${r.main}`), h('div', { class: 'scroll mt' }, t)));
+    }
+    const tt = h('table', { class: 't' }, h('tr', {}, h('th', {}, 'Source table'), h('th', {}, 'Curated table'), h('th', {}, 'Role'), h('th', {}, 'Key'), h('th', { class: 'num' }, 'Rows'), h('th', { class: 'num' }, 'Columns'), h('th', { class: 'num' }, 'Renamed')));
+    for (const x of r.tables) tt.append(h('tr', {}, h('td', {}, x.source), h('td', {}, x.table), h('td', {}, x.role), h('td', { class: 'mono tiny' }, x.key || '–'), h('td', { class: 'num' }, fmtNum(x.rows)), h('td', { class: 'num' }, x.columns), h('td', { class: 'num' }, x.renamed)));
+    box.append(h('details', { class: 'mt' }, h('summary', { class: 'small' }, `Curated tables (${r.tables.length})${r.outputs?.length ? ` + ${r.outputs.join(', ')}` : ''}`), h('div', { class: 'scroll mt' }, tt)));
+    if (r.relationships.length) {
+      const rt = h('table', { class: 't' }, h('tr', {}, h('th', {}, 'From'), h('th', {}, 'Column'), h('th', {}, 'To'), h('th', {}, 'Key'), h('th', { class: 'num' }, 'Values found')));
+      for (const x of r.relationships) rt.append(h('tr', {}, h('td', {}, x.from), h('td', { class: 'mono tiny' }, x.column), h('td', {}, x.to), h('td', { class: 'mono tiny' }, x.key), h('td', { class: 'num' }, `${Math.round(x.coverage * 100)}%`)));
+      box.append(h('details', { class: 'mt' }, h('summary', { class: 'small' }, `Relationships found from the data (${r.relationships.length})`), h('div', { class: 'scroll mt' }, rt)));
+    }
+    if (r.skipped?.length) box.append(h('details', { class: 'mt' }, h('summary', { class: 'small muted' }, `Skipped (${r.skipped.length})`), h('ul', { class: 'tiny muted' }, r.skipped.map((x) => h('li', {}, x)))));
+    return box;
+  }
+
+  load();
+  return card;
+}
+
 // ---------------- job helper ----------------
 function watch(container, job, onDone, onData) {
   const render = (j) => { container.innerHTML = ''; container.append(app.jobCard(j)); };
@@ -188,14 +333,21 @@ function samples() {
   const rBtn = h('button', { class: 'btn pri big', 'data-busy': 'Starting…', title: inUse(retail.id) ? 'Uploads the files and reloads the tables' : null }, inUse(retail.id) ? 'Load again' : 'Load sample');
   rBtn.addEventListener('click', busy(rBtn, async () => {
     if (!requireWs()) return;
+    const withPrep = prepOn;
     const job = await post('/jobs/sample');
-    watch(rJob, job, (j) => { if (j.status === 'succeeded') { toast('Sample data is ready', 'ok'); app.refresh(); } });
+    watch(rJob, job, (j) => {
+      if (j.status !== 'succeeded') return;
+      toast('Sample data is ready', 'ok');
+      app.refresh();
+      if (withPrep) startDataPrep().catch((e) => toast(e.message, 'err'));
+    });
   }));
   grid.append(h('div', { class: 'card' },
     h('div', { class: 'row sp' }, h('div', { class: 'src', style: { cursor: 'default', border: 0, padding: 0 } }, h('div', { class: 'h' }, h('div', { class: 'ic' }, '🛍️'), retail.name)), inUse(retail.id) ? h('span', { class: 'pill ok' }, 'In use') : null),
     h('p', { class: 'small' }, retail.tagline), h('div', { class: 'tiny muted' }, retail.details),
     h('div', { class: 'row mt' }, h('span', { class: 'pill brand' }, retail.lands), h('span', { class: 'pill' }, retail.needs), h('span', { class: 'pill' }, `~${retail.minutes} min`)),
     inUseBanner(retail.id),
+    inUse(retail.id) ? null : prepOption(),
     h('div', { class: 'row mt' }, rBtn, h('button', { class: 'btn ai', onclick: () => app.ask('Load the Contoso Retail sample data into my workspace, then tell me what tables were created.') }, '✦ Ask Copilot')),
     rJob));
 
@@ -484,24 +636,34 @@ function fabricData() {
       const inUse = current && p.source?.method !== 'shortcut';
       const job = h('div', { class: 'mt' });
       const inPlace = h('button', { class: 'btn pri', 'data-busy': 'Selecting…', disabled: inUse || undefined }, inUse ? '✓ In use' : 'Use in place');
+      const isLakehouse = s.itemType === 'Lakehouse';
       inPlace.addEventListener('click', busy(inPlace, async () => {
         if (!requireWs()) return;
+        const withPrep = prepOn && isLakehouse;
         await post('/sources/in-place', { workspaceId: s.workspaceId, itemId: s.itemId, itemType: s.itemType });
         toast(`Using ${s.itemName}`, 'ok');
         await app.refresh();
-        app.go('model');
+        // With the notebook, stay here: its progress and results show at the top of this page.
+        if (withPrep) { await startDataPrep(); window.scrollTo({ top: 0, behavior: 'smooth' }); } else app.go('model');
       }));
       const shortcut = h('button', { class: 'btn', 'data-busy': 'Starting…' }, 'Create shortcuts in my project lakehouse');
       shortcut.addEventListener('click', busy(shortcut, async () => {
         if (!requireWs()) return;
         const tables = [...s.selected].map((k) => { const [schema, ...n] = k.split('.'); return { schema, name: n.join('.') }; });
         if (!tables.length) throw new Error('Select at least one table.');
+        const withPrep = prepOn && isLakehouse;
         const j = await post('/jobs/shortcuts', { sourceWorkspaceId: s.workspaceId, sourceItemId: s.itemId, sourceItemType: s.itemType, tables });
-        watch(job, j, (done) => { if (done.status === 'succeeded') { toast('Shortcuts created', 'ok'); app.refresh(); } });
+        watch(job, j, (done) => {
+          if (done.status !== 'succeeded') return;
+          toast('Shortcuts created', 'ok');
+          app.refresh();
+          if (withPrep) startDataPrep().catch((e) => toast(e.message, 'err'));
+        });
       }));
       tablesBox.append(
         h('div', { class: 'banner ok mt' }, h('div', {}, current ? h('b', {}, `In use${p.source?.method === 'shortcut' ? ' (OneLake shortcuts)' : ''}. `) : null, `${r.tables.length} tables in ${s.itemName} · ${r.endpoint.server}`)),
         tablePicker(s.tables, s.selected),
+        isLakehouse && !inUse ? prepOption() : null,
         h('div', { class: 'row mt' }, inPlace, !['MirroredDatabase', 'SQLDatabase'].includes(s.itemType) ? shortcut : null),
         h('p', { class: 'tiny muted' }, inUse
           ? 'This item is your current data source. Pick another item to use it in place instead, or keep this one and continue with the semantic model.'

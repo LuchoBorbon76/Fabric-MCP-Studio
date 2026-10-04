@@ -7,7 +7,8 @@ chatting with the **AI the customer already licenses**:
 - **Data** – start from sample data (Contoso Retail, or AdventureWorksDW2022 created as a Fabric SQL database), mirror
   your databases (Azure SQL Database, Azure SQL Managed Instance, SQL Server on-premises via gateway, Azure Database
   for PostgreSQL), or reuse Fabric lakehouses, warehouses, mirrored databases and SQL databases (in place or with
-  OneLake shortcuts).
+  OneLake shortcuts). When the data source is a **lakehouse**, an option creates a **data prep notebook** (Python)
+  that cleans, renames, models, measures and charts the data.
 - **Semantic model** – Direct Lake model generated from your tables and relationships, then enriched by Copilot
   (business measures from your glossary, descriptions, RLS, translations, best-practice review).
 - **Ontology** – Fabric IQ entities, relationships and plain-English business rules.
@@ -112,6 +113,27 @@ flowchart LR
 
 Schema discovery reads tables, keys and foreign keys (from the source when reachable, or from the Fabric SQL
 analytics endpoint) and infers relationships from naming conventions when no foreign keys exist.
+
+### Data prep notebook (lakehouse sources)
+
+When the data source is a lakehouse (the Contoso Retail sample, a lakehouse used in place, or OneLake shortcuts), tick
+**Also create a data prep notebook** – or use the **Data prep notebook** card on the Data page, or ask Copilot
+(`studio_create_data_prep_notebook`). The studio creates a Fabric **Python notebook** (pandas, no Spark) in the project
+workspace and runs it. Nothing about the data is fixed in the notebook: only which lakehouse to read and which to write.
+Every run works the rest out from the data, so it works for any lakehouse and can be run again as tables change:
+
+| Step | What it does |
+|---|---|
+| Discover | Lists every Delta table (lakehouses with or without schemas, shortcuts included) and profiles it |
+| Better names | Business names for tables (`dim_cust` → `Customer`) and columns (`cust_nm` → `CustomerName`, `DiscountPct` → `DiscountPercent`) |
+| Data fixes | Trims text, blank → missing, consistent category spelling, text → dates and numbers, placeholder dates, empty columns, duplicate rows and keys; negatives, outliers, future dates and unmatched keys are kept and counted. Every fix is logged in a `DataQuality` table |
+| Keys and relationships | Each table's key, and the columns that point to other tables (the name must match **and** at least 80% of the values must be found); facts and dimensions follow from them |
+| New measures | Net amount, total cost, gross margin and margin %, date parts and value bands; a `KPIs` table with the matching DAX. Amounts are summed; temperatures, prices, rates and scores are averaged |
+| Curated tables | Delta tables in a new `<source>_Curated` lakehouse (or back to the source with the `Curated_` prefix) |
+| Charts | KPI tiles, tables overview, model diagram, trend, top items, pie, breakdowns, Pareto, weekday × month heatmap, distribution, box plot, treemap, correlation, missing values and data fixes – each with a one-line insight, shown on the Data page |
+
+**Use `<source>_Curated` as the data source** to build the semantic model, ontology and reports on the curated tables.
+Clean up deletes the notebook and the curated lakehouse.
 
 ## Reports
 
@@ -242,6 +264,8 @@ Copilot tools: `studio_planning_status`, `studio_preview_plan`, `studio_create_p
 | `server/fabric.mjs` | Fabric REST client (LRO, pagination, OneLake, connections, mirroring) |
 | `server/sql.mjs`, `server/pg.mjs` | Schema discovery for SQL Server family, Fabric SQL endpoints and PostgreSQL |
 | `server/generators/tmdl.mjs` | Direct Lake semantic model and ontology TMDL generators |
+| `server/generators/notebook.mjs` | Data prep notebook (Fabric Python notebook) for any lakehouse: discovery, names, fixes, relationships, measures, curated tables, charts |
+| `server/dataprep.mjs` | Data prep notebook job: curated lakehouse, notebook item, run and results (summary and charts) |
 | `server/generators/pbir.mjs` | Power BI report (PBIR) generator: pages, visuals, filters, theme registration |
 | `server/reports/` | Model profile (`profile.mjs`), page templates, report themes and the report build/preview pipeline |
 | `server/powerbi.mjs` | Power BI REST: DAX queries, model metadata (`INFO.VIEW`), report export for previews |

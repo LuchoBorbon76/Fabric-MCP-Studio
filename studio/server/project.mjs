@@ -28,6 +28,8 @@ const EMPTY = {
   orgApp: null,                   // Org app bundling the reports: { id, name, theme, reports[], url, builtAt }
   realtime: null,                 // Live data: { scenario, eventhouse, database, table, eventstream, dashboard } (no endpoint keys)
   planning: null,                 // Budget and forecast: { measure, dims, planYear, spec, totals, planItem } (Plan table in the model)
+  dataPrep: null,                 // Data prep notebook for a lakehouse source: { source, target, notebook, lastRun }
+  dataPrepItems: [],              // Every notebook and curated lakehouse the data prep job created: [{ type, id, name, workspaceId }]
   glossary: '',
   teamsAgent: null,
   steps: {},                      // stepId -> { status, at, note }
@@ -163,6 +165,7 @@ export function fabricUrl(type, workspaceId, id) {
     Reflex: `/reflexes/${id}`,
     Plan: `/plans/${id}`,
     KQLQueryset: `/queryworkbenches/${id}`,
+    Notebook: `/synapsenotebooks/${id}`,
   }[type];
   return seg === undefined ? `${base}/list` : `${base}${seg}`;
 }

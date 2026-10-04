@@ -12,6 +12,7 @@ import * as R from './reports/index.mjs';
 import * as APPS from './reports/apps.mjs';
 import * as RT from './realtime/index.mjs';
 import * as PL from './planning/index.mjs';
+import * as DP from './dataprep.mjs';
 import { readiness, cachedReadiness, assertModuleReady, assertLiveEventsAllowed } from './readiness.mjs';
 import * as F from './fabric.mjs';
 import { presetFor } from './presets.mjs';
@@ -306,6 +307,8 @@ const STUDIO_TOOLS_META = {
   studio_create_shortcuts: { write: true, title: 'Create OneLake shortcuts' },
   studio_describe_data: { write: false, title: 'Describe data source' },
   studio_query_data: { write: false, title: 'Query data (read-only)' },
+  studio_data_prep_status: { write: false, title: 'Read the data prep notebook results' },
+  studio_create_data_prep_notebook: { write: true, title: 'Create and run the data prep notebook' },
   studio_create_semantic_model: { write: true, title: 'Create semantic model' },
   studio_propose_semantic_model: { write: false, title: 'Suggest semantic model design' },
   studio_describe_report_options: { write: false, title: 'Read report options (model profile, themes, pages)' },
@@ -360,6 +363,7 @@ function projectSummary() {
       medallion: p.realtime.medallion ? { silver: p.realtime.medallion.names.clean, gold: (p.realtime.medallion.gold || []).map((g) => g.name), goldModel: p.realtime.medallion.items?.goldModel?.name || null, taskFlow: p.realtime.medallion.taskFlow?.name || null } : null,
     } : null,
     planning: p.planning ? { measure: p.planning.measure?.name, planYear: p.planning.planYear, baseYear: p.planning.baseYear, asOfMonth: p.planning.asOfMonth, growthPct: p.planning.growthPct, dimensions: (p.planning.dims || []).map((d) => d.labelText), measures: Object.values(p.planning.spec?.names || {}), planItem: p.planning.planItem?.name || null } : null,
+    dataPrep: p.dataPrep ? { source: p.dataPrep.source?.name, notebook: p.dataPrep.notebook?.name, curatedLakehouse: p.dataPrep.target?.name, lastRun: p.dataPrep.lastRun?.status || null } : (p.modelSource?.itemType === 'Lakehouse' ? 'available – studio_create_data_prep_notebook' : null),
     notReady: (() => {
       const r = cachedReadiness();
       if (!r) return 'not checked yet – call studio_check_readiness';
@@ -477,6 +481,20 @@ function studioTools(chatId) {
       description: 'Run one read-only T-SQL SELECT against the model source SQL analytics endpoint to profile data (max 200 rows returned). Use TOP/aggregations.',
       parameters: obj({ sql: str('A single SELECT statement') }, ['sql']),
       handler: async ({ sql }) => P.queryModelSource(sql),
+    }),
+    studioTool('studio_data_prep_status', {
+      description: 'Read the data prep notebook for a lakehouse data source: whether it applies (only lakehouses), the notebook and curated lakehouse, and the last run: curated tables with their roles and keys, relationships found from the data, column renames, data fixes, KPIs with DAX and the charts with their one-line insights. Read-only.',
+      parameters: obj({}),
+      handler: async () => {
+        const s = DP.dataPrepState();
+        const r = s.dataPrep?.lastRun;
+        return { available: s.available, reason: s.reason, source: s.source?.name || null, forCurrentSource: s.current, notebook: s.dataPrep?.notebook || null, target: s.dataPrep?.target || null, lastRun: r ? { status: r.status, endedAt: r.endedAt, error: r.error || null, summary: r.summary, charts: (r.charts || []).map((c) => ({ title: c.title, insight: c.insight })) } : null };
+      },
+    }),
+    studioTool('studio_create_data_prep_notebook', {
+      description: 'When the data source is a lakehouse: create (or update) a Fabric Python notebook for it and, by default, run it. Nothing about the data is fixed in the notebook – every run lists the lakehouse\'s tables and works out from the data: business-friendly column names, logged data fixes, keys and relationships (checked against the values), facts and dimensions, measures (derived columns and a KPI table with matching DAX), curated Delta tables (in a new <source>_Curated lakehouse by default) and charts (bar, pie, trend, Pareto, heatmap, distribution, box plot, treemap, correlation, model diagram, data quality). Running takes a few minutes. Then summarize the results with studio_data_prep_status.',
+      parameters: obj({ run: { type: 'boolean', description: 'Run the notebook after creating it (default true)' }, target: { type: 'string', enum: ['new', 'same'], description: 'new (default): write curated tables to a new "<source>_Curated" lakehouse; same: write them back to the source lakehouse with the Curated_ prefix' } }),
+      handler: async (a) => runAsJob('data-prep', a.run === false ? 'Create the data prep notebook' : 'Create and run the data prep notebook', (ctx) => DP.runDataPrep(ctx, { run: a.run !== false, target: a.target === 'same' ? 'same' : 'new' })),
     }),
     studioTool('studio_propose_semantic_model', {
       description: 'Suggest a semantic model design. Nothing changes in Fabric: the studio checks the design against the schema and shows the user an "Apply suggestions" button that reviews and creates it in one click. Use this every time you propose or revise a semantic model design, instead of asking the user to type a confirmation. With sample data, the sample\'s glossary measures (project state sample.measures) are always kept; list only measures to add or change.',

@@ -14,6 +14,7 @@ ontology, and governed answers. You act through MCP servers and studio tools, al
 | Customer databases (Azure SQL, SQL MI, SQL Server, Azure PostgreSQL) | `studio_list_connections` then `studio_mirror_database` |
 | Existing Fabric lakehouse / warehouse / mirrored database / SQL database | `studio_list_items`, then `studio_use_item_in_place` or `studio_create_shortcuts` |
 | Understand the data | `studio_describe_data`, `studio_query_data` (read-only SELECT) |
+| Clean and explore a lakehouse with a notebook | `studio_data_prep_status` first. `studio_create_data_prep_notebook` (only when the data source is a lakehouse) creates a Fabric Python notebook and runs it: it finds every table, gives tables and columns business names, fixes and logs data problems, finds keys and relationships from the values, adds measures (derived columns and a KPI table with DAX), writes curated Delta tables to a new `<source>_Curated` lakehouse and draws charts. Nothing in it is specific to one dataset. Summarize the run from `studio_data_prep_status` (tables, relationships, fixes, KPIs, chart insights) |
 | Suggest a semantic model design | `studio_propose_semantic_model` – nothing changes in Fabric; the user reviews it and selects **Apply suggestions** to create it |
 | Create the semantic model | `studio_create_semantic_model` (the studio writes valid Direct Lake TMDL from your design) – only when the user asks you to create it directly |
 | Change an existing semantic model (measures, descriptions, RLS, translations, calculation groups, best practices, DAX queries) | `powerbi-authoring` tools. Connect first: "Connect to semantic model '<name>' in Fabric workspace '<workspace>'" via `connection_operations` |
@@ -63,6 +64,8 @@ ontology, and governed answers. You act through MCP servers and studio tools, al
 - **Customer database**: workspace → user creates the Fabric connection in the Data page → `studio_mirror_database`
   → `studio_describe_data` → `studio_propose_semantic_model` (the user applies it) → ontology → questions.
 - **Existing Fabric data**: `studio_list_items` → use in place or shortcuts → same as above.
+- **Data prep notebook**: lakehouse source → `studio_create_data_prep_notebook` → `studio_data_prep_status` to report what
+  it renamed, fixed and found. To build the model on the curated tables, use the `<source>_Curated` lakehouse in place.
 - **Real time**: semantic model → `studio_setup_live_data` → `studio_start_live_events` → `studio_create_realtime_dashboard`
   → answer live questions with `studio_query_live_events`. Live events are simulated unless the customer streams their
   own events to the Eventstream's custom endpoint; say so when you report live numbers.

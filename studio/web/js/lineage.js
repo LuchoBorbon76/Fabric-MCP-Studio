@@ -75,12 +75,12 @@ const JOB_NODES = {
   sample: ['source', 'data'], mirror: ['source', 'data'], shortcut: ['source', 'data'], 'semantic-model': ['model'], ontology: ['ontology'],
   report: ['reports'], 'org-app': ['orgapp'], realtime: ['events', 'eventstream', 'eventhouse'], 'realtime-dashboard': ['dashboard'],
   'realtime-ontology': ['ontology'], 'realtime-alerts': ['alerts'], planning: ['planning'], 'plan-item': ['planitem'], 'teams-agent': ['agent'],
-  medallion: ['eventhouse'], 'medallion-remove': ['eventhouse'],
+  medallion: ['eventhouse'], 'medallion-remove': ['eventhouse'], 'data-prep': ['data'],
 };
 
 const ITEM = { Lakehouse: 'Lakehouse', Warehouse: 'Warehouse', MirroredDatabase: 'Mirrored database', SQLDatabase: 'SQL database' };
 const ITEM_ICON = { Lakehouse: 'lake', Warehouse: 'warehouse', MirroredDatabase: 'mirror', SQLDatabase: 'database' };
-const ITEM_PATH = { Lakehouse: 'lakehouses', Warehouse: 'warehouses', MirroredDatabase: 'mirroreddatabases', SQLDatabase: 'sqldatabases', SemanticModel: 'datasets', Ontology: 'ontologies', Eventhouse: 'eventhouses', Eventstream: 'eventstreams' };
+const ITEM_PATH = { Lakehouse: 'lakehouses', Warehouse: 'warehouses', MirroredDatabase: 'mirroreddatabases', SQLDatabase: 'sqldatabases', SemanticModel: 'datasets', Ontology: 'ontologies', Eventhouse: 'eventhouses', Eventstream: 'eventstreams', Notebook: 'synapsenotebooks' };
 const METHOD = { files: 'Loaded', 'sql-database': 'Loaded', mirror: 'Mirroring', shortcut: 'Shortcuts', 'in-place': 'In place' };
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -121,13 +121,16 @@ function describe(id, s) {
         facts: [['Kind', src.kind === 'sample' ? 'Sample data' : src.kind === 'database' ? kind || 'Database' : `Fabric ${ITEM[src.itemType] || 'item'}`], ['How it reaches OneLake', { files: 'Parquet files loaded into lakehouse tables', 'sql-database': 'Loaded into a Fabric SQL database, replicated to OneLake', mirror: 'Fabric Mirroring (continuous replication)', shortcut: 'OneLake shortcuts (no copy)', 'in-place': 'Used where it is (no copy)' }[src.method] || src.method], ['Tables', src.tables?.length || '–'], src.connectionName ? ['Connection', src.connectionName] : null],
       };
     }
-    case 'data':
+    case 'data': {
       if (!ms) return { done: false, avail: Boolean(ws), needs: 'Needs a workspace', icon: 'lake', title: 'Not created', sub: 'Lakehouse, warehouse or SQL database' };
+      const dp = p.dataPrep;
+      const prep = dp ? [['Data prep notebook', dp.notebook?.name || '–', at('Notebook', dp.notebook?.id)], ['Curated tables', dp.target ? `${dp.target.name}${dp.lastRun?.status === 'Completed' && dp.lastRun.summary ? ` · ${plural(dp.lastRun.summary.tables?.length || 0, 'table')}` : ''}` : '–', at('Lakehouse', dp.target?.id)]] : ms.itemType === 'Lakehouse' ? [['Data prep notebook', 'Not created – Data page']] : [];
       return {
-        done: true, icon: ITEM_ICON[ms.itemType] || 'lake', title: ms.itemName, sub: `${ITEM[ms.itemType] || ms.itemType}${src?.tables?.length ? ` · ${plural(src.tables.length, 'table')}` : ''}`,
+        done: true, icon: ITEM_ICON[ms.itemType] || 'lake', title: ms.itemName, sub: `${ITEM[ms.itemType] || ms.itemType}${src?.tables?.length ? ` · ${plural(src.tables.length, 'table')}` : ''}${dp?.lastRun?.status === 'Completed' ? ' · notebook' : ''}`,
         url: fabricItemUrl(ms.itemType, ms.workspaceId || ws?.id, ms.itemId),
-        facts: [['Item', ITEM[ms.itemType] || ms.itemType], ['Name', ms.itemName], ['SQL endpoint', ms.server || '–'], ['Database', ms.database || ms.itemName]],
+        facts: [['Item', ITEM[ms.itemType] || ms.itemType], ['Name', ms.itemName], ['SQL endpoint', ms.server || '–'], ['Database', ms.database || ms.itemName], ...prep],
       };
+    }
     case 'model':
       if (!sm) return { done: false, avail: Boolean(ms), needs: 'Needs data', title: 'Not created', sub: 'Direct Lake' };
       return { done: true, title: sm.name, sub: `${plural(sm.tables, 'table')} · ${plural(sm.measures, 'measure')}`, url: at('SemanticModel', sm.id), facts: [['Tables', sm.tables], ['Measures', sm.measures], ['Relationships', sm.relationships ?? '–'], ['Storage mode', 'Direct Lake']] };

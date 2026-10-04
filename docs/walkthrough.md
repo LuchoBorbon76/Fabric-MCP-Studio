@@ -42,6 +42,13 @@ Mirroring shows live replication status per table. Once data is connected, the *
 it lives, how it lands in Fabric, the SQL analytics endpoint, every table with row counts and keys, and live mirroring
 status for mirrored databases. The source tabs below open on the source in use, with its details filled in.
 
+**Data prep notebook (lakehouse sources).** Tick *Also create a data prep notebook* when you load the Contoso Retail
+sample or pick a lakehouse, or use the **Data prep notebook** card once a lakehouse is connected (≈2 min to run). The
+studio creates a Fabric Python notebook that works everything out from your lakehouse when it runs – clearer column
+names, logged data fixes, keys and relationships, measures with DAX, curated tables in `<source>_Curated` and charts
+(bar, pie, trend, Pareto, heatmap, distribution, box plot, treemap, correlation, model diagram). The card shows the
+results and charts; *Use <source>_Curated as the data source* builds the model on the curated tables.
+
 > Ask Copilot: *Describe my data source: tables, row counts, keys and relationships. Then suggest a star schema.*
 
 ## 3. Semantic model

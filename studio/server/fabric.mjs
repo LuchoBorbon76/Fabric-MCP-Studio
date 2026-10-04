@@ -9,7 +9,7 @@ export class FabricError extends Error {
   constructor(message, status, body) { super(message); this.status = status; this.body = body; }
 }
 
-export async function fabric(method, path, body, { raw = false, signal, lroTimeoutMs = 15 * 60 * 1000 } = {}) {
+export async function fabric(method, path, body, { raw = false, signal, lroTimeoutMs = 15 * 60 * 1000, wait = true } = {}) {
   const url = path.startsWith('http') ? path : `${API}${path}`;
   for (let attempt = 1; attempt <= 6; attempt++) {
     const token = await getToken(SCOPES.fabric);
@@ -27,6 +27,8 @@ export async function fabric(method, path, body, { raw = false, signal, lroTimeo
       }
     }
     if (res.status === 202) {
+      // Job instances report their own status; the caller polls the location itself.
+      if (!wait) return { status: 202, location: res.headers.get('location'), retryAfter: Number(res.headers.get('retry-after')) || null };
       const result = await waitOperation(res, { signal, timeoutMs: lroTimeoutMs });
       return raw ? { status: 202, body: result } : result;
     }
@@ -263,6 +265,17 @@ export async function uploadOneLake(workspaceId, itemId, remotePath, bytes, { si
   await call(`${base}?action=append&position=0`, { method: 'PATCH', body: bytes, headers: { 'Content-Type': 'application/octet-stream' } });
   await call(`${base}?action=flush&position=${bytes.length}`, { method: 'PATCH' });
 }
+
+/** A file from an item's OneLake storage, or null when it doesn't exist. */
+export async function downloadOneLake(workspaceId, itemId, remotePath, { signal } = {}) {
+  const token = await getToken(SCOPES.storage);
+  const res = await fetch(`${ONELAKE}/${workspaceId}/${itemId}/${remotePath.split('/').map(encodeURIComponent).join('/')}`, { signal, headers: { Authorization: `Bearer ${token}`, 'x-ms-version': '2023-11-03' } });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new FabricError(`OneLake read failed (${res.status}): ${await res.text()}`, res.status);
+  return Buffer.from(await res.arrayBuffer());
+}
+
+export const getLakehouse = (workspaceId, id) => fabric('GET', `/workspaces/${workspaceId}/lakehouses/${id}`);
 
 // ---------------- connections, gateways, mirroring ----------------
 

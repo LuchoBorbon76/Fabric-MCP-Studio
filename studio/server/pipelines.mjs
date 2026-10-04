@@ -16,6 +16,7 @@ import { AWDW, getKit, loadAdventureWorksDW, salesTotalsMatch } from './samples/
 import { resetProfileCache } from './reports/index.mjs';
 import { stopSimulator } from './realtime/simulator.mjs';
 import { deleteTaskFlow } from './taskflow.mjs';
+import { clearDataPrepFiles } from './dataprep.mjs';
 
 const safeName = (s, fallback = 'Item') => (String(s || '').replace(/[^A-Za-z0-9_]/g, '_').replace(/^_+|_+$/g, '').replace(/_+/g, '_') || fallback).slice(0, 120);
 
@@ -45,7 +46,7 @@ export async function selectWorkspace({ workspaceId, name, capacityId, descripti
   if (!ws.capacityId) throw new Error('This workspace is not on a Fabric capacity. Pick a capacity so the studio can create Fabric items.');
   const prev = getProject().workspace;
   const workspace = { id: ws.id, name: ws.displayName, capacityId: ws.capacityId, created: created || (prev?.id === ws.id && prev.created) };
-  const reset = prev?.id !== ws.id ? { lakehouse: null, modelSource: null, semanticModel: null, ontology: null, source: null } : {};
+  const reset = prev?.id !== ws.id ? { lakehouse: null, modelSource: null, semanticModel: null, ontology: null, source: null, dataPrep: null, dataPrepItems: [] } : {};
   updateProject({ workspace, ...reset });
   setStep('workspace', 'done', workspace.name);
   if (created) recordArtifact({ type: 'Workspace', id: ws.id, name: ws.displayName, workspaceId: ws.id });
@@ -585,6 +586,7 @@ function teardownItems(p) {
     ['Eventhouse', 'Eventhouse (all live events and medallion layers)', p.realtime?.eventhouse],
     ['Ontology', 'Ontology', p.ontology],
     ['SemanticModel', 'Semantic model', p.semanticModel],
+    ...(p.dataPrepItems || []).filter((i) => i.id !== p.lakehouse?.id).map((i) => [i.type, i.type === 'Notebook' ? 'Data prep notebook' : 'Curated lakehouse (data prep notebook)', i]),
     ['MirroredDatabase', 'Mirrored database (replication stops)', p.source?.method === 'mirror' && p.modelSource?.itemId ? { id: p.modelSource.itemId, name: p.modelSource.itemName } : null],
     ['Lakehouse', 'Lakehouse', p.lakehouse],
     ['SQLDatabase', 'SQL database', p.sqlDatabase],
@@ -617,7 +619,8 @@ export async function runTeardown(ctx, { deleteWorkspace = false } = {}) {
     ctx.step(`Delete workspace ${p.workspace.name}`);
     await F.deleteWorkspace(p.workspace.id);
     // Everything lived in that workspace; keep only the glossary for the next project.
-    updateProject({ workspace: null, lakehouse: null, sqlDatabase: null, source: null, modelSource: null, modelProposal: null, reportProposal: null, semanticModel: null, ontology: null, reports: [], orgApp: null, teamsAgent: null, scenario: null, realtime: null, planning: null, tenant: null, steps: {} });
+    updateProject({ workspace: null, lakehouse: null, sqlDatabase: null, source: null, modelSource: null, modelProposal: null, reportProposal: null, semanticModel: null, ontology: null, reports: [], orgApp: null, teamsAgent: null, scenario: null, realtime: null, planning: null, dataPrep: null, dataPrepItems: [], tenant: null, steps: {} });
+    clearDataPrepFiles();
   } else if (p.workspace) {
     ctx.step('Delete items created by the studio');
     stopSimulator('clean up');
@@ -641,7 +644,8 @@ export async function runTeardown(ctx, { deleteWorkspace = false } = {}) {
       }
     }
     const keep = p.steps?.workspace;
-    updateProject({ lakehouse: null, sqlDatabase: null, source: null, modelSource: null, modelProposal: null, reportProposal: null, semanticModel: null, ontology: null, reports: [], orgApp: null, teamsAgent: null, scenario: null, realtime: null, planning: null, steps: keep ? { workspace: keep } : {} });
+    updateProject({ lakehouse: null, sqlDatabase: null, source: null, modelSource: null, modelProposal: null, reportProposal: null, semanticModel: null, ontology: null, reports: [], orgApp: null, teamsAgent: null, scenario: null, realtime: null, planning: null, dataPrep: null, dataPrepItems: [], steps: keep ? { workspace: keep } : {} });
+    clearDataPrepFiles();
   }
   return { ok: true };
 }

@@ -14,6 +14,7 @@ import * as R from './reports/index.mjs';
 import * as APPS from './reports/apps.mjs';
 import * as RT from './realtime/index.mjs';
 import * as PL from './planning/index.mjs';
+import * as DP from './dataprep.mjs';
 import { readiness, cachedReadiness, resetReadiness, assertModuleReady, assertLiveEventsAllowed } from './readiness.mjs';
 import { catalog } from './sources.mjs';
 import { getProject, updateProject, resetProject, getActivity, clearActivity, logActivity, assertProjectTenant } from './project.mjs';
@@ -179,7 +180,7 @@ route('GET', '/api/fabric/gateways', () => F.listGateways());
 route('GET', '/api/project', () => getProject());
 route('GET', '/api/preset', () => presetSummary(getProject()));
 route('PATCH', '/api/project', (_, b) => { const patch = {}; for (const k of ['name', 'glossary']) if (b[k] !== undefined) patch[k] = b[k]; return updateProject(patch); });
-route('POST', '/api/project/reset', () => { clearActivity(); return resetProject(); });
+route('POST', '/api/project/reset', () => { clearActivity(); DP.clearDataPrepFiles(); return resetProject(); });
 route('POST', '/api/project/workspace', (_, b) => P.selectWorkspace(b));
 
 route('GET', '/api/sources/catalog', () => catalog());
@@ -193,6 +194,10 @@ route('GET', '/api/sources/current/mirroring', () => P.currentMirroringStatus())
 
 route('GET', '/api/model/describe', (_, __, q) => P.describeModelSource({ refresh: q.get('refresh') === '1' }));
 route('GET', '/api/ontology/preview', () => P.ontologyPreview());
+route('GET', '/api/data-prep', () => DP.dataPrepState());
+route('POST', '/api/jobs/data-prep', (_, b) => startJob('data-prep', b.run === false ? 'Create the data prep notebook' : 'Create and run the data prep notebook', (ctx) => DP.runDataPrep(ctx, { run: b.run !== false, target: b.target === 'same' ? 'same' : 'new' })));
+route('POST', '/api/data-prep/refresh', () => DP.refreshDataPrep());
+route('DELETE', '/api/data-prep', (_, __, q) => DP.removeDataPrep({ deleteItems: q.get('delete') === '1' }));
 
 route('POST', '/api/jobs/sample', (_, b) => (b?.dataset === 'adventureworks'
   ? startJob('sample', 'Create AdventureWorksDW2022 in a Fabric SQL database', (ctx) => P.runSampleAdventureWorks(ctx))
@@ -274,6 +279,14 @@ const server = createServer(async (req, res) => {
       if (!file) return send(res, 404, { error: 'No preview yet' });
       res.writeHead(200, { 'Content-Type': file.contentType, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Disposition': 'inline' });
       return res.end(file.bytes);
+    }
+    const dpc = pathname.match(/^\/api\/data-prep\/charts\/([\w.-]+\.png)$/i);
+    if (dpc && req.method === 'GET') {
+      if (url.searchParams.get('t') !== TOKEN) return send(res, 401, { error: 'Unauthorized' });
+      const bytes = DP.dataPrepChart(dpc[1]);
+      if (!bytes) return send(res, 404, { error: 'No chart' });
+      res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+      return res.end(bytes);
     }
     if (pathname.startsWith('/api/')) {
       if (req.headers['x-studio-token'] !== TOKEN) return send(res, 401, { error: 'Unauthorized' });

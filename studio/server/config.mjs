@@ -22,7 +22,13 @@ export function writeJson(path, data) {
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   const tmp = `${path}.${process.pid}.tmp`;
   writeFileSync(tmp, JSON.stringify(data, null, 2) + '\n', 'utf8');
-  renameSync(tmp, path);
+  // On Windows a virus scanner or indexer can hold the file for a moment: retry briefly instead of failing the job.
+  for (let attempt = 1; ; attempt++) {
+    try { renameSync(tmp, path); return; } catch (e) {
+      if (!['EPERM', 'EBUSY', 'EACCES'].includes(e.code) || attempt >= 20) throw e;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50 * attempt);
+    }
+  }
 }
 
 const SETTINGS_FILE = join(DATA_DIR, 'settings.json');
