@@ -105,7 +105,9 @@ function describe(id, s) {
   const rt = p.realtime;
   const sim = s.realtime?.simulator || {};
   const links = s.realtime?.links || {};
-  const rtOk = s.realtime ? s.realtime.available : Boolean(sm);
+  // Live events are shaped like the data: the samples bring their own shape, other data needs the semantic model.
+  const rtOk = Boolean(sm) || (src?.kind === 'sample' && ['retail', 'adventureworks-dw'].includes(src.id));
+  const rtNeeds = !ws ? 'Needs a workspace' : !ms ? 'Needs data' : 'Needs the semantic model';
   const at = (type, itemId) => fabricItemUrl(type, ws?.id, itemId);
   switch (id) {
     case 'source': {
@@ -158,13 +160,13 @@ function describe(id, s) {
       if (!p.teamsAgent) return { done: false, avail: Boolean(sm), needs: 'Needs the semantic model', title: 'Not installed', sub: 'Teams and Microsoft 365 Copilot' };
       return { done: true, title: 'Teams & Copilot', sub: p.teamsAgent.published ? 'Published to your organization' : 'Installed for you', facts: [['Installed', when(p.teamsAgent.installedAt)], ['Ontology', p.teamsAgent.includeOntology ? 'Included' : 'Not included'], ['Availability', p.teamsAgent.published ? 'Submitted to your organization' : 'You']] };
     case 'events':
-      if (!rt) return { done: false, avail: Boolean(ws) && rtOk, needs: ws ? 'Needs the semantic model' : 'Needs a workspace', title: 'Not set up', sub: 'Simulator or your apps' };
+      if (!rt) return { done: false, avail: Boolean(ws) && rtOk, needs: rtNeeds, title: 'Not set up', sub: 'Simulator or your apps' };
       return { done: true, live: Boolean(sim.running), title: sim.running ? `Streaming · ${sim.rate}/min` : 'Endpoint ready', sub: sim.running ? `${Number(sim.sent || 0).toLocaleString()} events sent` : 'Simulator or your apps', facts: [['Simulator', sim.running ? `Running · ${sim.rate} events/min` : 'Stopped'], ['Events sent', Number(sim.sent || 0).toLocaleString()], ['Scenario', rt.scenario?.label || rt.scenario || '–']] };
     case 'eventstream':
-      if (!rt?.eventstream) return { done: false, avail: Boolean(ws) && rtOk, needs: ws ? 'Needs the semantic model' : 'Needs a workspace', title: 'Not created', sub: 'Custom endpoint' };
+      if (!rt?.eventstream) return { done: false, avail: Boolean(ws) && rtOk, needs: rtNeeds, title: 'Not created', sub: 'Custom endpoint' };
       return { done: true, title: rt.eventstream.name, sub: 'Custom endpoint', url: links.eventstream || at('Eventstream', rt.eventstream.id), facts: [['Source', 'Custom endpoint (Event Hubs compatible)'], ['Destination', `${rt.eventhouse?.name || 'Eventhouse'} · ${rt.table || 'events'}`]] };
     case 'eventhouse':
-      if (!rt?.eventhouse) return { done: false, avail: Boolean(ws) && rtOk, needs: ws ? 'Needs the semantic model' : 'Needs a workspace', title: 'Not created', sub: 'KQL database' };
+      if (!rt?.eventhouse) return { done: false, avail: Boolean(ws) && rtOk, needs: rtNeeds, title: 'Not created', sub: 'KQL database' };
       return { done: true, live: Boolean(sim.running), title: rt.eventhouse.name, sub: `KQL · ${rt.table || 'events'}`, url: links.eventhouse || at('Eventhouse', rt.eventhouse.id), facts: [['KQL database', rt.database?.name || rt.eventhouse.name], ['Table', rt.table || '–'], ['Query URI', rt.eventhouse.queryUri || '–']] };
     case 'dashboard':
       if (!rt?.dashboard) return { done: false, avail: Boolean(rt), needs: 'Needs live data', title: 'Not built', sub: 'Auto-refresh tiles' };

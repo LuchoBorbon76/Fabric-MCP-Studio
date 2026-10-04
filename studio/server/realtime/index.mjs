@@ -33,7 +33,7 @@ export function realtimeState() {
   const p = getProject();
   const rt = p.realtime || null;
   return {
-    available: Boolean(p.workspace && (p.semanticModel || scenarioKind(p) !== 'generic')),
+    available: Boolean(p.workspace && scenarioKind(p)),
     scenarioKind: scenarioKind(p),
     setup: rt,
     ontology: p.ontology ? { id: p.ontology.id, name: p.ontology.name, entities: p.ontology.entities || [] } : null,
