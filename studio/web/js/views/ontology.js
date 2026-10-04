@@ -1,6 +1,7 @@
 import { store, get, post, patch, on } from '../api.js';
 import { h, toast, busy, field, input } from '../ui.js';
 import { app, copilotSlot } from '../app.js';
+import { askCard } from '../prompts.js';
 
 let rules = null;
 on('studio.reset', () => { rules = null; });
@@ -11,7 +12,7 @@ export function renderOntology(el) {
     el.append(h('div', { class: 'banner warn' }, h('div', {}, h('b', {}, 'Connect data first. '), 'The ontology binds business concepts to the same data as the semantic model.'), h('button', { class: 'btn pri', onclick: () => app.go('data') }, 'Go to Data')));
     return;
   }
-  if (p.ontology) el.append(ontologyCard(p));
+  if (p.ontology) el.append(ontologyCard(p), askCard({ title: 'Ask about your business rules', only: ['rules'] }));
   el.append(h('div', { class: 'grid g2', style: { marginTop: p.ontology ? '14px' : 0 } }, glossaryCard(p), designerCard(p)), copilotSlot());
 }
 

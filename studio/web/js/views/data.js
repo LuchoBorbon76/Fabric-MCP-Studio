@@ -1,6 +1,7 @@
 import { store, get, post, del, on } from '../api.js';
 import { h, toast, busy, field, input, select, seg, fmtNum, fmtDate, confirmDialog, $ } from '../ui.js';
 import { app, copilotSlot } from '../app.js';
+import { askCard } from '../prompts.js';
 
 const TOKEN = document.querySelector('meta[name="studio-token"]').content;
 let tab = 'samples';
@@ -85,6 +86,7 @@ export function renderData(el) {
   }
   if (p.modelSource) el.append(currentSource(p));
   if (p.modelSource?.itemType === 'Lakehouse') el.append(dataPrepCard());
+  if (p.modelSource) el.append(askCard({ title: 'Ask about your data', only: ['data'] }));
 
   const body = h('div');
   el.append(h('div', { class: 'card' },

@@ -19,6 +19,8 @@ chatting with the **AI the customer already licenses**:
 - **Planning** – a budget and rolling forecast from your actuals, a Plan table with variance measures in the model, a
   Plan vs actual report, and the Fabric plan for planning sheets.
 - **Ask & share** – governed answers in the app chat, Microsoft 365 Copilot / Teams agent, other AI clients, Fabric data agent.
+  Suggested questions are built from what you have – the semantic model's measures, dimensions and years, your
+  reports, ontology rules, plan, live data and data source – and shown on the Overview, Ask & share and each page.
 
 Everything runs on the customer's computer, signs in to Fabric as the customer, and **asks before every change**.
 
@@ -266,6 +268,7 @@ Copilot tools: `studio_planning_status`, `studio_preview_plan`, `studio_create_p
 | `server/generators/tmdl.mjs` | Direct Lake semantic model and ontology TMDL generators |
 | `server/generators/notebook.mjs` | Data prep notebook (Fabric Python notebook) for any lakehouse: discovery, names, fixes, relationships, measures, curated tables, charts |
 | `server/dataprep.mjs` | Data prep notebook job: curated lakehouse, notebook item, run and results (summary and charts) |
+| `server/prompts.mjs` | Suggested questions grouped by what the project has, built from the semantic model profile, reports, rules, plan, live data and data source |
 | `server/generators/pbir.mjs` | Power BI report (PBIR) generator: pages, visuals, filters, theme registration |
 | `server/reports/` | Model profile (`profile.mjs`), page templates, report themes and the report build/preview pipeline |
 | `server/powerbi.mjs` | Power BI REST: DAX queries, model metadata (`INFO.VIEW`), report export for previews |

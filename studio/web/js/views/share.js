@@ -1,23 +1,23 @@
 import { store, get, post, on } from '../api.js';
 import { h, toast, busy, confirmDialog } from '../ui.js';
-import { app, suggestions, copilotSlot } from '../app.js';
+import { app, copilotSlot } from '../app.js';
+import { promptGallery } from '../prompts.js';
 
 export function renderShare(el) {
   const p = store.project || {};
-  const qs = suggestions(p, store.preset);
   el.append(h('div', { class: 'grid g2' },
-    askCard(p, qs),
+    askCard(p),
     teamsCard(p),
     clientsCard(p),
     agentCard(p),
     exportCard()));
 }
 
-function askCard(p, qs) {
+function askCard(p) {
   return h('div', { class: 'card', style: { gridColumn: '1 / -1' } },
     h('h2', {}, 'Ask governed questions'),
-    h('p', { class: 'lead' }, p.semanticModel ? `Answers come from "${p.semanticModel.name}"${p.ontology ? ` and the "${p.ontology.name}" ontology` : ''} through Fabric IQ, with your permissions and row-level security.` : 'Create the semantic model first to get governed answers.'),
-    h('div', { class: 'chips' }, qs.map((q) => h('button', { class: 'chip', onclick: () => app.ask(q) }, q))),
+    h('p', { class: 'lead' }, p.semanticModel ? `Answers come from "${p.semanticModel.name}"${p.ontology ? ` and the "${p.ontology.name}" ontology` : ''} through Fabric IQ, with your permissions and row-level security. The questions below use your own measures, dimensions and years – select one to start.` : 'Create the semantic model first to get governed answers.'),
+    promptGallery({ perGroup: 4 }),
     h('div', { class: 'row mt' }, h('button', { class: 'btn ai', onclick: () => app.ask() }, '✦ Ask your own question')),
     copilotSlot());
 }

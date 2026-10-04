@@ -15,6 +15,7 @@ import * as APPS from './reports/apps.mjs';
 import * as RT from './realtime/index.mjs';
 import * as PL from './planning/index.mjs';
 import * as DP from './dataprep.mjs';
+import { promptSuggestions } from './prompts.mjs';
 import { readiness, cachedReadiness, resetReadiness, assertModuleReady, assertLiveEventsAllowed } from './readiness.mjs';
 import { catalog } from './sources.mjs';
 import { getProject, updateProject, resetProject, getActivity, clearActivity, logActivity, assertProjectTenant } from './project.mjs';
@@ -195,6 +196,7 @@ route('GET', '/api/sources/current/mirroring', () => P.currentMirroringStatus())
 route('GET', '/api/model/describe', (_, __, q) => P.describeModelSource({ refresh: q.get('refresh') === '1' }));
 route('GET', '/api/ontology/preview', () => P.ontologyPreview());
 route('GET', '/api/data-prep', () => DP.dataPrepState());
+route('GET', '/api/prompts', () => promptSuggestions());
 route('POST', '/api/jobs/data-prep', (_, b) => startJob('data-prep', b.run === false ? 'Create the data prep notebook' : 'Create and run the data prep notebook', (ctx) => DP.runDataPrep(ctx, { run: b.run !== false, target: b.target === 'same' ? 'same' : 'new' })));
 route('POST', '/api/data-prep/refresh', () => DP.refreshDataPrep());
 route('DELETE', '/api/data-prep', (_, __, q) => DP.removeDataPrep({ deleteItems: q.get('delete') === '1' }));

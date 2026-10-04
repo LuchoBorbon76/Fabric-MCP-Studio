@@ -1,6 +1,7 @@
 import { store, get, post, del, on } from '../api.js';
 import { h, toast, busy, field, input, fmtDate, confirmDialog, modal } from '../ui.js';
 import { app, copilotSlot } from '../app.js';
+import { askCard } from '../prompts.js';
 
 const TOKEN = document.querySelector('meta[name="studio-token"]').content;
 let catalog = null;
@@ -22,6 +23,7 @@ export function renderReports(el) {
     built.style.marginBottom = '14px';
     el.append(built);
   }
+  el.append(askCard({ title: 'Ask about your reports', lead: 'Get the story behind the pages and the numbers on them.', only: ['reports', 'numbers'] }));
   const recs = h('div', { class: 'card' });
   el.append(recs);
   const findings = h('div', { class: 'card' });

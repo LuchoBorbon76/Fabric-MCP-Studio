@@ -145,7 +145,9 @@ Ontology is in preview; the Ontology MCP endpoint (used by agents) needs a paid 
 
 **Ask & share** page:
 
-- **Ask in the app** – questions are answered through Fabric IQ (DAX over your model) and the ontology.
+- **Ask in the app** – questions are answered through Fabric IQ (DAX over your model) and the ontology. Suggested
+  questions are grouped (key numbers & trends, compare & rank, your reports, business rules, plan vs actual, live data,
+  explore the data) and use your model's own measures, dimensions and years; each page shows the ones that fit it.
 - **Microsoft 365 Copilot & Teams** – *Install for me* adds the agent for you; *Publish to my organization* submits it for admin approval.
 - **Other AI clients** – copy the `setup.ps1` command for VS Code, Copilot CLI, Claude Code or Cursor.
 - **Fabric data agent** – let Copilot create one grounded in your model.

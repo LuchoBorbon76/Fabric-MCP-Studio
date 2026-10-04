@@ -1,6 +1,7 @@
 import { store, get, post, del, on } from '../api.js';
 import { h, toast, busy, field, input, select, confirmDialog } from '../ui.js';
 import { app, copilotSlot } from '../app.js';
+import { askCard } from '../prompts.js';
 
 // Budgets and forecasts on the semantic model: design and preview the plan, build it (plan values next to the data +
 // Plan table in the model), the Plan vs actual report, and the Fabric plan item for planning sheets.
@@ -20,7 +21,7 @@ export function renderPlanning(el) {
     return;
   }
   const wrap = h('div', { id: 'planningWrap' }, h('div', { class: 'row muted' }, h('span', { class: 'spin' }), 'Reading the plan…'));
-  el.append(wrap, copilotSlot());
+  el.append(askCard({ title: 'Ask about the plan', only: ['plan'] }), wrap, copilotSlot());
   get('/planning').then((s) => { store.planning = s; draw(wrap, s); }).catch((e) => { wrap.innerHTML = ''; wrap.append(h('div', { class: 'banner err' }, e.message)); });
 }
 

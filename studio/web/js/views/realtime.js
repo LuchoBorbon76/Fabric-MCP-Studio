@@ -1,6 +1,7 @@
 import { store, get, post, patch, del, on } from '../api.js';
 import { h, toast, busy, field, input, select, fmtNum, confirmDialog } from '../ui.js';
 import { app, copilotSlot } from '../app.js';
+import { askCard } from '../prompts.js';
 
 // Live events → Eventstream → Eventhouse → Real-Time Dashboard. The view keeps one subscription to the simulator's
 // progress and refreshes the Eventhouse numbers while it is open.
@@ -27,7 +28,7 @@ export function renderRealtime(el) {
     return;
   }
   const wrap = h('div', {}, h('div', { class: 'row muted' }, h('span', { class: 'spin' }), 'Reading the live data setup…'));
-  el.append(wrap, copilotSlot());
+  el.append(askCard({ title: 'Ask about your live data', only: ['live'] }), wrap, copilotSlot());
   get('/realtime').then((s) => { store.realtime = s; draw(wrap, s); }).catch((e) => { wrap.innerHTML = ''; wrap.append(h('div', { class: 'banner err' }, e.message)); });
 }
 

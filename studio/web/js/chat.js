@@ -84,10 +84,13 @@ function scrollDown() { msgsEl.scrollTop = msgsEl.scrollHeight; }
 
 function renderWelcome() {
   msgsEl.innerHTML = '';
+  const model = store.project?.semanticModel?.name;
   const chips = h('div', { class: 'chips mt' }, suggestionsFn().map((s) => h('button', { class: 'chip', onclick: () => ask(s) }, s)));
   msgsEl.append(h('div', { class: 'welcome' },
-    h('h3', {}, 'What would you like to build?'),
-    h('p', { class: 'muted small' }, 'I can create your workspace, bring in data, design the semantic model and ontology, and answer business questions – using Microsoft Fabric MCP servers as you. I ask before changing anything.'),
+    h('h3', {}, model ? 'What would you like to know?' : 'What would you like to build?'),
+    h('p', { class: 'muted small' }, model
+      ? `Ask about your business in plain language. Answers come from "${model}" through Fabric IQ, with your permissions – and I can also build and change things in Fabric, asking before any change.`
+      : 'I can create your workspace, bring in data, design the semantic model and ontology, and answer business questions – using Microsoft Fabric MCP servers as you. I ask before changing anything.'),
     chips));
 }
 

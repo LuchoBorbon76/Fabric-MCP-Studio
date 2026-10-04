@@ -1,6 +1,7 @@
 import { store, get, post, on } from '../api.js';
 import { h, toast, busy, field, input, fmtNum, modal } from '../ui.js';
 import { app, copilotSlot } from '../app.js';
+import { askCard } from '../prompts.js';
 
 let schema = null;
 let schemaKey = null;
@@ -15,7 +16,7 @@ export function renderModel(el) {
     el.append(h('div', { class: 'banner warn' }, h('div', {}, h('b', {}, 'Connect data first. '), 'The semantic model is built on the data source you choose in the Data page.'), h('button', { class: 'btn pri', onclick: () => app.go('data') }, 'Go to Data')));
     return;
   }
-  if (p.semanticModel) el.append(modelCard(p));
+  if (p.semanticModel) el.append(modelCard(p), askCard({ title: `Ask ${p.semanticModel.name}`, lead: 'Questions built from your measures, dimensions and years – answered through Fabric IQ with the DAX shown.', only: ['numbers', 'compare', 'sample'] }));
 
   const designer = h('div', { class: 'card' });
   el.append(designer);

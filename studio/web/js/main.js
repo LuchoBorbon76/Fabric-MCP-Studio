@@ -1,7 +1,8 @@
 // Entry point: header, solution map (navigation), approvals, job dock and the embedded Copilot.
 import { get, post, store, on, fire, connectEvents } from './api.js';
 import { h, $, $$, toast, modal, initials, statusDot, busy, SERVER_LABEL } from './ui.js';
-import { app, suggestions } from './app.js';
+import { app } from './app.js';
+import { loadPrompts, topPrompts } from './prompts.js';
 import { mountMap, getNode } from './lineage.js';
 import { chatElement, ask as chatAsk, refreshHeader, refreshSuggestions, setPanelMode, scrollChatToEnd, focusChat } from './chat.js';
 import { renderHome } from './views/home.js';
@@ -261,7 +262,7 @@ function renderAll() {
 // user asks from that view. Nothing floats over the page.
 const inlineOpen = new Set();
 const chatEl = chatElement({
-  suggestions: () => suggestions(store.project, store.preset),
+  suggestions: () => topPrompts(6),
   onClose: () => { inlineOpen.delete(current); placeChat(); },
 });
 
@@ -428,6 +429,7 @@ on('project.updated', async () => {
   const sid = store.project?.source?.id || null;
   if (sid !== presetSource) { presetSource = sid; try { store.preset = await get('/preset'); } catch { /* keep */ } }
   renderHeader(); updateMap(); refreshSuggestions();
+  loadPrompts();
   // The Data page keeps in-progress forms, so it only re-renders when the data source itself changes.
   const dk = dataKey(store.project);
   const dataChanged = dk !== dataSourceKey;
@@ -465,6 +467,7 @@ async function refresh() {
   renderAll();
   renderDock();
   refreshHeader();
+  loadPrompts();
 }
 
 Object.assign(app, {
@@ -478,7 +481,9 @@ Object.assign(app, {
     $('#view-home .insp')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   },
 });
-on('studio.reset', () => { mapState.selected = null; });
+on('studio.reset', () => { mapState.selected = null; store.prompts = null; });
+// New suggestions (e.g. questions about the model's measures) refresh the chat welcome.
+on('prompts.updated', () => refreshSuggestions());
 
 connectEvents();
 await refresh();
