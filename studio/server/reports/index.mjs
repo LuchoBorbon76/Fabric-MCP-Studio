@@ -105,6 +105,15 @@ export async function runReport(ctx, { name, theme: themeId = 'studio', pages = 
       ctx.log('No business rules found (deploy the ontology or add rule measures); the Business rules page was left out.');
     }
   }
+  if (pages.includes('plan')) {
+    if (p.planning?.spec) {
+      profile.plan = planReportSpec(p.planning);
+      ctx.log(`Plan ${p.planning.planYear}: ${Object.values(p.planning.spec.names).length} plan measures from the Plan table`);
+    } else {
+      pages = pages.filter((x) => x !== 'plan');
+      ctx.log('No plan yet (Planning tab); the Plan vs actual page was left out.');
+    }
+  }
   const built = buildReportPages(profile, theme, { pages });
   if (!built.length) throw new Error('Select at least one page.');
   const reportName = F.itemName('Report', name || `${p.semanticModel.name} report`);
@@ -147,6 +156,24 @@ export async function runReport(ctx, { name, theme: themeId = 'studio', pages = 
 }
 
 export const reportUrl = (workspaceId, id) => `https://app.powerbi.com/groups/${workspaceId}/reports/${id}`;
+
+/** Measure and column references for the Plan vs actual page (from the project's plan). */
+export function planReportSpec(pl) {
+  const n = pl.spec.names;
+  const table = pl.spec.modelTable;
+  const ref = (name, label, percent = false) => ({ kind: 'measure', table, name, label, formatString: percent ? '0.0%' : pl.measure.formatString, percent });
+  const d = pl.date;
+  return {
+    planYear: pl.planYear, baseYear: pl.baseYear, measureLabel: pl.measure.label || pl.measure.name,
+    m: {
+      actual: ref(n.actual, 'Actual'), budget: ref(n.budget, 'Budget'), forecast: ref(n.forecast, 'Forecast'), budgetToDate: ref(n.budgetToDate, 'Budget to date'),
+      variance: ref(n.variance, 'Variance to budget'), variancePct: ref(n.variancePct, 'Variance %', true), attainment: ref(n.attainment, 'Budget attainment', true), fcVsBudget: ref(n.fcVsBudget, 'Forecast vs budget'),
+    },
+    month: { kind: 'column', table: d.table, name: d.monthName || d.month, label: 'Month' },
+    year: { kind: 'column', table: d.table, name: d.year, label: 'Year' },
+    dims: pl.spec.dims.map((x) => ({ kind: 'column', table: x.table, name: x.label, label: x.labelText })),
+  };
+}
 
 function saveReport(entry) {
   const reports = (getProject().reports || []).filter((r) => r.id !== entry.id);

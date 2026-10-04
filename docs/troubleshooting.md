@@ -105,6 +105,17 @@ when it expires.
 | No Teams messages or emails from the alerts | No rule breaks since the alerts were created, the amount filter is too high, or the recipient isn't in your organization | Start events with some rule breaks; open the Activator › a rule › *History* to see activations; use work addresses in your tenant |
 | *The name … is still reserved by a deleted item* | Fabric keeps a deleted item's name for a few minutes | The studio picks a numbered name automatically; or wait a few minutes |
 
+## Planning
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| *Your semantic model reads a lakehouse … can't write plan values* | Plans are written next to the data, in a Fabric SQL database or a warehouse | Load the data into a SQL database or warehouse (or use the AdventureWorks sample); the preview still works |
+| *Planning needs a date table with a year and a month number column* | The model has no date table related to the facts | Add a date table (marked as date table, with year and month number) and relate it to the facts |
+| *… has N members – too detailed to plan* | The chosen dimension has more than 300 members | Plan by a higher level (region, category, segment) |
+| *The semantic model can't be queried right now* | The workspace's Fabric capacity is paused or overloaded | Resume the capacity in the Azure portal, then try again |
+| *The plan values … haven't reached OneLake yet* | The SQL database replica is still catching up | Build again in a few minutes – it continues where it stopped |
+| The Fabric plan says *Can't access the semantic model* | The plan's semantic model connection was signed in with an account that can't open the model, or XMLA endpoints are off for the capacity | In the plan, select *Manage Semantic Model Connection* › *Create Connection* and sign in with an account that has Build permission on the model; check the capacity's XMLA endpoint is Read Only or Read Write |
+
 ## Repo location
 
 Clone the repo **outside** OneDrive/SharePoint-synced folders. Sync clients and `.git` don't mix well.

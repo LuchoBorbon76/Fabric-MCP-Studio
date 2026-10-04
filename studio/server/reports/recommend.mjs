@@ -61,6 +61,22 @@ export function recommendations(profile, project, { rules = null, values = [] } 
     out.push(ops);
   }
 
+  const pl = project.planning;
+  if (pl?.spec) {
+    const fmt = (v) => (v === null || v === undefined ? '–' : Number(v).toLocaleString('en-US', { maximumFractionDigits: 0 }));
+    const t = pl.totals || {};
+    const v = t.checked?.variance ?? t.varianceToDate;
+    out.push({
+      id: 'plan-report', kind: 'report', title: 'Plan vs actual', audience: 'Finance and sales leaders', theme: 'executive', pages: ['plan'],
+      name: `${model} – Plan vs actual`,
+      reasons: [
+        `${pl.planYear} budget of ${fmt(t.budget)} from ${pl.baseYear} actuals (${pl.growthPct >= 0 ? '+' : ''}${pl.growthPct}%), forecast ${fmt(t.forecast)}.`,
+        v !== undefined && v !== null ? `Actual is ${v >= 0 ? 'ahead of' : 'behind'} budget by ${fmt(Math.abs(v))} for the months with actuals.` : 'Tracks actual against budget month by month.',
+        pl.dims.length ? `Variance by ${pl.dims.map((d) => d.labelText.toLowerCase()).join(' and ')}, so you see where the gap comes from.` : 'Monthly actual, budget and forecast in one chart.',
+      ],
+    });
+  }
+
   for (const r of out) {
     const b = built.get(r.name.toLowerCase());
     r.built = b ? { id: b.id, url: b.url, builtAt: b.builtAt } : null;

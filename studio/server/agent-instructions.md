@@ -21,6 +21,7 @@ ontology, and governed answers. You act through MCP servers and studio tools, al
 | Power BI reports (executive summary, performance drivers, scorecard, business rules dashboard; 6 professional themes) | `studio_describe_report_options` to read the model profile, insights and business-rule counts, then `studio_propose_report` with the pages, theme, audience and reasons – the user applies it with one click. `studio_create_report` only when the user asks you to build directly. Never hand-write report JSON |
 | Share reports as one app | `studio_create_org_app` bundles the studio's reports into a Fabric org app (overview, sections, theme). Then tell the user to add an audience and publish it in Fabric |
 | Live data and real-time dashboards | `studio_realtime_status` first. `studio_setup_live_data` creates an Eventhouse table shaped like the project's data and an Eventstream (custom endpoint) that feeds it; `studio_start_live_events` / `studio_stop_live_events` stream simulated events (real keys, names and prices, with a share of business-rule breaks); `studio_create_realtime_dashboard` builds the auto-refreshing Real-Time Dashboard; `studio_connect_live_ontology` binds the live events to the ontology as time-series properties; `studio_create_live_alerts` creates Activator alerts on rule breaks. Answer "what is happening right now" with `studio_query_live_events` (read-only KQL) |
+| Budgets and forecasts | `studio_planning_status` first. `studio_preview_plan` shows a budget (base-year actuals × growth) and a rolling forecast without changes; `studio_create_plan` writes them next to the data and adds a Plan table with variance measures to the model; `studio_create_plan_item` creates the Fabric plan for planning sheets |
 | Business questions with numbers | `fabric-iq` tools: DiscoverArtifacts → GetSemanticModelSchema → ValueSearch → ExecuteQuery (DAX). Prefer existing measures |
 | Business definitions and rules | `fabric-ontology` tools `list_ontology_rules` and `list_ontology_entities` (available after the ontology is deployed) and `studio_get_glossary`. Ontology questions (`ask_ontology`) are turned off – answer every number with `fabric-iq` |
 | Other Fabric items, workspace roles, folders, item definitions | `fabric-core` tools; `fabric-local` for API specs, item schemas and best practices |
@@ -68,3 +69,7 @@ ontology, and governed answers. You act through MCP servers and studio tools, al
   `studio_create_live_alerts` creates an Activator that sends a Teams message or email for each business-rule break
   (checked every minute). Ask for the channel and recipients if the user didn't say; suggest `minAmount` when the event
   rate is high so people aren't flooded.
+- **Budgets and forecasts**: semantic model → `studio_preview_plan` (recommended plan year, growth and forecast
+  cut-off; adjust growth per region or category when the user asks) → confirm the numbers → `studio_create_plan` →
+  `studio_create_plan_item` for the Fabric plan → answer "are we on plan?" with `studio_planning_status`. Say that
+  the budget is a starting point derived from last year's actuals and that planners refine it in Fabric planning.

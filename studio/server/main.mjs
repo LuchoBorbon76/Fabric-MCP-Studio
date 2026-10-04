@@ -13,11 +13,13 @@ import * as P from './pipelines.mjs';
 import * as R from './reports/index.mjs';
 import * as APPS from './reports/apps.mjs';
 import * as RT from './realtime/index.mjs';
+import * as PL from './planning/index.mjs';
 import { catalog } from './sources.mjs';
 import { getProject, updateProject, resetProject, getActivity, clearActivity, logActivity, assertProjectTenant } from './project.mjs';
 import { startJob, listJobs, getJob, cancelJob, flushRunningJobs } from './jobs.mjs';
 import { health } from './health.mjs';
 import { presetSummary } from './presets.mjs';
+
 
 const args = process.argv.slice(2);
 const flag = (n) => args.includes(n);
@@ -102,7 +104,7 @@ const route = (method, pattern, handler) => {
 route('GET', '/api/bootstrap', async () => {
   const me = await auth.whoAmI();
   const p = getProject();
-  return { version: VERSION, user: me, settings: publicSettings(), provider: A.providerSummary(), providers: A.PROVIDERS, project: p, preset: presetSummary(p), catalog: catalog(), jobs: listJobs().slice(0, 20), chats: A.listChats(), approvals: A.pendingApprovals(), realtime: RT.realtimeState(), platform: process.platform };
+  return { version: VERSION, user: me, settings: publicSettings(), provider: A.providerSummary(), providers: A.PROVIDERS, project: p, preset: presetSummary(p), catalog: catalog(), jobs: listJobs().slice(0, 20), chats: A.listChats(), approvals: A.pendingApprovals(), realtime: RT.realtimeState(), planning: PL.planningState(), platform: process.platform };
 });
 route('GET', '/api/health', () => health());
 
@@ -204,6 +206,12 @@ route('DELETE', '/api/realtime', async (_, __, q) => { if (q.get('delete') === '
 route('POST', '/api/jobs/realtime-ontology', (_, b) => startJob('realtime-ontology', b.unlink ? 'Remove live properties from the ontology' : 'Bind live events to the ontology', (ctx) => RT.runLiveOntology(ctx, { unlink: Boolean(b.unlink) })));
 route('POST', '/api/jobs/realtime-alerts', (_, b) => startJob('realtime-alerts', 'Set up Activator alerts on rule breaks', (ctx) => RT.runRealtimeAlerts(ctx, { channel: b.channel, recipients: b.recipients, rules: Array.isArray(b.rules) ? b.rules : undefined, minAmount: b.minAmount })));
 route('DELETE', '/api/realtime/alerts', async (_, __, q) => { await assertProjectTenant(); return RT.removeAlerts({ keepItem: q.get('keep') === '1' }); });
+route('GET', '/api/planning', () => PL.planningState());
+route('POST', '/api/planning/preview', (_, b) => PL.planPreview(PL.planOptions(b)));
+route('GET', '/api/planning/summary', () => PL.planSummary());
+route('POST', '/api/jobs/planning', (_, b) => startJob('planning', 'Build the budget and forecast', (ctx) => PL.runPlan(ctx, PL.planOptions(b))));
+route('POST', '/api/jobs/plan-item', (_, b) => startJob('plan-item', 'Create the Fabric plan', (ctx) => PL.runPlanItem(ctx, { name: b.name })));
+route('DELETE', '/api/planning', async (_, __, q) => { await assertProjectTenant(); return PL.removePlan({ deleteData: q.get('data') === '1', deleteItem: q.get('item') === '1' }); });
 route('DELETE', '/api/reports/:id', (p, _, q) => R.removeReport(p.id, { deleteItem: q.get('delete') === '1' }));
 route('POST', '/api/jobs/teardown', (_, b) => startJob('teardown', 'Clean up demo resources', (ctx) => P.runTeardown(ctx, b)));
 route('GET', '/api/jobs', () => listJobs());

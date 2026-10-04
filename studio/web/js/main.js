@@ -11,6 +11,7 @@ import { renderModel } from './views/model.js';
 import { renderOntology } from './views/ontology.js';
 import { renderReports } from './views/reports.js';
 import { renderRealtime } from './views/realtime.js';
+import { renderPlanning } from './views/planning.js';
 import { renderShare } from './views/share.js';
 import { renderActivity } from './views/activity.js';
 import { renderSettings } from './views/settings.js';
@@ -24,6 +25,7 @@ const VIEWS = {
   ontology: { label: 'Ontology', render: renderOntology },
   reports: { label: 'Reports & apps', render: renderReports },
   realtime: { label: 'Real-time', render: renderRealtime },
+  planning: { label: 'Planning', render: renderPlanning },
   share: { label: 'Ask & share', render: renderShare },
   activity: { label: 'Activity', render: renderActivity },
   settings: { label: 'Settings', render: renderSettings },
@@ -150,12 +152,13 @@ function renderKpis() {
     { id: 'ontology', view: 'ontology', label: 'Ontology', value: p.ontology?.name || 'Not created', sub: p.ontology ? `${p.ontology.entities?.length || 0} entities · ${p.ontology.rules?.length || 0} rules` : 'Fabric IQ', state: st.ontology },
     { id: 'reports', view: 'reports', label: 'Reports & apps', value: p.reports?.length ? `${p.reports.length} report${p.reports.length === 1 ? '' : 's'}${p.orgApp ? ' · 1 app' : ''}` : 'Not built', sub: p.orgApp ? p.orgApp.name : p.reports?.length ? p.reports[0].name : 'Power BI', state: st.reports },
     { id: 'realtime', view: 'realtime', label: 'Real-time', value: store.realtime?.simulator?.running ? `Streaming · ${store.realtime.simulator.rate}/min` : p.realtime ? (p.realtime.dashboard ? 'Dashboard ready' : 'Live data ready') : 'Not set up', sub: p.realtime ? `Eventhouse · ${p.realtime.eventhouse?.name || ''}` : 'Eventhouse + Eventstream', state: store.realtime?.simulator?.running ? 'run' : st.realtime },
+    { id: 'planning', view: 'planning', label: 'Planning', value: p.planning ? `Plan ${p.planning.planYear}` : 'No plan', sub: p.planning ? `Budget + forecast · ${p.planning.measure?.name || ''}` : 'Budget and forecast', state: st.planning },
   ];
   const running = [...store.jobs.values()].filter((j) => j.status === 'running');
   const el = $('#kpis');
   el.innerHTML = '';
   for (const x of k) {
-    const isRun = running.some((j) => (x.id === 'data' && ['sample', 'mirror', 'shortcut'].includes(j.kind)) || (x.id === 'model' && j.kind === 'semantic-model') || (x.id === 'ontology' && j.kind === 'ontology') || (x.id === 'reports' && ['report', 'org-app'].includes(j.kind)) || (x.id === 'realtime' && ['realtime', 'realtime-dashboard'].includes(j.kind)));
+    const isRun = running.some((j) => (x.id === 'data' && ['sample', 'mirror', 'shortcut'].includes(j.kind)) || (x.id === 'model' && j.kind === 'semantic-model') || (x.id === 'ontology' && j.kind === 'ontology') || (x.id === 'reports' && ['report', 'org-app'].includes(j.kind)) || (x.id === 'realtime' && ['realtime', 'realtime-dashboard', 'realtime-ontology', 'realtime-alerts'].includes(j.kind)) || (x.id === 'planning' && ['planning', 'plan-item'].includes(j.kind)));
     const state = isRun ? 'run' : x.state;
     el.append(h('div', { class: `kpi ${state}`, onclick: () => go(x.view), title: `Open ${x.label}` },
       h('div', { class: 'l' }, statusDot(state === 'done' ? 'ok' : state === 'err' ? 'error' : state === 'run' ? 'running' : ''), x.label),
@@ -368,7 +371,7 @@ on('project.updated', async () => {
   const dk = dataKey(store.project);
   const dataChanged = dk !== dataSourceKey;
   dataSourceKey = dk;
-  if (['home', 'model', 'ontology', 'reports', 'realtime', 'share', 'workspace'].includes(current) || (current === 'data' && dataChanged)) renderView(current);
+  if (['home', 'model', 'ontology', 'reports', 'realtime', 'planning', 'share', 'workspace'].includes(current) || (current === 'data' && dataChanged)) renderView(current);
 });
 on('provider', (e) => { store.provider = e.provider; renderHeader(); renderKpis(); });
 // Streaming state changes the Real-time KPI; only re-draw the strip when running/stopped flips.
@@ -379,7 +382,7 @@ on('auth', (e) => { store.user = e.user; renderAll(); });
 async function refresh() {
   try {
     const b = await get('/bootstrap');
-    Object.assign(store, { user: b.user, settings: b.settings, provider: b.provider, providers: b.providers, project: b.project, catalog: b.catalog, chats: b.chats, approvals: b.approvals, preset: b.preset, platform: b.platform, realtime: b.realtime || null });
+    Object.assign(store, { user: b.user, settings: b.settings, provider: b.provider, providers: b.providers, project: b.project, catalog: b.catalog, chats: b.chats, approvals: b.approvals, preset: b.preset, platform: b.platform, realtime: b.realtime || null, planning: b.planning || null });
     presetSource = b.project?.source?.id || null;
     dataSourceKey = dataKey(b.project);
     for (const j of b.jobs) {

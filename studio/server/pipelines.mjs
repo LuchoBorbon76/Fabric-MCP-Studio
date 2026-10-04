@@ -10,6 +10,7 @@ import { discoverPostgres, testPostgres } from './pg.mjs';
 import { sourceType } from './sources.mjs';
 import { buildPlan, semanticModelFiles, ontologyFiles, defaultMeasures } from './generators/tmdl.mjs';
 import { applyLiveOntology, liveEventsOf, ontologySourceOf } from './generators/ontology-live.mjs';
+import { isPlanTable, reapplyPlan } from './planning/index.mjs';
 import { RETAIL, ADVENTUREWORKS, presetFor } from './presets.mjs';
 import { AWDW, getKit, loadAdventureWorksDW, salesTotalsMatch } from './samples/adventureworks-dw.mjs';
 import { resetProfileCache } from './reports/index.mjs';
@@ -294,6 +295,8 @@ export async function runSemanticModel(ctx, { name, include, names, relationship
   const preset = presetFor(p);
   ctx.step('Read the source schema');
   const schema = await describeModelSource({ refresh: true });
+  // The plan values are added as the model's Plan table, not as a regular table.
+  schema.tables = schema.tables.filter((t) => !isPlanTable(t) || include?.includes(`${t.schema}.${t.name}`));
   if (relationships?.length) schema.relationships = relationships;
   const plan = buildPlan(schema, { include: include?.length ? include : preset?.include, names: { ...(preset?.names || {}), ...(names || {}) }, descriptions: descriptions || preset?.descriptions });
   if (!plan.tables.length) throw new Error('No tables found in the data source.');
@@ -305,7 +308,11 @@ export async function runSemanticModel(ctx, { name, include, names, relationship
   const modelName = name || p.semanticModel?.name || preset?.semanticModelName || `${p.modelSource.itemName} Model`;
 
   ctx.step('Generate the Direct Lake model (TMDL)');
-  const files = semanticModelFiles({ name: modelName, src: { server: p.modelSource.server, endpointId: p.modelSource.endpointId, itemName: p.modelSource.itemName }, plan, measures: m, dateTable });
+  let files = semanticModelFiles({ name: modelName, src: { server: p.modelSource.server, endpointId: p.modelSource.endpointId, itemName: p.modelSource.itemName }, plan, measures: m, dateTable });
+  if (p.planning?.spec && p.semanticModel?.name === modelName) {
+    files = reapplyPlan(files, p);
+    ctx.log(`Plan ${p.planning.planYear} kept (Plan table with budget and forecast measures)`);
+  }
   ctx.log(`${Object.keys(files).length} definition parts · ${m.length} measures`);
   ctx.progress(45);
 
@@ -396,7 +403,7 @@ export async function runOntology(ctx, { name, include, entityNames, rules, desc
   ctx.step('Read the source schema');
   const schema = await describeModelSource();
   const exclude = new Set((preset?.ontology?.exclude || []).map((x) => x.toLowerCase()));
-  const inc = include?.length ? include : preset?.ontology?.include || schema.tables.filter((t) => !exclude.has(t.name.toLowerCase())).map((t) => `${t.schema}.${t.name}`);
+  const inc = include?.length ? include : preset?.ontology?.include || schema.tables.filter((t) => !exclude.has(t.name.toLowerCase()) && !isPlanTable(t)).map((t) => `${t.schema}.${t.name}`);
   const plan = buildPlan(schema, { include: inc, names: preset?.names, descriptions: preset?.descriptions });
   const ontName = F.itemName('Ontology', name || p.ontology?.name || preset?.ontologyName || `${p.modelSource.itemName}_Ontology`, 'Ontology');
   const presetRules = preset?.ontology?.rules || [];
@@ -563,11 +570,11 @@ export async function runTeardown(ctx, { deleteWorkspace = false } = {}) {
     ctx.step(`Delete workspace ${p.workspace.name}`);
     await F.deleteWorkspace(p.workspace.id);
     // Everything lived in that workspace; keep only the glossary for the next project.
-    updateProject({ workspace: null, lakehouse: null, sqlDatabase: null, source: null, modelSource: null, modelProposal: null, reportProposal: null, semanticModel: null, ontology: null, reports: [], orgApp: null, teamsAgent: null, scenario: null, realtime: null, tenant: null, steps: {} });
+    updateProject({ workspace: null, lakehouse: null, sqlDatabase: null, source: null, modelSource: null, modelProposal: null, reportProposal: null, semanticModel: null, ontology: null, reports: [], orgApp: null, teamsAgent: null, scenario: null, realtime: null, planning: null, tenant: null, steps: {} });
   } else if (p.workspace) {
     ctx.step('Delete items created by the studio');
     stopSimulator('clean up');
-    for (const it of [p.orgApp, ...(p.reports || []), p.realtime?.alerts, p.realtime?.dashboard, p.realtime?.eventstream, p.realtime?.eventhouse, p.ontology, p.semanticModel].filter(Boolean)) {
+    for (const it of [p.orgApp, ...(p.reports || []), p.planning?.planItem, p.realtime?.alerts, p.realtime?.dashboard, p.realtime?.eventstream, p.realtime?.eventhouse, p.ontology, p.semanticModel].filter(Boolean)) {
       try { await F.deleteItem(p.workspace.id, it.id); ctx.log(`Deleted ${it.name}`); } catch (e) { ctx.log(`Could not delete ${it.name}: ${e.message}`); }
     }
     if (p.ontology?.id) {
@@ -592,7 +599,7 @@ export async function runTeardown(ctx, { deleteWorkspace = false } = {}) {
       try { await F.deleteItem(p.workspace.id, p.sqlDatabase.id); ctx.log(`Deleted SQL database ${p.sqlDatabase.name}`); } catch (e) { ctx.log(e.message); }
     }
     const keep = p.steps?.workspace;
-    updateProject({ lakehouse: null, sqlDatabase: null, source: null, modelSource: null, modelProposal: null, reportProposal: null, semanticModel: null, ontology: null, reports: [], orgApp: null, teamsAgent: null, scenario: null, realtime: null, steps: keep ? { workspace: keep } : {} });
+    updateProject({ lakehouse: null, sqlDatabase: null, source: null, modelSource: null, modelProposal: null, reportProposal: null, semanticModel: null, ontology: null, reports: [], orgApp: null, teamsAgent: null, scenario: null, realtime: null, planning: null, steps: keep ? { workspace: keep } : {} });
   }
   return { ok: true };
 }

@@ -27,6 +27,7 @@ const EMPTY = {
   reports: [],                    // Power BI reports built by the studio: [{ id, name, theme, pages[], url, builtAt, preview }]
   orgApp: null,                   // Org app bundling the reports: { id, name, theme, reports[], url, builtAt }
   realtime: null,                 // Live data: { scenario, eventhouse, database, table, eventstream, dashboard } (no endpoint keys)
+  planning: null,                 // Budget and forecast: { measure, dims, planYear, spec, totals, planItem } (Plan table in the model)
   glossary: '',
   teamsAgent: null,
   steps: {},                      // stepId -> { status, at, note }
@@ -160,6 +161,7 @@ export function fabricUrl(type, workspaceId, id) {
     Eventstream: `/eventstreams/${id}`,
     KQLDashboard: `/kustodashboards/${id}`,
     Reflex: `/reflexes/${id}`,
+    Plan: `/plans/${id}`,
   }[type];
   return seg === undefined ? `${base}/list` : `${base}${seg}`;
 }

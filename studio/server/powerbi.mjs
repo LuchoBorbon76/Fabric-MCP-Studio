@@ -29,6 +29,8 @@ async function pbi(method, path, body, { raw = false } = {}) {
     try { json = text ? JSON.parse(text) : null; } catch { json = text; }
     if (!res.ok) {
       const msg = json?.error?.['pbi.error']?.details?.[0]?.detail?.value || json?.error?.message || json?.message || text || res.statusText;
+      // A paused or overloaded capacity can't open the model: say so instead of the engine message.
+      if (/Failed to open the MSOLAP connection/i.test(msg)) throw new PowerBIError('The semantic model can\'t be queried right now. Check that the workspace\'s Fabric capacity is running (a paused capacity can\'t answer queries), then try again.', res.status, json);
       throw new PowerBIError(`${method} ${path} failed (${res.status}): ${msg}`, res.status, json);
     }
     return json;
@@ -62,6 +64,23 @@ export async function modelMetadata(workspaceId, datasetId) {
     measures: measures.filter((m) => !m.IsHidden).map((m) => ({ table: m.Table, name: m.Name, expression: m.Expression || '', formatString: m.FormatString || '', displayFolder: m.DisplayFolder || '', description: m.Description || '', dataType: m.DataType })),
     relationships: relationships.map((r) => ({ fromTable: r.FromTable, fromColumn: r.FromColumn, toTable: r.ToTable, toColumn: r.ToColumn, active: r.IsActive !== false, fromCardinality: r.FromCardinality, toCardinality: r.ToCardinality })),
   };
+}
+
+/**
+ * Refresh (reframe) a semantic model and wait for it to finish. Direct Lake models only reload their metadata, so this
+ * takes seconds. Returns the final status ('Completed', 'Failed', or 'Timeout').
+ */
+export async function refreshDataset(workspaceId, datasetId, { timeoutMs = 3 * 60 * 1000, signal } = {}) {
+  await pbi('POST', `/groups/${workspaceId}/datasets/${datasetId}/refreshes`, { notifyOption: 'NoNotification' });
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (signal?.aborted) throw new Error('Cancelled');
+    await sleep(4000);
+    const r = await pbi('GET', `/groups/${workspaceId}/datasets/${datasetId}/refreshes?$top=1`);
+    const s = r?.value?.[0];
+    if (s && s.status && s.status !== 'Unknown' && s.status !== 'NotStarted') return { status: s.status, error: s.serviceExceptionJson || null };
+  }
+  return { status: 'Timeout' };
 }
 
 /**

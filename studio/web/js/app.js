@@ -28,6 +28,7 @@ export const STEPS = [
   { id: 'ontology', view: 'ontology', title: 'Ontology', desc: 'Entities, relationships and business rules' },
   { id: 'reports', view: 'reports', title: 'Reports & apps', desc: 'Polished Power BI reports from templates and themes' },
   { id: 'realtime', view: 'realtime', title: 'Real-time', desc: 'Live events, Real-Time Dashboard, live ontology and alerts' },
+  { id: 'planning', view: 'planning', title: 'Planning', desc: 'Budget and rolling forecast, Plan vs actual, Fabric planning' },
   { id: 'share', view: 'share', title: 'Ask & share', desc: 'Governed answers in Copilot, Teams and more' },
 ];
 
@@ -40,6 +41,7 @@ export function stepStatus(project, store) {
   s.ontology = project?.ontology ? 'done' : 'todo';
   s.reports = project?.reports?.length ? 'done' : 'todo';
   s.realtime = project?.realtime?.dashboard ? 'done' : 'todo';
+  s.planning = project?.planning ? 'done' : 'todo';
   s.share = project?.teamsAgent || project?.steps?.share ? 'done' : 'todo';
   const firstTodo = STEPS.find((x) => s[x.id] !== 'done');
   if (firstTodo) s.current = firstTodo.id;
@@ -93,6 +95,8 @@ export function suggestions(project, preset) {
   if (p.realtime && !p.realtime.dashboard) return ['Build the Real-Time Dashboard for my live data', 'What is happening in my live data right now?'];
   if (p.realtime && p.ontology && !p.realtime.ontology) return ['Connect my live events to the ontology', 'What is happening in my live data right now?', 'Alert me in Teams when a business rule is broken'];
   if (p.realtime && !p.realtime.alerts) return ['Alert me in Teams when a business rule is broken', 'What is happening in my live data right now?'];
+  if (!p.planning) return ['Recommend a budget and forecast for next year from my actuals', 'What growth target is realistic for each region?', 'What is happening in my live data right now?'];
+  if (p.planning) return ['Are we on plan? Where are we ahead or behind budget?', 'What does the forecast say for the rest of the year?', ...(preset?.starterQuestions?.slice(0, 1) || [])];
   return preset?.starterQuestions?.length ? ['What is happening in my live data right now?', ...preset.starterQuestions.slice(0, 3)] : [
     'What are the key numbers in my semantic model?',
     'Which business rules are defined in my ontology?',

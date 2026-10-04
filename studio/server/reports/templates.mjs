@@ -14,6 +14,7 @@ export const PAGE_TEMPLATES = [
   { id: 'drivers', name: 'Performance drivers', archetype: 'Analytical canvas', description: 'Drill-down matrix (category → item), year-over-year comparison by segment, and the biggest contributors.', needs: ['kpis'] },
   { id: 'scorecard', name: 'Scorecard', archetype: 'Operational monitor', description: 'Segment × year scorecard, margin trend by segment, and a ranked breakdown with data bars.', needs: ['kpis'] },
   { id: 'rules', name: 'Business rules', archetype: 'Operational monitor', description: 'Ontology rules in plain English with live counts, rule breaks by year, and where they happen.', needs: ['rules'] },
+  { id: 'plan', name: 'Plan vs actual', archetype: 'Operational monitor', description: 'Actual, budget and forecast KPIs, the monthly trend of all three, and the variance to budget by region and category.', needs: ['plan'] },
 ];
 
 /** Page-level filter: column IN values (e.g. full years only). */
@@ -178,7 +179,29 @@ function rules(theme, profile, { subtitle }) {
   return { displayName: 'Business rules', visuals };
 }
 
-const BUILDERS = { executive, drivers, scorecard, rules };
+// Plan vs actual: profile.plan = { planYear, baseYear, measureLabel, m: { actual, budget, forecast, budgetToDate, variance,
+// variancePct, attainment, fcVsBudget }, month, year, dims: [column refs] } (measure and column refs as in the profile).
+function plan(theme, profile) {
+  const pl = profile.plan;
+  const m = pl.m;
+  const sub = `${pl.measureLabel} · ${pl.planYear} budget from ${pl.baseYear} actuals${profile.model?.name ? ` · ${profile.model.name}` : ''}`;
+  const visuals = [...header(theme, { ...profile, slicers: pl.dims.slice(0, 2) }, `Plan vs actual ${pl.planYear}`, sub)];
+  const kpis = [[m.actual, theme.dataColors[0]], [m.budget, theme.dataColors[1]], [m.variance, theme.accent], [m.variancePct, theme.accent], [m.forecast, theme.dataColors[2]]];
+  const kw = (W - (kpis.length - 1) * G) / kpis.length;
+  kpis.forEach(([k, accent], i) => visuals.push({ key: `plan-kpi-${k.name}`, pos: { x: M + i * (kw + G), y: TOP, w: kw, h: 96 }, visual: V_.card(theme, k, { label: k.label, accent }) }));
+  const row2 = TOP + 96 + G;
+  const row2h = 250;
+  visuals.push({ key: 'plan-trend', pos: { x: M, y: row2, w: W, h: row2h }, visual: V_.trend(theme, { measures: [m.actual, m.budget, m.forecast], axis: [pl.month], title: `${pl.measureLabel}: actual, budget and forecast by month`, area: false, labels: false }) });
+  const row3 = row2 + row2h + G;
+  const row3h = PAGE.height - M - row3;
+  const [d1, d2] = pl.dims;
+  const leftW = d2 ? 700 : W;
+  if (d1) visuals.push({ key: 'plan-by-d1', pos: { x: M, y: row3, w: leftW, h: row3h }, visual: V_.table(theme, { columns: [d1], measures: [m.actual, m.budgetToDate, m.variance, m.variancePct, m.forecast], title: `Variance to budget by ${d1.label.toLowerCase()}`, bars: false }), filterConfig: notBlankFilter(d1) });
+  if (d2) visuals.push({ key: 'plan-by-d2', pos: { x: M + leftW + G, y: row3, w: W - leftW - G, h: row3h }, visual: V_.bars(theme, { measures: [m.actual, m.budgetToDate], category: d2, title: `Actual vs budget by ${d2.label.toLowerCase()}` }), filterConfig: notBlankFilter(d2) });
+  return { displayName: 'Plan vs actual', visuals };
+}
+
+const BUILDERS = { executive, drivers, scorecard, rules, plan };
 
 /**
  * Report plan for a model profile: { pages: [{ name, displayName, visuals, filterConfig }] } ready for reportFiles().
@@ -188,8 +211,10 @@ export function buildReportPages(profile, theme, { pages = ['executive', 'driver
   const period = periodText(profile);
   const sub = subtitle || [profile.model.name, period].filter(Boolean).join(' · ');
   const pageFilter = profile.time && profile.time.fullYears.length && profile.time.fullYears.length < profile.time.years.length ? inFilter(profile.time.year, profile.time.fullYears) : null;
-  return pages.filter((id) => BUILDERS[id]).map((id) => {
+  return pages.filter((id) => BUILDERS[id] && (id !== 'plan' || profile.plan)).map((id) => {
     const page = BUILDERS[id](theme, profile, { subtitle: sub });
-    return { name: hexId('page', id), ...page, ...(pageFilter ? { filterConfig: pageFilter } : {}) };
+    // The plan page shows the plan year only; the other pages compare full years.
+    const filter = id === 'plan' ? inFilter(profile.plan.year, [profile.plan.planYear]) : pageFilter;
+    return { name: hexId('page', id), ...page, ...(filter ? { filterConfig: filter } : {}) };
   });
 }

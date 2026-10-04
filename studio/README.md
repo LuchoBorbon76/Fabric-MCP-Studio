@@ -14,6 +14,8 @@ chatting with the **AI the customer already licenses**:
 - **Reports & apps** – polished Power BI reports built on your semantic model from page templates and themes.
 - **Real-time** – live events shaped like your data streamed through an Eventstream into an Eventhouse, with an
   auto-refreshing Real-Time Dashboard, live time-series properties in the ontology and Activator alerts on rule breaks.
+- **Planning** – a budget and rolling forecast from your actuals, a Plan table with variance measures in the model, a
+  Plan vs actual report, and the Fabric plan for planning sheets.
 - **Ask & share** – governed answers in the app chat, Microsoft 365 Copilot / Teams agent, other AI clients, Fabric data agent.
 
 Everything runs on the customer's computer, signs in to Fabric as the customer, and **asks before every change**.
@@ -159,6 +161,33 @@ Copilot tools: `studio_realtime_status`, `studio_query_live_events` (read-only K
 `studio_start_live_events`, `studio_stop_live_events`, `studio_create_realtime_dashboard`,
 `studio_connect_live_ontology` and `studio_create_live_alerts`.
 
+## Planning
+
+**Planning** starts a budget and a rolling forecast from your actuals and connects them to Fabric planning (Fabric IQ).
+
+1. **Design the plan** – the studio reads the semantic model (main measure, date table, regions and categories) and
+   recommends a plan year, a growth target (last year's growth, kept between -10% and 25%) and a forecast cut-off.
+   Change the measure, the year, up to two dimensions, the growth, or a growth per region or category; the preview
+   shows the budget, forecast and actuals by month and by member before anything is written.
+2. **Build the plan** – budget = base-year actuals × (1 + growth) month by month, so seasonality is kept; forecast =
+   actuals up to the cut-off, then the budget × each member's run rate (actual ÷ budget so far, kept between 80% and
+   125%). The rows go to `planning.PlanValues` next to your data (Fabric SQL database or warehouse; for a SQL database
+   the studio waits until the OneLake replica has them), and a **Plan** table is added to the semantic model with
+   *Actual, Budget, Forecast, Budget to Date, Variance to Budget, Variance to Budget %, Budget Attainment %, Forecast vs
+   Budget* and *Forecast vs Budget %*. The totals are checked through the model. Rebuilding the semantic model keeps the
+   Plan table; *Remove…* takes it out again.
+3. **Plan vs actual report** – a Power BI page with actual, budget, variance and forecast KPIs, the monthly trend of
+   all three, and the variance by region and category (also a page template in Reports & apps).
+4. **Plan in Fabric** – creates the Fabric plan item for planning sheets, connected to the model when a shared
+   semantic model connection (Power BI semantic models, organizational account) exists. Planners add rows like
+   *Region › Category*, columns *Year › Month* and values *Budget, Forecast, Actual*, adjust the numbers, comment,
+   approve and write back to a SQL database.
+
+Planning needs a date table with year and month number columns related to your facts. Plans are written to Fabric
+SQL databases and warehouses; for lakehouse or mirrored sources the tab previews the plan but can't build it yet.
+
+Copilot tools: `studio_planning_status`, `studio_preview_plan`, `studio_create_plan` and `studio_create_plan_item`.
+
 ## Files
 
 | Path | Purpose |
@@ -174,6 +203,7 @@ Copilot tools: `studio_realtime_status`, `studio_query_live_events` (read-only K
 | `server/powerbi.mjs` | Power BI REST: DAX queries, model metadata (`INFO.VIEW`), report export for previews |
 | `server/realtime/` | Live data: Eventhouse/Eventstream setup, live ontology and alerts (`index.mjs`), event scenarios shaped like the data (`scenarios.mjs`), simulator sending to the custom endpoint (`simulator.mjs`), Real-Time Dashboard generator (`dashboard.mjs`), Activator alert definition (`alerts.mjs`), KQL client (`kusto.mjs`) |
 | `server/generators/ontology-live.mjs` | Adds or removes Eventhouse time-series bindings and dashboard links on an existing TMDL ontology |
+| `server/planning/` | Budgets and forecasts: plan design and calculation (`design.mjs`), plan values in the SQL database or warehouse (`store.mjs`), the Plan table patch for the semantic model (`model.mjs`), jobs, plan item and summary (`index.mjs`) |
 | `server/presets.mjs` | Sample presets (names, relationships, measures, rules) |
 | `server/samples/adventureworks-dw.mjs` | AdventureWorksDW2022 loader for Fabric SQL database (install kit → tables, keys, bulk load, verification) |
 | `server/agent-instructions.md` | System instructions for the agent |

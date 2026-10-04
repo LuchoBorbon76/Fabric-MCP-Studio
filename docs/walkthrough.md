@@ -103,6 +103,22 @@ Ontology is in preview; the Ontology MCP endpoint (used by agents) needs a paid 
    checks the live events every minute; open it to see each rule running and its activation history.
 6. Optional: **Stream your own events** – copy the connection string and send events with the same columns from your app.
 
+## 5c. Planning
+
+**Planning** tab (needs the semantic model; plans are stored in a Fabric SQL database or warehouse):
+
+1. **Design the plan** shows a recommended plan year, growth and forecast cut-off, with a preview by month and by
+   region. Change the growth for one region in the table and select *Apply growth targets* to see the effect.
+2. **Build the plan** (about 4 minutes for a SQL database, most of it waiting for the OneLake replica): budget and
+   forecast rows go to `planning.PlanValues`, and the semantic model gets a Plan table with budget, forecast and variance
+   measures. *Plan vs actual* then shows actual, budget to date, variance and forecast through the model.
+3. **Plan vs actual report** › *Build report*: one Power BI page with KPIs, the monthly trend and the variance by region.
+4. **Plan in Fabric** › *Create the Fabric plan*, then *Open plan*: New Planning Sheet with rows *Region › Category*,
+   columns *Year › Month* and values *Budget, Forecast, Actual*.
+
+> Ask Copilot: *Are we on plan?* Copilot reads the Plan measures through the model and explains where actual is ahead
+> of or behind budget, and what the forecast says for the year.
+
 > Ask Copilot: *What is happening in my live data right now?* Copilot queries the Eventhouse with KQL and points out
 > rule breaks and where they come from. Simulated events are labeled `Studio simulator` in the `Source` column.
 

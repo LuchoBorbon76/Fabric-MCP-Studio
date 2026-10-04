@@ -66,7 +66,7 @@ function channelMeasures(measures, primary) {
   return measures.filter((m) => m !== primary && rx.test(m.name) && !isComparison(m)).slice(0, 4);
 }
 
-function dateInfo(meta) {
+export function dateInfo(meta) {
   const dateTable = meta.tables.find((t) => t.dataCategory === 'Time')?.name
     || meta.tables.find((t) => /^(dim)?(date|calendar|time)$/i.test(t.name.replace(/\s+/g, '')))?.name;
   if (!dateTable) return null;

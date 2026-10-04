@@ -11,6 +11,7 @@ import * as P from './pipelines.mjs';
 import * as R from './reports/index.mjs';
 import * as APPS from './reports/apps.mjs';
 import * as RT from './realtime/index.mjs';
+import * as PL from './planning/index.mjs';
 import * as F from './fabric.mjs';
 import { presetFor } from './presets.mjs';
 
@@ -321,6 +322,10 @@ const STUDIO_TOOLS_META = {
   studio_create_realtime_dashboard: { write: true, title: 'Create Real-Time Dashboard' },
   studio_connect_live_ontology: { write: true, title: 'Bind live events to the ontology' },
   studio_create_live_alerts: { write: true, title: 'Set up Activator alerts on rule breaks' },
+  studio_planning_status: { write: false, title: 'Read the plan (budget, forecast, variance)' },
+  studio_preview_plan: { write: false, title: 'Preview a budget and forecast' },
+  studio_create_plan: { write: true, title: 'Build the budget and forecast' },
+  studio_create_plan_item: { write: true, title: 'Create the Fabric plan' },
 };
 
 async function runAsJob(kind, title, fn) {
@@ -347,6 +352,7 @@ function projectSummary() {
       liveOntology: p.realtime.ontology ? p.realtime.ontology.entities.map((e) => e.entity) : null,
       alerts: p.realtime.alerts ? { activator: p.realtime.alerts.name, channel: p.realtime.alerts.channel, rules: p.realtime.alerts.rules, recipients: p.realtime.alerts.recipients?.length || 0 } : null,
     } : null,
+    planning: p.planning ? { measure: p.planning.measure?.name, planYear: p.planning.planYear, baseYear: p.planning.baseYear, asOfMonth: p.planning.asOfMonth, growthPct: p.planning.growthPct, dimensions: (p.planning.dims || []).map((d) => d.labelText), measures: Object.values(p.planning.spec?.names || {}), planItem: p.planning.planItem?.name || null } : null,
     links: p.workspace ? { workspace: `https://app.fabric.microsoft.com/groups/${p.workspace.id}` } : {},
   };
 }
@@ -637,6 +643,49 @@ function studioTools(chatId) {
         const recipients = a.recipients?.length ? a.recipients : [(await whoAmI()).upn].filter(Boolean);
         return runAsJob('realtime-alerts', 'Set up Activator alerts on rule breaks', (ctx) => RT.runRealtimeAlerts(ctx, { channel: a.channel || 'teams', recipients, rules: a.rules, minAmount: a.minAmount }));
       },
+    }),
+    studioTool('studio_planning_status', {
+      description: 'Read the budget and forecast: plan year, base year, growth, forecast cut-off, planned dimensions, the Plan table measures, the Fabric plan item, and plan vs actual for the plan year (overall and by the first dimension) through the semantic model. Read-only.',
+      parameters: obj({}),
+      handler: async () => {
+        const s = PL.planningState();
+        if (!s.plan) return { built: false, available: s.available, writable: s.writable, source: s.source };
+        const summary = await PL.planSummary().catch((e) => ({ error: e.message }));
+        const pl = s.plan;
+        return { built: true, measure: pl.measure.name, planYear: pl.planYear, baseYear: pl.baseYear, forecastFrom: pl.asOfMonth ? pl.asOfMonth + 1 : 1, growthPct: pl.growthPct, overrides: pl.overrides, dimensions: pl.dims.map((d) => d.labelText), modelMeasures: pl.spec?.names, storedIn: pl.target, planItem: pl.planItem, summary, links: s.links };
+      },
+    }),
+    studioTool('studio_preview_plan', {
+      description: 'Preview a budget and forecast without changing anything: the plan year, base year, growth, forecast cut-off month and per-member growth overrides, with totals by month and by member of the first dimension. Budget = base-year actuals × (1 + growth); forecast = actuals up to the cut-off, then budget × run rate. Omit options to see the recommended defaults.',
+      parameters: obj({
+        measure: str('Measure to plan (default: the main sales measure)'),
+        dims: { type: 'array', items: { type: 'string' }, description: 'Up to two dimension tables to plan by (default: region/territory and category)' },
+        planYear: { type: 'number', description: 'Year to plan' },
+        asOfMonth: { type: 'number', description: 'Forecast cut-off month (1–12): actuals up to it, projection after it. 0 = forecast equals budget' },
+        growthPct: { type: 'number', description: 'Growth over the base year in percent' },
+        overrides: { type: 'array', items: { type: 'object', properties: { key: { type: 'string' }, growthPct: { type: 'number' } } }, description: 'Growth per member of the first dimension (key from a previous preview)' },
+      }),
+      handler: async (a) => {
+        const r = await PL.planPreview(PL.planOptions(a));
+        return { design: { measure: r.design.measure.name, planYear: r.design.planYear, baseYear: r.design.baseYear, asOfMonth: r.design.asOfMonth, growthPct: r.design.growthPct, dimensions: r.design.dims.map((d) => `${d.table} (${d.members})`), overrides: r.design.overrides }, recommended: r.defaults, availableYears: r.availableYears, totals: r.totals, months: r.months, members: r.members.slice(0, 25) };
+      },
+    }),
+    studioTool('studio_create_plan', {
+      description: 'Build the budget and forecast: computes them from the actuals (same options as studio_preview_plan), writes them to a "planning" schema next to the data (Fabric SQL database or warehouse), adds a Plan table to the semantic model with Budget, Forecast, Budget to Date, Variance to Budget, Variance to Budget %, Budget Attainment % and Forecast vs Budget measures, and checks the totals through the model. Preview first and confirm the numbers with the user.',
+      parameters: obj({
+        measure: str('Measure to plan'),
+        dims: { type: 'array', items: { type: 'string' }, description: 'Up to two dimension tables' },
+        planYear: { type: 'number', description: 'Year to plan' },
+        asOfMonth: { type: 'number', description: 'Forecast cut-off month (0–12)' },
+        growthPct: { type: 'number', description: 'Growth over the base year in percent' },
+        overrides: { type: 'array', items: { type: 'object', properties: { key: { type: 'string' }, growthPct: { type: 'number' } } }, description: 'Growth per member of the first dimension' },
+      }),
+      handler: async (a) => runAsJob('planning', 'Build the budget and forecast', (ctx) => PL.runPlan(ctx, PL.planOptions(a))),
+    }),
+    studioTool('studio_create_plan_item', {
+      description: 'Create (or update) the Fabric plan item where planners refine the budget in planning sheets. It is connected to the semantic model when a shared semantic model connection exists; otherwise Fabric asks for one when the plan opens. Needs the plan built first.',
+      parameters: obj({ name: str('Optional plan name (letters, numbers, underscores)') }),
+      handler: async (a) => runAsJob('plan-item', 'Create the Fabric plan', (ctx) => PL.runPlanItem(ctx, { name: a.name })),
     }),
   ];
 }
