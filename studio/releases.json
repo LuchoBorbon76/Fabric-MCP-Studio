@@ -32,6 +32,12 @@
     { "date": "2026-10-04", "type": "improvement", "commit": "978625c", "title": "Disclaimer for internal and external users, shown once and in the footer; What's new" },
     { "date": "2026-10-04", "type": "fix", "commit": "978625c", "title": "Version number calculated from the improvements and fixes" },
     { "date": "2026-10-04", "type": "fix", "commit": "027a702", "title": "Clean up empties the project: the map shows Choose a workspace instead of the old workspace" },
-    { "date": "2026-10-04", "type": "improvement", "title": "Naming standard [Domain]_[Object]_[Purpose]_[Environment] for every item, from what the environment is for" }
+    { "date": "2026-10-04", "type": "improvement", "commit": "82b4c0a", "title": "Naming standard [Domain]_[Object]_[Purpose]_[Environment] for every item, from what the environment is for" },
+    { "date": "2026-10-04", "type": "fix", "title": "An Apply button under every Copilot recommendation that waits for your go-ahead, not only models, reports and data agents" },
+    { "date": "2026-10-04", "type": "fix", "title": "Solution map labels no longer touch the parts: they wrap or step aside when the columns are narrow" },
+    { "date": "2026-10-04", "type": "fix", "title": "Planning says in plain words why a data source can't hold the plan and how to fix it; default dimensions skip ones too detailed to plan" },
+    { "date": "2026-10-04", "type": "improvement", "title": "Planning on lakehouses: plan values in a planning warehouse, read by the lakehouse through a OneLake shortcut" },
+    { "date": "2026-10-04", "type": "improvement", "title": "Medallion task flow (Bronze, Silver, Gold) for the existing items, from Fabric's predesigned template" },
+    { "date": "2026-10-04", "type": "improvement", "title": "GitHub Copilot only in developer mode; Azure AI Foundry / Azure OpenAI is the default AI provider" }
   ]
 }

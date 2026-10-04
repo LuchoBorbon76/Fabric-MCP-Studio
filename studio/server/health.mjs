@@ -2,7 +2,7 @@
 import { spawnSync } from 'node:child_process';
 import { getToken, whoAmI, SCOPES } from './auth.mjs';
 import { listCapacities } from './fabric.mjs';
-import { copilotStatus, providerSummary, MCP_ENDPOINTS } from './agent.mjs';
+import { copilotStatus, providerSummary, providerProblem, MCP_ENDPOINTS } from './agent.mjs';
 import { getSettings } from './config.mjs';
 
 async function probeMcp(url, token, extraHeaders = {}) {
@@ -61,12 +61,13 @@ export async function health() {
     }
   }
 
-  const cs = await copilotStatus();
   const prov = providerSummary();
   if (prov.id === 'github') {
-    add('copilot', 'GitHub Copilot', cs.isAuthenticated ? 'ok' : 'error', cs.isAuthenticated ? `${cs.statusMessage || cs.login}${cs.note ? ` · ${cs.note}` : ''}` : (cs.statusMessage || 'Not signed in'), cs.isAuthenticated ? '' : 'Settings › AI provider › Sign in with GitHub CLI (or paste a token with Copilot access), or choose another provider. A GITHUB_TOKEN environment variable without Copilot access is skipped automatically.');
+    const cs = await copilotStatus();
+    add('copilot', 'GitHub Copilot (developer mode)', cs.isAuthenticated ? 'ok' : 'error', cs.isAuthenticated ? `${cs.statusMessage || cs.login}${cs.note ? ` · ${cs.note}` : ''}` : (cs.statusMessage || 'Not signed in'), cs.isAuthenticated ? '' : 'Settings › AI provider › Sign in with GitHub CLI (or paste a token with Copilot access), or choose another provider. A GITHUB_TOKEN environment variable without Copilot access is skipped automatically.');
   } else {
-    add('copilot', 'AI provider', 'ok', `${prov.name} · ${prov.model || 'model not set'}`, 'Use Settings › AI provider › Test.');
+    const problem = providerProblem();
+    add('copilot', 'AI provider', problem ? 'error' : 'ok', problem ? `${prov.name}: not set up yet` : `${prov.name} · ${prov.model || 'model not set'}`, problem ? `${problem} Then select Test.` : 'Use Settings › AI provider › Test.');
   }
 
   if (fabricToken) {

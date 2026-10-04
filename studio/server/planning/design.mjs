@@ -83,16 +83,23 @@ export async function resolveDesign(ws, sm, opts = {}, { profile } = {}) {
   if (pm.issue) throw new Error(pm.issue);
   const measure = pm.measures.find((m) => m.name === opts.measure) || pm.measures.find((m) => m.name === profile?.primary?.name) || pm.measures[0];
   if (!measure) throw new Error('The semantic model has no measure to plan. Add a sales or amount measure first.');
-  // Default dimensions: the ones the report profile found (share + breakdown), else the first two.
-  const wanted = (opts.dims?.length ? opts.dims : [profile?.share?.table, profile?.breakdown?.table].filter(Boolean)).filter((t, i, a) => a.indexOf(t) === i);
-  let dims = wanted.map((t) => pm.dims.find((d) => d.table === t)).filter(Boolean).slice(0, 2);
-  if (!dims.length) dims = pm.dims.slice(0, 1);
+  // Default dimensions: the ones the report profile found (share + breakdown), else another dimension the facts relate
+  // to. Dimensions the user picks must be plannable; defaults that are too detailed (customers, orders…) are skipped.
+  const chosen = Boolean(opts.dims?.length);
+  const wanted = (chosen ? opts.dims : [profile?.share?.table, profile?.breakdown?.table].filter(Boolean)).filter((t, i, a) => a.indexOf(t) === i);
+  const first = wanted.map((t) => pm.dims.find((d) => d.table === t)).filter(Boolean).slice(0, 2);
+  const others = chosen ? [] : pm.dims.filter((d) => !first.includes(d));
   const out = [];
-  for (const d of dims) {
+  const tryDim = async (d) => {
     const { keys, label } = await labelColumn(ws, sm, d);
-    if (keys > MAX_MEMBERS) throw new Error(`${d.table} has ${keys} members – too detailed to plan. Pick a higher-level dimension (for example a region or category).`);
+    if (keys > MAX_MEMBERS) {
+      if (chosen) throw new Error(`${d.table} has ${keys} members – too detailed to plan. Pick a higher-level dimension (for example a region or category).`);
+      return;
+    }
     out.push({ table: d.table, key: d.key, keyType: d.keyType, label: label.name, labelText: columnLabel(label.name), members: keys });
-  }
+  };
+  for (const d of first) await tryDim(d);
+  for (const d of others) { if (out.length) break; await tryDim(d); }
   return { pm, measure, date: pm.date, dims: out, opts };
 }
 

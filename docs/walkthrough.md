@@ -10,7 +10,7 @@ connected to the same MCP servers. Allow 30–45 minutes the first time.
       background (stop it with **Shut down** in the app).
 - [ ] Sign in with the Microsoft Entra work account that has Fabric access (top right)
 - [ ] **Check setup** shows green for Microsoft Entra, Fabric capacity, your AI provider and the MCP servers
-- [ ] Optional: pick your AI provider in **Settings › AI provider** (GitHub Copilot, Azure AI Foundry, OpenAI, Anthropic, local)
+- [ ] Optional: pick your AI provider in **Settings › AI provider** (Azure AI Foundry / Azure OpenAI by default, OpenAI, Anthropic, local; GitHub Copilot in developer mode)
 
 The app opens on the **solution map**: every part below is a box on the map, greyed out until it is configured,
 with lines showing what is built from what. Select a part to see its details and the suggested next step, and
@@ -132,7 +132,7 @@ Ontology is in preview; the Ontology MCP endpoint (used by agents) needs a paid 
 
 ## 5c. Planning
 
-**Planning** page (needs the semantic model; plans are stored in a Fabric SQL database or warehouse):
+**Planning** page (needs the semantic model; plans are stored next to your data – in a Fabric SQL database or warehouse, or for a lakehouse in a planning warehouse the lakehouse reads through a OneLake shortcut):
 
 1. **Design the plan** shows a recommended plan year, growth and forecast cut-off, with a preview by month and by
    region. Change the growth for one region in the table and select *Apply growth targets* to see the effect.
@@ -149,6 +149,17 @@ Ontology is in preview; the Ontology MCP endpoint (used by agents) needs a paid 
 
 > Ask Copilot: *What is happening in my live data right now?* Copilot queries the Eventhouse with KQL and points out
 > rule breaks and where they come from. Simulated events are labeled `Studio simulator` in the `Source` column.
+
+## 5d. Medallion task flow
+
+**Workspace** page › **Medallion task flow**: the card maps what you built to Fabric's predesigned Medallion task flow –
+raw data in **Bronze**, the data prep notebook in **Initial process**, the curated lakehouse in **Silver**, the semantic
+model (and plan values) in **Gold**, reports in **Visualize**, the org app in **Distribute**, the ontology and data
+agent in **Business context and AI**. *Apply the Medallion task flow* creates it in the workspace with the items
+assigned; it's updated automatically as you add items. *Open in Fabric* shows it above the workspace item list.
+
+> Ask Copilot: *Organize my workspace with the Medallion task flow (Bronze, Silver, Gold).* Copilot shows the mapping
+> and an **Apply** button.
 
 ## 6. Ask and share
 

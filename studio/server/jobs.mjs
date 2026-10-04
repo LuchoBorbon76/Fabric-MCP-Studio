@@ -53,6 +53,10 @@ export function flushRunningJobs() {
   try { writeJson(RUNNING_FILE, running); } catch { /* ignore */ }
 }
 
+/** Run `fn(job)` after every job that succeeds (used to keep the workspace task flow in step). */
+const succeededHooks = [];
+export function onJobSucceeded(fn) { succeededHooks.push(fn); }
+
 /**
  * Start a job. `fn(ctx)` receives { step, log, progress, signal, setResult }.
  * Returns the job immediately; completion is streamed via 'job' events.
@@ -95,6 +99,7 @@ export function startJob(kind, title, fn, { meta = {} } = {}) {
       job.status = 'succeeded';
       job.progress = 100;
       logActivity('job.done', title, { jobId: job.id });
+      for (const f of succeededHooks) Promise.resolve().then(() => f(publicJob(job))).catch(() => {});
     } catch (e) {
       for (const s of job.steps) if (s.status === 'running') s.status = 'failed';
       job.status = job.controller.signal.aborted ? 'cancelled' : 'failed';

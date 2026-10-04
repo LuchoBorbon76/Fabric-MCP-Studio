@@ -14,6 +14,7 @@ let streamBubble = null;
 let streamText = '';
 let thinkEl = null;
 let turnProposal = null; // shown when Copilot finishes its answer, so the button sits below the explanation
+let turnText = '';       // Copilot's last message this turn (does it ask for a go-ahead?)
 const toolCards = new Map();
 let suggestionsFn = () => [];
 let onCloseFn = () => {};
@@ -153,6 +154,38 @@ const PROPOSALS = {
 const kindOf = (pr) => (PROPOSALS[pr?.kind] ? pr.kind : 'semantic-model');
 const currentOf = (kind) => store.project?.[PROPOSALS[kind].key] || null;
 
+// Any other recommendation that waits for the user's go-ahead gets an Apply button too: either Copilot offers it
+// (studio_suggest_apply, with the exact request) or the answer ends by asking for a go-ahead ("Shall I create it?",
+// "Confirm these rules and I'll deploy…"). Statements like "let me know if you have questions" don't count.
+const GO_AHEAD = 'Yes – go ahead.';
+function looksLikeConfirmation(text) {
+  const tail = String(text || '').trim().slice(-320);
+  if (/\b(confirm|approve)\b[^.?!\n]*\b(and|then)\s+i(['’]ll| will)\b/i.test(tail)) return true;
+  if (!/\?[\s*_)]*$/.test(tail)) return false;
+  const last = tail.split(/(?<=[.!?])\s+/).pop();
+  return /\b(shall i|should i|do you want me to|want me to|would you like me to|ok(ay)? to|go ahead|ready to|proceed)\b/i.test(last);
+}
+
+function actionCard(pr, { answered = false } = {}) {
+  const generic = pr.kind === 'confirm';
+  const state = h('span', { class: 'pstate small muted' }, generic ? 'Copilot is asking for your go-ahead.' : 'Copilot does this when you select Apply.');
+  const card = h('div', { class: 'pcard', 'data-action': pr.id, 'data-kind': pr.kind });
+  const done = (text, ok = true) => { card.dataset.applied = '1'; card.querySelectorAll('button').forEach((b) => { b.hidden = true; }); state.textContent = text; state.classList.toggle('ok', ok); };
+  const apply = h('button', { class: 'btn pri', onclick: async () => { if (busyState) { toast('Copilot is still working. Stop it or wait.', 'err'); return; } done(generic ? '✓ Sent – Copilot is on it' : '✓ Applied – Copilot is on it'); await ask(pr.instruction || GO_AHEAD); } }, generic ? '✓ Yes, go ahead' : '✓ Apply');
+  const change = h('button', { class: 'btn ghost', onclick: () => { inputEl.focus(); inputEl.placeholder = 'Tell Copilot what to change…'; } }, generic ? 'Something else' : 'Change something');
+  card.append(
+    h('div', { class: 'ph' }, h('span', {}, '✦'), pr.title || 'Copilot is waiting for your go-ahead'),
+    pr.summary ? h('div', { class: 'small muted' }, pr.summary) : null,
+    h('div', { class: 'row' }, apply, change, state));
+  if (answered) done('✓ Applied');
+  return h('div', { class: 'msg bot' }, card);
+}
+
+/** Generic go-ahead cards only make sense until the user answers. */
+function retireConfirmCards() {
+  msgsEl.querySelectorAll('.pcard[data-kind="confirm"]:not([data-applied])').forEach((c) => c.closest('.msg')?.remove());
+}
+
 function proposalCard(pr) {
   const kind = kindOf(pr);
   const def = PROPOSALS[kind];
@@ -180,9 +213,16 @@ function syncProposalCard(card) {
 
 function flushProposal() {
   if (!turnProposal) return;
-  msgsEl.append(proposalCard(turnProposal));
+  msgsEl.append(turnProposal.kind === 'action' ? actionCard(turnProposal, { answered: turnProposal.answered }) : proposalCard(turnProposal));
   turnProposal = null;
   scrollDown();
+}
+
+/** At the end of a turn: Copilot's suggestion card, or a go-ahead card when the answer asks to confirm. */
+function finishTurn() {
+  if (turnProposal) flushProposal();
+  else if (looksLikeConfirmation(turnText)) { msgsEl.append(actionCard({ id: `confirm-${Date.now()}`, kind: 'confirm' })); scrollDown(); }
+  turnText = '';
 }
 
 function setBusy(b) {
@@ -221,6 +261,7 @@ function wireEvents() {
     if (!mine(e)) return;
     if (streamBubble) streamBubble.innerHTML = md(e.content);
     else addMsg('bot', e.content);
+    turnText = e.content;
     endStream();
     thinkEl = null;
     scrollDown();
@@ -228,11 +269,11 @@ function wireEvents() {
   on('chat.tool.start', (e) => { if (mine(e)) { endStream(); thinkEl = null; toolCard(e.tool); } });
   on('chat.tool.done', (e) => { if (mine(e)) toolCard(e.tool); });
   on('chat.proposal', (e) => { if (mine(e)) turnProposal = e.proposal; });
-  on('chat.idle', (e) => { if (mine(e)) { endStream(); flushProposal(); setBusy(false); refreshHeader(); } });
-  on('chat.error', (e) => { if (mine(e)) { endStream(); flushProposal(); addMsg('err', e.message); setBusy(false); } });
+  on('chat.idle', (e) => { if (mine(e)) { endStream(); finishTurn(); setBusy(false); refreshHeader(); } });
+  on('chat.error', (e) => { if (mine(e)) { endStream(); flushProposal(); turnText = ''; addMsg('err', e.message); setBusy(false); } });
   on('chat.title', (e) => { if (mine(e)) titleEl.textContent = e.title; });
   on('provider', () => { modelSel.innerHTML = ''; refreshHeader(); });
-  on('project.updated', () => { if (msgsEl) msgsEl.querySelectorAll('.pcard').forEach(syncProposalCard); });
+  on('project.updated', () => { if (msgsEl) msgsEl.querySelectorAll('.pcard[data-proposal]').forEach(syncProposalCard); });
 }
 
 async function ensureChat() {
@@ -253,6 +294,7 @@ export async function newChat() {
   titleEl.textContent = 'Copilot';
   toolCards.clear();
   turnProposal = null;
+  turnText = '';
   endStream();
   setBusy(false);
   renderWelcome();
@@ -268,14 +310,27 @@ export async function loadChat(id) {
     toolCards.clear();
     endStream();
     turnProposal = null;
+    turnText = '';
     // Suggestion cards go after Copilot's explanation of that turn, as they did live.
-    for (const m of c.transcript) {
-      if (m.role === 'user') { flushProposal(); addMsg('user', m.content); } else if (m.role === 'assistant') addMsg('bot', m.content);
+    const tr = c.transcript;
+    // An Apply card counts as applied when the next message is its own request (what the button sends).
+    const appliedBy = (i, instruction) => tr.slice(i + 1).find((x) => x.role === 'user')?.content?.trim() === String(instruction || '').trim();
+    let turnHadProposal = false;
+    tr.forEach((m, i) => {
+      if (m.role === 'user') { flushProposal(); turnHadProposal = false; addMsg('user', m.content); } else if (m.role === 'assistant') addMsg('bot', m.content);
       else if (m.role === 'error') addMsg('err', m.content);
       else if (m.role === 'tool') toolCard(m);
-      else if (m.role === 'proposal') { flushProposal(); const kind = PROPOSALS[m.kind] ? m.kind : 'semantic-model'; turnProposal = currentOf(kind)?.id === m.proposalId ? currentOf(kind) : { id: m.proposalId, kind }; }
+      else if (m.role === 'proposal' && m.kind === 'action') { flushProposal(); turnHadProposal = true; turnProposal = { id: m.proposalId, kind: 'action', title: m.title, summary: m.summary, instruction: m.instruction, answered: appliedBy(i, m.instruction) }; }
+      else if (m.role === 'proposal') { flushProposal(); turnHadProposal = true; const kind = PROPOSALS[m.kind] ? m.kind : 'semantic-model'; turnProposal = currentOf(kind)?.id === m.proposalId ? currentOf(kind) : { id: m.proposalId, kind }; }
+    });
+    const last = tr[tr.length - 1];
+    if (c.busy) setBusy(true);
+    else {
+      flushProposal();
+      // The last answer still asks for a go-ahead (and offered no Apply card): offer it again.
+      if (!turnHadProposal && last?.role === 'assistant' && looksLikeConfirmation(last.content)) msgsEl.append(actionCard({ id: `confirm-${Date.now()}`, kind: 'confirm' }));
+      setBusy(false);
     }
-    if (c.busy) setBusy(true); else { flushProposal(); setBusy(false); }
   } catch (e) { toast(e.message, 'err'); }
 }
 
@@ -293,6 +348,7 @@ export async function ask(text) {
   try {
     const welcome = $('.welcome', msgsEl);
     if (welcome) welcome.remove();
+    retireConfirmCards();
     await ensureChat();
     addMsg('user', text);
     await post(`/chats/${chatId}/messages`, { prompt: text });

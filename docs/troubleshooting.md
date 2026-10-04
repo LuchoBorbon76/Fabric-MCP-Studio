@@ -32,7 +32,8 @@
 | Double-clicking the desktop icon shows *Fabric MCP Studio could not start* | The server stopped during start-up (the dialog shows the last lines of `studio/data/studio.log`) | Fix the error shown, for example install Node.js 20.19+ or free the port. Run `Start-Studio.cmd` to see the full output in a console |
 | Nothing opens and there is no message | Windows Script Host is turned off by policy | Run `.\scripts\create-shortcut.ps1` again: it detects this and creates a console shortcut. Or use `Start-Studio.cmd` |
 | How do I stop the studio started from the icon? | It runs in the background, without a window | **Shut down** in the app. Starting the icon again while it runs just reopens the browser |
-| Copilot chat says *GitHub Copilot isn't signed in*, or *Session was not created with authentication info* | No GitHub sign-in with Copilot access. A `GITHUB_TOKEN` / `GH_TOKEN` environment variable set for other tools (without Copilot access) is skipped automatically and the GitHub CLI sign-in is used instead | **Settings › AI provider › Sign in with GitHub CLI**, or paste a token that has Copilot access, or choose another AI provider. *Check setup* shows which sign-in is used |
+| Chat says the AI provider isn't set up | Azure AI Foundry / Azure OpenAI is the default and needs the endpoint and deployment | **Settings › AI provider**: enter the endpoint and deployment (Microsoft Entra ID needs no key), **Save**, then **Test** |
+| Copilot chat says *GitHub Copilot isn't signed in* (developer mode), or *Session was not created with authentication info* | No GitHub sign-in with Copilot access. A `GITHUB_TOKEN` / `GH_TOKEN` environment variable set for other tools (without Copilot access) is skipped automatically and the GitHub CLI sign-in is used instead | **Settings › AI provider › Sign in with GitHub CLI**, or paste a token that has Copilot access, or choose another AI provider. *Check setup* shows which sign-in is used |
 
 ## Studio sign-in and tenants
 
@@ -124,7 +125,7 @@ when it expires.
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| *Your semantic model reads a lakehouse … can't write plan values* | Plans are written next to the data, in a Fabric SQL database or a warehouse | Load the data into a SQL database or warehouse (or use the AdventureWorks sample); the preview still works |
+| *Your semantic model reads … a mirrored database … nowhere to go* | A mirrored database is a read-only copy and the Direct Lake model reads every table from it, so the plan values can't be stored next to the data | Bring the mirrored tables into a lakehouse with OneLake shortcuts (Data page › Existing Fabric data › Create shortcuts), rebuild the model on it and plan again. Lakehouses, warehouses and SQL databases work directly; the preview always works |
 | *Planning needs a date table with a year and a month number column* | The model has no date table related to the facts | Add a date table (marked as date table, with year and month number) and relate it to the facts |
 | *… has N members – too detailed to plan* | The chosen dimension has more than 300 members | Plan by a higher level (region, category, segment) |
 | *The semantic model can't be queried right now* | The workspace's Fabric capacity is paused or overloaded | Resume the capacity in the Azure portal, then try again |

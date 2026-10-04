@@ -19,7 +19,8 @@ function aboutCard() {
     h('p', { class: 'lead' }, 'Fabric MCP Studio is a sample app, provided as is – not an official Microsoft product or supported service. The version counts improvements and fixes: 1.<improvements>.<fixes>.'),
     h('dl', { class: 'kv' },
       h('dt', {}, 'Build'), h('dd', {}, store.build ? `${store.build.commit} · ${store.build.date}` : '– (not a git copy)'),
-      h('dt', {}, 'Disclaimer'), h('dd', {}, s?.acceptedAt ? `Acknowledged ${new Date(s.acceptedAt).toLocaleDateString()}` : 'Not acknowledged yet')),
+      h('dt', {}, 'Disclaimer'), h('dd', {}, s?.acceptedAt ? `Acknowledged ${new Date(s.acceptedAt).toLocaleDateString()}` : 'Not acknowledged yet'),
+      store.settings?.developer ? [h('dt', {}, 'Developer mode'), h('dd', {}, 'On – GitHub Copilot is available as an AI provider')] : null),
     h('div', { class: 'row mt' },
       h('button', { class: 'btn', onclick: () => showWhatsNew() }, 'What\'s new'),
       h('button', { class: 'btn', onclick: () => showDisclaimer() }, 'Disclaimer')));
@@ -28,7 +29,7 @@ function aboutCard() {
 // ---------------- AI provider ----------------
 function providerCard() {
   const card = h('div', { class: 'card' });
-  const cur = store.settings?.provider || { id: 'github' };
+  const cur = store.settings?.provider || { id: 'azure-openai' };
   if (!draftProvider || draftProvider.saved !== cur.id) draftProvider = { id: cur.id, model: cur.model, reasoningEffort: cur.reasoningEffort || '', config: { ...(cur.config || {}) }, saved: cur.id };
   const d = draftProvider;
   const body = h('div');
@@ -176,7 +177,7 @@ function cleanupSummary(plan) {
         h('td', {}, i.label), h('td', {}, i.name),
         h('td', {}, i.recoverable ? h('span', { class: 'pill ok', title: 'Can be restored from the workspace recycle bin' }, 'Recycle bin') : h('span', { class: 'pill err' }, 'Gone for good'))))))),
     plan.ontologyCompanions ? muted('The ontology\'s graph and Eventhouse companion items are deleted with it.') : null,
-    plan.taskFlow ? muted(`The workspace task flow "${plan.taskFlow.name}" is removed too (your other task flows stay).`) : null,
+    (plan.taskFlows || (plan.taskFlow ? [plan.taskFlow] : [])).length ? muted(`The workspace task flow${(plan.taskFlows || [plan.taskFlow]).length === 1 ? '' : 's'} ${(plan.taskFlows || [plan.taskFlow]).map((x) => `"${x.name}"`).join(' and ')} ${(plan.taskFlows || [plan.taskFlow]).length === 1 ? 'is' : 'are'} removed too (your other task flows stay).`) : null,
     plan.liveEvents ? muted('The live event simulator stops.') : null,
     muted(restorable
       ? 'Items marked Recycle bin can be restored from the workspace recycle bin for a few days (3 by default) when item recovery is on in your tenant. The others can\'t be restored, but the studio can build them again.'

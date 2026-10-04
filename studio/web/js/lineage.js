@@ -237,7 +237,7 @@ export function buildGraph(s = store) {
     sub: ws ? (ws.created ? 'Created by the studio' : 'Existing workspace') : signedIn ? 'New or existing' : 'Microsoft Entra account',
     capacity: cap?.visible ? cap : null, role: s.readiness?.role || null,
     url: ws ? `https://app.fabric.microsoft.com/groups/${ws.id}/list` : null,
-    facts: ws ? [['Capacity', cap?.visible ? `${cap.name} · ${cap.sku}${cap.trial ? ' (trial)' : ''} · ${cap.state === 'Active' ? 'Running' : 'Paused'}` : 'Not visible to you'], ['Region', cap?.region || '–'], ['Your role', s.readiness?.role || '–'], ['Created by the studio', ws.created ? 'Yes' : 'No'], ['Naming', namingFact()]] : [],
+    facts: ws ? [['Capacity', cap?.visible ? `${cap.name} · ${cap.sku}${cap.trial ? ' (trial)' : ''} · ${cap.state === 'Active' ? 'Running' : 'Paused'}` : 'Not visible to you'], ['Region', cap?.region || '–'], ['Your role', s.readiness?.role || '–'], ['Created by the studio', ws.created ? 'Yes' : 'No'], ['Naming', namingFact()], ['Medallion task flow', p.medallionFlow ? `${p.medallionFlow.name} · ${p.medallionFlow.items} items` : 'Not applied – Workspace page']] : [],
   };
   workspace.state = workspace.done ? (cleaning ? 'running' : 'done') : signedIn ? 'available' : 'off';
   workspace.needs = 'Sign in first';
@@ -305,8 +305,8 @@ export function nodePrompt(id, s = store) {
 
 // ---------------- drawing ----------------
 const SIZES = {
-  full: { padL: 34, padR: 14, top: 70, nh: 60, rh: 82, lane: 20, frameTop: 20, colY: 40, bottom: 44, nwMax: 212, nwGap: 58, step: 9, arrow: 6, dot: 2.6, clear: 14, bend: 46 },
-  compact: { padL: 30, padR: 12, top: 50, nh: 36, rh: 46, lane: 12, frameTop: 14, colY: 28, bottom: 28, nwMax: 182, nwGap: 46, step: 6, arrow: 5, dot: 2, clear: 9, bend: 34 },
+  full: { padL: 34, padR: 14, top: 70, nh: 60, rh: 82, lane: 20, frameTop: 20, colY: 40, bottom: 44, nwMax: 212, nwGap: 72, gapRatio: 0.25, step: 9, arrow: 6, dot: 2.6, clear: 14, bend: 46, labelMargin: 6 },
+  compact: { padL: 30, padR: 12, top: 50, nh: 36, rh: 46, lane: 12, frameTop: 14, colY: 28, bottom: 28, nwMax: 182, nwGap: 46, gapRatio: 0.24, step: 6, arrow: 5, dot: 2, clear: 9, bend: 34 },
 };
 
 /**
@@ -457,7 +457,7 @@ export function mountMap(root, { onNode, onTab }) {
     const S = SIZES[mode === 'full' ? 'full' : 'compact'];
     const W = Math.max(980, scroller.clientWidth || 0);
     const colW = (W - S.padL - S.padR) / 5;
-    const nw = Math.min(S.nwMax, colW - Math.max(36, Math.min(S.nwGap, colW * 0.24)));
+    const nw = Math.min(S.nwMax, colW - Math.max(36, Math.min(S.nwGap, colW * S.gapRatio)));
     const rowY = (r) => S.top + r * S.rh + (r >= 3 ? S.lane : 0);
     const pos = {};
     for (const d of DEFS) pos[d.id] = { x: S.padL + d.c * colW + (colW - nw) / 2, y: rowY(d.r), w: nw, h: S.nh };
@@ -541,9 +541,25 @@ export function mountMap(root, { onNode, onTab }) {
       const dot = svgEl('circle', { cx: p0[0], cy: p0[1], r: S.dot, class: `ldot ${e.state}` });
       if (e.state === 'on') dot.setAttribute('fill', ca);
       gEdges.append(dot);
-      if (mode === 'full' && e.label && geo.colW - geo.nw >= 52) {
+      if (mode === 'full' && e.label) {
         const m = e.kind === 'up' ? [p0[0] + 8, (p0[1] + p3[1]) / 2] : bez(p0, p1, p2, p3, 0.5);
-        labels.append(h('span', { class: `elabel ${e.state} ${e.kind === 'up' ? 'side' : ''}`, style: { left: `${m[0]}px`, top: `${m[1]}px` } }, e.label));
+        const side = e.kind === 'up';
+        const lbl = h('span', { class: `elabel ${e.state} ${side ? 'side' : ''}`, style: { left: `${m[0]}px`, top: `${m[1]}px` } }, e.label);
+        labels.append(lbl);
+        // Keep labels off the parts (with a margin): a label that would touch one wraps to two lines within the gap
+        // between the columns, and is left out (its edge still shows) when even that doesn't fit. Words never break.
+        const M = e.kind === 'arc' ? 0 : S.labelMargin;
+        const touches = () => {
+          const w = lbl.offsetWidth; const hh = lbl.offsetHeight;
+          const x0 = side ? m[0] : m[0] - w / 2; const y0 = m[1] - hh / 2;
+          return Object.values(pos).some((q) => x0 < q.x + q.w + M && x0 + w > q.x - M && y0 < q.y + q.h + M && y0 + hh > q.y - M);
+        };
+        if (lbl.offsetWidth && touches()) {
+          const room = e.kind === 'h' ? Math.abs(p3[0] - p0[0]) - 2 * M - 2 : 80;
+          lbl.classList.add('wrap');
+          lbl.style.maxWidth = `${Math.max(0, room)}px`;
+          if (room < 30 || lbl.scrollWidth > lbl.clientWidth + 1 || lbl.offsetHeight > 42 || touches()) lbl.remove();
+        }
       }
     }
   }

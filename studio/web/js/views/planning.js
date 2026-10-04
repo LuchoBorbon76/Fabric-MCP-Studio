@@ -40,7 +40,9 @@ function draw(wrap, s) {
         h('div', {}, h('h2', {}, 'Budgets and forecasts'), h('p', { class: 'lead' }, 'Start the plan from your actuals: a budget from last year with your growth targets, and a rolling forecast that blends actuals with the run rate. The studio adds them to your semantic model with variance measures, builds a Plan vs actual report, and creates the Fabric plan where planners refine the numbers in planning sheets.')),
         h('button', { class: 'btn ai', onclick: () => app.ask(pl ? 'Are we on plan? Use studio_planning_status and explain where actual is ahead of or behind budget, and what the forecast says for the year.' : 'Recommend a budget and forecast for my data with studio_preview_plan: which year, growth and forecast cut-off, and why. Point out regions or categories that deserve their own growth target.') }, pl ? '✦ Are we on plan?' : '✦ Recommend a plan')),
       flow(s, p)),
-    !s.writable ? h('div', { class: 'banner warn', style: { marginTop: '14px' } }, h('div', {}, h('b', {}, 'Plans are stored next to your data. '), `Your model reads ${s.source?.type === 'Lakehouse' ? 'a lakehouse' : s.source?.type === 'MirroredDatabase' ? 'a mirrored database' : `a ${s.source?.type || 'source'}`}, which the studio can't write plan values to yet. Use a Fabric SQL database or a warehouse (for example the AdventureWorks sample) to build the plan here – you can still preview it.`)) : null,
+    !s.writable ? h('div', { class: 'banner warn', style: { marginTop: '14px' } }, h('div', {},
+      h('b', {}, 'Why the plan can\'t be built on this data yet. '), s.problem || 'The studio can\'t store plan values for this data source.',
+      h('div', { class: 'tiny muted', style: { marginTop: '4px' } }, 'The budget and forecast are written next to the data your semantic model reads, so the model can show them with your actuals. You can still preview the plan below.'))) : s.store ? h('div', { class: 'banner', style: { marginTop: '14px' } }, h('div', {}, h('b', {}, 'Where the plan values go: '), `${s.store}.`)) : null,
     h('div', { class: 'grid g2', style: { marginTop: '14px', alignItems: 'start' } }, designCard(), previewCard()),
     h('div', { class: 'grid g2', style: { marginTop: '14px', alignItems: 'start' } }, buildCard(s), summaryCard(s)),
     h('div', { class: 'grid g2', style: { marginTop: '14px', alignItems: 'start' } }, reportCard(s, p), planItemCard(s)));
@@ -195,7 +197,7 @@ function buildCard(s) {
   const pl = s.plan;
   const card = h('div', { class: 'card', style: { marginTop: 0 } });
   const job = h('div');
-  const build = h('button', { class: 'btn pri', 'data-busy': 'Starting…', disabled: !s.writable || !draft.preview || undefined, title: s.writable ? '' : 'Needs a Fabric SQL database or warehouse source' }, pl ? '↻ Rebuild the plan' : 'Build the plan');
+  const build = h('button', { class: 'btn pri', 'data-busy': 'Starting…', disabled: !s.writable || !draft.preview || undefined, title: s.writable ? '' : (s.problem || 'This data source can\'t hold plan values') }, pl ? '↻ Rebuild the plan' : 'Build the plan');
   build.addEventListener('click', busy(build, async () => {
     const pv = draft.preview;
     const ok = await confirmDialog(pl ? 'Rebuild the plan' : 'Build the plan', `Write the ${pv.design.planYear} budget and forecast (${pv.rows} rows) to a "planning" schema in your ${s.source?.type === 'Warehouse' ? 'warehouse' : 'SQL database'}, and add a Plan table with budget, forecast and variance measures to ${store.project.semanticModel.name}.`, pl ? 'Rebuild' : 'Build');

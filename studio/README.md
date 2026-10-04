@@ -55,19 +55,24 @@ and it is used automatically when Windows Script Host is turned off).
 provider (below). Optional: Azure CLI (sign-in reuse), PowerShell (Teams agent installer). The AdventureWorksDW2022 sample
 downloads Microsoft's install kit (17 MB) from github.com once.
 
-## Choose your AI (bring your own Copilot)
+## Choose your AI (bring your own model)
 
 | Provider | What the customer needs |
 |---|---|
-| **GitHub Copilot** (default) | A Copilot seat (Free, Pro, Pro+, Business, Enterprise). Sign in with GitHub CLI (`gh auth login`) or paste a token in Settings |
-| **Azure AI Foundry / Azure OpenAI** | Endpoint + deployment. Microsoft Entra ID (recommended, no keys) or API key |
+| **Azure AI Foundry / Azure OpenAI** (default) | Endpoint + deployment. Microsoft Entra ID (recommended, no keys) or API key |
 | **OpenAI** | API key |
 | **Anthropic Claude** | API key |
 | **Local model** | Any OpenAI-compatible endpoint (Ollama, LM Studio, vLLM) with tool calling |
+| **GitHub Copilot** (developer mode only) | A Copilot seat. Sign in with GitHub CLI (`gh auth login`) or paste a token in Settings |
 
-The agent engine is the [GitHub Copilot SDK](https://github.com/github/copilot-sdk). With GitHub Copilot it uses the
-customer's Copilot plan; with the other providers it runs in *bring your own key* mode, so no GitHub license is needed.
-API keys stay in memory (or environment variables `AZURE_OPENAI_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`).
+The agent engine is the [GitHub Copilot SDK](https://github.com/github/copilot-sdk); with the providers above it runs
+in *bring your own key* mode, so business users need no GitHub account or license. API keys stay in memory (or
+environment variables `AZURE_OPENAI_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`).
+
+**Developer mode** is for the people who build and test the studio: it adds **GitHub Copilot** as a provider (and the
+GitHub Copilot clients on Ask & share). Turn it on for your own computer only, with the `STUDIO_DEVELOPER=1`
+environment variable or an empty file named `developer` in the studio's data folder (`studio/data/developer`), then
+restart the studio. Settings › About shows when it's on.
 
 ## How it works
 
@@ -96,8 +101,10 @@ flowchart LR
 - **Copilot inside every step**: Copilot opens right in the page you are working in (for example below the tables and
   relationships in *Semantic model*), never in a separate window. The **Copilot** page shows the same conversation full size.
 - **Approvals**: every tool call that creates or changes something opens a review dialog with the exact request.
-  Modes: *Ask every time* (default), *Auto-approve*, *Read-only*. When Copilot suggests a semantic model design, an
-  **Apply suggestions** button reviews and creates it in one click – no need to type a confirmation.
+  Modes: *Ask every time* (default), *Auto-approve*, *Read-only*. Every recommendation that waits for your go-ahead
+  gets an **Apply** button under Copilot's answer – semantic models, reports and data agents (**Apply suggestions**), and
+  everything else (ontology rules, a plan, medallion layers, live data…) through `studio_suggest_apply`, or a
+  *✓ Apply* card when an answer ends by asking you to confirm. No need to type "yes" or "proceed".
 - **Secrets never reach the AI**: database credentials are entered in the Data page and sent straight to Fabric to
   create a connection; Copilot only sees the connection ID.
 - **Identity**: Microsoft Entra tokens (Azure CLI sign-in or browser) are minted locally and passed to the MCP
@@ -129,6 +136,19 @@ choose, the samples suggest their domain with `DEMO`, and a workspace whose name
 its own. **Items that already exist keep their names**, so nothing is renamed or duplicated when you change the
 standard; a second item with the same purpose gets a number (`Curated2`). Names fit Fabric's strictest rules (letters,
 numbers and underscores, 89 characters).
+
+## Medallion task flow
+
+The **Workspace** page applies Fabric's predesigned **Medallion** task flow to what the studio already built, so the
+workspace shows how the data flows, with each item assigned to its task: **Data ingest** (how the data arrives) ›
+**Bronze data** (the lakehouse, SQL database or mirrored database as the data lands) › **Initial process** (the data
+prep notebook) › **Silver data** (the curated lakehouse) › **Further transform** (optional) › **Gold data** (the semantic
+model with governed measures, and the plan values) › **Visualize** (reports) and **Distribute** (the org app), plus
+**Business context and AI** (ontology, data agent) and **Plan and forecast** (the Fabric plan). The card shows the
+mapping before anything changes; *Apply the Medallion task flow* creates it (named `<Domain>_TF_Medallion_<Env>`), and
+it's updated automatically as the studio adds items. Only items in the project workspace can be assigned. Copilot:
+`studio_medallion_task_flow_status` and `studio_apply_medallion_task_flow`. (Live events have their own medallion on
+the Real-time page.)
 
 ## Data source scenarios
 
@@ -270,8 +290,9 @@ Copilot tools: `studio_medallion_status`, `studio_apply_medallion` and `studio_r
    shows the budget, forecast and actuals by month and by member before anything is written.
 2. **Build the plan** – budget = base-year actuals × (1 + growth) month by month, so seasonality is kept; forecast =
    actuals up to the cut-off, then the budget × each member's run rate (actual ÷ budget so far, kept between 80% and
-   125%). The rows go to `planning.PlanValues` next to your data (Fabric SQL database or warehouse; for a SQL database
-   the studio waits until the OneLake replica has them), and a **Plan** table is added to the semantic model with
+   125%). The rows go to `planning.PlanValues` next to your data – in a Fabric SQL database or warehouse; for a
+   **lakehouse** (whose SQL endpoint is read-only) in a planning warehouse in the project workspace, which the lakehouse
+   reads through a OneLake shortcut `Tables/PlanValues` – and the studio waits until the SQL endpoint shows them, and a **Plan** table is added to the semantic model with
    *Actual, Budget, Forecast, Budget to Date, Variance to Budget, Variance to Budget %, Budget Attainment %, Forecast vs
    Budget* and *Forecast vs Budget %*. The totals are checked through the model. Rebuilding the semantic model keeps the
    Plan table; *Remove…* takes it out again.
@@ -286,8 +307,11 @@ Copilot tools: `studio_medallion_status`, `studio_apply_medallion` and `studio_r
    *Region › Category*, columns *Year › Month* and values *Budget, Forecast, Actual*, adjust the numbers, comment,
    approve and write back to a SQL database.
 
-Planning needs a date table with year and month number columns related to your facts. Plans are written to Fabric
-SQL databases and warehouses; for lakehouse or mirrored sources the page previews the plan but can't build it yet.
+Planning needs a date table with year and month number columns related to your facts. It works on lakehouses,
+warehouses and Fabric SQL databases. A **mirrored database** is a read-only copy (only Fabric mirroring writes to it)
+and the Direct Lake model reads every table from it, so there is nowhere for the plan values: the Planning page says
+so and how to fix it – bring the mirrored tables into a lakehouse with OneLake shortcuts (Data page) and rebuild the
+model on it.
 
 Copilot tools: `studio_planning_status`, `studio_preview_plan`, `studio_create_plan` and `studio_create_plan_item`.
 
@@ -313,8 +337,9 @@ Copilot tools: `studio_planning_status`, `studio_preview_plan`, `studio_create_p
 | `server/realtime/` | Live data: Eventhouse/Eventstream setup, live ontology, alerts and medallion job (`index.mjs`), medallion layers – KQL generated from the column roles, apply, remove and health (`medallion.mjs`), the Fabric items per layer – querysets and the Gold DirectQuery model (`medallion-items.mjs`), event scenarios shaped like the data (`scenarios.mjs`), simulator sending to the custom endpoint (`simulator.mjs`), Real-Time Dashboard generator (`dashboard.mjs`), Activator alert definition (`alerts.mjs`), KQL client (`kusto.mjs`) |
 | `server/taskflow.mjs` | Workspace task flows (the portal's metadata endpoints): list, create, update, delete, item assignments |
 | `server/generators/ontology-live.mjs` | Adds or removes Eventhouse time-series bindings and dashboard links on an existing TMDL ontology |
-| `server/planning/` | Budgets and forecasts: plan design and calculation (`design.mjs`), plan values in the SQL database or warehouse (`store.mjs`), the Plan table patch for the semantic model (`model.mjs`), jobs, plan item and summary (`index.mjs`) |
+| `server/planning/` | Budgets and forecasts: plan design and calculation (`design.mjs`), plan values in the SQL database, warehouse or (for a lakehouse) a planning warehouse with a shortcut (`store.mjs`), the Plan table patch for the semantic model (`model.mjs`), jobs, plan item and summary (`index.mjs`) |
 | `server/readiness.mjs` | Up-front checks: capacity, workspace role, tenant settings and data-source limits per step, and the guard that stops jobs of steps that can't run |
+| `server/medallion-flow.mjs` | Fabric's Medallion task flow over the project's items (layers, mapping, create/update, automatic sync after jobs); `web/js/medallionflow.js` is the Workspace page card |
 | `server/naming.mjs` | Naming standard `[Domain]_[Object]_[Purpose]_[Environment]`: environments, object codes, the name of every item the studio creates (`web/js/naming.js` shows the same names and asks what the environment is for) |
 | `server/presets.mjs` | Sample presets (names, relationships, measures, rules) |
 | `server/samples/adventureworks-dw.mjs` | AdventureWorksDW2022 loader for Fabric SQL database (install kit → tables, keys, bulk load, verification) |

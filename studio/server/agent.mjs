@@ -2,7 +2,7 @@
 import { CopilotClient, ToolSet, BuiltInTools, defineTool } from '@github/copilot-sdk';
 import { join } from 'node:path';
 import { existsSync, readFileSync, mkdirSync } from 'node:fs';
-import { COPILOT_HOME, DATA_DIR, REPO_ROOT, STUDIO_ROOT, getSettings, envApiKey, newId, truncate, readJson, writeJson } from './config.mjs';
+import { COPILOT_HOME, DATA_DIR, REPO_ROOT, STUDIO_ROOT, getSettings, envApiKey, newId, truncate, readJson, writeJson, isDeveloper } from './config.mjs';
 import { getToken, tokenExpiresOn, SCOPES, whoAmI } from './auth.mjs';
 import { emit } from './events.mjs';
 import { getProject, updateProject, logActivity, assertProjectTenant } from './project.mjs';
@@ -18,6 +18,7 @@ import { readiness, cachedReadiness, assertModuleReady, assertLiveEventsAllowed 
 import * as F from './fabric.mjs';
 import { presetFor, presetSummary } from './presets.mjs';
 import * as N from './naming.mjs';
+import * as MF from './medallion-flow.mjs';
 
 export const MCP_ENDPOINTS = {
   'fabric-core': 'https://api.fabric.microsoft.com/v1/mcp/core',
@@ -65,6 +66,9 @@ export const PROVIDERS = [
     ],
   },
 ];
+
+/** The providers people can choose: GitHub Copilot only in developer mode. */
+export const visibleProviders = () => (isDeveloper() ? PROVIDERS : PROVIDERS.filter((p) => p.id !== 'github'));
 
 let client = null;
 let clientStarting = null;
@@ -213,6 +217,11 @@ export function providerSummary() {
   return { id: meta.id, name: meta.name, model };
 }
 
+/** Why chats can't start with the selected provider yet (missing endpoint, deployment or key), or null. */
+export function providerProblem() {
+  try { providerConfig(); return null; } catch (e) { return e.message; }
+}
+
 // ---------------- MCP servers ----------------
 
 export async function mcpServerConfig() {
@@ -320,6 +329,7 @@ const STUDIO_TOOLS_META = {
   studio_create_org_app: { write: true, title: 'Create org app' },
   studio_data_agent_status: { write: false, title: 'Read the Fabric data agent' },
   studio_propose_data_agent: { write: false, title: 'Suggest a Fabric data agent' },
+  studio_suggest_apply: { write: false, title: 'Offer an Apply button' },
   studio_create_data_agent: { write: true, title: 'Create the Fabric data agent' },
   studio_deploy_ontology: { write: true, title: 'Deploy ontology' },
   studio_get_glossary: { write: false, title: 'Read business glossary' },
@@ -335,6 +345,8 @@ const STUDIO_TOOLS_META = {
   studio_medallion_status: { write: false, title: 'Read the medallion layers (Bronze, Silver, Gold)' },
   studio_apply_medallion: { write: true, title: 'Apply the medallion layers and the Fabric task flow' },
   studio_remove_medallion: { write: true, title: 'Remove the medallion layers' },
+  studio_medallion_task_flow_status: { write: false, title: 'Read the Medallion task flow mapping' },
+  studio_apply_medallion_task_flow: { write: true, title: 'Apply the Medallion task flow to existing items' },
   studio_planning_status: { write: false, title: 'Read the plan (budget, forecast, variance)' },
   studio_preview_plan: { write: false, title: 'Preview a budget and forecast' },
   studio_create_plan: { write: true, title: 'Build the budget and forecast' },
@@ -609,6 +621,20 @@ function studioTools(chatId) {
         return { ok: true, agent: proposal.name, semanticModel: proposal.semanticModel, updatesExisting: proposal.updatesExisting, instructionsChars: proposal.instructions.length, warnings: proposal.warnings, next: 'Tell the user to review the suggestion and select Apply suggestions. Do not call studio_create_data_agent in the same turn.' };
       },
     }),
+    studioTool('studio_suggest_apply', {
+      description: 'Show an "Apply" button under your answer. Call it every time you recommend something the user has to confirm before you act – for example deploying the ontology with the rules you listed, building the plan you previewed, applying the medallion layers or the Medallion task flow, setting up live data or alerts, creating shortcuts, changing measures – instead of asking the user to type "yes", "proceed" or "apply". Give the exact request you will carry out when they select Apply. (Semantic models, reports and data agents have their own propose tools.) Then end your turn; do not make the change in the same turn.',
+      parameters: obj({
+        title: str('Short title of what Apply does, e.g. "Deploy the ontology Retail_ONT_Sales_DEMO"'),
+        summary: str('One or two sentences: what will be created or changed, and where'),
+        instruction: str('The request you will carry out when the user selects Apply, written as the user would say it, e.g. "Apply it: deploy the ontology with the 6 entities and the 6 rules you listed."'),
+      }, ['title', 'instruction']),
+      handler: async (a) => {
+        const proposal = { id: newId(), kind: 'action', title: String(a.title).slice(0, 160), summary: String(a.summary || '').slice(0, 600), instruction: String(a.instruction).slice(0, 2000), createdAt: new Date().toISOString() };
+        chats.get(chatId)?.transcript.push({ role: 'proposal', kind: 'action', proposalId: proposal.id, title: proposal.title, summary: proposal.summary, instruction: proposal.instruction, at: Date.now() });
+        emit('chat.proposal', { chatId, proposal });
+        return { ok: true, next: 'The Apply button is shown under your answer. End your turn with a short summary of what Apply will do; don\'t ask the user to type a confirmation and don\'t make the change now.' };
+      },
+    }),
     studioTool('studio_create_data_agent', {
       description: 'Create (or update) the Fabric data agent on the project semantic model directly and publish it – only when the user explicitly asks to create it without reviewing a suggestion (otherwise use studio_propose_data_agent). The studio writes the full item definition. A minute.',
       parameters: obj({ name: str('Agent name'), instructions: str('AI instructions (optional – the studio writes them from the measures and glossary)'), description: str('One-sentence description'), publish: { type: 'boolean', description: 'Publish so Microsoft 365 Copilot and Copilot Studio can use it (default true)' } }),
@@ -752,12 +778,22 @@ function studioTools(chatId) {
       parameters: obj({}),
       handler: async () => runAsJob('medallion-remove', 'Remove the medallion layers', (ctx) => RT.removeMedallion(ctx, { deleteItems: true })),
     }),
+    studioTool('studio_medallion_task_flow_status', {
+      description: 'Read how the project\'s existing items map to Fabric\'s predesigned Medallion task flow (Data ingest, Bronze data, Initial process, Silver data, Further transform, Gold data, Visualize, Business context and AI, Plan and forecast, Distribute) and whether the workspace task flow exists and is up to date. Read-only. This is for the project\'s data (lakehouse, SQL database, mirrored database, notebook, curated lakehouse, semantic model, reports…); live events have their own medallion (studio_medallion_status).',
+      parameters: obj({}),
+      handler: async () => MF.medallionFlowState(),
+    }),
+    studioTool('studio_apply_medallion_task_flow', {
+      description: 'Apply Fabric\'s predesigned Medallion task flow to the existing items: creates (or updates) a task flow in the project workspace with Bronze (raw data as it lands), Initial process (data prep notebook), Silver (curated lakehouse), Gold (semantic model and plan values), Visualize (reports), Business context and AI (ontology, data agent), Plan and forecast (Fabric plan) and Distribute (org app), with the items assigned. Nothing else changes. It is updated automatically as the studio adds items. Seconds.',
+      parameters: obj({}),
+      handler: async () => runAsJob('medallion-flow', 'Apply the Medallion task flow', (ctx) => MF.runMedallionTaskFlow(ctx)),
+    }),
     studioTool('studio_planning_status', {
       description: 'Read the budget and forecast: plan year, base year, growth, forecast cut-off, planned dimensions, the Plan table measures, the Fabric plan item, and plan vs actual for the plan year (overall and by the first dimension) through the semantic model. Read-only.',
       parameters: obj({}),
       handler: async () => {
         const s = PL.planningState();
-        if (!s.plan) return { built: false, available: s.available, writable: s.writable, source: s.source };
+        if (!s.plan) return { built: false, available: s.available, writable: s.writable, whyNot: s.problem || undefined, store: s.store || undefined, source: s.source };
         const summary = await PL.planSummary().catch((e) => ({ error: e.message }));
         const pl = s.plan;
         return { built: true, measure: pl.measure.name, planYear: pl.planYear, baseYear: pl.baseYear, forecastFrom: pl.asOfMonth ? pl.asOfMonth + 1 : 1, growthPct: pl.growthPct, overrides: pl.overrides, dimensions: pl.dims.map((d) => d.labelText), modelMeasures: pl.spec?.names, storedIn: pl.target, planItem: pl.planItem, summary, links: s.links };
@@ -779,7 +815,7 @@ function studioTools(chatId) {
       },
     }),
     studioTool('studio_create_plan', {
-      description: 'Build the budget and forecast: computes them from the actuals (same options as studio_preview_plan), writes them to a "planning" schema next to the data (Fabric SQL database or warehouse), adds a Plan table to the semantic model with Budget, Forecast, Budget to Date, Variance to Budget, Variance to Budget %, Budget Attainment % and Forecast vs Budget measures, and checks the totals through the model. Preview first and confirm the numbers with the user.',
+      description: 'Build the budget and forecast: computes them from the actuals (same options as studio_preview_plan), writes them next to the data (a "planning" schema in a Fabric SQL database or warehouse; for a lakehouse, a planning warehouse in the project workspace that the lakehouse reads through a OneLake shortcut, because a lakehouse SQL endpoint is read-only), adds a Plan table to the semantic model with Budget, Forecast, Budget to Date, Variance to Budget, Variance to Budget %, Budget Attainment % and Forecast vs Budget measures, and checks the totals through the model. Preview first and confirm the numbers with the user.',
       parameters: obj({
         measure: str('Measure to plan'),
         dims: { type: 'array', items: { type: 'string' }, description: 'Up to two dimension tables' },

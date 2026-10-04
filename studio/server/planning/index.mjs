@@ -8,7 +8,7 @@ import { dax, refreshDataset } from '../powerbi.mjs';
 import { currentProfile, resetProfileCache } from '../reports/index.mjs';
 import { previewPlan, typesOf, monthName, RUN_RATE } from './design.mjs';
 import { applyPlanToModel, planMeasureNames, planCheckQuery } from './model.mjs';
-import { planTarget, writePlanRows, waitForPlanRows, dropPlanTable, PLAN_SCHEMA, PLAN_TABLE } from './store.mjs';
+import { planTarget, preparePlanStore, linkPlanTable, planStoreProblem, writePlanRows, waitForPlanRows, dropPlanTable, PLAN_SCHEMA, PLAN_TABLE } from './store.mjs';
 import { itemNameFor, numberedName } from '../naming.mjs';
 
 export { isPlanTable } from './store.mjs';
@@ -44,7 +44,11 @@ export function planningState() {
   const ms = p.modelSource;
   return {
     available: Boolean(p.workspace && p.semanticModel),
-    writable: ['SQLDatabase', 'Warehouse'].includes(ms?.itemType),
+    writable: !planStoreProblem(ms),
+    // Why the plan can't be built on this data source (shown on the Planning page and to Copilot), or null.
+    problem: ms ? planStoreProblem(ms) : null,
+    // Where the plan values go for this data source.
+    store: ms?.itemType === 'Lakehouse' ? 'A planning warehouse in the project workspace, read by the lakehouse through a OneLake shortcut (a lakehouse SQL endpoint is read-only)' : ms?.itemType === 'SQLDatabase' ? 'A planning schema in the Fabric SQL database' : ms?.itemType === 'Warehouse' ? 'A planning schema in the warehouse' : null,
     source: ms ? { type: ms.itemType, name: ms.itemName } : null,
     plan: pl,
     links: pl && p.workspace ? {
@@ -66,14 +70,14 @@ export async function planPreview(opts = {}) {
 }
 
 /** Columns of the plan table and how it relates to the model. */
-function planSpec(design, names) {
+function planSpec(design, names, source = { schema: PLAN_SCHEMA, table: PLAN_TABLE }) {
   const used = new Set(['scenario', 'planyear', 'monthnumber', 'periodstart', 'amount', 'closedperiod', 'updatedat']);
   const uniq = (n) => { let x = String(n).replace(/[^A-Za-z0-9_]/g, '') || 'Key'; let i = 2; while (used.has(x.toLowerCase())) x = `${n}${i++}`; used.add(x.toLowerCase()); return x; };
   const dt = typesOf(design.date.keyType);
   const keyCols = [{ name: uniq(design.date.key), ...dt }, ...design.dims.map((d) => ({ name: uniq(d.key), ...typesOf(d.keyType) }))];
   return {
     modelTable: MODEL_TABLE,
-    source: { schema: PLAN_SCHEMA, table: PLAN_TABLE },
+    source,
     keyCols,
     columns: [
       { name: 'Scenario', tom: 'string' }, { name: 'PlanYear', tom: 'int64' }, { name: 'MonthNumber', tom: 'int64' }, { name: 'PeriodStart', tom: 'dateTime' },
@@ -116,7 +120,7 @@ export async function runPlan(ctx, opts = {}) {
   // Measures the plan table adds must not clash with the model's own measure names.
   let files = await readModelFiles(p);
   const existing = Object.entries(files).filter(([k, v]) => /^definition\/tables\//.test(k) && !new RegExp(`^table ${MODEL_TABLE}$`, 'm').test(v)).flatMap(([, v]) => [...v.matchAll(/^\tmeasure (.+?) =/gm)].map((m) => m[1].replace(/^'(.*)'$/, '$1')));
-  const spec = planSpec(d, planMeasureNames(existing));
+  const spec = planSpec(d, planMeasureNames(existing), target.source);
 
   ctx.step(`Write ${pv.rows.length} plan rows to ${target.label}`);
   const date = d.date;
@@ -125,9 +129,14 @@ export async function runPlan(ctx, opts = {}) {
   const missing = [...new Set(pv.rows.map((r) => r.month))].filter((m) => !monthKeys.has(m));
   if (missing.length) throw new Error(`The date table has no ${missing.map(monthName).join(', ')} ${d.planYear}.`);
   const keyCols = spec.keyCols.map((c) => ({ name: c.name, sql: c.sql }));
+  await preparePlanStore(ctx, target);
   await writePlanRows(ctx, target, { planYear: d.planYear, rows: pv.rows, monthKeys, keyCols });
   ctx.log(`${pv.rows.length} rows in ${PLAN_SCHEMA}.${PLAN_TABLE} (Budget and Forecast for ${d.planYear})`);
   ctx.progress(40);
+  if (target.kind === 'Lakehouse') {
+    ctx.step(`Connect the plan values to ${target.lakehouse.name}`);
+    await linkPlanTable(ctx, target);
+  }
 
   if (target.replicated) {
     ctx.step('Wait for the plan to reach OneLake');
@@ -159,7 +168,7 @@ export async function runPlan(ctx, opts = {}) {
   const prev = getProject().planning;
   const planning = {
     measure: d.measure, date: d.date, dims: spec.dims, planYear: d.planYear, baseYear: d.baseYear, asOfMonth: d.asOfMonth, growthPct: d.growthPct, overrides: d.overrides,
-    target: { kind: target.kind, label: target.label, table: `${PLAN_SCHEMA}.${PLAN_TABLE}` },
+    target: { kind: target.kind, label: target.label, table: `${target.source.schema}.${target.source.table}`, warehouse: target.warehouse || null, lakehouse: target.lakehouse || null, shortcut: target.shortcut || null },
     spec: { modelTable: spec.modelTable, source: spec.source, columns: spec.columns, date: spec.date, dateYear: spec.dateYear, dims: spec.dims, measure: spec.measure, names: spec.names, description: spec.description, keyCols: spec.keyCols },
     totals: { ...pv.totals, checked: { budget: Number(check.budget), forecast: Number(check.forecast), actual: Number(check.actual), variance: Number(check.variance) } },
     months: pv.months, members: pv.members.slice(0, 40),
@@ -298,7 +307,7 @@ export async function removePlan({ deleteData = false, deleteItem = false } = {}
   }
   if (deleteData) await dropPlanTable(await planTarget(p)).catch(() => {});
   if (deleteItem && pl.planItem?.id) await F.deleteItem(p.workspace.id, pl.planItem.id).catch(() => {});
-  updateProject({ planning: null });
+  updateProject({ planning: null, ...(deleteData ? { planStore: null } : {}) });
   setStep('planning', 'todo', '');
   resetProfileCache();
   logActivity('planning.remove', `Plan ${pl.planYear} removed from ${p.semanticModel.name}`, {});

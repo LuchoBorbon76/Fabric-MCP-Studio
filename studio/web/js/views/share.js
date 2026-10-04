@@ -52,8 +52,11 @@ function teamsCard(p) {
 function clientsCard(p) {
   const ont = p.ontology ? ' -IncludeOntology' : '';
   const clients = [
-    ['GitHub Copilot in VS Code', `.\\scripts\\setup.ps1 -Client vscode${ont}`],
-    ['GitHub Copilot CLI', `.\\scripts\\setup.ps1 -Client copilot-cli${ont}`],
+    // GitHub Copilot is for developers (developer mode).
+    ...(store.settings?.developer ? [
+      ['GitHub Copilot in VS Code', `.\\scripts\\setup.ps1 -Client vscode${ont}`],
+      ['GitHub Copilot CLI', `.\\scripts\\setup.ps1 -Client copilot-cli${ont}`],
+    ] : []),
     ['Claude Code', `.\\scripts\\setup.ps1 -Client claude-code${ont}`],
     ['Cursor', `.\\scripts\\setup.ps1 -Client cursor${ont}`],
   ];

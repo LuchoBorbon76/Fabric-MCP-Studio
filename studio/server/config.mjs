@@ -66,6 +66,15 @@ export function writeJson(path, data) {
 
 const SETTINGS_FILE = join(DATA_DIR, 'settings.json');
 
+/**
+ * Developer mode: GitHub Copilot (sign-in with GitHub, Copilot models) is for the people who build the studio, not for
+ * business users. Turn it on with the STUDIO_DEVELOPER=1 environment variable or an empty "developer" file in the
+ * studio's data folder. Everyone else uses Azure AI Foundry / Azure OpenAI, OpenAI, Anthropic or a local model.
+ */
+export function isDeveloper() {
+  return /^(1|true|yes|on)$/i.test(String(process.env.STUDIO_DEVELOPER || '')) || existsSync(join(DATA_DIR, 'developer'));
+}
+
 export const DEFAULT_SETTINGS = {
   theme: '',
   approvalMode: 'ask',              // ask | auto | readonly
@@ -81,11 +90,20 @@ export const DEFAULT_SETTINGS = {
 };
 
 let settingsCache = null;
+// Outside developer mode a saved GitHub Copilot provider is replaced in memory only: what was saved stays on disk until
+// the user picks another provider, so turning developer mode back on restores it.
+let providerSwap = null; // { replacement, saved }
 
 export function getSettings() {
   if (!settingsCache) {
     const saved = readJson(SETTINGS_FILE, {});
     settingsCache = deepMerge(structuredClone(DEFAULT_SETTINGS), saved);
+    // Outside developer mode GitHub Copilot isn't offered: start with Azure AI Foundry / Azure OpenAI (Entra sign-in).
+    if (settingsCache.provider?.id === 'github' && !isDeveloper()) {
+      const replacement = { id: 'azure-openai', model: '', reasoningEffort: '', config: { authMode: 'entra' } };
+      providerSwap = { replacement, saved: settingsCache.provider };
+      settingsCache.provider = replacement;
+    }
   }
   return settingsCache;
 }
@@ -96,7 +114,10 @@ const SECRET_KEYS = new Set(['apiKey', 'clientSecret', 'password']);
 export function saveSettings(patch) {
   const next = deepMerge(getSettings(), patch);
   settingsCache = next;
-  writeJson(SETTINGS_FILE, stripSecrets(next));
+  const disk = stripSecrets(next);
+  // The in-memory replacement of a GitHub provider is never written; a provider the user picks is.
+  if (providerSwap && next.provider === providerSwap.replacement && !patch?.provider) disk.provider = stripSecrets(providerSwap.saved);
+  writeJson(SETTINGS_FILE, disk);
   return next;
 }
 
@@ -114,6 +135,7 @@ export function publicSettings() {
   const s = stripSecrets(getSettings());
   const cfg = getSettings().provider.config || {};
   s.provider.hasApiKey = Boolean(cfg.apiKey || envApiKey(getSettings().provider.id));
+  s.developer = isDeveloper();
   return s;
 }
 

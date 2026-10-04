@@ -31,6 +31,8 @@ const EMPTY = {
   orgApp: null,                   // Org app bundling the reports: { id, name, theme, reports[], url, builtAt }
   realtime: null,                 // Live data: { scenario, eventhouse, database, table, eventstream, dashboard } (no endpoint keys)
   planning: null,                 // Budget and forecast: { measure, dims, planYear, spec, totals, planItem } (Plan table in the model)
+  medallionFlow: null,            // Fabric Medallion task flow over the project's items: { id, name, layers, items, url, syncedAt }
+  planStore: null,                // For a lakehouse: the planning warehouse and the PlanValues shortcut, kept as soon as they exist
   dataPrep: null,                 // Data prep notebook for a lakehouse source: { source, target, notebook, lastRun }
   dataPrepItems: [],              // Every notebook and curated lakehouse the data prep job created: [{ type, id, name, workspaceId }]
   glossary: '',

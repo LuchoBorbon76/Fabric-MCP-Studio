@@ -20,7 +20,7 @@ function disclaimerBody() {
       li('It runs on your computer and acts in Microsoft Fabric and Power BI with ', h('b', {}, 'your own sign-in and permissions'), '. It asks before every change.'),
       li('What it creates – workspaces, lakehouses, databases, semantic models, ontologies, reports, notebooks, plans, alerts and agents – lives in your tenant, runs on your Fabric capacity and may incur costs. You\'re responsible for reviewing, securing, sharing and removing it.'),
       li('AI suggestions – model designs, measures, instructions, answers – can be incomplete or wrong. Review them before you apply them or rely on them.'),
-      li('Your data stays in your tenant. Prompts, and data included in answers, go to the AI provider you choose (for example GitHub Copilot or Azure OpenAI) under that provider\'s terms.'),
+      li('Your data stays in your tenant. Prompts, and data included in answers, go to the AI provider you choose (for example Azure AI Foundry / Azure OpenAI) under that provider\'s terms.'),
       li('Some features use Microsoft Fabric preview capabilities (for example ontologies, planning, data agents and the Power BI MCP endpoints). Previews are subject to their preview terms and can change or stop working.')),
     h('h3', {}, 'Sharing this app'),
     h('ul', {},

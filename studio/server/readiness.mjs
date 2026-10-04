@@ -5,6 +5,7 @@ import { getToken, SCOPES, currentIdentity } from './auth.mjs';
 import { fabric } from './fabric.mjs';
 import { getProject } from './project.mjs';
 import { scenarioKind } from './realtime/scenarios.mjs';
+import { planStoreProblem } from './planning/store.mjs';
 
 const PBI = 'https://api.powerbi.com/v1.0/myorg';
 const TTL_MS = 2 * 60 * 1000;
@@ -186,8 +187,11 @@ export function evaluate({ project: p, capacity: cap, role, tenant: ts, platform
 
   // Data source and model capabilities.
   const ms = p.modelSource;
-  if (ms && !['SQLDatabase', 'Warehouse'].includes(ms.itemType)) {
-    put(['planning'], req('warn', `Plans are written next to your data, and ${ms.itemName} (${{ Lakehouse: 'lakehouse', MirroredDatabase: 'mirrored database' }[ms.itemType] || ms.itemType}) can't be written to yet – you can preview the plan but not build it.`, 'Use a Fabric SQL database or a warehouse (for example the AdventureWorks sample).'));
+  const planProblem = ms ? planStoreProblem(ms) : null;
+  if (planProblem) {
+    put(['planning'], req('warn', `You can preview the plan but not build it: ${ms.itemName} (${{ MirroredDatabase: 'mirrored database' }[ms.itemType] || ms.itemType}) can't hold the plan values.`, planProblem));
+  } else if (ms?.itemType === 'Lakehouse') {
+    put(['planning'], req('info', `A lakehouse's SQL endpoint is read-only, so the plan values go to a planning warehouse in the project workspace and ${ms.itemName} reads them through a OneLake shortcut.`, 'Creating the warehouse needs the Contributor role (or higher) in the project workspace.'));
   }
   if (p.realtime && scenarioKind(p) === 'generic') {
     put(['realtime'], req('info', 'Live events for your model carry names, not entity keys, so the live ontology can\'t bind them to entity types.', 'Live ontology works with the samples, or with your own events that include the entity keys.'));
@@ -239,7 +243,7 @@ const JOB_MODULE = {
   sample: 'data', mirror: 'data', shortcut: 'data', shortcuts: 'data', 'data-prep': 'data', 'semantic-model': 'model', ontology: 'ontology',
   report: 'reports', 'org-app': 'reports', realtime: 'realtime', 'realtime-setup': 'realtime', 'realtime-dashboard': 'realtime', 'realtime-ontology': 'realtime', 'realtime-alerts': 'realtime',
   medallion: 'realtime', 'medallion-remove': 'realtime',
-  planning: 'planning', 'plan-item': 'planning', 'data-agent': 'share',
+  planning: 'planning', 'plan-item': 'planning', 'data-agent': 'share', 'medallion-flow': 'workspace',
 };
 
 /**

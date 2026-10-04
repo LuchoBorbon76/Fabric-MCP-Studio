@@ -4,7 +4,7 @@ import { readFileSync, existsSync, statSync, rmSync } from 'node:fs';
 import { join, extname, normalize } from 'node:path';
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { WEB_ROOT, DATA_DIR, VERSION, BUILD, RELEASES, getSettings, saveSettings, publicSettings, readJson, writeJson, shortHash } from './config.mjs';
+import { WEB_ROOT, DATA_DIR, VERSION, BUILD, RELEASES, getSettings, saveSettings, publicSettings, readJson, writeJson, shortHash, isDeveloper } from './config.mjs';
 import { addClient, emit } from './events.mjs';
 import * as auth from './auth.mjs';
 import * as F from './fabric.mjs';
@@ -21,7 +21,8 @@ import { promptSuggestions } from './prompts.mjs';
 import { readiness, cachedReadiness, resetReadiness, assertModuleReady, assertLiveEventsAllowed } from './readiness.mjs';
 import { catalog } from './sources.mjs';
 import { getProject, updateProject, resetProject, getActivity, clearActivity, logActivity, assertProjectTenant } from './project.mjs';
-import { startJob, listJobs, getJob, cancelJob, flushRunningJobs } from './jobs.mjs';
+import { startJob, listJobs, getJob, cancelJob, flushRunningJobs, onJobSucceeded } from './jobs.mjs';
+import * as MF from './medallion-flow.mjs';
 import { health } from './health.mjs';
 import { presetSummary } from './presets.mjs';
 
@@ -122,7 +123,7 @@ const route = (method, pattern, handler) => {
 route('GET', '/api/bootstrap', async () => {
   const me = await auth.whoAmI();
   const p = getProject();
-  return { version: VERSION, build: BUILD, user: me, settings: publicSettings(), provider: A.providerSummary(), providers: A.PROVIDERS, project: p, preset: presetSummary(p), naming: N.namingState(p), catalog: catalog(), jobs: listJobs().slice(0, 20), chats: A.listChats(), approvals: A.pendingApprovals(), realtime: RT.realtimeState(), planning: PL.planningState(), readiness: cachedReadiness(), platform: process.platform };
+  return { version: VERSION, build: BUILD, user: me, settings: publicSettings(), provider: A.providerSummary(), providers: A.visibleProviders(), project: p, preset: presetSummary(p), naming: N.namingState(p), catalog: catalog(), jobs: listJobs().slice(0, 20), chats: A.listChats(), approvals: A.pendingApprovals(), realtime: RT.realtimeState(), planning: PL.planningState(), readiness: cachedReadiness(), platform: process.platform };
 });
 route('GET', '/api/health', () => health());
 route('GET', '/api/about', () => ({ version: VERSION, build: BUILD, improvements: RELEASES.improvements, fixes: RELEASES.fixes, changes: RELEASES.changes }));
@@ -147,8 +148,9 @@ route('PATCH', '/api/settings', async (_, b) => {
   return publicSettings();
 });
 
-route('GET', '/api/providers', () => ({ providers: A.PROVIDERS, current: A.providerSummary(), settings: publicSettings().provider }));
+route('GET', '/api/providers', () => ({ providers: A.visibleProviders(), current: A.providerSummary(), settings: publicSettings().provider }));
 route('PUT', '/api/providers', async (_, b) => {
+  if (b.id && !A.visibleProviders().some((x) => x.id === b.id)) throw Object.assign(new Error(b.id === 'github' ? 'GitHub Copilot is only available in developer mode. Choose Azure AI Foundry / Azure OpenAI or another provider.' : `Unknown AI provider "${b.id}".`), { status: 400 });
   const s = getSettings();
   const cur = s.provider;
   const config = { ...(cur.id === b.id ? cur.config : {}), ...(b.config || {}) };
@@ -162,8 +164,10 @@ route('PUT', '/api/providers', async (_, b) => {
 route('POST', '/api/providers/test', () => A.testProvider());
 route('GET', '/api/copilot/status', () => A.copilotStatus());
 route('GET', '/api/copilot/models', () => A.listModels());
-route('POST', '/api/copilot/token', async (_, b) => { A.setGitHubToken(String(b.token || '').trim()); return A.copilotStatus(); });
-route('POST', '/api/copilot/login', () => startJob('github-login', 'Sign in to GitHub', (ctx) => new Promise((resolveP, reject) => {
+// GitHub sign-in is for developer mode only.
+const developerOnly = () => { if (!isDeveloper()) throw Object.assign(new Error('GitHub Copilot is only available in developer mode.'), { status: 403 }); };
+route('POST', '/api/copilot/token', async (_, b) => { developerOnly(); A.setGitHubToken(String(b.token || '').trim()); return A.copilotStatus(); });
+route('POST', '/api/copilot/login', () => developerOnly() || startJob('github-login', 'Sign in to GitHub', (ctx) => new Promise((resolveP, reject) => {
   ctx.step('Follow the browser prompt and enter the one-time code shown below');
   const child = spawn('gh', ['auth', 'login', '--hostname', 'github.com', '--web', '--git-protocol', 'https', '--skip-ssh-key'], { shell: process.platform === 'win32', windowsHide: true });
   const onData = (d) => String(d).split(/\r?\n/).filter(Boolean).forEach((l) => ctx.log(l));
@@ -248,6 +252,11 @@ route('POST', '/api/realtime/medallion/preview', (_, b) => RT.medallionPreview(b
 route('POST', '/api/jobs/medallion', (_, b) => startJob('medallion', 'Apply the medallion layers (Bronze, Silver, Gold)', (ctx) => RT.runMedallion(ctx, { bronzeDays: b.bronzeDays, silverDays: b.silverDays, goldDays: b.goldDays, oneLake: b.oneLake })));
 route('POST', '/api/jobs/medallion-remove', (_, b) => startJob('medallion-remove', 'Remove the medallion layers', (ctx) => RT.removeMedallion(ctx, { deleteItems: b.deleteItems !== false })));
 route('POST', '/api/realtime/taskflow/sync', async () => { await assertProjectTenant(); return (await RT.syncTaskFlow()) || { ok: false, error: RT.realtimeState().setup?.medallion?.taskFlowError || 'Apply the medallion layers first.' }; });
+// Fabric's Medallion task flow over the project's items (Bronze, Silver, Gold).
+route('GET', '/api/medallion-flow', () => MF.medallionFlowState());
+route('POST', '/api/jobs/medallion-flow', () => startJob('medallion-flow', 'Apply the Medallion task flow', (ctx) => MF.runMedallionTaskFlow(ctx)));
+route('DELETE', '/api/medallion-flow', () => MF.removeMedallionTaskFlow());
+onJobSucceeded((j) => { if (MF.SYNC_KINDS.has(j.kind)) MF.syncMedallionTaskFlow().catch(() => {}); });
 route('GET', '/api/planning', () => PL.planningState());
 route('GET', '/api/readiness', (_, __, q) => readiness({ refresh: q.get('refresh') === '1' }));
 route('POST', '/api/planning/preview', (_, b) => PL.planPreview(PL.planOptions(b)));

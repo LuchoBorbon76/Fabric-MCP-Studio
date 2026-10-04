@@ -2,6 +2,7 @@ import { store, get, post, on } from '../api.js';
 import { h, toast, busy, field, input, select, seg, fmtNum } from '../ui.js';
 import { app, copilotSlot } from '../app.js';
 import { naming, namingCard, standardName } from '../naming.js';
+import { medallionFlowCard } from '../medallionflow.js';
 
 let mode = 'new';
 let wsPurpose = 'Analytics';
@@ -14,7 +15,9 @@ export function renderWorkspace(el) {
   const p = store.project || {};
   if (p.workspace) el.append(currentCard(p));
   // The naming standard comes first: a new workspace's name depends on it.
-  el.append(namingCard({ compact: true }));
+  const nc = namingCard({ compact: true });
+  if (nc) el.append(nc);
+  if (p.workspace) el.append(medallionFlowCard());
 
   const body = h('div');
   const card = h('div', { class: 'card' },

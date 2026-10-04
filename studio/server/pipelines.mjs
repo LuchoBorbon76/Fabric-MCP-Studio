@@ -49,7 +49,7 @@ export async function selectWorkspace({ workspaceId, name, capacityId, descripti
   const prev = getProject().workspace;
   const workspace = { id: ws.id, name: ws.displayName, capacityId: ws.capacityId, created: created || (prev?.id === ws.id && prev.created) };
   // Naming guessed for the previous workspace (from its name or a sample) doesn't carry over; a confirmed one does.
-  const reset = prev?.id !== ws.id ? { lakehouse: null, sqlDatabase: null, modelSource: null, semanticModel: null, ontology: null, source: null, dataPrep: null, dataPrepItems: [], dataAgent: null, dataAgentProposal: null, ...(getProject().naming?.inferred ? { naming: null } : {}) } : {};
+  const reset = prev?.id !== ws.id ? { lakehouse: null, sqlDatabase: null, modelSource: null, semanticModel: null, ontology: null, source: null, dataPrep: null, dataPrepItems: [], dataAgent: null, dataAgentProposal: null, medallionFlow: null, planStore: null, ...(getProject().naming?.inferred ? { naming: null } : {}) } : {};
   updateProject({ workspace, ...reset });
   // A workspace that already follows the standard tells the domain and environment until the user chooses.
   const parsed = parseName(ws.displayName);
@@ -609,6 +609,7 @@ function teardownItems(p) {
     ['DataAgent', 'Fabric data agent', p.dataAgent],
     ...(p.reports || []).map((r) => ['Report', 'Report', r]),
     ['Plan', 'Fabric plan', p.planning?.planItem],
+    ['Warehouse', 'Planning warehouse (plan values)', [p.planning?.target?.warehouse, p.planStore?.warehouse].find((w) => w?.created) || null],
     ['Reflex', 'Activator alerts', p.realtime?.alerts],
     ['KQLDashboard', 'Real-Time Dashboard', p.realtime?.dashboard],
     ['SemanticModel', 'Gold semantic model (medallion)', med.goldModel],
@@ -638,6 +639,7 @@ export function teardownPlan({ deleteWorkspace = false } = {}) {
     deleteWorkspace: Boolean(deleteWorkspace && workspace.created),
     items,
     taskFlow: p.realtime?.medallion?.taskFlow ? { name: p.realtime.medallion.taskFlow.name } : null,
+    taskFlows: [p.realtime?.medallion?.taskFlow, p.medallionFlow].filter((x) => x?.id).map((x) => ({ name: x.name })),
     ontologyCompanions: Boolean(p.ontology?.id),
     liveEvents: Boolean(p.realtime),
   };
@@ -647,12 +649,18 @@ export async function runTeardown(ctx, { deleteWorkspace = false } = {}) {
   const p = getProject();
   discoveryCache = { key: null, at: 0, data: null };
   resetProfileCache();
+  // A lakehouse the studio doesn't delete (for example one used in place in another workspace) keeps no shortcut to
+  // the planning warehouse that goes now – in both clean-up paths.
+  const pt = p.planning?.target?.kind === 'Lakehouse' ? p.planning.target : p.planStore?.shortcut ? p.planStore : null;
+  if (p.workspace && pt?.shortcut && pt.lakehouse && pt.lakehouse.id !== p.lakehouse?.id) {
+    try { await F.fabric('DELETE', `/workspaces/${pt.lakehouse.workspaceId}/items/${pt.lakehouse.id}/shortcuts/${pt.shortcut.path}/${pt.shortcut.name}`); ctx.log(`Deleted the plan shortcut in ${pt.lakehouse.name}`); } catch (e) { if (e.status !== 404) ctx.log(`Could not delete the plan shortcut in ${pt.lakehouse.name}: ${e.message}`); }
+  }
   if (deleteWorkspace && p.workspace?.created) {
     stopSimulator('clean up');
     ctx.step(`Delete workspace ${p.workspace.name}`);
     await F.deleteWorkspace(p.workspace.id);
     // Everything lived in that workspace; keep only the glossary for the next project.
-    updateProject({ workspace: null, lakehouse: null, sqlDatabase: null, source: null, modelSource: null, modelProposal: null, reportProposal: null, dataAgentProposal: null, dataAgent: null, semanticModel: null, ontology: null, reports: [], orgApp: null, teamsAgent: null, scenario: null, realtime: null, planning: null, dataPrep: null, dataPrepItems: [], tenant: null, steps: {} });
+    updateProject({ workspace: null, lakehouse: null, sqlDatabase: null, source: null, modelSource: null, modelProposal: null, reportProposal: null, dataAgentProposal: null, dataAgent: null, semanticModel: null, ontology: null, reports: [], orgApp: null, teamsAgent: null, scenario: null, realtime: null, planning: null, medallionFlow: null, planStore: null, dataPrep: null, dataPrepItems: [], tenant: null, steps: {} });
     clearDataPrepFiles();
   } else if (p.workspace) {
     ctx.step('Delete items created by the studio');
@@ -660,6 +668,10 @@ export async function runTeardown(ctx, { deleteWorkspace = false } = {}) {
     const tf = p.realtime?.medallion?.taskFlow;
     if (tf?.id) {
       try { ctx.log((await deleteTaskFlow(p.workspace.id, tf.id)) ? `Deleted task flow "${tf.name}"` : `Task flow "${tf.name}" was already deleted`); } catch (e) { ctx.log(`Could not delete task flow "${tf.name}": ${e.message}`); }
+    }
+    const mf = p.medallionFlow;
+    if (mf?.id) {
+      try { ctx.log((await deleteTaskFlow(p.workspace.id, mf.id)) ? `Deleted task flow "${mf.name}"` : `Task flow "${mf.name}" was already deleted`); } catch (e) { ctx.log(`Could not delete task flow "${mf.name}": ${e.message}`); }
     }
     for (const it of teardownItems(p)) {
       if (it.type === 'MirroredDatabase') { try { await F.stopMirroring(p.workspace.id, it.id); } catch { /* already stopped */ } }
@@ -677,7 +689,7 @@ export async function runTeardown(ctx, { deleteWorkspace = false } = {}) {
       }
     }
     // The project starts empty again: the workspace itself stays in Fabric, but the studio no longer points to it.
-    updateProject({ workspace: null, lakehouse: null, sqlDatabase: null, source: null, modelSource: null, modelProposal: null, reportProposal: null, dataAgentProposal: null, dataAgent: null, semanticModel: null, ontology: null, reports: [], orgApp: null, teamsAgent: null, scenario: null, realtime: null, planning: null, dataPrep: null, dataPrepItems: [], tenant: null, steps: {} });
+    updateProject({ workspace: null, lakehouse: null, sqlDatabase: null, source: null, modelSource: null, modelProposal: null, reportProposal: null, dataAgentProposal: null, dataAgent: null, semanticModel: null, ontology: null, reports: [], orgApp: null, teamsAgent: null, scenario: null, realtime: null, planning: null, medallionFlow: null, planStore: null, dataPrep: null, dataPrepItems: [], tenant: null, steps: {} });
     clearDataPrepFiles();
     ctx.log(`The project is empty again – ${p.workspace.name} stays in Fabric; choose a workspace to start a new one`);
   }

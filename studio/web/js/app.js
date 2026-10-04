@@ -34,7 +34,7 @@ export const STEPS = [
 
 export function stepStatus(project, store) {
   const s = {};
-  s.ai = store.health?.checks?.find((c) => c.id === 'copilot')?.status === 'ok' || store.provider?.id !== 'github' ? 'done' : 'todo';
+  s.ai = store.health?.checks?.find((c) => c.id === 'copilot')?.status === 'ok' ? 'done' : 'todo';
   s.workspace = project?.workspace ? 'done' : 'todo';
   s.data = project?.modelSource ? 'done' : 'todo';
   s.model = project?.semanticModel ? 'done' : 'todo';
