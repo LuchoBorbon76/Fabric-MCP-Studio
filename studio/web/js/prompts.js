@@ -13,7 +13,7 @@ let pending = null;
 // What changes the suggestions: a new source, model, report, ontology, live data, plan or data prep run.
 const projectKey = (p) => [p?.workspace?.id, p?.modelSource?.itemId, p?.semanticModel?.id, p?.semanticModel?.measures, p?.semanticModel?.tables,
   (p?.reports || []).map((r) => r.id).join(','), p?.ontology?.id, Boolean(p?.realtime), Boolean(p?.realtime?.medallion), Boolean(p?.realtime?.dashboard),
-  p?.planning?.planYear, p?.dataPrep?.lastRun?.status, Boolean(p?.orgApp), Boolean(p?.teamsAgent)].join('|');
+  p?.planning?.planYear, p?.dataPrep?.lastRun?.status, Boolean(p?.orgApp), Boolean(p?.teamsAgent), Boolean(p?.dataAgent)].join('|');
 
 /** Fetch the suggestions again when the project changed in a way that affects them. */
 export function loadPrompts({ force = false } = {}) {

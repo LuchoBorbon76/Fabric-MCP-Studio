@@ -132,8 +132,9 @@ Ontology is in preview; the Ontology MCP endpoint (used by agents) needs a paid 
    forecast rows go to `planning.PlanValues`, and the semantic model gets a Plan table with budget, forecast and variance
    measures. *Plan vs actual* then shows actual, budget to date, variance and forecast through the model.
 3. **Plan vs actual report** › *Build report*: one Power BI page with KPIs, the monthly trend and the variance by region.
-4. **Plan in Fabric** › *Create the Fabric plan*, then *Open plan*: New Planning Sheet with rows *Region › Category*,
-   columns *Year › Month* and values *Budget, Forecast, Actual*.
+4. **Plan in Fabric** › *Create the Fabric plan*, then *Open plan*: select *Semantic Model* › *Create Connection*, sign
+   in with an account that is Contributor or higher in the workspace and pick the model; then New Planning Sheet with
+   rows *Region › Category*, columns *Year › Month* and values *Budget, Forecast, Actual*.
 
 > Ask Copilot: *Are we on plan?* Copilot reads the Plan measures through the model and explains where actual is ahead
 > of or behind budget, and what the forecast says for the year.
@@ -150,7 +151,8 @@ Ontology is in preview; the Ontology MCP endpoint (used by agents) needs a paid 
   explore the data) and use your model's own measures, dimensions and years; each page shows the ones that fit it.
 - **Microsoft 365 Copilot & Teams** – *Install for me* adds the agent for you; *Publish to my organization* submits it for admin approval.
 - **Other AI clients** – copy the `setup.ps1` command for VS Code, Copilot CLI, Claude Code or Cursor.
-- **Fabric data agent** – let Copilot create one grounded in your model.
+- **Fabric data agent** – *Create data agent*, or *Suggest it with Copilot* and **Apply suggestions** to review and
+  edit the instructions first. The studio creates and publishes the agent on your semantic model.
 - **Export** – project and audit log as JSON.
 
 ### Sample questions (Contoso Retail)

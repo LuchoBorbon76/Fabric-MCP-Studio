@@ -2,6 +2,7 @@
 // The studio derives a budget and a rolling forecast from the actuals, writes them next to the data, adds a "Plan" table
 // with variance measures to the model, and creates the Fabric plan item where planners refine the numbers.
 import * as F from '../fabric.mjs';
+import { sleep } from '../config.mjs';
 import { getProject, updateProject, setStep, recordArtifact, logActivity, fabricUrl } from '../project.mjs';
 import { dax, refreshDataset } from '../powerbi.mjs';
 import { currentProfile, resetProfileCache } from '../reports/index.mjs';
@@ -177,51 +178,94 @@ export function reapplyPlan(files, p = getProject()) {
   try { return applyPlanToModel(files, p.planning.spec); } catch { return files; }
 }
 
+/** Shared Power BI semantic model connections the plan can use (Fabric planning reads the model through one). */
+export async function planConnections() {
+  const p = requireModel();
+  const list = (await F.listConnections().catch(() => [])).filter((c) => c.type === 'PowerBIDatasets' && c.connectivityType === 'ShareableCloud');
+  return { workspace: p.workspace.name, current: p.planning?.planItem?.connectionId || null, connections: list.map((c) => ({ id: c.id, name: c.name, credentialType: c.credentialType || null })) };
+}
+
 /**
- * Create (or update) the Fabric plan item. When a Power BI semantic model connection (shared cloud connection) exists,
- * the plan is connected to the model right away; otherwise Fabric asks for the connection when the plan opens.
+ * Create (or check) the Fabric plan item.
+ * Fabric keeps a plan's semantic model and connection once the plan exists – later definition updates don't change
+ * them. So a plan that points to a model that no longer exists, or that should use another connection, is recreated
+ * (only while it has no sheets, so no planner's work is lost).
+ * connection: undefined keeps what the plan uses (a new plan gets no connection: when it opens, Fabric asks the
+ * planner to choose or create one and sign in with their own account); 'fabric' recreates the plan without a
+ * connection; a connection ID recreates it bound to that shared connection. A shared connection reads the model with
+ * the sign-in saved in it, so the studio never picks one on its own: that sign-in may not reach this workspace.
  */
-export async function runPlanItem(ctx, { name } = {}) {
+export async function runPlanItem(ctx, { name, connection } = {}) {
   const p = requireModel();
   const ws = p.workspace;
   if (!p.planning) throw new Error('Build the plan first – the plan item uses its Budget and Forecast measures.');
   const itemName = F.itemName('Plan', name || p.planning.planItem?.name || `${p.semanticModel.name}_Plan`, 'Plan');
-  ctx.step('Look for a semantic model connection');
+  ctx.step('Check the plan and the semantic model connections');
   const conns = (await F.listConnections().catch(() => [])).filter((c) => c.type === 'PowerBIDatasets' && c.connectivityType === 'ShareableCloud');
-  let conn = conns[0] || null;
+  if (connection && connection !== 'fabric' && !conns.some((c) => c.id === connection)) {
+    throw new Error('That semantic model connection was not found (or you can\'t use it). Pick another one, or let Fabric ask when the plan opens.');
+  }
   ctx.progress(25);
 
   let item = p.planning.planItem?.id ? await F.getItem(ws.id, p.planning.planItem.id).catch(() => null) : null;
   item ||= await F.findItem(ws.id, 'Plan', itemName);
   let existing = null;
   if (item) {
-    const cur = await F.getDefinition(ws.id, item.id).catch(() => null);
+    // Never decide to delete or recreate a plan without reading its definition (and sheet count) first.
+    let cur;
+    try { cur = await F.getDefinition(ws.id, item.id); } catch (e) { throw new Error(`Couldn't read the plan "${item.displayName}" in Fabric (${e.message}). Nothing was changed – try again in a moment.`); }
     const json = cur?.parts?.find((x) => x.path === 'definition.json');
-    existing = json ? JSON.parse(Buffer.from(json.payload, 'base64').toString('utf8')) : null;
-    // Keep the connection the plan already uses (planners may have chosen it in Fabric).
-    const used = existing?.semanticModelReference?.connectionId;
-    if (used) conn = conns.find((c) => c.id === used) || { id: used, name: 'the connection chosen in Fabric' };
+    if (!json) throw new Error(`The plan "${item.displayName}" has no readable definition, so the studio left it unchanged. Open it in Fabric to check it.`);
+    existing = JSON.parse(Buffer.from(json.payload, 'base64').toString('utf8'));
   }
-  ctx.log(conn ? `Using the connection "${conn.name}"` : 'No shared semantic model connection yet – you choose or create one when the plan opens');
+  const ref = existing?.semanticModelReference || null;
+  const stale = Boolean(ref?.semanticModelId && (ref.semanticModelId !== p.semanticModel.id || ref.semanticModelWorkspaceId !== ws.id));
+  const wanted = connection === undefined ? undefined : connection === 'fabric' ? null : connection;
+  const changeConn = wanted !== undefined && (wanted || null) !== (ref?.connectionId || null);
 
-  const def = {
-    $schema: PLAN_SCHEMA_URL, workloadItemName: itemName, sheets: [], cube: { partitionRefIds: [] },
-    ...(conn ? { semanticModelReference: { connectionId: conn.id, semanticModelId: p.semanticModel.id, semanticModelName: p.semanticModel.name, semanticModelWorkspaceId: ws.id, semanticModelWorkspaceName: ws.name, directLakeMode: false, directQueryMode: false, sourceType: 'WORKLOAD' } } : {}),
-  };
-  ctx.step(`${item ? 'Update' : 'Create'} the plan "${itemName}"`);
-  if (item) {
-    if (conn && existing?.semanticModelReference?.semanticModelId !== p.semanticModel.id) {
-      await F.updateDefinition(ws.id, item.id, F.toParts({ 'definition.json': { ...(existing || {}), ...def, sheets: existing?.sheets || [] } }));
-      ctx.log(`Connected the plan to ${p.semanticModel.name}`);
-    } else ctx.log('The plan already exists');
-  } else {
-    item = await F.createItem(ws.id, { name: itemName, type: 'Plan', description: `Budget and forecast planning on ${p.semanticModel.name}, prepared by Fabric MCP Studio.`, definition: F.toParts({ 'definition.json': def }) });
-    recordArtifact({ type: 'Plan', id: item.id, name: itemName, workspaceId: ws.id, url: planItemUrl(ws.id, item.id) });
-    ctx.log('Fabric also keeps the plan\'s settings in a shared SQL database in the workspace (__fabric_plan_sys)');
+  if (item && (stale || changeConn)) {
+    const why = stale ? `it points to "${ref.semanticModelName}" (${ref.semanticModelWorkspaceName}), which is not the project's model any more` : 'Fabric keeps a plan\'s connection once the plan exists';
+    const sheets = existing?.sheets?.length || 0;
+    if (sheets) {
+      throw new Error(`The plan "${item.displayName}" has ${sheets} sheet${sheets === 1 ? '' : 's'}, so the studio won't recreate it (${why}). Open the plan and select Manage Semantic Model Connection to point it at ${p.semanticModel.name}.`);
+    }
+    ctx.log(`Recreating the plan: ${why}. It has no sheets yet, so nothing is lost.`);
+    await F.deleteItem(ws.id, item.id).catch((e) => { if (e.status !== 404) throw e; });
+    updateProject({ planning: { ...getProject().planning, planItem: null } });
+    item = null;
   }
-  const planItem = { id: item.id, name: itemName, url: planItemUrl(ws.id, item.id), connected: Boolean(conn), connectionName: conn?.name || null, createdAt: p.planning.planItem?.createdAt || new Date().toISOString() };
+
+  const connId = item ? ref?.connectionId || null : wanted ?? null;
+  const conn = connId ? conns.find((c) => c.id === connId) || { id: connId, name: 'the connection chosen in Fabric' } : null;
+  let boundModel = item ? ref?.semanticModelId || null : null;
+  let finalName = item?.displayName || itemName;
+  if (!item) {
+    ctx.step(`Create the plan "${itemName}"`);
+    const def = (n) => ({
+      $schema: PLAN_SCHEMA_URL, workloadItemName: n, sheets: [], cube: { partitionRefIds: [] },
+      ...(conn ? { semanticModelReference: { connectionId: conn.id, semanticModelId: p.semanticModel.id, semanticModelName: p.semanticModel.name, semanticModelWorkspaceId: ws.id, semanticModelWorkspaceName: ws.name, directLakeMode: false, directQueryMode: false, sourceType: 'WORKLOAD' } } : {}),
+    });
+    const create = (n) => F.createItem(ws.id, { name: n, type: 'Plan', description: `Budget and forecast planning on ${p.semanticModel.name}, prepared by Fabric MCP Studio.`, definition: F.toParts({ 'definition.json': def(n) }) });
+    const nameTaken = (e) => e.status === 409 || /already in use|not available yet|NameAlreadyInUse|NotAvailableYet/i.test(e.message);
+    for (let attempt = 1; ; attempt++) {
+      try { item = await create(finalName); break; } catch (e) {
+        if (!nameTaken(e) || attempt >= 8) throw e;
+        // A deleted plan's name is released a few minutes later: wait a little, then use the next free name.
+        if (attempt < 3) { ctx.log(`Waiting for Fabric to release the name "${finalName}"…`); await sleep(15000); } else finalName = `${itemName}_${attempt - 1}`;
+      }
+    }
+    if (finalName !== itemName) ctx.log(`Fabric hasn't released "${itemName}" yet, so the plan is called "${finalName}"`);
+    recordArtifact({ type: 'Plan', id: item.id, name: finalName, workspaceId: ws.id, url: planItemUrl(ws.id, item.id) });
+    boundModel = conn ? p.semanticModel.id : null;
+    ctx.log(conn ? `Connected to ${p.semanticModel.name} through "${conn.name}" – the plan reads the model with the sign-in saved in that connection` : `No connection yet: when the plan opens, choose or create one and sign in with an account that can open ${p.semanticModel.name}`);
+    ctx.log('Fabric keeps the plan\'s settings in a shared SQL database in the workspace (__fabric_plan_sys)');
+  } else {
+    ctx.log(conn ? `The plan reads ${p.semanticModel.name} through "${conn.name}"` : 'The plan has no connection yet – Fabric asks for one when it opens');
+  }
+  ctx.progress(90);
+  const planItem = { id: item.id, name: finalName, url: planItemUrl(ws.id, item.id), semanticModelId: boundModel, connected: Boolean(conn), connectionId: conn?.id || null, connectionName: conn?.name || null, createdAt: item.id === p.planning.planItem?.id ? p.planning.planItem.createdAt : new Date().toISOString() };
   updateProject({ planning: { ...getProject().planning, planItem } });
-  logActivity('planning.item', `Plan item "${itemName}" ${conn ? `connected to ${p.semanticModel.name}` : 'created'}`, {});
+  logActivity('planning.item', `Plan item "${finalName}" ${conn ? `connected to ${p.semanticModel.name} through "${conn.name}"` : 'ready – Fabric asks for the connection when it opens'}`, {});
   return planItem;
 }
 

@@ -4,6 +4,7 @@ import { h, $, toast, esc, SERVER_LABEL } from './ui.js';
 import { md } from './md.js';
 import { applyModelProposal, proposalCounts } from './views/model.js';
 import { applyReportProposal, reportProposalText } from './views/reports.js';
+import { applyDataAgentProposal, dataAgentProposalText } from './views/share.js';
 
 let root;               // component root element
 let msgsEl, inputEl, sendBtn, titleEl, providerEl, modelSel, histSel, closeBtn, footEl;
@@ -147,6 +148,7 @@ function prettyResult(r) {
 const PROPOSALS = {
   'semantic-model': { key: 'modelProposal', title: 'Semantic model design ready', text: (pr) => proposalCounts(pr), apply: (pr) => applyModelProposal(pr), hint: 'Review it, then create it in one click.' },
   report: { key: 'reportProposal', title: 'Power BI report ready to build', text: (pr) => reportProposalText(pr), apply: (pr) => applyReportProposal(pr), hint: 'Review it, then build it in one click.' },
+  'data-agent': { key: 'dataAgentProposal', title: 'Fabric data agent ready to create', text: (pr) => dataAgentProposalText(pr), apply: (pr) => applyDataAgentProposal(pr), hint: 'Review the instructions, then create it in one click.' },
 };
 const kindOf = (pr) => (PROPOSALS[pr?.kind] ? pr.kind : 'semantic-model');
 const currentOf = (kind) => store.project?.[PROPOSALS[kind].key] || null;

@@ -15,6 +15,7 @@ import * as APPS from './reports/apps.mjs';
 import * as RT from './realtime/index.mjs';
 import * as PL from './planning/index.mjs';
 import * as DP from './dataprep.mjs';
+import * as DA from './dataagent.mjs';
 import { promptSuggestions } from './prompts.mjs';
 import { readiness, cachedReadiness, resetReadiness, assertModuleReady, assertLiveEventsAllowed } from './readiness.mjs';
 import { catalog } from './sources.mjs';
@@ -197,6 +198,9 @@ route('GET', '/api/model/describe', (_, __, q) => P.describeModelSource({ refres
 route('GET', '/api/ontology/preview', () => P.ontologyPreview());
 route('GET', '/api/data-prep', () => DP.dataPrepState());
 route('GET', '/api/prompts', () => promptSuggestions());
+route('GET', '/api/data-agent', () => DA.dataAgentState());
+route('POST', '/api/jobs/data-agent', (_, b) => startJob('data-agent', `${getProject().dataAgent?.id ? 'Update' : 'Create'} the Fabric data agent`, (ctx) => DA.runDataAgent(ctx, { name: b.name, instructions: b.instructions, description: b.description, publish: b.publish !== false, proposalId: b.proposalId })));
+route('DELETE', '/api/data-agent', (_, __, q) => DA.removeDataAgent({ deleteItem: q.get('delete') === '1' }));
 route('POST', '/api/jobs/data-prep', (_, b) => startJob('data-prep', b.run === false ? 'Create the data prep notebook' : 'Create and run the data prep notebook', (ctx) => DP.runDataPrep(ctx, { run: b.run !== false, target: b.target === 'same' ? 'same' : 'new' })));
 route('POST', '/api/data-prep/refresh', () => DP.refreshDataPrep());
 route('DELETE', '/api/data-prep', (_, __, q) => DP.removeDataPrep({ deleteItems: q.get('delete') === '1' }));
@@ -237,7 +241,8 @@ route('GET', '/api/readiness', (_, __, q) => readiness({ refresh: q.get('refresh
 route('POST', '/api/planning/preview', (_, b) => PL.planPreview(PL.planOptions(b)));
 route('GET', '/api/planning/summary', () => PL.planSummary());
 route('POST', '/api/jobs/planning', (_, b) => startJob('planning', 'Build the budget and forecast', (ctx) => PL.runPlan(ctx, PL.planOptions(b))));
-route('POST', '/api/jobs/plan-item', (_, b) => startJob('plan-item', 'Create the Fabric plan', (ctx) => PL.runPlanItem(ctx, { name: b.name })));
+route('POST', '/api/jobs/plan-item', (_, b) => startJob('plan-item', b.connection ? 'Change the Fabric plan connection' : 'Create the Fabric plan', (ctx) => PL.runPlanItem(ctx, { name: b.name, connection: typeof b.connection === 'string' && b.connection ? b.connection : undefined })));
+route('GET', '/api/planning/connections', () => PL.planConnections());
 route('DELETE', '/api/planning', async (_, __, q) => { await assertProjectTenant(); return PL.removePlan({ deleteData: q.get('data') === '1', deleteItem: q.get('item') === '1' }); });
 route('DELETE', '/api/reports/:id', (p, _, q) => R.removeReport(p.id, { deleteItem: q.get('delete') === '1' }));
 route('GET', '/api/teardown/plan', (_, __, q) => P.teardownPlan({ deleteWorkspace: q.get('workspace') === '1' }));

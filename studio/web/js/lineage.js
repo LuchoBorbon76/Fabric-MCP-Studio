@@ -75,12 +75,12 @@ const JOB_NODES = {
   sample: ['source', 'data'], mirror: ['source', 'data'], shortcut: ['source', 'data'], 'semantic-model': ['model'], ontology: ['ontology'],
   report: ['reports'], 'org-app': ['orgapp'], realtime: ['events', 'eventstream', 'eventhouse'], 'realtime-dashboard': ['dashboard'],
   'realtime-ontology': ['ontology'], 'realtime-alerts': ['alerts'], planning: ['planning'], 'plan-item': ['planitem'], 'teams-agent': ['agent'],
-  medallion: ['eventhouse'], 'medallion-remove': ['eventhouse'], 'data-prep': ['data'],
+  medallion: ['eventhouse'], 'medallion-remove': ['eventhouse'], 'data-prep': ['data'], 'data-agent': ['answers'],
 };
 
 const ITEM = { Lakehouse: 'Lakehouse', Warehouse: 'Warehouse', MirroredDatabase: 'Mirrored database', SQLDatabase: 'SQL database' };
 const ITEM_ICON = { Lakehouse: 'lake', Warehouse: 'warehouse', MirroredDatabase: 'mirror', SQLDatabase: 'database' };
-const ITEM_PATH = { Lakehouse: 'lakehouses', Warehouse: 'warehouses', MirroredDatabase: 'mirroreddatabases', SQLDatabase: 'sqldatabases', SemanticModel: 'datasets', Ontology: 'ontologies', Eventhouse: 'eventhouses', Eventstream: 'eventstreams', Notebook: 'synapsenotebooks' };
+const ITEM_PATH = { Lakehouse: 'lakehouses', Warehouse: 'warehouses', MirroredDatabase: 'mirroreddatabases', SQLDatabase: 'sqldatabases', SemanticModel: 'datasets', Ontology: 'ontologies', Eventhouse: 'eventhouses', Eventstream: 'eventstreams', Notebook: 'synapsenotebooks', DataAgent: 'aiskills' };
 const METHOD = { files: 'Loaded', 'sql-database': 'Loaded', mirror: 'Mirroring', shortcut: 'Shortcuts', 'in-place': 'In place' };
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -159,7 +159,7 @@ function describe(id, s) {
     }
     case 'answers':
       if (!sm) return { done: false, avail: false, needs: 'Needs the semantic model', title: 'Not available', sub: 'Fabric IQ' };
-      return { done: true, title: 'Fabric IQ', sub: ont ? 'Model and ontology' : 'Semantic model', facts: [['Grounded in', `${sm.name}${ont ? ` and ${ont.name}` : ''}`], ['Security', 'Each person\'s permissions and row-level security']] };
+      return { done: true, title: 'Fabric IQ', sub: ont ? 'Model and ontology' : 'Semantic model', facts: [['Grounded in', `${sm.name}${ont ? ` and ${ont.name}` : ''}`], ['Security', 'Each person\'s permissions and row-level security'], ['Fabric data agent', p.dataAgent ? `${p.dataAgent.name}${p.dataAgent.published ? ' (published)' : ' (draft)'}` : 'Not created – Ask & share', p.dataAgent ? fabricItemUrl('DataAgent', p.dataAgent.workspaceId, p.dataAgent.id) : null]] };
     case 'agent':
       if (!p.teamsAgent) return { done: false, avail: Boolean(sm), needs: 'Needs the semantic model', title: 'Not installed', sub: 'Teams and Microsoft 365 Copilot' };
       return { done: true, title: 'Teams & Copilot', sub: p.teamsAgent.published ? 'Published to your organization' : 'Installed for you', facts: [['Installed', when(p.teamsAgent.installedAt)], ['Ontology', p.teamsAgent.includeOntology ? 'Included' : 'Not included'], ['Availability', p.teamsAgent.published ? 'Submitted to your organization' : 'You']] };

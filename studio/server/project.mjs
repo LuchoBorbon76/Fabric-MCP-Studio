@@ -22,6 +22,8 @@ const EMPTY = {
   modelSource: null,              // { itemType, itemId, itemName, workspaceId, server, endpointId, database, schema, tables[] }
   modelProposal: null,            // Copilot's suggested semantic model design, applied from the chat or the Semantic model tab
   reportProposal: null,           // Copilot's suggested report (name, theme, pages), applied from the chat or the Reports & apps tab
+  dataAgentProposal: null,        // Copilot's suggested Fabric data agent (name, instructions), applied from the chat or the Ask & share tab
+  dataAgent: null,                // Fabric data agent on the semantic model: { id, name, workspaceId, semanticModel, instructions, published }
   semanticModel: null,            // { id, name }
   ontology: null,                 // { id, name }
   reports: [],                    // Power BI reports built by the studio: [{ id, name, theme, pages[], url, builtAt, preview }]

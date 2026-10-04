@@ -239,7 +239,7 @@ const JOB_MODULE = {
   sample: 'data', mirror: 'data', shortcut: 'data', shortcuts: 'data', 'data-prep': 'data', 'semantic-model': 'model', ontology: 'ontology',
   report: 'reports', 'org-app': 'reports', realtime: 'realtime', 'realtime-setup': 'realtime', 'realtime-dashboard': 'realtime', 'realtime-ontology': 'realtime', 'realtime-alerts': 'realtime',
   medallion: 'realtime', 'medallion-remove': 'realtime',
-  planning: 'planning', 'plan-item': 'planning',
+  planning: 'planning', 'plan-item': 'planning', 'data-agent': 'share',
 };
 
 /**

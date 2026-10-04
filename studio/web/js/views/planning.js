@@ -266,28 +266,59 @@ function reportCard(s, p) {
 }
 
 // ---------------- Fabric plan ----------------
+const ASK_IN_FABRIC = 'fabric';
+
 function planItemCard(s) {
   const pl = s.plan;
   const it = pl?.planItem;
   const card = h('div', { class: 'card', style: { marginTop: 0 } });
   const job = h('div');
-  const go = h('button', { class: 'btn pri', 'data-busy': 'Starting…', disabled: !pl || undefined, title: pl ? '' : 'Build the plan first' }, it ? '↻ Check the plan' : 'Create the Fabric plan');
-  go.addEventListener('click', busy(go, async () => { await startJob('/jobs/plan-item', {}, job, 'Fabric plan ready'); }));
+  const wsName = store.project.workspace?.name || 'the workspace';
+  const model = store.project.semanticModel?.name || 'your model';
+  const me = store.user?.upn || store.user?.name || 'the account the studio uses';
+
+  // Which connection the plan reads the model with: none (Fabric asks when the plan opens) or a shared connection.
+  const connSel = select([{ value: ASK_IN_FABRIC, label: 'Choose it in Fabric when the plan opens (recommended)' }]);
+  const current = it?.connectionId || (it?.connected ? '?' : ASK_IN_FABRIC);
+  get('/planning/connections').then((r) => {
+    for (const c of r.connections) connSel.append(h('option', { value: c.id, selected: c.id === current || undefined }, `Use the shared connection "${c.name}"${c.credentialType ? ` (${c.credentialType})` : ''}`));
+    if (current === '?') connSel.append(h('option', { value: '?', selected: true, disabled: true }, `Connected through "${it.connectionName}"`));
+    sync();
+  }).catch(() => {});
+  connSel.value = current === '?' ? ASK_IN_FABRIC : current;
+
+  const go = h('button', { class: 'btn pri', 'data-busy': 'Starting…', disabled: !pl || undefined, title: pl ? (it ? 'Checks the plan in Fabric and recreates it when it points to a model that no longer exists (only while it has no sheets)' : '') : 'Build the plan first' }, it ? '↻ Check the plan' : 'Create the Fabric plan');
+  go.addEventListener('click', busy(go, async () => { await startJob('/jobs/plan-item', it ? {} : { connection: connSel.value }, job, 'Fabric plan ready'); }));
+  const change = h('button', { class: 'btn', 'data-busy': 'Updating…' }, 'Change the connection');
+  change.addEventListener('click', busy(change, async () => {
+    const ok = await confirmDialog('Change the plan\'s connection', `Fabric keeps a plan's semantic model connection once the plan exists, so the studio deletes "${it.name}" and creates it again ${connSel.value === ASK_IN_FABRIC ? 'without a connection – Fabric asks for one when you open it' : 'with the connection you picked'}. This only works while the plan has no sheets; otherwise change it in the plan (Manage Semantic Model Connection).`, 'Recreate the plan');
+    if (!ok) return;
+    await startJob('/jobs/plan-item', { connection: connSel.value }, job, connSel.value === ASK_IN_FABRIC ? 'Plan recreated – connect it when it opens' : 'Plan recreated with the new connection');
+  }));
+  const sync = () => { change.hidden = !it || connSel.value === current || connSel.value === '?'; };
+  connSel.addEventListener('change', sync);
+  sync();
+
   const dims = pl ? pl.dims.map((x) => x.labelText) : ['Region', 'Category'];
   const n = pl?.spec?.names || { budget: 'Budget', forecast: 'Forecast', actual: 'Actual' };
   put(card,
-    h('div', { class: 'row sp' }, h('h3', { style: { margin: 0 } }, '4 · Plan in Fabric'), it ? h('span', { class: `pill ${it.connected ? 'ok' : 'warn'}` }, it.connected ? 'Connected' : 'Connect in Fabric') : pl ? h('span', { class: 'pill brand' }, 'Next') : h('span', { class: 'pill' }, 'Needs the plan')),
+    h('div', { class: 'row sp' }, h('h3', { style: { margin: 0 } }, '4 · Plan in Fabric'), it ? h('span', { class: `pill ${it.connected ? 'ok' : 'warn'}` }, it.connected ? 'Connected' : 'Connect when it opens') : pl ? h('span', { class: 'pill brand' }, 'Next') : h('span', { class: 'pill' }, 'Needs the plan')),
     h('p', { class: 'small muted' }, 'Planning in Fabric IQ gives planners Excel-like planning sheets on the same model: adjust the budget, run what-if scenarios, comment, approve, and write the results back to a Fabric SQL database.'),
     it ? h('dl', { class: 'kv', style: { marginTop: '10px' } },
       h('dt', {}, 'Plan'), h('dd', {}, h('a', { href: it.url, target: '_blank', rel: 'noopener' }, it.name, ' ↗')),
-      h('dt', {}, 'Semantic model'), h('dd', {}, it.connected ? `Connected through "${it.connectionName}"` : 'Choose or create the semantic model connection when the plan opens')) : null,
+      h('dt', {}, 'Semantic model'), h('dd', {}, it.connected ? `${model} through the shared connection "${it.connectionName}" – read with the sign-in saved in that connection` : `${model} – Fabric asks for the connection when the plan opens`)) : null,
+    pl ? field('Semantic model connection', connSel, 'A shared connection reads the model with the sign-in saved in it, for everyone who opens the plan. If that account can\'t open the model, the plan says it can\'t access the semantic model.') : null,
     h('ol', { class: 'pre small', style: { marginTop: '10px' } },
-      h('li', {}, it ? 'Open the plan.' : 'Create the plan here (it is connected to your model when a semantic model connection exists).'),
-      it?.connected ? null : h('li', {}, 'Select Semantic Model › choose a connection, or Create Connection and sign in, then pick ', h('b', {}, store.project.semanticModel?.name || 'your model'), ' › Connect.'),
+      h('li', {}, it ? 'Open the plan.' : 'Create the plan here.'),
+      it?.connected ? null : h('li', {}, 'In the plan, select Semantic Model › Create Connection (or pick a connection), sign in with an account that is Contributor or higher in ', h('b', {}, wsName), ', then pick ', h('b', {}, model), ' › Connect.'),
       h('li', {}, 'New Planning Sheet › Rows: ', h('b', {}, dims.join(' › ')), ' · Columns: ', h('b', {}, 'Year › Month'), ' · Values: ', h('b', {}, `${n.budget}, ${n.forecast}, ${n.actual}`), '.'),
       h('li', {}, 'Add input rows or columns to adjust the budget; set a writeback destination to keep the planners\' numbers in a SQL database.')),
-    h('div', { class: 'row', style: { marginTop: '10px' } }, go, it ? h('a', { class: 'btn', href: it.url, target: '_blank', rel: 'noopener' }, 'Open plan ↗') : null),
-    h('p', { class: 'tiny muted' }, 'Planning needs XMLA endpoints enabled for the tenant and set to Read Only or Read Write on the capacity (F SKU or Premium). If the plan says it can\'t access the semantic model, select Manage Semantic Model Connection and sign in again with an account that can open the model.'),
+    h('div', { class: 'row', style: { marginTop: '10px' } }, go, change, it ? h('a', { class: 'btn', href: it.url, target: '_blank', rel: 'noopener' }, 'Open plan ↗') : null),
+    it?.semanticModelId && it.semanticModelId !== store.project.semanticModel?.id ? h('div', { class: 'banner err mt' }, h('div', {}, h('b', {}, 'The plan points to a semantic model that no longer exists. '),
+      `${model} was created again since the plan was made. Select Check the plan to recreate the plan on the current model.`)) : null,
+    it?.connected ? h('div', { class: 'banner warn mt' }, h('div', {}, h('b', {}, 'Plan says "Can\'t access the semantic model"? '),
+      `The sign-in saved in "${it.connectionName}" can't open ${model} in ${wsName}. Pick "Choose it in Fabric when the plan opens" above and select Change the connection, then open the plan and connect with your own sign-in – or select Manage Semantic Model Connection in the plan and sign in again.`)) : null,
+    h('p', { class: 'tiny muted' }, `The studio works as ${me}. Planners need Contributor or higher in ${wsName} (Viewers can look but not plan), and XMLA endpoints enabled for the tenant and set to Read Only or Read Write on the capacity (F SKU or Premium).`),
     job);
   return card;
 }

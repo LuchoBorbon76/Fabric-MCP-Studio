@@ -13,6 +13,7 @@ import * as APPS from './reports/apps.mjs';
 import * as RT from './realtime/index.mjs';
 import * as PL from './planning/index.mjs';
 import * as DP from './dataprep.mjs';
+import * as DA from './dataagent.mjs';
 import { readiness, cachedReadiness, assertModuleReady, assertLiveEventsAllowed } from './readiness.mjs';
 import * as F from './fabric.mjs';
 import { presetFor } from './presets.mjs';
@@ -315,6 +316,9 @@ const STUDIO_TOOLS_META = {
   studio_propose_report: { write: false, title: 'Suggest a Power BI report' },
   studio_create_report: { write: true, title: 'Create Power BI report' },
   studio_create_org_app: { write: true, title: 'Create org app' },
+  studio_data_agent_status: { write: false, title: 'Read the Fabric data agent' },
+  studio_propose_data_agent: { write: false, title: 'Suggest a Fabric data agent' },
+  studio_create_data_agent: { write: true, title: 'Create the Fabric data agent' },
   studio_deploy_ontology: { write: true, title: 'Deploy ontology' },
   studio_get_glossary: { write: false, title: 'Read business glossary' },
   studio_save_glossary: { write: false, title: 'Save business glossary' },
@@ -356,6 +360,7 @@ function projectSummary() {
     modelProposal: p.modelProposal ? { name: p.modelProposal.name, createdAt: p.modelProposal.createdAt, appliedAt: p.modelProposal.appliedAt || null } : null,
     reports: (p.reports || []).map((r) => ({ name: r.name, theme: r.theme, pages: r.pages, url: r.url })),
     orgApp: p.orgApp ? { name: p.orgApp.name, reports: p.orgApp.reports.length } : null,
+    dataAgent: p.dataAgent ? { name: p.dataAgent.name, semanticModel: p.dataAgent.semanticModel, published: p.dataAgent.published } : null,
     realtime: p.realtime ? {
       eventhouse: p.realtime.eventhouse?.name, table: p.realtime.table, eventstream: p.realtime.eventstream?.name, dashboard: p.realtime.dashboard?.name || null, rules: (p.realtime.scenario?.rules || []).map((r) => r.label),
       liveOntology: p.realtime.ontology ? p.realtime.ontology.entities.map((e) => e.entity) : null,
@@ -571,6 +576,31 @@ function studioTools(chatId) {
       }),
       handler: async (a) => runAsJob('org-app', `Create org app ${a.name || ''}`.trim(), (ctx) => APPS.runOrgApp(ctx, a)),
     }),
+    studioTool('studio_data_agent_status', {
+      description: 'Read the Fabric data agent the studio created on the semantic model (name, link, instructions, published or draft) and any pending suggestion. Read-only.',
+      parameters: obj({}),
+      handler: async () => DA.dataAgentState(),
+    }),
+    studioTool('studio_propose_data_agent', {
+      description: 'Suggest a Fabric data agent grounded in the project semantic model. Nothing changes in Fabric: the user reviews it and selects "Apply suggestions" to create it. Use this whenever the user asks for a data agent – never create DataAgent items with fabric-core tools (the studio writes the definition: the semantic model as the data source with all its tables, columns and measures, instructions, and publishing). Write the instructions from studio_get_glossary and the model\'s measures: what the agent answers, which measures mean what, business definitions and thresholds, how to format answers. Leave instructions empty to let the studio write them.',
+      parameters: obj({
+        name: str('Agent name (default: "<semantic model> agent")'),
+        instructions: str('AI instructions for the agent (up to 15,000 characters): role, which measures to use for which questions, business definitions from the glossary, formatting'),
+        description: str('One sentence describing what the agent answers (shown to users)'),
+        summary: str('Two or three sentences for the user explaining the suggestion (shown in the review)'),
+      }),
+      handler: async (a) => {
+        const proposal = await DA.proposeDataAgent(a, { chatId });
+        chats.get(chatId)?.transcript.push({ role: 'proposal', kind: 'data-agent', proposalId: proposal.id, at: Date.now() });
+        emit('chat.proposal', { chatId, proposal });
+        return { ok: true, agent: proposal.name, semanticModel: proposal.semanticModel, updatesExisting: proposal.updatesExisting, instructionsChars: proposal.instructions.length, warnings: proposal.warnings, next: 'Tell the user to review the suggestion and select Apply suggestions. Do not call studio_create_data_agent in the same turn.' };
+      },
+    }),
+    studioTool('studio_create_data_agent', {
+      description: 'Create (or update) the Fabric data agent on the project semantic model directly and publish it – only when the user explicitly asks to create it without reviewing a suggestion (otherwise use studio_propose_data_agent). The studio writes the full item definition. A minute.',
+      parameters: obj({ name: str('Agent name'), instructions: str('AI instructions (optional – the studio writes them from the measures and glossary)'), description: str('One-sentence description'), publish: { type: 'boolean', description: 'Publish so Microsoft 365 Copilot and Copilot Studio can use it (default true)' } }),
+      handler: async (a) => runAsJob('data-agent', 'Create the Fabric data agent', (ctx) => DA.runDataAgent(ctx, { name: a.name, instructions: a.instructions, description: a.description, publish: a.publish !== false })),
+    }),
     studioTool('studio_create_report', {
       description: 'Build a professional Power BI report on the project semantic model from the studio templates and deploy it to the project workspace (an existing report with the same name is updated). Pages: executive (Executive summary), drivers (Performance drivers), scorecard (Scorecard), rules (Business rules dashboard: ontology rules with live counts; rule measures the model lacks are added to the report). Themes: studio, executive, teal, slate, accessible, midnight. Call studio_describe_report_options first to recommend pages and a theme.',
       parameters: obj({
@@ -748,9 +778,9 @@ function studioTools(chatId) {
       handler: async (a) => runAsJob('planning', 'Build the budget and forecast', (ctx) => PL.runPlan(ctx, PL.planOptions(a))),
     }),
     studioTool('studio_create_plan_item', {
-      description: 'Create (or update) the Fabric plan item where planners refine the budget in planning sheets. It is connected to the semantic model when a shared semantic model connection exists; otherwise Fabric asks for one when the plan opens. Needs the plan built first.',
-      parameters: obj({ name: str('Optional plan name (letters, numbers, underscores)') }),
-      handler: async (a) => runAsJob('plan-item', 'Create the Fabric plan', (ctx) => PL.runPlanItem(ctx, { name: a.name })),
+      description: 'Create (or update) the Fabric plan item where planners refine the budget in planning sheets. Needs the plan built first. By default a new plan has no connection: when it opens, Fabric asks the planner to choose or create a semantic model connection and sign in with their own account (the reliable path). Pass connection="<id>" only when the user picked a shared PowerBIDatasets connection, or connection="fabric" to remove the plan\'s connection (fixes "Can\'t access the semantic model" when the saved sign-in of the connection can\'t reach the workspace).',
+      parameters: obj({ name: str('Optional plan name (letters, numbers, underscores)'), connection: str('Optional: a shared semantic model connection ID, or "fabric" to let Fabric ask when the plan opens') }),
+      handler: async (a) => runAsJob('plan-item', 'Create the Fabric plan', (ctx) => PL.runPlanItem(ctx, { name: a.name, connection: a.connection || undefined })),
     }),
     studioTool('studio_check_readiness', {
       description: 'Check what can run before acting: the workspace capacity (running or paused, SKU, trial), your workspace role, the tenant settings each module needs (when you are a Fabric administrator), and data-source limits. Returns each module (workspace, data, model, ontology, reports, realtime, planning, share) as ready, limited or blocked with reasons and fixes. Call it when an action fails or before a long journey. Read-only.',

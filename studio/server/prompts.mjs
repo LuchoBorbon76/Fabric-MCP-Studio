@@ -160,6 +160,7 @@ function nextPrompts(p, preset) {
     out.push('Add descriptions to every measure and column in plain business language');
     if (!p.realtime) out.push('Stream live events shaped like my data and build a real-time dashboard');
     if (!p.planning) out.push('Recommend a budget and forecast for next year from my actuals');
+    if (!p.dataAgent) out.push('Suggest a Fabric data agent for my semantic model');
     if (!p.teamsAgent) out.push('Make these answers available in Microsoft Teams and Microsoft 365 Copilot');
   }
   return out;

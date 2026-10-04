@@ -129,7 +129,9 @@ when it expires.
 | *… has N members – too detailed to plan* | The chosen dimension has more than 300 members | Plan by a higher level (region, category, segment) |
 | *The semantic model can't be queried right now* | The workspace's Fabric capacity is paused or overloaded | Resume the capacity in the Azure portal, then try again |
 | *The plan values … haven't reached OneLake yet* | The SQL database replica is still catching up | Build again in a few minutes – it continues where it stopped |
-| The Fabric plan says *Can't access the semantic model* | The plan's semantic model connection was signed in with an account that can't open the model, or XMLA endpoints are off for the capacity | In the plan, select *Manage Semantic Model Connection* › *Create Connection* and sign in with an account that has Build permission on the model; check the capacity's XMLA endpoint is Read Only or Read Write |
+| The Fabric plan says *Can't access the semantic model* | The plan's semantic model connection was signed in with an account that can't open the model, the plan points to a model that was deleted and recreated, or XMLA endpoints are off for the capacity | In **Planning › Plan in Fabric**, select *Check the plan* (recreates a plan that points to an old model), or pick *Choose it in Fabric when the plan opens* › *Change the connection*, then open the plan and connect with your own sign-in (Contributor or higher in the workspace). Plans with sheets: in the plan, select *Manage Semantic Model Connection*. Check the capacity's XMLA endpoint is Read Only or Read Write |
+| *… is not available yet* when the plan is recreated | Fabric releases a deleted plan's name a minute or two later | The studio waits, then uses a numbered name; run *Check the plan* again later to keep the original name |
+| Copilot can't create a data agent (*createItemRequest is a required parameter*) | Data agents were created with a generic Fabric tool | Use **Ask & share › Fabric data agent** (or ask Copilot to *suggest a data agent*) – the studio writes and publishes the definition |
 
 ## Repo location
 

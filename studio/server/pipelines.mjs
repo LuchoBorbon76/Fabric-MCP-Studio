@@ -46,7 +46,7 @@ export async function selectWorkspace({ workspaceId, name, capacityId, descripti
   if (!ws.capacityId) throw new Error('This workspace is not on a Fabric capacity. Pick a capacity so the studio can create Fabric items.');
   const prev = getProject().workspace;
   const workspace = { id: ws.id, name: ws.displayName, capacityId: ws.capacityId, created: created || (prev?.id === ws.id && prev.created) };
-  const reset = prev?.id !== ws.id ? { lakehouse: null, modelSource: null, semanticModel: null, ontology: null, source: null, dataPrep: null, dataPrepItems: [] } : {};
+  const reset = prev?.id !== ws.id ? { lakehouse: null, modelSource: null, semanticModel: null, ontology: null, source: null, dataPrep: null, dataPrepItems: [], dataAgent: null, dataAgentProposal: null } : {};
   updateProject({ workspace, ...reset });
   setStep('workspace', 'done', workspace.name);
   if (created) recordArtifact({ type: 'Workspace', id: ws.id, name: ws.displayName, workspaceId: ws.id });
@@ -574,6 +574,7 @@ function teardownItems(p) {
   const med = p.realtime?.medallion?.items || {};
   const list = [
     ['OrgApp', 'Org app', p.orgApp],
+    ['DataAgent', 'Fabric data agent', p.dataAgent],
     ...(p.reports || []).map((r) => ['Report', 'Report', r]),
     ['Plan', 'Fabric plan', p.planning?.planItem],
     ['Reflex', 'Activator alerts', p.realtime?.alerts],
@@ -619,7 +620,7 @@ export async function runTeardown(ctx, { deleteWorkspace = false } = {}) {
     ctx.step(`Delete workspace ${p.workspace.name}`);
     await F.deleteWorkspace(p.workspace.id);
     // Everything lived in that workspace; keep only the glossary for the next project.
-    updateProject({ workspace: null, lakehouse: null, sqlDatabase: null, source: null, modelSource: null, modelProposal: null, reportProposal: null, semanticModel: null, ontology: null, reports: [], orgApp: null, teamsAgent: null, scenario: null, realtime: null, planning: null, dataPrep: null, dataPrepItems: [], tenant: null, steps: {} });
+    updateProject({ workspace: null, lakehouse: null, sqlDatabase: null, source: null, modelSource: null, modelProposal: null, reportProposal: null, dataAgentProposal: null, dataAgent: null, semanticModel: null, ontology: null, reports: [], orgApp: null, teamsAgent: null, scenario: null, realtime: null, planning: null, dataPrep: null, dataPrepItems: [], tenant: null, steps: {} });
     clearDataPrepFiles();
   } else if (p.workspace) {
     ctx.step('Delete items created by the studio');
@@ -644,7 +645,7 @@ export async function runTeardown(ctx, { deleteWorkspace = false } = {}) {
       }
     }
     const keep = p.steps?.workspace;
-    updateProject({ lakehouse: null, sqlDatabase: null, source: null, modelSource: null, modelProposal: null, reportProposal: null, semanticModel: null, ontology: null, reports: [], orgApp: null, teamsAgent: null, scenario: null, realtime: null, planning: null, dataPrep: null, dataPrepItems: [], steps: keep ? { workspace: keep } : {} });
+    updateProject({ lakehouse: null, sqlDatabase: null, source: null, modelSource: null, modelProposal: null, reportProposal: null, dataAgentProposal: null, dataAgent: null, semanticModel: null, ontology: null, reports: [], orgApp: null, teamsAgent: null, scenario: null, realtime: null, planning: null, dataPrep: null, dataPrepItems: [], steps: keep ? { workspace: keep } : {} });
     clearDataPrepFiles();
   }
   return { ok: true };

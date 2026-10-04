@@ -18,7 +18,9 @@ chatting with the **AI the customer already licenses**:
   plus the **medallion architecture** (Bronze, Silver, Gold) applied to the stream and shown as a Fabric task flow.
 - **Planning** – a budget and rolling forecast from your actuals, a Plan table with variance measures in the model, a
   Plan vs actual report, and the Fabric plan for planning sheets.
-- **Ask & share** – governed answers in the app chat, Microsoft 365 Copilot / Teams agent, other AI clients, Fabric data agent.
+- **Ask & share** – governed answers in the app chat, Microsoft 365 Copilot / Teams agent, other AI clients, and a
+  **Fabric data agent** on the semantic model (Copilot suggests the instructions, **Apply suggestions** creates and
+  publishes it; the studio writes the item definition with every table, column and measure).
   Suggested questions are built from what you have – the semantic model's measures, dimensions and years, your
   reports, ontology rules, plan, live data and data source – and shown on the Overview, Ask & share and each page.
 
@@ -246,8 +248,12 @@ Copilot tools: `studio_medallion_status`, `studio_apply_medallion` and `studio_r
    Plan table; *Remove…* takes it out again.
 3. **Plan vs actual report** – a Power BI page with actual, budget, variance and forecast KPIs, the monthly trend of
    all three, and the variance by region and category (also a page template in Reports & apps).
-4. **Plan in Fabric** – creates the Fabric plan item for planning sheets, connected to the model when a shared
-   semantic model connection (Power BI semantic models, organizational account) exists. Planners add rows like
+4. **Plan in Fabric** – creates the Fabric plan item for planning sheets. By default it has no connection: when the plan
+   opens, Fabric asks the planner to choose or create a semantic model connection and sign in with their own account
+   (Contributor or higher in the workspace). You can also bind it to a shared Power BI semantic model connection – it
+   then reads the model with the sign-in saved in that connection, for everyone. Fabric keeps a plan's model and
+   connection once it exists, so *Change the connection* – and *Check the plan* when the plan points to a model that was
+   recreated – deletes and recreates the plan, only while it has no sheets. Planners add rows like
    *Region › Category*, columns *Year › Month* and values *Budget, Forecast, Actual*, adjust the numbers, comment,
    approve and write back to a SQL database.
 
@@ -269,6 +275,7 @@ Copilot tools: `studio_planning_status`, `studio_preview_plan`, `studio_create_p
 | `server/generators/notebook.mjs` | Data prep notebook (Fabric Python notebook) for any lakehouse: discovery, names, fixes, relationships, measures, curated tables, charts |
 | `server/dataprep.mjs` | Data prep notebook job: curated lakehouse, notebook item, run and results (summary and charts) |
 | `server/prompts.mjs` | Suggested questions grouped by what the project has, built from the semantic model profile, reports, rules, plan, live data and data source |
+| `server/dataagent.mjs` | Fabric data agent on the semantic model: suggestions, item definition (data source with tables, columns, measures; instructions), create/update and publish |
 | `server/generators/pbir.mjs` | Power BI report (PBIR) generator: pages, visuals, filters, theme registration |
 | `server/reports/` | Model profile (`profile.mjs`), page templates, report themes and the report build/preview pipeline |
 | `server/powerbi.mjs` | Power BI REST: DAX queries, model metadata (`INFO.VIEW`), report export for previews |
