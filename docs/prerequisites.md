@@ -16,12 +16,24 @@ Run `.\scripts\prereq-check.ps1 -CheckFabric` for the parts that can be checked 
 
 ### Tenant settings (Fabric admin portal)
 
+The studio checks these for you when you are a Fabric administrator (*Check setup*, the Home tab and a dot on each tab
+that can't run or runs with limits); otherwise each tab lists the settings to confirm with your administrator.
+
 | Setting | Needed for |
 |---|---|
-| Users can create Fabric items | Lakehouse, semantic model, ontology |
-| Ontology (preview) item creation enabled | Ontology steps |
+| Users can create Fabric items | SQL database sample, ontology, Eventhouse, Eventstream, Activator, plan |
+| Users can create Ontology (preview) items | Ontology steps |
+| Semantic Model Execute Queries REST API | Reports, planning, Copilot answers from the model |
 | **Users can use the Power BI Model Context Protocol server endpoint** | Hosted Power BI Authoring MCP |
-| XMLA endpoint = **Read Write** on the capacity | Saving changes to existing semantic models with Power BI authoring (hosted **and** local). Reading, DAX queries and creating models work with Read Only |
+| Allow non-Entra ID auth in Eventstream | Live events (simulator and your own apps send with an Eventstream key) |
+| Allow XMLA endpoints and Analyze in Excel with on-premises semantic models | The plan in Fabric planning |
+| Export reports as PowerPoint presentations or PDF documents | Report previews |
+| Users can use Copilot, AI Agents and other AI experiences powered by Azure OpenAI | Fabric IQ answers and agents |
+| Enable Microsoft Teams integration | Teams agent |
+| XMLA endpoint = **Read Write** on the capacity | Saving changes to existing semantic models with Power BI authoring (hosted **and** local), and the plan in Fabric planning (Read Only is enough there). Reading, DAX queries and creating models work with Read Only. Not readable through an API – check Admin portal › Capacity settings |
+
+The workspace's capacity must be **running**: a paused capacity blocks every step that reads or changes Fabric, and the
+studio says so up front.
 
 > No Fabric Copilot / Azure OpenAI tenant setting is needed: the language model runs in the customer's chosen client.
 

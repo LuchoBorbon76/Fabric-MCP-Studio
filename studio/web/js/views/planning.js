@@ -18,7 +18,7 @@ export function renderPlanning(el) {
     el.append(h('div', { class: 'banner warn' }, h('div', {}, h('b', {}, 'Select a workspace first. '), 'The plan is built on your semantic model.'), h('button', { class: 'btn pri', onclick: () => app.go('workspace') }, 'Go to Workspace')));
     return;
   }
-  const wrap = h('div', {}, h('div', { class: 'row muted' }, h('span', { class: 'spin' }), 'Reading the plan…'));
+  const wrap = h('div', { id: 'planningWrap' }, h('div', { class: 'row muted' }, h('span', { class: 'spin' }), 'Reading the plan…'));
   el.append(wrap, copilotSlot());
   get('/planning').then((s) => { store.planning = s; draw(wrap, s); }).catch((e) => { wrap.innerHTML = ''; wrap.append(h('div', { class: 'banner err' }, e.message)); });
 }
@@ -112,7 +112,8 @@ async function runPreview(force = false) {
   if (previewBody?.isConnected) { previewBody.innerHTML = ''; previewBody.append(h('div', { class: 'row muted' }, h('span', { class: 'spin' }), 'Reading the actuals and calculating the plan… (about 15 seconds)')); }
   try {
     draft.preview = await post('/planning/preview', currentOptions());
-    if (store.planning) draw(document.querySelector('#view-planning > div') || previewBody?.closest('#view-planning > div'), store.planning);
+    const wrapEl = document.getElementById('planningWrap');
+    if (store.planning && wrapEl) draw(wrapEl, store.planning);
   } catch (e) {
     if (previewBody?.isConnected) { previewBody.innerHTML = ''; previewBody.append(h('div', { class: 'banner err' }, e.message)); }
   } finally { previewBusy = false; }

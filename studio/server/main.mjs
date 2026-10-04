@@ -14,6 +14,7 @@ import * as R from './reports/index.mjs';
 import * as APPS from './reports/apps.mjs';
 import * as RT from './realtime/index.mjs';
 import * as PL from './planning/index.mjs';
+import { readiness, cachedReadiness, assertModuleReady, assertLiveEventsAllowed } from './readiness.mjs';
 import { catalog } from './sources.mjs';
 import { getProject, updateProject, resetProject, getActivity, clearActivity, logActivity, assertProjectTenant } from './project.mjs';
 import { startJob, listJobs, getJob, cancelJob, flushRunningJobs } from './jobs.mjs';
@@ -36,8 +37,21 @@ const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; cha
 if (flag('--check')) {
   const h = await health();
   for (const c of h.checks) console.log(`${c.status.padEnd(5)} ${c.label.padEnd(36)} ${c.detail}${c.fix ? `  → ${c.fix}` : ''}`);
+  let blocked = 0;
+  if (h.checks.some((c) => c.id === 'azure' && c.status === 'ok')) {
+    const r = await readiness().catch(() => null);
+    if (r) {
+      for (const c of r.checks) console.log(`${c.status.padEnd(5)} ${c.label.padEnd(36)} ${c.detail}${c.fix ? `  → ${c.fix}` : ''}`);
+      console.log('\nWhat can run:');
+      for (const m of Object.values(r.modules)) {
+        const why = m.reasons.find((x) => x.status === 'error') || m.reasons.find((x) => x.status === 'warn');
+        console.log(`  ${({ ready: 'ready  ', limited: 'limited', blocked: 'BLOCKED' })[m.status]} ${m.label.padEnd(16)} ${why ? why.text : ''}`);
+      }
+      blocked = Object.values(r.modules).filter((m) => m.status === 'blocked').length;
+    }
+  }
   await A.stopAgent();
-  process.exit(h.ready ? 0 : 1);
+  process.exit(h.ready && !blocked ? 0 : 1);
 }
 
 // ---------------- single instance ----------------
@@ -104,7 +118,7 @@ const route = (method, pattern, handler) => {
 route('GET', '/api/bootstrap', async () => {
   const me = await auth.whoAmI();
   const p = getProject();
-  return { version: VERSION, user: me, settings: publicSettings(), provider: A.providerSummary(), providers: A.PROVIDERS, project: p, preset: presetSummary(p), catalog: catalog(), jobs: listJobs().slice(0, 20), chats: A.listChats(), approvals: A.pendingApprovals(), realtime: RT.realtimeState(), planning: PL.planningState(), platform: process.platform };
+  return { version: VERSION, user: me, settings: publicSettings(), provider: A.providerSummary(), providers: A.PROVIDERS, project: p, preset: presetSummary(p), catalog: catalog(), jobs: listJobs().slice(0, 20), chats: A.listChats(), approvals: A.pendingApprovals(), realtime: RT.realtimeState(), planning: PL.planningState(), readiness: cachedReadiness(), platform: process.platform };
 });
 route('GET', '/api/health', () => health());
 
@@ -198,7 +212,7 @@ route('GET', '/api/realtime/summary', (_, __, q) => RT.liveSummary({ minutes: Ma
 route('POST', '/api/realtime/query', (_, b) => RT.liveQuery(String(b.kql || ''), { maxRows: Math.min(500, Number(b.maxRows) || 50) }));
 route('POST', '/api/jobs/realtime-setup', (_, b) => startJob('realtime', 'Set up live data (Eventhouse + Eventstream)', (ctx) => RT.runRealtimeSetup(ctx, { name: b.name })));
 route('POST', '/api/jobs/realtime-dashboard', (_, b) => startJob('realtime-dashboard', `Build Real-Time Dashboard ${b.name || ''}`.trim(), (ctx) => RT.runRealtimeDashboard(ctx, { name: b.name, refreshSeconds: b.refreshSeconds })));
-route('POST', '/api/realtime/simulator/start', async (_, b) => { await assertProjectTenant(); return RT.startLiveEvents({ rate: b.rate, ruleBreakPct: b.ruleBreakPct, minutes: b.minutes, backfillMinutes: b.backfillMinutes }); });
+route('POST', '/api/realtime/simulator/start', async (_, b) => { await assertProjectTenant(); await assertLiveEventsAllowed(); return RT.startLiveEvents({ rate: b.rate, ruleBreakPct: b.ruleBreakPct, minutes: b.minutes, backfillMinutes: b.backfillMinutes }); });
 route('PATCH', '/api/realtime/simulator', (_, b) => RT.updateLiveEvents({ rate: b.rate, ruleBreakPct: b.ruleBreakPct }));
 route('POST', '/api/realtime/simulator/stop', () => RT.stopLiveEvents());
 route('GET', '/api/realtime/endpoint', (_, __, q) => RT.endpointInfo({ withKey: q.get('key') === '1' }));
@@ -207,6 +221,7 @@ route('POST', '/api/jobs/realtime-ontology', (_, b) => startJob('realtime-ontolo
 route('POST', '/api/jobs/realtime-alerts', (_, b) => startJob('realtime-alerts', 'Set up Activator alerts on rule breaks', (ctx) => RT.runRealtimeAlerts(ctx, { channel: b.channel, recipients: b.recipients, rules: Array.isArray(b.rules) ? b.rules : undefined, minAmount: b.minAmount })));
 route('DELETE', '/api/realtime/alerts', async (_, __, q) => { await assertProjectTenant(); return RT.removeAlerts({ keepItem: q.get('keep') === '1' }); });
 route('GET', '/api/planning', () => PL.planningState());
+route('GET', '/api/readiness', (_, __, q) => readiness({ refresh: q.get('refresh') === '1' }));
 route('POST', '/api/planning/preview', (_, b) => PL.planPreview(PL.planOptions(b)));
 route('GET', '/api/planning/summary', () => PL.planSummary());
 route('POST', '/api/jobs/planning', (_, b) => startJob('planning', 'Build the budget and forecast', (ctx) => PL.runPlan(ctx, PL.planOptions(b))));
@@ -255,8 +270,11 @@ const server = createServer(async (req, res) => {
       const m = pathname.match(r.rx);
       const params = Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])]));
       const b = ['POST', 'PUT', 'PATCH'].includes(req.method) ? await body(req) : {};
-      // Jobs change Fabric; never run them against a project that lives in another tenant.
-      if (req.method === 'POST' && pathname.startsWith('/api/jobs/') && !pathname.endsWith('/cancel')) await assertProjectTenant();
+      // Jobs change Fabric; never run them against a project that lives in another tenant, or for a module that can't run.
+      if (req.method === 'POST' && pathname.startsWith('/api/jobs/') && !pathname.endsWith('/cancel')) {
+        await assertProjectTenant();
+        await assertModuleReady(pathname.split('/')[3]);
+      }
       const result = await r.handler(params, b, url.searchParams);
       return send(res, 200, result ?? { ok: true });
     }

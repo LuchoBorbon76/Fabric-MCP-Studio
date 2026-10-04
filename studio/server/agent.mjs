@@ -12,6 +12,7 @@ import * as R from './reports/index.mjs';
 import * as APPS from './reports/apps.mjs';
 import * as RT from './realtime/index.mjs';
 import * as PL from './planning/index.mjs';
+import { readiness, cachedReadiness, assertModuleReady, assertLiveEventsAllowed } from './readiness.mjs';
 import * as F from './fabric.mjs';
 import { presetFor } from './presets.mjs';
 
@@ -326,10 +327,12 @@ const STUDIO_TOOLS_META = {
   studio_preview_plan: { write: false, title: 'Preview a budget and forecast' },
   studio_create_plan: { write: true, title: 'Build the budget and forecast' },
   studio_create_plan_item: { write: true, title: 'Create the Fabric plan' },
+  studio_check_readiness: { write: false, title: 'Check what can run (capacity, role, tenant settings)' },
 };
 
 async function runAsJob(kind, title, fn) {
   await assertProjectTenant();
+  await assertModuleReady(kind);
   const job = startJob(kind, title, fn);
   const done = await waitForJob(job.id);
   if (done.status !== 'succeeded') return { ok: false, error: done.error, log: done.logLines.slice(-8) };
@@ -353,6 +356,12 @@ function projectSummary() {
       alerts: p.realtime.alerts ? { activator: p.realtime.alerts.name, channel: p.realtime.alerts.channel, rules: p.realtime.alerts.rules, recipients: p.realtime.alerts.recipients?.length || 0 } : null,
     } : null,
     planning: p.planning ? { measure: p.planning.measure?.name, planYear: p.planning.planYear, baseYear: p.planning.baseYear, asOfMonth: p.planning.asOfMonth, growthPct: p.planning.growthPct, dimensions: (p.planning.dims || []).map((d) => d.labelText), measures: Object.values(p.planning.spec?.names || {}), planItem: p.planning.planItem?.name || null } : null,
+    notReady: (() => {
+      const r = cachedReadiness();
+      if (!r) return 'not checked yet – call studio_check_readiness';
+      const list = Object.values(r.modules).filter((m) => m.status !== 'ready').map((m) => ({ module: m.id, status: m.status, reason: m.reasons.find((x) => x.status === 'error' || x.status === 'warn')?.text }));
+      return list.length ? list : 'every module is ready';
+    })(),
     links: p.workspace ? { workspace: `https://app.fabric.microsoft.com/groups/${p.workspace.id}` } : {},
   };
 }
@@ -612,6 +621,7 @@ function studioTools(chatId) {
       }),
       handler: async (a) => {
         await assertProjectTenant();
+        await assertLiveEventsAllowed();
         const s = await RT.startLiveEvents({ rate: a.eventsPerMinute, ruleBreakPct: a.ruleBreakPct, minutes: a.minutes });
         return { ok: true, running: s.running, eventsPerMinute: s.rate, ruleBreakPct: s.ruleBreakPct, stopsAt: s.stopsAt, backfilled: s.backfilled };
       },
@@ -686,6 +696,14 @@ function studioTools(chatId) {
       description: 'Create (or update) the Fabric plan item where planners refine the budget in planning sheets. It is connected to the semantic model when a shared semantic model connection exists; otherwise Fabric asks for one when the plan opens. Needs the plan built first.',
       parameters: obj({ name: str('Optional plan name (letters, numbers, underscores)') }),
       handler: async (a) => runAsJob('plan-item', 'Create the Fabric plan', (ctx) => PL.runPlanItem(ctx, { name: a.name })),
+    }),
+    studioTool('studio_check_readiness', {
+      description: 'Check what can run before acting: the workspace capacity (running or paused, SKU, trial), your workspace role, the tenant settings each module needs (when you are a Fabric administrator), and data-source limits. Returns each module (workspace, data, model, ontology, reports, realtime, planning, share) as ready, limited or blocked with reasons and fixes. Call it when an action fails or before a long journey. Read-only.',
+      parameters: obj({ refresh: { type: 'boolean', description: 'Check again instead of using the last result (two minutes)' } }),
+      handler: async (a) => {
+        const r = await readiness({ refresh: Boolean(a.refresh) });
+        return { capacity: r.capacity, role: r.role, tenantSettings: r.tenantSettings, checks: r.checks, modules: Object.values(r.modules).map((m) => ({ module: m.id, status: m.status, reasons: m.reasons.filter((x) => x.status !== 'info').map((x) => ({ status: x.status, text: x.text, fix: x.fix })) })) };
+      },
     }),
   ];
 }

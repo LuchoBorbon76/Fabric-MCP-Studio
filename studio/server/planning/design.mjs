@@ -39,7 +39,7 @@ async function columnsOf(ws, sm, tables) {
 export async function planningModel(ws, sm) {
   const meta = await modelMetadata(ws, sm);
   const date = dateInfo(meta);
-  const measures = meta.measures.filter((m) => !isPercent(m) && !/(\bPY\b|prior|last year|YoY|growth|variance|ytd|average|avg|count|margin %)/i.test(m.name))
+  const measures = meta.measures.filter((m) => m.table !== 'Plan' && !isPercent(m) && !/(\bPY\b|prior|last year|YoY|growth|variance|ytd|average|avg|count|margin %)/i.test(m.name))
     .map((m) => ({ table: m.table, name: m.name, formatString: m.formatString, label: m.name }));
   if (!date?.year || !date?.monthNum) {
     return { meta, date: null, measures, dims: [], issue: 'Planning needs a date table with a year and a month number column, related to your facts.' };

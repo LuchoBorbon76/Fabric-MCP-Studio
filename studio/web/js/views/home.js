@@ -41,9 +41,16 @@ export function renderHome(el) {
 
   const checks = h('div', { class: 'checks' });
   const hc = store.health;
+  const rd = store.readiness;
   if (!hc) checks.append(h('div', { class: 'row muted' }, h('span', { class: 'spin' }), 'Checking your setup…'));
   else for (const c of hc.checks) checks.append(h('div', { class: 'check' }, statusDot(c.status), h('div', {}, h('b', {}, c.label), h('span', { class: 'muted' }, ` · ${c.detail}`), c.fix ? h('div', { class: 'fx' }, c.fix) : null)));
-  const ready = h('div', { class: 'card' }, h('div', { class: 'row sp' }, h('h3', {}, 'Readiness'), hc ? h('span', { class: `pill ${hc.ready ? 'ok' : 'err'}` }, hc.ready ? 'Ready' : 'Action needed') : null), checks);
+  if (rd) for (const c of rd.checks.filter((x) => x.status !== 'ok')) checks.append(h('div', { class: 'check' }, statusDot(c.status === 'unknown' ? 'info' : c.status), h('div', {}, h('b', {}, c.label), h('span', { class: 'muted' }, ` · ${c.detail}`), c.fix ? h('div', { class: 'fx' }, c.fix) : null)));
+  const blocked = rd ? Object.values(rd.modules).filter((m) => m.status === 'blocked').length : 0;
+  const ok = hc?.ready && !blocked;
+  const ready = h('div', { class: 'card' },
+    h('div', { class: 'row sp' }, h('h3', {}, 'Readiness'), hc ? h('span', { class: `pill ${ok ? 'ok' : 'err'}` }, ok ? 'Ready' : 'Action needed') : null),
+    checks,
+    rd ? [h('h3', { style: { margin: '14px 0 6px' } }, 'What can run'), app.moduleGrid(rd)] : null);
 
   const recent = h('div', { class: 'card' }, h('h3', {}, 'Created by the studio'), h('div', { class: 'muted small' }, 'Loading…'));
   get('/activity').then((a) => {

@@ -123,11 +123,15 @@ $('#healthBtn').addEventListener('click', () => showHealth(true));
 export async function showHealth(open) {
   const body = h('div', { class: 'checks' }, h('div', { class: 'row' }, h('span', { class: 'spin' }), 'Running checks…'));
   const m = open ? modal({ title: 'Setup check', body }) : null;
+  const line = (c) => h('div', { class: 'check' }, statusDot(c.status === 'unknown' ? 'info' : c.status), h('div', {}, h('b', {}, c.label), h('span', { class: 'muted' }, ` · ${c.detail}`), c.fix ? h('div', { class: 'fx' }, c.fix, c.link ? [' ', h('a', { href: c.link, target: '_blank', rel: 'noopener' }, 'Open ↗')] : null) : null));
   try {
-    store.health = await get('/health');
+    const [hc, rd] = await Promise.all([get('/health'), store.user?.signedIn ? loadReadiness(Boolean(open)) : Promise.resolve(null)]);
+    store.health = hc;
     body.innerHTML = '';
-    for (const c of store.health.checks) {
-      body.append(h('div', { class: 'check' }, statusDot(c.status), h('div', {}, h('b', {}, c.label), h('span', { class: 'muted' }, ` · ${c.detail}`), c.fix ? h('div', { class: 'fx' }, c.fix) : null)));
+    body.append(...hc.checks.map(line));
+    if (open && rd) {
+      body.append(h('h3', { style: { margin: '12px 0 4px' } }, rd.workspace ? `Workspace ${rd.workspace.name}` : 'Your workspace'), ...rd.checks.map(line));
+      body.append(h('h3', { style: { margin: '12px 0 4px' } }, 'What can run'), moduleGrid(rd));
     }
     renderKpis();
     if (rendered.has('home') && current === 'home') renderView('home');
@@ -138,14 +142,26 @@ export async function showHealth(open) {
   return m;
 }
 
+/** One line per module: ready, limited or can't run, with the main reason. */
+export function moduleGrid(rd) {
+  const pill = { ready: ['ok', 'Ready'], limited: ['warn', 'Limited'], blocked: ['err', 'Can\'t run'] };
+  return h('div', { class: 'rgrid' }, Object.values(rd.modules).map((m) => {
+    const [cls, text] = pill[m.status];
+    const r = firstReason(m);
+    return h('div', { class: 'mrow', onclick: () => go(m.id), title: `Open ${m.label}` }, h('span', { class: `pill ${cls}` }, text), h('b', {}, m.label), h('span', { class: 'tiny muted' }, r ? r.text : m.reasons.some((x) => x.status === 'unknown') ? 'Some tenant settings couldn\'t be checked' : ''));
+  }));
+}
+
 // ---------------- KPIs ----------------
 function renderKpis() {
   const p = store.project || {};
   const st = stepStatus(p, store);
   const aiCheck = store.health?.checks?.find((c) => c.id === 'copilot');
+  const cap = store.readiness?.capacity;
+  const capPaused = cap?.visible && cap.state && cap.state !== 'Active';
   const k = [
     { id: 'ai', view: 'settings', label: 'AI provider', value: store.provider?.name || '–', sub: store.provider?.model || (aiCheck?.detail ?? 'Not checked yet'), state: aiCheck ? (aiCheck.status === 'ok' ? 'done' : aiCheck.status === 'error' ? 'err' : 'todo') : 'todo' },
-    { id: 'fabric', view: 'settings', label: 'Microsoft Fabric', value: store.user?.signedIn ? (store.user.tenantDomain || 'Signed in') : 'Not signed in', sub: store.user?.signedIn ? store.user.upn : 'Select Sign in', state: store.user?.signedIn ? 'done' : 'err' },
+    { id: 'fabric', view: 'settings', label: 'Microsoft Fabric', value: store.user?.signedIn ? (store.user.tenantDomain || 'Signed in') : 'Not signed in', sub: !store.user?.signedIn ? 'Select Sign in' : cap?.visible ? `${cap.sku} · ${capPaused ? 'capacity paused' : 'capacity running'}` : store.user.upn, state: !store.user?.signedIn || capPaused ? 'err' : 'done' },
     { id: 'workspace', view: 'workspace', label: 'Workspace', value: p.workspace?.name || 'Not selected', sub: p.workspace ? (p.workspace.created ? 'Created by the studio' : 'Existing workspace') : 'New or existing', state: st.workspace },
     { id: 'data', view: 'data', label: 'Data', value: p.source?.label || 'Not connected', sub: p.modelSource ? `${{ MirroredDatabase: 'Mirrored database', SQLDatabase: 'SQL database' }[p.modelSource.itemType] || p.modelSource.itemType} · ${p.modelSource.itemName}` : 'Sample or your data', state: st.data },
     { id: 'model', view: 'model', label: 'Semantic model', value: p.semanticModel?.name || 'Not created', sub: p.semanticModel ? `${p.semanticModel.tables} tables · ${p.semanticModel.measures} measures` : 'Direct Lake', state: st.model },
@@ -168,13 +184,76 @@ function renderKpis() {
 }
 
 // ---------------- navigation ----------------
+const MODULE_VIEWS = ['workspace', 'data', 'model', 'ontology', 'reports', 'realtime', 'planning', 'share'];
+const firstReason = (m) => m?.reasons?.find((r) => r.status === 'error') || m?.reasons?.find((r) => r.status === 'warn');
+
 function renderNav() {
   const nav = $('#nav');
   nav.innerHTML = '';
   for (const [id, v] of Object.entries(VIEWS)) {
     let cnt = null;
     if (id === 'activity') { const n = [...store.jobs.values()].filter((j) => j.status === 'running').length; if (n) cnt = h('span', { class: 'cnt' }, n); }
-    nav.append(h('button', { class: `tab ${id === current ? 'on' : ''}`, onclick: () => go(id) }, v.label, cnt));
+    const m = store.readiness?.modules?.[id];
+    const dot = m && m.status !== 'ready' ? h('span', { class: `rd ${m.status === 'blocked' ? 'err' : 'warn'}`, 'aria-label': m.status === 'blocked' ? 'Can\'t run' : 'Limited' }) : null;
+    nav.append(h('button', { class: `tab ${id === current ? 'on' : ''}`, onclick: () => go(id), title: dot ? `${m.status === 'blocked' ? 'Can\'t run' : 'Limited'}: ${firstReason(m)?.text || ''}` : null }, v.label, dot, cnt));
+  }
+}
+
+// ---------------- readiness (up-front checks) ----------------
+let readinessKey = '';
+export async function loadReadiness(refresh = false) {
+  try {
+    store.readiness = await get(`/readiness${refresh ? '?refresh=1' : ''}`);
+  } catch { return store.readiness; }
+  renderNav(); renderKpis();
+  for (const id of MODULE_VIEWS) if (rendered.has(id)) applyReadiness(id);
+  if (current === 'home' && rendered.has('home')) renderView('home');
+  return store.readiness;
+}
+
+function readinessBanner(m) {
+  const main = m.reasons.filter((r) => r.status === 'error' || r.status === 'warn');
+  const more = m.reasons.filter((r) => r.status === 'unknown' || r.status === 'info');
+  if (!main.length && !more.length) return null;
+  const item = (r) => h('li', {}, r.text, r.fix ? h('div', { class: 'tiny muted' }, r.fix, r.link ? [' ', h('a', { href: r.link, target: '_blank', rel: 'noopener' }, 'Open ↗')] : null) : null);
+  const kind = m.status === 'blocked' ? 'err' : m.status === 'limited' ? 'warn' : '';
+  const title = m.status === 'blocked' ? `${m.label} can't run right now` : m.status === 'limited' ? `${m.label} works with limits` : 'Good to know';
+  const recheck = h('button', { class: 'btn ghost', 'data-busy': 'Checking…' }, '↻ Check again');
+  recheck.addEventListener('click', busy(recheck, async () => { await loadReadiness(true); }));
+  return h('div', { class: `banner rbanner ${kind}` },
+    h('div', { style: { flex: 1 } },
+      main.length ? [h('b', {}, title), h('ul', { class: 'pre small', style: { margin: '6px 0 0' } }, main.map(item))] : null,
+      more.length ? h('details', { style: { marginTop: main.length ? '6px' : 0 } }, h('summary', { class: 'small' }, main.length ? `More checks (${more.length})` : `Checks for this tab (${more.length})`), h('ul', { class: 'pre small', style: { margin: '6px 0 0' } }, more.map(item))) : null),
+    recheck);
+}
+
+/** Banner with the reasons, and job buttons disabled while the module is blocked (also for content drawn later). */
+const watched = new WeakSet();
+function applyReadiness(id) {
+  const el = $(`#view-${id}`);
+  if (!el || !MODULE_VIEWS.includes(id)) return;
+  el.querySelector(':scope > .rbanner')?.remove();
+  const m = store.readiness?.modules?.[id];
+  const blocked = m?.status === 'blocked';
+  el.classList.toggle('blocked', blocked);
+  el.dataset.blockReason = blocked ? firstReason(m)?.text || '' : '';
+  for (const b of el.querySelectorAll('button[data-rblock]')) { b.disabled = false; b.title = b.dataset.rtitle || ''; delete b.dataset.rblock; }
+  const banner = m ? readinessBanner(m) : null;
+  if (banner) el.prepend(banner);
+  disableBlocked(el);
+  if (!watched.has(el)) {
+    watched.add(el);
+    new MutationObserver(() => disableBlocked(el)).observe(el, { childList: true, subtree: true });
+  }
+}
+
+function disableBlocked(el) {
+  if (!el.classList.contains('blocked')) return;
+  for (const b of el.querySelectorAll('button[data-busy="Starting…"]:not([data-rblock])')) {
+    if (b.disabled) continue;
+    b.dataset.rblock = '1'; b.dataset.rtitle = b.title || '';
+    b.disabled = true;
+    b.title = `Can't run right now: ${el.dataset.blockReason}`;
   }
 }
 
@@ -183,6 +262,7 @@ function renderView(id) {
   el.innerHTML = '';
   try { VIEWS[id].render(el); } catch (e) { el.append(h('div', { class: 'banner err' }, `Could not render this view: ${e.message}`)); console.error(e); }
   rendered.add(id);
+  applyReadiness(id);
   if (id === current) placeChat();
 }
 
@@ -372,17 +452,21 @@ on('project.updated', async () => {
   const dataChanged = dk !== dataSourceKey;
   dataSourceKey = dk;
   if (['home', 'model', 'ontology', 'reports', 'realtime', 'planning', 'share', 'workspace'].includes(current) || (current === 'data' && dataChanged)) renderView(current);
+  // A new workspace or data source changes what can run.
+  const rk = [store.project?.workspace?.id, store.project?.modelSource?.itemId, Boolean(store.project?.realtime)].join('|');
+  if (rk !== readinessKey) { readinessKey = rk; loadReadiness(); }
 });
 on('provider', (e) => { store.provider = e.provider; renderHeader(); renderKpis(); });
 // Streaming state changes the Real-time KPI; only re-draw the strip when running/stopped flips.
 on('realtime.simulator', (e) => { const was = store.realtime?.simulator?.running; store.realtime = { ...(store.realtime || {}), simulator: e.simulator }; if (was !== e.simulator.running) renderKpis(); });
-on('auth', (e) => { store.user = e.user; renderAll(); });
+on('auth', (e) => { store.user = e.user; renderAll(); loadReadiness(true); });
 
 // ---------------- boot ----------------
 async function refresh() {
   try {
     const b = await get('/bootstrap');
-    Object.assign(store, { user: b.user, settings: b.settings, provider: b.provider, providers: b.providers, project: b.project, catalog: b.catalog, chats: b.chats, approvals: b.approvals, preset: b.preset, platform: b.platform, realtime: b.realtime || null, planning: b.planning || null });
+    Object.assign(store, { user: b.user, settings: b.settings, provider: b.provider, providers: b.providers, project: b.project, catalog: b.catalog, chats: b.chats, approvals: b.approvals, preset: b.preset, platform: b.platform, realtime: b.realtime || null, planning: b.planning || null, readiness: b.readiness || store.readiness || null });
+    readinessKey = [b.project?.workspace?.id, b.project?.modelSource?.itemId, Boolean(b.project?.realtime)].join('|');
     presetSource = b.project?.source?.id || null;
     dataSourceKey = dataKey(b.project);
     for (const j of b.jobs) {
@@ -402,7 +486,7 @@ async function refresh() {
   refreshHeader();
 }
 
-Object.assign(app, { go, ask: askCopilot, placeChat, refresh, rerender: () => renderView(current), jobCard, watchJob: (id) => { dockJobs.add(id); renderDock(); } });
+Object.assign(app, { go, ask: askCopilot, placeChat, refresh, rerender: () => renderView(current), jobCard, watchJob: (id) => { dockJobs.add(id); renderDock(); }, loadReadiness, moduleGrid });
 
 connectEvents();
 await refresh();

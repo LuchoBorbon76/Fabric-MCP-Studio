@@ -81,6 +81,11 @@ flowchart LR
 - **Identity**: Microsoft Entra tokens (Azure CLI sign-in or browser) are minted locally and passed to the MCP
   servers. Fabric permissions, RLS and OLS always apply.
 - **Audit**: Activity tab lists created items with links, jobs, and every approval or denial. Export as JSON.
+- **Up-front checks**: the studio reads the workspace's capacity (running or paused, SKU, trial), your workspace role,
+  the tenant settings each tab needs (when you are a Fabric administrator) and what your data source supports. Tabs
+  that can't run get a red dot and a banner with the reason and the fix, and their actions are disabled; tabs that run
+  with limits get an amber dot. Jobs and Copilot tools stop before changing anything when their tab can't run.
+  *Check setup* and `npm run check` show the same list.
 
 ## Data source scenarios
 
@@ -204,6 +209,7 @@ Copilot tools: `studio_planning_status`, `studio_preview_plan`, `studio_create_p
 | `server/realtime/` | Live data: Eventhouse/Eventstream setup, live ontology and alerts (`index.mjs`), event scenarios shaped like the data (`scenarios.mjs`), simulator sending to the custom endpoint (`simulator.mjs`), Real-Time Dashboard generator (`dashboard.mjs`), Activator alert definition (`alerts.mjs`), KQL client (`kusto.mjs`) |
 | `server/generators/ontology-live.mjs` | Adds or removes Eventhouse time-series bindings and dashboard links on an existing TMDL ontology |
 | `server/planning/` | Budgets and forecasts: plan design and calculation (`design.mjs`), plan values in the SQL database or warehouse (`store.mjs`), the Plan table patch for the semantic model (`model.mjs`), jobs, plan item and summary (`index.mjs`) |
+| `server/readiness.mjs` | Up-front checks: capacity, workspace role, tenant settings and data-source limits per tab, and the guard that stops jobs of tabs that can't run |
 | `server/presets.mjs` | Sample presets (names, relationships, measures, rules) |
 | `server/samples/adventureworks-dw.mjs` | AdventureWorksDW2022 loader for Fabric SQL database (install kit → tables, keys, bulk load, verification) |
 | `server/agent-instructions.md` | System instructions for the agent |

@@ -188,21 +188,28 @@ export async function runPlanItem(ctx, { name } = {}) {
   const itemName = F.itemName('Plan', name || p.planning.planItem?.name || `${p.semanticModel.name}_Plan`, 'Plan');
   ctx.step('Look for a semantic model connection');
   const conns = (await F.listConnections().catch(() => [])).filter((c) => c.type === 'PowerBIDatasets' && c.connectivityType === 'ShareableCloud');
-  const conn = conns[0] || null;
-  ctx.log(conn ? `Using the connection "${conn.name}"` : 'No shared semantic model connection yet – you choose or create one when the plan opens');
+  let conn = conns[0] || null;
   ctx.progress(25);
+
+  let item = p.planning.planItem?.id ? await F.getItem(ws.id, p.planning.planItem.id).catch(() => null) : null;
+  item ||= await F.findItem(ws.id, 'Plan', itemName);
+  let existing = null;
+  if (item) {
+    const cur = await F.getDefinition(ws.id, item.id).catch(() => null);
+    const json = cur?.parts?.find((x) => x.path === 'definition.json');
+    existing = json ? JSON.parse(Buffer.from(json.payload, 'base64').toString('utf8')) : null;
+    // Keep the connection the plan already uses (planners may have chosen it in Fabric).
+    const used = existing?.semanticModelReference?.connectionId;
+    if (used) conn = conns.find((c) => c.id === used) || { id: used, name: 'the connection chosen in Fabric' };
+  }
+  ctx.log(conn ? `Using the connection "${conn.name}"` : 'No shared semantic model connection yet – you choose or create one when the plan opens');
 
   const def = {
     $schema: PLAN_SCHEMA_URL, workloadItemName: itemName, sheets: [], cube: { partitionRefIds: [] },
     ...(conn ? { semanticModelReference: { connectionId: conn.id, semanticModelId: p.semanticModel.id, semanticModelName: p.semanticModel.name, semanticModelWorkspaceId: ws.id, semanticModelWorkspaceName: ws.name, directLakeMode: false, directQueryMode: false, sourceType: 'WORKLOAD' } } : {}),
   };
-  ctx.step(`${p.planning.planItem ? 'Update' : 'Create'} the plan "${itemName}"`);
-  let item = p.planning.planItem?.id ? await F.getItem(ws.id, p.planning.planItem.id).catch(() => null) : null;
-  item ||= await F.findItem(ws.id, 'Plan', itemName);
+  ctx.step(`${item ? 'Update' : 'Create'} the plan "${itemName}"`);
   if (item) {
-    const cur = await F.getDefinition(ws.id, item.id).catch(() => null);
-    const json = cur?.parts?.find((x) => x.path === 'definition.json');
-    const existing = json ? JSON.parse(Buffer.from(json.payload, 'base64').toString('utf8')) : null;
     if (conn && existing?.semanticModelReference?.semanticModelId !== p.semanticModel.id) {
       await F.updateDefinition(ws.id, item.id, F.toParts({ 'definition.json': { ...(existing || {}), ...def, sheets: existing?.sheets || [] } }));
       ctx.log(`Connected the plan to ${p.semanticModel.name}`);
