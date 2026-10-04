@@ -3,6 +3,7 @@ import { get, post, store, on, fire, connectEvents } from './api.js';
 import { h, $, $$, toast, modal, initials, statusDot, busy, SERVER_LABEL } from './ui.js';
 import { app } from './app.js';
 import { loadPrompts, topPrompts } from './prompts.js';
+import { ensureDisclaimer, showDisclaimer, showWhatsNew } from './about.js';
 import { mountMap, getNode } from './lineage.js';
 import { chatElement, ask as chatAsk, refreshHeader, refreshSuggestions, setPanelMode, scrollChatToEnd, focusChat } from './chat.js';
 import { renderHome } from './views/home.js';
@@ -448,7 +449,7 @@ on('auth', (e) => { store.user = e.user; renderAll(); loadReadiness(true); });
 async function refresh() {
   try {
     const b = await get('/bootstrap');
-    Object.assign(store, { user: b.user, settings: b.settings, provider: b.provider, providers: b.providers, project: b.project, catalog: b.catalog, chats: b.chats, approvals: b.approvals, preset: b.preset, platform: b.platform, realtime: b.realtime || null, planning: b.planning || null, readiness: b.readiness || store.readiness || null });
+    Object.assign(store, { version: b.version, build: b.build || null, user: b.user, settings: b.settings, provider: b.provider, providers: b.providers, project: b.project, catalog: b.catalog, chats: b.chats, approvals: b.approvals, preset: b.preset, platform: b.platform, realtime: b.realtime || null, planning: b.planning || null, readiness: b.readiness || store.readiness || null });
     readinessKey = [b.project?.workspace?.id, b.project?.modelSource?.itemId, Boolean(b.project?.realtime)].join('|');
     presetSource = b.project?.source?.id || null;
     dataSourceKey = dataKey(b.project);
@@ -489,5 +490,10 @@ connectEvents();
 await refresh();
 go(current);
 window.addEventListener('hashchange', () => { const v = location.hash.slice(1); if (VIEWS[v] && v !== current) go(v); });
+$('#buildChip')?.addEventListener('click', () => showWhatsNew());
+$('#whatsNewLink')?.addEventListener('click', (e) => { e.preventDefault(); showWhatsNew(); });
+$('#disclaimerLink')?.addEventListener('click', (e) => { e.preventDefault(); showDisclaimer(); });
+// Everyone who runs the studio sees the disclaimer once, before signing in.
+await ensureDisclaimer();
 if (!store.user?.signedIn) signInDialog();
 showHealth(false);

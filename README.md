@@ -108,3 +108,21 @@ All scripts run on Windows PowerShell 5.1 and PowerShell 7.
 2. Paste or upload their business glossary in **Ontology › Business glossary**; Copilot uses it for measures and rules.
 3. Run the model review on one of their existing semantic models – the fastest path to value.
 4. Rename and customize the Microsoft 365 agent in `agents/contoso-retail-analyst`.
+
+## Disclaimer
+
+Fabric MCP Studio and this kit are a **sample**, created by Luis Fernando Borbon for demos, learning and proofs of
+concept. They aren't an official Microsoft product or service, aren't supported by Microsoft Support and aren't
+covered by any Microsoft service-level agreement. They're provided **as is, without warranty of any kind**.
+
+- The studio acts in Microsoft Fabric and Power BI with the user's own sign-in and permissions, and asks before every
+  change. Everything it creates lives in the user's tenant, runs on their Fabric capacity and may incur costs; the
+  user is responsible for reviewing, securing and removing it.
+- AI suggestions can be incomplete or wrong – review them before applying or relying on them. Prompts, and data in
+  answers, go to the AI provider the user chooses, under that provider's terms.
+- Several Fabric capabilities used here are in preview and subject to preview terms.
+- **Sharing inside Microsoft:** share it as a sample with this disclaimer; don't present it as a supported Microsoft
+  offering. **Sharing with customers and partners:** it's sample code, not a Microsoft product – review it with their
+  security and compliance teams and install it only in tenants they're allowed to change.
+
+The app shows this disclaimer once per installation (again when it changes), in the footer and in **Settings › About**.

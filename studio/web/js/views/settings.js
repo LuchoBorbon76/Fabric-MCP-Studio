@@ -1,13 +1,28 @@
 import { store, get, post, put, patch, on } from '../api.js';
 import { h, toast, busy, field, input, select, seg, confirmDialog, typedConfirmDialog, statusDot } from '../ui.js';
 import { app } from '../app.js';
+import { showDisclaimer, showWhatsNew } from '../about.js';
 
 let draftProvider = null;
 
 export function renderSettings(el) {
   el.append(h('div', { class: 'grid g2' },
-    h('div', { class: 'col', style: { gap: '14px' } }, providerCard(), approvalsCard()),
+    h('div', { class: 'col', style: { gap: '14px' } }, providerCard(), approvalsCard(), aboutCard()),
     h('div', { class: 'col', style: { gap: '14px' } }, mcpCard(), entraCard(), dangerCard())));
+}
+
+// ---------------- about ----------------
+function aboutCard() {
+  const s = store.settings?.disclaimer;
+  return h('div', { class: 'card' },
+    h('div', { class: 'row sp' }, h('h2', {}, 'About'), h('span', { class: 'pill brand' }, `v${store.version || ''}`)),
+    h('p', { class: 'lead' }, 'Fabric MCP Studio is a sample app, provided as is – not an official Microsoft product or supported service. The version counts improvements and fixes: 1.<improvements>.<fixes>.'),
+    h('dl', { class: 'kv' },
+      h('dt', {}, 'Build'), h('dd', {}, store.build ? `${store.build.commit} · ${store.build.date}` : '– (not a git copy)'),
+      h('dt', {}, 'Disclaimer'), h('dd', {}, s?.acceptedAt ? `Acknowledged ${new Date(s.acceptedAt).toLocaleDateString()}` : 'Not acknowledged yet')),
+    h('div', { class: 'row mt' },
+      h('button', { class: 'btn', onclick: () => showWhatsNew() }, 'What\'s new'),
+      h('button', { class: 'btn', onclick: () => showDisclaimer() }, 'Disclaimer')));
 }
 
 // ---------------- AI provider ----------------

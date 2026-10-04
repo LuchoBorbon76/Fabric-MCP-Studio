@@ -4,7 +4,7 @@ import { readFileSync, existsSync, statSync, rmSync } from 'node:fs';
 import { join, extname, normalize } from 'node:path';
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { WEB_ROOT, DATA_DIR, VERSION, getSettings, saveSettings, publicSettings, readJson, writeJson, shortHash } from './config.mjs';
+import { WEB_ROOT, DATA_DIR, VERSION, BUILD, RELEASES, getSettings, saveSettings, publicSettings, readJson, writeJson, shortHash } from './config.mjs';
 import { addClient, emit } from './events.mjs';
 import * as auth from './auth.mjs';
 import * as F from './fabric.mjs';
@@ -104,7 +104,7 @@ function serveStatic(req, res, pathname) {
   const file = normalize(join(WEB_ROOT, decodeURIComponent(p)));
   if (!file.startsWith(WEB_ROOT) || !existsSync(file) || statSync(file).isDirectory()) return send(res, 404, 'Not found');
   let content = readFileSync(file);
-  if (file.endsWith('index.html')) content = Buffer.from(content.toString('utf8').replace('__STUDIO_TOKEN__', TOKEN).replace(/__STUDIO_VERSION__/g, VERSION));
+  if (file.endsWith('index.html')) content = Buffer.from(content.toString('utf8').replace('__STUDIO_TOKEN__', TOKEN).replace(/__STUDIO_VERSION__/g, VERSION).replace(/__STUDIO_BUILD__/g, BUILD ? `build ${BUILD.commit} · ${BUILD.date}` : 'build –'));
   res.writeHead(200, { 'Content-Type': MIME[extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'X-Studio-Instance': INSTANCE });
   res.end(content);
 }
@@ -121,9 +121,17 @@ const route = (method, pattern, handler) => {
 route('GET', '/api/bootstrap', async () => {
   const me = await auth.whoAmI();
   const p = getProject();
-  return { version: VERSION, user: me, settings: publicSettings(), provider: A.providerSummary(), providers: A.PROVIDERS, project: p, preset: presetSummary(p), catalog: catalog(), jobs: listJobs().slice(0, 20), chats: A.listChats(), approvals: A.pendingApprovals(), realtime: RT.realtimeState(), planning: PL.planningState(), readiness: cachedReadiness(), platform: process.platform };
+  return { version: VERSION, build: BUILD, user: me, settings: publicSettings(), provider: A.providerSummary(), providers: A.PROVIDERS, project: p, preset: presetSummary(p), catalog: catalog(), jobs: listJobs().slice(0, 20), chats: A.listChats(), approvals: A.pendingApprovals(), realtime: RT.realtimeState(), planning: PL.planningState(), readiness: cachedReadiness(), platform: process.platform };
 });
 route('GET', '/api/health', () => health());
+route('GET', '/api/about', () => ({ version: VERSION, build: BUILD, improvements: RELEASES.improvements, fixes: RELEASES.fixes, changes: RELEASES.changes }));
+// The disclaimer is shown until it is acknowledged once per installation (and again when its text changes).
+route('POST', '/api/disclaimer/accept', (_, b) => {
+  const version = Number(b.version) || 1;
+  saveSettings({ disclaimer: { version, acceptedAt: new Date().toISOString(), studioVersion: VERSION } });
+  logActivity('disclaimer.accept', `Disclaimer acknowledged (v${version})`, {});
+  return publicSettings();
+});
 
 route('POST', '/api/auth/signin', async (_, b) => { const me = await auth.signIn(b.mode || 'browser'); await A.restartClient(); emit('auth', { user: me }); return me; });
 route('POST', '/api/auth/signout', async () => { auth.signOut(); await A.restartClient(); emit('auth', { user: { signedIn: false } }); return { ok: true }; });
@@ -328,7 +336,7 @@ function listen(port, attempts = 10) {
     PORT = port;
     const url = `http://127.0.0.1:${port}/`;
     try { writeJson(RUNTIME_FILE, { pid: process.pid, port, url, startedAt: new Date().toISOString() }); } catch { /* read-only data folder */ }
-    console.log(`\n  Fabric MCP Studio ${VERSION} is running at ${url}\n  Press Ctrl+C to stop.\n`);
+    console.log(`\n  Fabric MCP Studio ${VERSION}${BUILD ? ` (build ${BUILD.commit})` : ''} is running at ${url}\n  Sample app provided as is - not an official Microsoft product or supported service.\n  Press Ctrl+C to stop.\n`);
     if (!flag('--no-open')) openBrowser(url);
   });
 }

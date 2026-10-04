@@ -59,6 +59,13 @@ If a capability has no MCP tool (for example the Lakehouse *Load Table* API), us
 - Do not register both the hosted and local Power BI authoring servers at the same time.
 - Never paste access tokens into files, chat, or commits.
 
+## Versions
+
+The studio's version is calculated from `studio/releases.json`: **1.<improvements>.<fixes>**. For every change you
+commit, add one entry per improvement (`"type": "improvement"`) or fix (`"type": "fix"`) with the date and a short
+title in plain language (add `commit` once it exists), then run `npm version <new version> --no-git-tag-version` in
+`studio/` so `package.json` matches. Docs-only changes don't get an entry.
+
 ## Repository map
 
 | Path | What it is |

@@ -26,6 +26,11 @@ chatting with the **AI the customer already licenses**:
 
 Everything runs on the customer's computer, signs in to Fabric as the customer, and **asks before every change**.
 
+> **Sample app, provided as is** – not an official Microsoft product or supported service. Whoever runs it sees the
+> [disclaimer](../README.md#disclaimer) once (and from the footer or **Settings › About**). The version is
+> **1.<improvements>.<fixes>**, calculated from [`releases.json`](releases.json); select the version in the header for
+> what's new.
+
 ## Start
 
 | OS | Command |
@@ -276,6 +281,8 @@ Copilot tools: `studio_planning_status`, `studio_preview_plan`, `studio_create_p
 | `server/dataprep.mjs` | Data prep notebook job: curated lakehouse, notebook item, run and results (summary and charts) |
 | `server/prompts.mjs` | Suggested questions grouped by what the project has, built from the semantic model profile, reports, rules, plan, live data and data source |
 | `server/dataagent.mjs` | Fabric data agent on the semantic model: suggestions, item definition (data source with tables, columns, measures; instructions), create/update and publish |
+| `releases.json` | Every improvement and fix; the version (1.<improvements>.<fixes>) and What's new are calculated from it |
+| `web/js/about.js` | Disclaimer (shown once per installation) and What's new |
 | `server/generators/pbir.mjs` | Power BI report (PBIR) generator: pages, visuals, filters, theme registration |
 | `server/reports/` | Model profile (`profile.mjs`), page templates, report themes and the report build/preview pipeline |
 | `server/powerbi.mjs` | Power BI REST: DAX queries, model metadata (`INFO.VIEW`), report export for previews |

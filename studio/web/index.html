@@ -21,7 +21,7 @@
     <span class="userchip" id="userChip" title="Microsoft Entra account"><span class="avatar" id="avatar">?</span><span id="userName">Sign in</span></span>
     <button class="hdrbtn exitbtn" id="exitBtn" title="Stop the studio server">⏻ Shut down</button>
   </div>
-  <h1><svg class="mslogo" viewBox="0 0 23 23" width="26" height="26" aria-label="Microsoft" role="img"><rect width="10" height="10" x="1" y="1" fill="#F25022"/><rect width="10" height="10" x="12" y="1" fill="#7FBA00"/><rect width="10" height="10" x="1" y="12" fill="#00A4EF"/><rect width="10" height="10" x="12" y="12" fill="#FFB900"/></svg><span id="appTitle">Fabric MCP Studio</span><span class="buildchip">v__STUDIO_VERSION__</span></h1>
+  <h1><svg class="mslogo" viewBox="0 0 23 23" width="26" height="26" aria-label="Microsoft" role="img"><rect width="10" height="10" x="1" y="1" fill="#F25022"/><rect width="10" height="10" x="12" y="1" fill="#7FBA00"/><rect width="10" height="10" x="1" y="12" fill="#00A4EF"/><rect width="10" height="10" x="12" y="12" fill="#FFB900"/></svg><span id="appTitle">Fabric MCP Studio</span><button type="button" class="buildchip" id="buildChip" title="v__STUDIO_VERSION__ · __STUDIO_BUILD__ – what's new">v__STUDIO_VERSION__</button></h1>
   <p id="subtitle">Build lakehouses, semantic models and ontologies in Microsoft Fabric by chatting with the Copilot you already use.</p>
 </header>
 
@@ -42,7 +42,8 @@
   <section class="view" id="view-activity"></section>
   <section class="view" id="view-settings"></section>
   <footer class="foot">
-    <span>Fabric MCP Studio v__STUDIO_VERSION__ runs on your computer. It signs in to Microsoft Fabric as you, uses the AI provider you choose, and asks before every change.</span>
+    <span>Fabric MCP Studio v__STUDIO_VERSION__ (__STUDIO_BUILD__) runs on your computer. It signs in to Microsoft Fabric as you, uses the AI provider you choose, and asks before every change.</span>
+    <span class="disclaimer"><b>Sample app, provided as is</b> – not an official Microsoft product or supported service. Review what it creates in your tenant; AI suggestions can be wrong. <a href="#" id="disclaimerLink">Disclaimer</a> &middot; <a href="#" id="whatsNewLink">What's new</a></span>
     <span class="credit">Created by Luis Fernando Borbon &middot; <a href="mailto:luisbor@microsoft.com">luisbor@microsoft.com</a></span>
   </footer>
 </div>

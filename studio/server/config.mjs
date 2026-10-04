@@ -3,13 +3,46 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from '
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID, createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 
 export const STUDIO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const REPO_ROOT = resolve(STUDIO_ROOT, '..');
 export const WEB_ROOT = join(STUDIO_ROOT, 'web');
 export const DATA_DIR = process.env.STUDIO_DATA_DIR ? resolve(process.env.STUDIO_DATA_DIR) : join(STUDIO_ROOT, 'data');
 export const COPILOT_HOME = join(DATA_DIR, 'copilot-home');
-export const VERSION = JSON.parse(readFileSync(join(STUDIO_ROOT, 'package.json'), 'utf8')).version;
+
+/**
+ * Version from the release history (releases.json): 1.<improvements>.<fixes>. Each change also gets the version it
+ * brought the studio to. Falls back to package.json when the history can't be read.
+ */
+function releaseHistory() {
+  try {
+    const { changes = [] } = JSON.parse(readFileSync(join(STUDIO_ROOT, 'releases.json'), 'utf8'));
+    let improvements = 0;
+    let fixes = 0;
+    const list = changes.map((c) => {
+      if (c.type === 'improvement') improvements++;
+      else if (c.type === 'fix') fixes++;
+      return { ...c, version: `1.${improvements}.${fixes}` };
+    });
+    return { version: `1.${improvements}.${fixes}`, improvements, fixes, changes: list.reverse() };
+  } catch {
+    return { version: JSON.parse(readFileSync(join(STUDIO_ROOT, 'package.json'), 'utf8')).version, improvements: 0, fixes: 0, changes: [] };
+  }
+}
+
+/** The git commit the studio runs from (a copy without git has none). */
+function gitBuild() {
+  try {
+    const out = execFileSync('git', ['log', '-1', '--format=%h|%cs'], { cwd: STUDIO_ROOT, timeout: 3000, stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true }).toString().trim();
+    const [commit, date] = out.split('|');
+    return commit ? { commit, date } : null;
+  } catch { return null; }
+}
+
+export const RELEASES = releaseHistory();
+export const VERSION = RELEASES.version;
+export const BUILD = gitBuild();
 
 for (const d of [DATA_DIR, COPILOT_HOME]) if (!existsSync(d)) mkdirSync(d, { recursive: true });
 

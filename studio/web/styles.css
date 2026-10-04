@@ -28,7 +28,8 @@ header.top{background:linear-gradient(120deg,var(--hdr1),var(--hdr2) 55%,var(--h
 header.top h1{margin:0 0 4px;font-size:23px;font-weight:600;padding-right:420px;display:flex;align-items:center;gap:10px}
 header.top p{margin:0;opacity:.92;font-size:12.5px;padding-right:420px}
 .mslogo{flex:0 0 auto;border-radius:2px;background:#fff;padding:3px;box-shadow:0 1px 3px rgba(0,0,0,.25)}
-.buildchip{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:600;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.3)}
+.buildchip{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:600;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.3);color:inherit;font-family:inherit;cursor:pointer;vertical-align:middle}
+.buildchip:hover{background:rgba(255,255,255,.3)}
 .hdrbtns{position:absolute;top:16px;right:22px;display:flex;gap:8px;align-items:center}
 .hdrbtn,.themesel{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:8px;padding:7px 13px;font-size:12.5px;font-weight:600;cursor:pointer}
 .hdrbtn:hover,.themesel:hover{background:rgba(255,255,255,.28)}
@@ -258,6 +259,13 @@ ul.pre{margin:6px 0 0;padding-left:18px;font-size:12px;color:var(--muted)}
 .tl .tm{color:var(--muted);font-size:11.5px;font-variant-numeric:tabular-nums}
 footer.foot{text-align:center;color:var(--muted);font-size:11px;line-height:1.6;padding:22px 22px 8px;margin-top:28px;border-top:1px solid var(--line)}
 footer.foot .credit{display:block;margin-top:6px;opacity:.85}
+footer.foot .disclaimer{display:block;margin-top:6px}
+.disc h3{margin:14px 0 6px;font-size:13px}
+.disc ul{margin:0;padding-left:18px}
+.disc li{margin:4px 0;font-size:12.5px;line-height:1.5}
+.relnotes{max-height:52vh;overflow:auto}
+.relnotes .rel{display:grid;grid-template-columns:70px 92px 1fr;gap:8px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+.relnotes .pill{justify-self:start}
 footer.foot a{color:var(--brand);text-decoration:none}
 footer.foot a:hover{text-decoration:underline}
 @media(max-width:900px){header.top h1,header.top p{padding-right:0}.hdrbtns{position:static;margin-bottom:12px;flex-wrap:wrap}}
