@@ -3,6 +3,7 @@ import { h, toast, busy, field, input } from '../ui.js';
 import { app, copilotSlot } from '../app.js';
 
 let rules = null;
+on('studio.reset', () => { rules = null; });
 
 export function renderOntology(el) {
   const p = store.project || {};

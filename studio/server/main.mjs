@@ -14,7 +14,7 @@ import * as R from './reports/index.mjs';
 import * as APPS from './reports/apps.mjs';
 import * as RT from './realtime/index.mjs';
 import * as PL from './planning/index.mjs';
-import { readiness, cachedReadiness, assertModuleReady, assertLiveEventsAllowed } from './readiness.mjs';
+import { readiness, cachedReadiness, resetReadiness, assertModuleReady, assertLiveEventsAllowed } from './readiness.mjs';
 import { catalog } from './sources.mjs';
 import { getProject, updateProject, resetProject, getActivity, clearActivity, logActivity, assertProjectTenant } from './project.mjs';
 import { startJob, listJobs, getJob, cancelJob, flushRunningJobs } from './jobs.mjs';
@@ -228,7 +228,14 @@ route('POST', '/api/jobs/planning', (_, b) => startJob('planning', 'Build the bu
 route('POST', '/api/jobs/plan-item', (_, b) => startJob('plan-item', 'Create the Fabric plan', (ctx) => PL.runPlanItem(ctx, { name: b.name })));
 route('DELETE', '/api/planning', async (_, __, q) => { await assertProjectTenant(); return PL.removePlan({ deleteData: q.get('data') === '1', deleteItem: q.get('item') === '1' }); });
 route('DELETE', '/api/reports/:id', (p, _, q) => R.removeReport(p.id, { deleteItem: q.get('delete') === '1' }));
-route('POST', '/api/jobs/teardown', (_, b) => startJob('teardown', 'Clean up demo resources', (ctx) => P.runTeardown(ctx, b)));
+route('GET', '/api/teardown/plan', (_, __, q) => P.teardownPlan({ deleteWorkspace: q.get('workspace') === '1' }));
+// Deleting is only started with the workspace name typed in the confirmation, never by a stray request.
+route('POST', '/api/jobs/teardown', (_, b) => {
+  const ws = getProject().workspace;
+  if (!ws) throw Object.assign(new Error('There is no workspace to clean up.'), { status: 400 });
+  if (String(b.confirm ?? '').trim() !== ws.name) throw Object.assign(new Error(`Type the workspace name "${ws.name}" to confirm the clean up.`), { status: 400, code: 'CONFIRM_REQUIRED' });
+  return startJob('teardown', 'Clean up demo resources', async (ctx) => { try { return await P.runTeardown(ctx, b); } finally { resetReadiness(); } });
+});
 route('GET', '/api/jobs', () => listJobs());
 route('GET', '/api/jobs/:id', (p) => getJob(p.id));
 route('POST', '/api/jobs/:id/cancel', (p) => ({ ok: cancelJob(p.id) }));

@@ -157,7 +157,10 @@ More in [fabric-demo-ask](../.github/skills/fabric-demo-ask/SKILL.md).
 ## Clean up
 
 **Settings › Clean up** deletes what the studio created (lakehouse, SQL database, mirrored database, semantic model,
-reports, org app, ontology – or the whole workspace if the studio created it). *Start a new project* clears local state only.
+reports, org app, ontology, live data, alerts and the Fabric plan – or the whole workspace if the studio created it).
+Before anything is deleted it lists every item, shows which ones go to the workspace recycle bin and which are gone for
+good, and asks you to type the workspace name. When it finishes, every tab refreshes. *Start a new project* clears local
+state only.
 
 ## Without the studio
 

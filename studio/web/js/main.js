@@ -1,5 +1,5 @@
 // Entry point: header, KPI strip, navigation, approvals, job dock and the embedded Copilot.
-import { get, post, store, on, connectEvents } from './api.js';
+import { get, post, store, on, fire, connectEvents } from './api.js';
 import { h, $, $$, toast, modal, initials, statusDot, busy, SERVER_LABEL } from './ui.js';
 import { app, stepStatus, suggestions } from './app.js';
 import { chatElement, ask as chatAsk, refreshHeader, refreshSuggestions, setPanelMode, scrollChatToEnd, focusChat } from './chat.js';
@@ -330,6 +330,7 @@ function askCopilot(prompt, { view } = {}) {
 
 // ---------------- approvals ----------------
 const approvalQueue = [];
+const approvalSeen = new Set();   // a refresh must not queue the same request twice
 let approvalOpen = false;
 
 function showNextApproval() {
@@ -352,7 +353,7 @@ function showNextApproval() {
   });
 }
 
-on('approval.request', (e) => { approvalQueue.push(e.approval); showNextApproval(); });
+on('approval.request', (e) => { if (approvalSeen.has(e.approval.id)) return; approvalSeen.add(e.approval.id); approvalQueue.push(e.approval); showNextApproval(); });
 
 // ---------------- jobs ----------------
 const dockJobs = new Set();
@@ -402,7 +403,17 @@ on('job', (e) => {
   renderDock();
   renderKpis();
   renderNav();
+  if (j.kind === 'teardown' && j.status !== 'running' && !cleanedUp.has(j.id)) { cleanedUp.add(j.id); refreshAll(); }
 });
+
+// Clean up (or a new project) changes every tab: reload the project, live data, plan and readiness, and let the
+// views forget what they cached from Fabric.
+const cleanedUp = new Set();
+async function refreshAll() {
+  fire('studio.reset', {});
+  await refresh();
+  loadReadiness(true);
+}
 
 // After a reconnect, the server's job list is the truth: jobs that ended (or vanished) while disconnected must
 // not keep spinning.
@@ -476,7 +487,7 @@ async function refresh() {
       else if (j.status === 'interrupted' && Date.now() - Date.parse(j.endedAt) < 10 * 60 * 1000 && !dockJobs.has(j.id)) { dockJobs.add(j.id); setTimeout(() => { dockJobs.delete(j.id); renderDock(); }, 20000); }
     }
     if (b.settings?.theme && !localStorage.getItem('studioTheme')) setTheme(b.settings.theme);
-    for (const a of b.approvals || []) approvalQueue.push(a);
+    for (const a of b.approvals || []) if (!approvalSeen.has(a.id)) { approvalSeen.add(a.id); approvalQueue.push(a); }
     showNextApproval();
   } catch (e) {
     toast(`Could not reach the studio server: ${e.message}`, 'err');
@@ -486,7 +497,7 @@ async function refresh() {
   refreshHeader();
 }
 
-Object.assign(app, { go, ask: askCopilot, placeChat, refresh, rerender: () => renderView(current), jobCard, watchJob: (id) => { dockJobs.add(id); renderDock(); }, loadReadiness, moduleGrid });
+Object.assign(app, { go, ask: askCopilot, placeChat, refresh, refreshAll, rerender: () => renderView(current), jobCard, watchJob: (id) => { dockJobs.add(id); renderDock(); }, loadReadiness, moduleGrid });
 
 connectEvents();
 await refresh();

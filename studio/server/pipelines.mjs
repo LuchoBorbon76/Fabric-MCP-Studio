@@ -563,8 +563,48 @@ async function waitForReplica(ctx, workspaceId, ep, expected, { from, to, verify
 
 // ---------------- teardown ----------------
 
+// Item types Fabric moves to the workspace recycle bin when item recovery is on (the default); the rest are deleted
+// for good.
+const RECOVERABLE = new Set(['Lakehouse', 'SQLDatabase', 'MirroredDatabase', 'Warehouse', 'Ontology', 'KQLDashboard', 'Eventstream']);
+
+/** What "Clean up resources" deletes, in delete order: only items the studio created or mirrored. */
+function teardownItems(p) {
+  const list = [
+    ['OrgApp', 'Org app', p.orgApp],
+    ...(p.reports || []).map((r) => ['Report', 'Report', r]),
+    ['Plan', 'Fabric plan', p.planning?.planItem],
+    ['Reflex', 'Activator alerts', p.realtime?.alerts],
+    ['KQLDashboard', 'Real-Time Dashboard', p.realtime?.dashboard],
+    ['Eventstream', 'Eventstream', p.realtime?.eventstream],
+    ['Eventhouse', 'Eventhouse (all live events)', p.realtime?.eventhouse],
+    ['Ontology', 'Ontology', p.ontology],
+    ['SemanticModel', 'Semantic model', p.semanticModel],
+    ['MirroredDatabase', 'Mirrored database (replication stops)', p.source?.method === 'mirror' && p.modelSource?.itemId ? { id: p.modelSource.itemId, name: p.modelSource.itemName } : null],
+    ['Lakehouse', 'Lakehouse', p.lakehouse],
+    ['SQLDatabase', 'SQL database', p.sqlDatabase],
+  ];
+  return list.filter(([, , it]) => it?.id).map(([type, label, it]) => ({ type, label, id: it.id, name: it.name || it.displayName || it.id }));
+}
+
+/** Shown before "Clean up resources" runs, so the user confirms exactly what is deleted. */
+export function teardownPlan({ deleteWorkspace = false } = {}) {
+  const p = getProject();
+  if (!p.workspace) return { workspace: null, deleteWorkspace: false, items: [] };
+  const workspace = { id: p.workspace.id, name: p.workspace.name, created: Boolean(p.workspace.created) };
+  const items = teardownItems(p).map((i) => ({ ...i, recoverable: RECOVERABLE.has(i.type) }));
+  return {
+    workspace,
+    deleteWorkspace: Boolean(deleteWorkspace && workspace.created),
+    items,
+    ontologyCompanions: Boolean(p.ontology?.id),
+    liveEvents: Boolean(p.realtime),
+  };
+}
+
 export async function runTeardown(ctx, { deleteWorkspace = false } = {}) {
   const p = getProject();
+  discoveryCache = { key: null, at: 0, data: null };
+  resetProfileCache();
   if (deleteWorkspace && p.workspace?.created) {
     stopSimulator('clean up');
     ctx.step(`Delete workspace ${p.workspace.name}`);
@@ -574,29 +614,20 @@ export async function runTeardown(ctx, { deleteWorkspace = false } = {}) {
   } else if (p.workspace) {
     ctx.step('Delete items created by the studio');
     stopSimulator('clean up');
-    for (const it of [p.orgApp, ...(p.reports || []), p.planning?.planItem, p.realtime?.alerts, p.realtime?.dashboard, p.realtime?.eventstream, p.realtime?.eventhouse, p.ontology, p.semanticModel].filter(Boolean)) {
-      try { await F.deleteItem(p.workspace.id, it.id); ctx.log(`Deleted ${it.name}`); } catch (e) { ctx.log(`Could not delete ${it.name}: ${e.message}`); }
-    }
-    if (p.ontology?.id) {
-      // An ontology provisions companion items named <ontology>_eh_<id> / <ontology>_graph_<id>.
-      const suffix = p.ontology.id.replace(/-/g, '').toLowerCase();
-      const order = { GraphModel: 0, KQLDatabase: 1, Eventhouse: 2 };
-      try {
-        const companions = (await F.listItems(p.workspace.id)).filter((i) => i.displayName.toLowerCase().endsWith(suffix) && i.type in order).sort((a, b) => order[a.type] - order[b.type]);
-        for (const i of companions) {
-          try { await F.deleteItem(p.workspace.id, i.id); ctx.log(`Deleted ${i.type} ${i.displayName}`); } catch (e) { if (e.status !== 404) ctx.log(`Could not delete ${i.displayName}: ${e.message}`); }
-        }
-      } catch (e) { ctx.log(`Could not list ontology companion items: ${e.message}`); }
-    }
-    if (p.source?.method === 'mirror' && p.modelSource?.itemId) {
-      try { await F.stopMirroring(p.workspace.id, p.modelSource.itemId); } catch { /* ignore */ }
-      try { await F.deleteItem(p.workspace.id, p.modelSource.itemId); ctx.log(`Deleted ${p.modelSource.itemName}`); } catch (e) { ctx.log(e.message); }
-    }
-    if (p.lakehouse?.id) {
-      try { await F.deleteItem(p.workspace.id, p.lakehouse.id); ctx.log(`Deleted ${p.lakehouse.name}`); } catch (e) { ctx.log(e.message); }
-    }
-    if (p.sqlDatabase?.id) {
-      try { await F.deleteItem(p.workspace.id, p.sqlDatabase.id); ctx.log(`Deleted SQL database ${p.sqlDatabase.name}`); } catch (e) { ctx.log(e.message); }
+    for (const it of teardownItems(p)) {
+      if (it.type === 'MirroredDatabase') { try { await F.stopMirroring(p.workspace.id, it.id); } catch { /* already stopped */ } }
+      try { await F.deleteItem(p.workspace.id, it.id); ctx.log(`Deleted ${it.name} (${it.label.replace(/ \(.*\)$/, '')})`); } catch (e) { ctx.log(e.status === 404 ? `${it.name} was already deleted` : `Could not delete ${it.name}: ${e.message}`); }
+      if (it.type === 'Ontology') {
+        // An ontology provisions companion items named <ontology>_eh_<id> / <ontology>_graph_<id>.
+        const suffix = it.id.replace(/-/g, '').toLowerCase();
+        const order = { GraphModel: 0, KQLDatabase: 1, Eventhouse: 2 };
+        try {
+          const companions = (await F.listItems(p.workspace.id)).filter((i) => i.displayName.toLowerCase().endsWith(suffix) && i.type in order).sort((a, b) => order[a.type] - order[b.type]);
+          for (const i of companions) {
+            try { await F.deleteItem(p.workspace.id, i.id); ctx.log(`Deleted ${i.type} ${i.displayName}`); } catch (e) { if (e.status !== 404) ctx.log(`Could not delete ${i.displayName}: ${e.message}`); }
+          }
+        } catch (e) { ctx.log(`Could not list ontology companion items: ${e.message}`); }
+      }
     }
     const keep = p.steps?.workspace;
     updateProject({ lakehouse: null, sqlDatabase: null, source: null, modelSource: null, modelProposal: null, reportProposal: null, semanticModel: null, ontology: null, reports: [], orgApp: null, teamsAgent: null, scenario: null, realtime: null, planning: null, steps: keep ? { workspace: keep } : {} });

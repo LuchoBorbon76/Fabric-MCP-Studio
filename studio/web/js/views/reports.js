@@ -6,6 +6,7 @@ const TOKEN = document.querySelector('meta[name="studio-token"]').content;
 let catalog = null;
 let profile = null;
 let profileKey = null;
+on('studio.reset', () => { profile = null; profileKey = null; });
 const design = { theme: 'studio', pages: new Set(['executive', 'drivers', 'scorecard']), name: '' };
 
 export function renderReports(el) {

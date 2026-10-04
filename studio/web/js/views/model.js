@@ -7,6 +7,7 @@ let schemaKey = null;
 const include = new Set();
 const names = {};
 let nameDraft = null;     // typed model name, kept when the designer re-renders
+on('studio.reset', () => { schema = null; schemaKey = null; include.clear(); for (const k of Object.keys(names)) delete names[k]; nameDraft = null; });
 
 export function renderModel(el) {
   const p = store.project || {};

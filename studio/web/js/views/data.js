@@ -8,6 +8,8 @@ let wiz = null;           // wizard state for database sources
 let fabricState = { itemType: 'Lakehouse', workspaceId: '', itemId: '', tables: [], selected: new Set() };
 let alignedTo;            // data source the tabs below were last filled from
 let workspaceNames = null;
+// After a clean up or a new project, nothing picked from Fabric is still valid.
+on('studio.reset', () => { selectedType = null; wiz = null; fabricState = { itemType: 'Lakehouse', workspaceId: '', itemId: '', tables: [], selected: new Set() }; alignedTo = undefined; workspaceNames = null; });
 
 const ITEM_LABEL = { Lakehouse: 'Lakehouse', Warehouse: 'Warehouse', MirroredDatabase: 'Mirrored database', SQLDatabase: 'SQL database' };
 const ITEM_ICON = { Lakehouse: '🏞️', Warehouse: '🏛️', MirroredDatabase: '🪞', SQLDatabase: '🗄️' };

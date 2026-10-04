@@ -55,6 +55,27 @@ export function confirmDialog(title, message, okLabel = 'Continue', danger = fal
   });
 }
 
+/** For changes that can't be undone: the delete button unlocks only once `phrase` is typed. Resolves to the phrase or false. */
+export function typedConfirmDialog(title, body, phrase, okLabel = 'Delete') {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (v) => { if (!done) { done = true; resolve(v); } };
+    const box = input({ autocomplete: 'off', spellcheck: 'false', 'aria-label': `Type ${phrase} to confirm` });
+    const typed = () => box.value.trim() === phrase;
+    const m = modal({
+      title,
+      body: h('div', {}, body, h('label', { class: 'f mt' }, h('span', {}, 'To confirm, type ', h('b', {}, phrase)), box)),
+      actions: [{ label: 'Cancel', onClick: () => finish(false) }, { label: okLabel, class: 'danger', onClick: () => { if (!typed()) return false; finish(phrase); return true; } }],
+      onClose: () => finish(false),
+    });
+    const ok = m.el.querySelector('.mf .btn.danger');
+    ok.disabled = true;
+    box.addEventListener('input', () => { ok.disabled = !typed(); });
+    box.addEventListener('keydown', (e) => { if (e.key === 'Enter' && typed()) ok.click(); });
+    setTimeout(() => box.focus({ preventScroll: true }), 0);
+  });
+}
+
 export const fmtNum = (n) => (n === null || n === undefined ? '–' : Number(n).toLocaleString());
 export const fmtTime = (d) => new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 export const fmtDate = (d) => new Date(d).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });

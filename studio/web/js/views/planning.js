@@ -11,6 +11,7 @@ const put = (el, ...kids) => el.append(...kids.flat().filter((x) => x !== null &
 
 // Choices survive re-renders while the tab is open.
 const draft = { opts: {}, preview: null, overrides: new Map() };
+on('studio.reset', () => { draft.opts = {}; draft.preview = null; draft.overrides.clear(); });
 
 export function renderPlanning(el) {
   const p = store.project || {};

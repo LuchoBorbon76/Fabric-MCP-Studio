@@ -1,4 +1,4 @@
-import { store, get, post } from '../api.js';
+import { store, get, post, on } from '../api.js';
 import { h, toast, busy, field, input, select, seg, fmtNum } from '../ui.js';
 import { app, copilotSlot } from '../app.js';
 
@@ -6,6 +6,7 @@ let mode = 'new';
 let caps = null;
 let workspaces = null;
 let filter = '';
+on('studio.reset', () => { caps = null; workspaces = null; });
 
 export function renderWorkspace(el) {
   const p = store.project || {};

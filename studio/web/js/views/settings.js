@@ -1,5 +1,5 @@
 import { store, get, post, put, patch, on } from '../api.js';
-import { h, toast, busy, field, input, select, seg, confirmDialog, statusDot } from '../ui.js';
+import { h, toast, busy, field, input, select, seg, confirmDialog, typedConfirmDialog, statusDot } from '../ui.js';
 import { app } from '../app.js';
 
 let draftProvider = null;
@@ -141,26 +141,66 @@ function entraCard() {
 }
 
 // ---------------- danger zone ----------------
+let cleanupJobId = null;   // the last clean up, still shown after the tab re-renders
+
+function cleanupSummary(plan) {
+  const ws = plan.workspace.name;
+  const muted = (text) => h('p', { class: 'small muted' }, text);
+  if (plan.deleteWorkspace) {
+    return h('div', {},
+      h('p', {}, 'This deletes the workspace ', h('b', {}, ws), ' and everything in it, including items the studio didn\'t create.'),
+      muted('A Fabric administrator can restore a deleted workspace during its retention period (7 days by default).'));
+  }
+  const n = plan.items.length;
+  const restorable = plan.items.some((i) => i.recoverable);
+  return h('div', {},
+    h('p', {}, `This deletes ${n} item${n === 1 ? '' : 's'} the studio created in `, h('b', {}, ws), '. Your own data sources and the other items in the workspace aren\'t touched.'),
+    h('div', { class: 'tclist' }, h('table', { class: 't' },
+      h('thead', {}, h('tr', {}, h('th', {}, 'Item'), h('th', {}, 'Name'), h('th', {}, 'After deleting'))),
+      h('tbody', {}, plan.items.map((i) => h('tr', {},
+        h('td', {}, i.label), h('td', {}, i.name),
+        h('td', {}, i.recoverable ? h('span', { class: 'pill ok', title: 'Can be restored from the workspace recycle bin' }, 'Recycle bin') : h('span', { class: 'pill err' }, 'Gone for good'))))))),
+    plan.ontologyCompanions ? muted('The ontology\'s graph and Eventhouse companion items are deleted with it.') : null,
+    plan.liveEvents ? muted('The live event simulator stops.') : null,
+    muted(restorable
+      ? 'Items marked Recycle bin can be restored from the workspace recycle bin for a few days (3 by default) when item recovery is on in your tenant. The others can\'t be restored, but the studio can build them again.'
+      : 'These items can\'t be restored, but the studio can build them again.'),
+    muted('The studio keeps the workspace and starts again from Data. Every tab refreshes when the clean up finishes.'));
+}
+
 function dangerCard() {
   const p = store.project || {};
   const delWs = h('input', { type: 'checkbox', disabled: !p.workspace?.created || undefined });
   const job = h('div', { class: 'mt' });
-  const clean = h('button', { class: 'btn danger', 'data-busy': 'Starting…', disabled: !p.workspace || undefined }, 'Clean up resources');
+  const showJob = (x) => { job.innerHTML = ''; if (x) job.append(app.jobCard(x)); };
+  const follow = (id) => {
+    const off = on('job', (e) => { if (e.job.id !== id) return; if (!job.isConnected) { off(); return; } showJob(e.job); if (e.job.status !== 'running') off(); });
+  };
+  const last = cleanupJobId && store.jobs.get(cleanupJobId);
+  if (last) { showJob(last); if (last.status === 'running') follow(last.id); }
+  const clean = h('button', { class: 'btn danger', 'data-busy': 'Checking…', disabled: !p.workspace || undefined }, 'Clean up resources');
   clean.addEventListener('click', busy(clean, async () => {
-    const what = delWs.checked ? `the whole workspace "${p.workspace.name}"` : 'the lakehouse, SQL database, mirrored database, semantic model and ontology created by the studio';
-    if (!(await confirmDialog('Clean up resources', `This deletes ${what}. This cannot be undone.`, 'Delete', true))) return;
-    const j = await post('/jobs/teardown', { deleteWorkspace: delWs.checked });
+    const plan = await get(`/teardown/plan?workspace=${delWs.checked ? 1 : 0}`);
+    if (!plan.workspace) return;
+    if (!plan.deleteWorkspace && !plan.items.length) {
+      toast(`Nothing the studio created is left in ${plan.workspace.name}. To clear the studio's project, use Start a new project.`, 'ok');
+      return;
+    }
+    const n = plan.items.length;
+    const phrase = await typedConfirmDialog(plan.deleteWorkspace ? 'Delete the workspace' : 'Clean up resources', cleanupSummary(plan), plan.workspace.name, plan.deleteWorkspace ? 'Delete workspace' : `Delete ${n} item${n === 1 ? '' : 's'}`);
+    if (!phrase) return;
+    const j = await post('/jobs/teardown', { deleteWorkspace: plan.deleteWorkspace, confirm: phrase });
+    cleanupJobId = j.id;
     app.watchJob(j.id);
-    const render = (x) => { job.innerHTML = ''; job.append(app.jobCard(x)); };
-    render(j);
-    const off = on('job', (e) => { if (e.job.id !== j.id) return; render(e.job); if (e.job.status !== 'running') off(); });
+    showJob(j);
+    follow(j.id);
   }));
   const reset = h('button', { class: 'btn', 'data-busy': 'Resetting…' }, 'Start a new project');
   reset.addEventListener('click', busy(reset, async () => {
     if (!(await confirmDialog('Start a new project', 'This clears the studio\'s local project state and activity log. Nothing is deleted in Fabric.'))) return;
     await post('/project/reset');
     toast('Project reset', 'ok');
-    await app.refresh();
+    await app.refreshAll();
     app.go('home');
   }));
   return h('div', { class: 'card' },
