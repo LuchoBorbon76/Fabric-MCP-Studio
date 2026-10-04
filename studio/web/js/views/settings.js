@@ -181,7 +181,7 @@ function cleanupSummary(plan) {
     muted(restorable
       ? 'Items marked Recycle bin can be restored from the workspace recycle bin for a few days (3 by default) when item recovery is on in your tenant. The others can\'t be restored, but the studio can build them again.'
       : 'These items can\'t be restored, but the studio can build them again.'),
-    muted('The studio keeps the workspace and starts again from Data. Every tab refreshes when the clean up finishes.'));
+    muted('Afterwards the project is empty: the map and every tab start over, and you choose a workspace again. The workspace itself stays in Fabric unless you chose to delete it.'));
 }
 
 function dangerCard() {
@@ -199,7 +199,13 @@ function dangerCard() {
     const plan = await get(`/teardown/plan?workspace=${delWs.checked ? 1 : 0}`);
     if (!plan.workspace) return;
     if (!plan.deleteWorkspace && !plan.items.length) {
-      toast(`Nothing the studio created is left in ${plan.workspace.name}. To clear the studio's project, use Start a new project.`, 'ok');
+      // Nothing to delete: just let go of the workspace so the project starts empty.
+      if (!(await confirmDialog('Clean up', `Nothing the studio created is left in ${plan.workspace.name}. Clear the project so the map and every tab start over? ${plan.workspace.name} stays in Fabric.`, 'Clear the project'))) return;
+      const j = await post('/jobs/teardown', { deleteWorkspace: false, confirm: plan.workspace.name });
+      cleanupJobId = j.id;
+      app.watchJob(j.id);
+      showJob(j);
+      follow(j.id);
       return;
     }
     const n = plan.items.length;

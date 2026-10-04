@@ -29,7 +29,8 @@
     { "date": "2026-10-04", "type": "improvement", "commit": "db0dfa6", "title": "Suggested questions built from your model, reports, rules, plan and live data" },
     { "date": "2026-10-04", "type": "fix", "commit": "8fa41f0", "title": "Fabric plan no longer bound to a connection that can't open the model; plans on a recreated model are fixed" },
     { "date": "2026-10-04", "type": "improvement", "commit": "8fa41f0", "title": "Fabric data agent created and published by the studio, with Apply suggestions" },
-    { "date": "2026-10-04", "type": "improvement", "title": "Disclaimer for internal and external users, shown once and in the footer; What's new" },
-    { "date": "2026-10-04", "type": "fix", "title": "Version number calculated from the improvements and fixes" }
+    { "date": "2026-10-04", "type": "improvement", "commit": "978625c", "title": "Disclaimer for internal and external users, shown once and in the footer; What's new" },
+    { "date": "2026-10-04", "type": "fix", "commit": "978625c", "title": "Version number calculated from the improvements and fixes" },
+    { "date": "2026-10-04", "type": "fix", "title": "Clean up empties the project: the map shows Choose a workspace instead of the old workspace" }
   ]
 }

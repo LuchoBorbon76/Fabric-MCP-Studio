@@ -644,9 +644,10 @@ export async function runTeardown(ctx, { deleteWorkspace = false } = {}) {
         } catch (e) { ctx.log(`Could not list ontology companion items: ${e.message}`); }
       }
     }
-    const keep = p.steps?.workspace;
-    updateProject({ lakehouse: null, sqlDatabase: null, source: null, modelSource: null, modelProposal: null, reportProposal: null, dataAgentProposal: null, dataAgent: null, semanticModel: null, ontology: null, reports: [], orgApp: null, teamsAgent: null, scenario: null, realtime: null, planning: null, dataPrep: null, dataPrepItems: [], steps: keep ? { workspace: keep } : {} });
+    // The project starts empty again: the workspace itself stays in Fabric, but the studio no longer points to it.
+    updateProject({ workspace: null, lakehouse: null, sqlDatabase: null, source: null, modelSource: null, modelProposal: null, reportProposal: null, dataAgentProposal: null, dataAgent: null, semanticModel: null, ontology: null, reports: [], orgApp: null, teamsAgent: null, scenario: null, realtime: null, planning: null, dataPrep: null, dataPrepItems: [], tenant: null, steps: {} });
     clearDataPrepFiles();
+    ctx.log(`The project is empty again – ${p.workspace.name} stays in Fabric; choose a workspace to start a new one`);
   }
   return { ok: true };
 }
