@@ -12,7 +12,7 @@ on('studio.reset', () => { schema = null; schemaKey = null; include.clear(); for
 export function renderModel(el) {
   const p = store.project || {};
   if (!p.modelSource) {
-    el.append(h('div', { class: 'banner warn' }, h('div', {}, h('b', {}, 'Connect data first. '), 'The semantic model is built on the data source you choose in the Data tab.'), h('button', { class: 'btn pri', onclick: () => app.go('data') }, 'Go to Data')));
+    el.append(h('div', { class: 'banner warn' }, h('div', {}, h('b', {}, 'Connect data first. '), 'The semantic model is built on the data source you choose in the Data page.'), h('button', { class: 'btn pri', onclick: () => app.go('data') }, 'Go to Data')));
     return;
   }
   if (p.semanticModel) el.append(modelCard(p));

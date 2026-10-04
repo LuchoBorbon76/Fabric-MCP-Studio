@@ -429,7 +429,7 @@ function studioTools(chatId) {
       handler: async ({ type }) => (await F.listConnections()).filter((c) => !type || c.type === type),
     }),
     studioTool('studio_mirror_database', {
-      description: 'Mirror a database into the project workspace with Fabric Mirroring using an existing Fabric connection ID (never ask for passwords in chat; the user creates connections in the Data tab). sourceType: azure-sql | sql-mi | sql-server | azure-postgres.',
+      description: 'Mirror a database into the project workspace with Fabric Mirroring using an existing Fabric connection ID (never ask for passwords in chat; the user creates connections in the Data page). sourceType: azure-sql | sql-mi | sql-server | azure-postgres.',
       parameters: obj({
         sourceType: { type: 'string', enum: ['azure-sql', 'sql-mi', 'sql-server', 'azure-postgres'] },
         connectionId: str('Fabric connection ID'), database: str('Source database name'),

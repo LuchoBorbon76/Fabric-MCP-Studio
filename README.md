@@ -27,6 +27,10 @@ A local web app the customer installs and runs. One place to:
 Every step has a quick action **and** a Copilot path. Copilot calls the Fabric MCP servers as the signed-in user and
 **asks for approval before every change**; database credentials never go through the chat.
 
+The app opens on a **solution map**: a lineage diagram of every part above – from the data source through OneLake and
+the semantic model to reports, plans, answers, agents and the real-time items – showing what is built from what.
+Parts stay greyed out until they are configured and light up as you build; select one to see its details or open it.
+
 ```powershell
 git clone https://github.com/luisbor_microsoft/Fabric-MCP-Studio.git
 cd Fabric-MCP-Studio

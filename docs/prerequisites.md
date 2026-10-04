@@ -16,8 +16,8 @@ Run `.\scripts\prereq-check.ps1 -CheckFabric` for the parts that can be checked 
 
 ### Tenant settings (Fabric admin portal)
 
-The studio checks these for you when you are a Fabric administrator (*Check setup*, the Home tab and a dot on each tab
-that can't run or runs with limits); otherwise each tab lists the settings to confirm with your administrator.
+The studio checks these for you when you are a Fabric administrator (*Check setup*, the overview and a badge on each part
+of the solution map that can't run); otherwise each page lists the settings to confirm with your administrator.
 
 | Setting | Needed for |
 |---|---|

@@ -69,23 +69,31 @@ flowchart LR
   T --> F
 ```
 
+- **Solution map**: the app opens on a lineage map of everything it builds, from the data source through OneLake,
+  the semantic model and the ontology to reports, the plan, Copilot answers, the Microsoft 365 agent and the
+  real-time items (live events → Eventstream → Eventhouse → Real-Time Dashboard, Activator alerts, live ontology
+  properties). Parts stay greyed out until they are configured, then light up with their names and details; the
+  edges show what is built from what, the suggested next part pulses, running jobs and live streams animate, and
+  parts that can't run show a badge. On the overview, select a part to see its details, what it is built from and
+  what it feeds, with *Open*, *Let Copilot do it* and *Open in Fabric*; elsewhere the map stays on top in a compact
+  form (or hidden with *Hide map*) and selecting a part opens its page.
 - **Two ways to do every step**: quick actions (deterministic, using Fabric REST APIs) or Copilot (MCP servers +
   studio tools). Both update the same project state.
-- **Copilot inside every step**: Copilot opens right in the tab you are working in (for example below the tables and
-  relationships in *Semantic model*), never in a separate window. The **Copilot** tab shows the same conversation full size.
+- **Copilot inside every step**: Copilot opens right in the page you are working in (for example below the tables and
+  relationships in *Semantic model*), never in a separate window. The **Copilot** page shows the same conversation full size.
 - **Approvals**: every tool call that creates or changes something opens a review dialog with the exact request.
   Modes: *Ask every time* (default), *Auto-approve*, *Read-only*. When Copilot suggests a semantic model design, an
   **Apply suggestions** button reviews and creates it in one click – no need to type a confirmation.
-- **Secrets never reach the AI**: database credentials are entered in the Data tab and sent straight to Fabric to
+- **Secrets never reach the AI**: database credentials are entered in the Data page and sent straight to Fabric to
   create a connection; Copilot only sees the connection ID.
 - **Identity**: Microsoft Entra tokens (Azure CLI sign-in or browser) are minted locally and passed to the MCP
   servers. Fabric permissions, RLS and OLS always apply.
-- **Audit**: Activity tab lists created items with links, jobs, and every approval or denial. Export as JSON.
+- **Audit**: the Activity page lists created items with links, jobs, and every approval or denial. Export as JSON.
 - **Up-front checks**: the studio reads the workspace's capacity (running or paused, SKU, trial), your workspace role,
-  the tenant settings each tab needs (when you are a Fabric administrator) and what your data source supports. Tabs
-  that can't run get a red dot and a banner with the reason and the fix, and their actions are disabled; tabs that run
-  with limits get an amber dot. Jobs and Copilot tools stop before changing anything when their tab can't run.
-  *Check setup* and `npm run check` show the same list.
+  the tenant settings each step needs (when you are a Fabric administrator) and what your data source supports. Parts
+  that can't run get a red badge on the map and their page a banner with the reason and the fix, and their actions
+  are disabled; parts that run with limits say so. Jobs and Copilot tools stop before changing anything when their
+  step can't run. *Check setup* and `npm run check` show the same list.
 
 ## Data source scenarios
 
@@ -124,7 +132,7 @@ Fabric REST API – no Power BI Desktop needed.
    export off, open the report in Power BI instead). Partial years are filtered out so comparisons use full years.
 
 Copilot can recommend pages and a theme for your audience (`studio_describe_report_options`) and suggest the report
-(`studio_propose_report`); **Apply suggestions** reviews and builds it in one click. The tab also shows
+(`studio_propose_report`); **Apply suggestions** reviews and builds it in one click. The page also shows
 **Recommended for your data** – ready-made report recommendations with the reasons from your model.
 
 **Org app** – *Create app* bundles the studio's reports into a Fabric org app: an overview page, a *Reports* section
@@ -154,7 +162,7 @@ ontology and alerts people when a business rule is broken.
    `LiveQuantity`, `LiveDiscountPct`, `LiveMargin`, `LiveRuleBreak` and more, ordered by event time and read live from
    the Eventhouse (no copy) – plus a link to the Real-Time Dashboard. The ontology's tables are also tagged with their
    source item so Fabric can preview instances. Re-running replaces the earlier bindings; *Remove live properties*
-   takes them off again, and re-deploying the ontology from the Ontology tab keeps them.
+   takes them off again, and re-deploying the ontology from the Ontology page keeps them.
 5. **Alerts on rule breaks** – a Fabric **Activator** queries the live table every minute and, for each business-rule
    break, sends a Teams message or an email with the order, buyer, region, amount, discount and margin. One Activator
    rule per business rule; pick the rules, the recipients and an optional minimum amount. The card estimates how many
@@ -189,7 +197,7 @@ Copilot tools: `studio_realtime_status`, `studio_query_live_events` (read-only K
    approve and write back to a SQL database.
 
 Planning needs a date table with year and month number columns related to your facts. Plans are written to Fabric
-SQL databases and warehouses; for lakehouse or mirrored sources the tab previews the plan but can't build it yet.
+SQL databases and warehouses; for lakehouse or mirrored sources the page previews the plan but can't build it yet.
 
 Copilot tools: `studio_planning_status`, `studio_preview_plan`, `studio_create_plan` and `studio_create_plan_item`.
 
@@ -209,11 +217,11 @@ Copilot tools: `studio_planning_status`, `studio_preview_plan`, `studio_create_p
 | `server/realtime/` | Live data: Eventhouse/Eventstream setup, live ontology and alerts (`index.mjs`), event scenarios shaped like the data (`scenarios.mjs`), simulator sending to the custom endpoint (`simulator.mjs`), Real-Time Dashboard generator (`dashboard.mjs`), Activator alert definition (`alerts.mjs`), KQL client (`kusto.mjs`) |
 | `server/generators/ontology-live.mjs` | Adds or removes Eventhouse time-series bindings and dashboard links on an existing TMDL ontology |
 | `server/planning/` | Budgets and forecasts: plan design and calculation (`design.mjs`), plan values in the SQL database or warehouse (`store.mjs`), the Plan table patch for the semantic model (`model.mjs`), jobs, plan item and summary (`index.mjs`) |
-| `server/readiness.mjs` | Up-front checks: capacity, workspace role, tenant settings and data-source limits per tab, and the guard that stops jobs of tabs that can't run |
+| `server/readiness.mjs` | Up-front checks: capacity, workspace role, tenant settings and data-source limits per step, and the guard that stops jobs of steps that can't run |
 | `server/presets.mjs` | Sample presets (names, relationships, measures, rules) |
 | `server/samples/adventureworks-dw.mjs` | AdventureWorksDW2022 loader for Fabric SQL database (install kit → tables, keys, bulk load, verification) |
 | `server/agent-instructions.md` | System instructions for the agent |
-| `web/` | UI (vanilla ES modules, MSX Command Center design, 9 themes) |
+| `web/` | UI (vanilla ES modules, MSX Command Center design, 9 themes); `web/js/lineage.js` draws the solution map |
 | `assets/` | App icon (`fabric-mcp-studio.ico` / `.png`) used by the desktop shortcut |
 | `Start-Studio-Silent.wsf` | Windows launcher used by the desktop shortcut: starts the studio without a console window, reuses a running copy, reports start-up errors |
 | `data/` | Local state (git-ignored): project, activity log, chat transcripts, Copilot runtime home, `studio.log` |

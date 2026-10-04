@@ -1,7 +1,8 @@
-// Entry point: header, KPI strip, navigation, approvals, job dock and the embedded Copilot.
+// Entry point: header, solution map (navigation), approvals, job dock and the embedded Copilot.
 import { get, post, store, on, fire, connectEvents } from './api.js';
 import { h, $, $$, toast, modal, initials, statusDot, busy, SERVER_LABEL } from './ui.js';
-import { app, stepStatus, suggestions } from './app.js';
+import { app, suggestions } from './app.js';
+import { mountMap, getNode } from './lineage.js';
 import { chatElement, ask as chatAsk, refreshHeader, refreshSuggestions, setPanelMode, scrollChatToEnd, focusChat } from './chat.js';
 import { renderHome } from './views/home.js';
 import { renderCopilot } from './views/copilot.js';
@@ -133,7 +134,7 @@ export async function showHealth(open) {
       body.append(h('h3', { style: { margin: '12px 0 4px' } }, rd.workspace ? `Workspace ${rd.workspace.name}` : 'Your workspace'), ...rd.checks.map(line));
       body.append(h('h3', { style: { margin: '12px 0 4px' } }, 'What can run'), moduleGrid(rd));
     }
-    renderKpis();
+    updateMap();
     if (rendered.has('home') && current === 'home') renderView('home');
   } catch (e) {
     body.innerHTML = '';
@@ -152,52 +153,24 @@ export function moduleGrid(rd) {
   }));
 }
 
-// ---------------- KPIs ----------------
-function renderKpis() {
-  const p = store.project || {};
-  const st = stepStatus(p, store);
-  const aiCheck = store.health?.checks?.find((c) => c.id === 'copilot');
-  const cap = store.readiness?.capacity;
-  const capPaused = cap?.visible && cap.state && cap.state !== 'Active';
-  const k = [
-    { id: 'ai', view: 'settings', label: 'AI provider', value: store.provider?.name || '–', sub: store.provider?.model || (aiCheck?.detail ?? 'Not checked yet'), state: aiCheck ? (aiCheck.status === 'ok' ? 'done' : aiCheck.status === 'error' ? 'err' : 'todo') : 'todo' },
-    { id: 'fabric', view: 'settings', label: 'Microsoft Fabric', value: store.user?.signedIn ? (store.user.tenantDomain || 'Signed in') : 'Not signed in', sub: !store.user?.signedIn ? 'Select Sign in' : cap?.visible ? `${cap.sku} · ${capPaused ? 'capacity paused' : 'capacity running'}` : store.user.upn, state: !store.user?.signedIn || capPaused ? 'err' : 'done' },
-    { id: 'workspace', view: 'workspace', label: 'Workspace', value: p.workspace?.name || 'Not selected', sub: p.workspace ? (p.workspace.created ? 'Created by the studio' : 'Existing workspace') : 'New or existing', state: st.workspace },
-    { id: 'data', view: 'data', label: 'Data', value: p.source?.label || 'Not connected', sub: p.modelSource ? `${{ MirroredDatabase: 'Mirrored database', SQLDatabase: 'SQL database' }[p.modelSource.itemType] || p.modelSource.itemType} · ${p.modelSource.itemName}` : 'Sample or your data', state: st.data },
-    { id: 'model', view: 'model', label: 'Semantic model', value: p.semanticModel?.name || 'Not created', sub: p.semanticModel ? `${p.semanticModel.tables} tables · ${p.semanticModel.measures} measures` : 'Direct Lake', state: st.model },
-    { id: 'ontology', view: 'ontology', label: 'Ontology', value: p.ontology?.name || 'Not created', sub: p.ontology ? `${p.ontology.entities?.length || 0} entities · ${p.ontology.rules?.length || 0} rules` : 'Fabric IQ', state: st.ontology },
-    { id: 'reports', view: 'reports', label: 'Reports & apps', value: p.reports?.length ? `${p.reports.length} report${p.reports.length === 1 ? '' : 's'}${p.orgApp ? ' · 1 app' : ''}` : 'Not built', sub: p.orgApp ? p.orgApp.name : p.reports?.length ? p.reports[0].name : 'Power BI', state: st.reports },
-    { id: 'realtime', view: 'realtime', label: 'Real-time', value: store.realtime?.simulator?.running ? `Streaming · ${store.realtime.simulator.rate}/min` : p.realtime ? (p.realtime.dashboard ? 'Dashboard ready' : 'Live data ready') : 'Not set up', sub: p.realtime ? `Eventhouse · ${p.realtime.eventhouse?.name || ''}` : 'Eventhouse + Eventstream', state: store.realtime?.simulator?.running ? 'run' : st.realtime },
-    { id: 'planning', view: 'planning', label: 'Planning', value: p.planning ? `Plan ${p.planning.planYear}` : 'No plan', sub: p.planning ? `Budget + forecast · ${p.planning.measure?.name || ''}` : 'Budget and forecast', state: st.planning },
-  ];
-  const running = [...store.jobs.values()].filter((j) => j.status === 'running');
-  const el = $('#kpis');
-  el.innerHTML = '';
-  for (const x of k) {
-    const isRun = running.some((j) => (x.id === 'data' && ['sample', 'mirror', 'shortcut'].includes(j.kind)) || (x.id === 'model' && j.kind === 'semantic-model') || (x.id === 'ontology' && j.kind === 'ontology') || (x.id === 'reports' && ['report', 'org-app'].includes(j.kind)) || (x.id === 'realtime' && ['realtime', 'realtime-dashboard', 'realtime-ontology', 'realtime-alerts'].includes(j.kind)) || (x.id === 'planning' && ['planning', 'plan-item'].includes(j.kind)));
-    const state = isRun ? 'run' : x.state;
-    el.append(h('div', { class: `kpi ${state}`, onclick: () => go(x.view), title: `Open ${x.label}` },
-      h('div', { class: 'l' }, statusDot(state === 'done' ? 'ok' : state === 'err' ? 'error' : state === 'run' ? 'running' : ''), x.label),
-      h('div', { class: 'v', title: x.value }, x.value),
-      h('div', { class: 'sub', title: x.sub }, x.sub)));
-  }
-}
+// ---------------- solution map (replaces the KPI strip and the tabs) ----------------
+const mapState = { selected: null };
+const map = mountMap($('#map'), {
+  onTab: (id) => go(id),
+  onNode: (id, how) => {
+    const g = map.graph();
+    const n = g && getNode(g, id);
+    if (!n) return;
+    // On the overview a click shows the part's details; elsewhere (or a double-click) opens its page.
+    if (current === 'home' && how === 'click') { app.selectNode(id); return; }
+    go(n.view);
+  },
+});
+function updateMap() { map.update({ view: current, selected: mapState.selected }); }
 
 // ---------------- navigation ----------------
 const MODULE_VIEWS = ['workspace', 'data', 'model', 'ontology', 'reports', 'realtime', 'planning', 'share'];
 const firstReason = (m) => m?.reasons?.find((r) => r.status === 'error') || m?.reasons?.find((r) => r.status === 'warn');
-
-function renderNav() {
-  const nav = $('#nav');
-  nav.innerHTML = '';
-  for (const [id, v] of Object.entries(VIEWS)) {
-    let cnt = null;
-    if (id === 'activity') { const n = [...store.jobs.values()].filter((j) => j.status === 'running').length; if (n) cnt = h('span', { class: 'cnt' }, n); }
-    const m = store.readiness?.modules?.[id];
-    const dot = m && m.status !== 'ready' ? h('span', { class: `rd ${m.status === 'blocked' ? 'err' : 'warn'}`, 'aria-label': m.status === 'blocked' ? 'Can\'t run' : 'Limited' }) : null;
-    nav.append(h('button', { class: `tab ${id === current ? 'on' : ''}`, onclick: () => go(id), title: dot ? `${m.status === 'blocked' ? 'Can\'t run' : 'Limited'}: ${firstReason(m)?.text || ''}` : null }, v.label, dot, cnt));
-  }
-}
 
 // ---------------- readiness (up-front checks) ----------------
 let readinessKey = '';
@@ -205,7 +178,7 @@ export async function loadReadiness(refresh = false) {
   try {
     store.readiness = await get(`/readiness${refresh ? '?refresh=1' : ''}`);
   } catch { return store.readiness; }
-  renderNav(); renderKpis();
+  updateMap();
   for (const id of MODULE_VIEWS) if (rendered.has(id)) applyReadiness(id);
   if (current === 'home' && rendered.has('home')) renderView('home');
   return store.readiness;
@@ -223,7 +196,7 @@ function readinessBanner(m) {
   return h('div', { class: `banner rbanner ${kind}` },
     h('div', { style: { flex: 1 } },
       main.length ? [h('b', {}, title), h('ul', { class: 'pre small', style: { margin: '6px 0 0' } }, main.map(item))] : null,
-      more.length ? h('details', { style: { marginTop: main.length ? '6px' : 0 } }, h('summary', { class: 'small' }, main.length ? `More checks (${more.length})` : `Checks for this tab (${more.length})`), h('ul', { class: 'pre small', style: { margin: '6px 0 0' } }, more.map(item))) : null),
+      more.length ? h('details', { style: { marginTop: main.length ? '6px' : 0 } }, h('summary', { class: 'small' }, main.length ? `More checks (${more.length})` : `Checks for this page (${more.length})`), h('ul', { class: 'pre small', style: { margin: '6px 0 0' } }, more.map(item))) : null),
     recheck);
 }
 
@@ -272,14 +245,13 @@ export function go(id) {
   history.replaceState(null, '', `#${id}`);
   $$('.view').forEach((v) => v.classList.toggle('on', v.id === `view-${id}`));
   renderView(id);
-  renderNav();
+  updateMap();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function renderAll() {
   renderHeader();
-  renderKpis();
-  renderNav();
+  updateMap();
   if (rendered.has(current)) renderView(current);
   refreshSuggestions();
 }
@@ -401,8 +373,7 @@ on('job', (e) => {
   if (j.status === 'running') dockJobs.add(j.id);
   else settleDockJob(j);
   renderDock();
-  renderKpis();
-  renderNav();
+  updateMap();
   if (j.kind === 'teardown' && j.status !== 'running' && !cleanedUp.has(j.id)) { cleanedUp.add(j.id); refreshAll(); }
 });
 
@@ -430,8 +401,7 @@ async function resyncJobs() {
     if (remote.status !== 'running') settleDockJob(remote);
   }
   renderDock();
-  renderKpis();
-  renderNav();
+  updateMap();
 }
 
 let disconnected = false;
@@ -457,8 +427,8 @@ const dataKey = (p) => [p?.source?.kind, p?.source?.method, p?.source?.itemId, p
 on('project.updated', async () => {
   const sid = store.project?.source?.id || null;
   if (sid !== presetSource) { presetSource = sid; try { store.preset = await get('/preset'); } catch { /* keep */ } }
-  renderHeader(); renderKpis(); refreshSuggestions();
-  // The Data tab keeps in-progress forms, so it only re-renders when the data source itself changes.
+  renderHeader(); updateMap(); refreshSuggestions();
+  // The Data page keeps in-progress forms, so it only re-renders when the data source itself changes.
   const dk = dataKey(store.project);
   const dataChanged = dk !== dataSourceKey;
   dataSourceKey = dk;
@@ -467,9 +437,9 @@ on('project.updated', async () => {
   const rk = [store.project?.workspace?.id, store.project?.modelSource?.itemId, Boolean(store.project?.realtime)].join('|');
   if (rk !== readinessKey) { readinessKey = rk; loadReadiness(); }
 });
-on('provider', (e) => { store.provider = e.provider; renderHeader(); renderKpis(); });
-// Streaming state changes the Real-time KPI; only re-draw the strip when running/stopped flips.
-on('realtime.simulator', (e) => { const was = store.realtime?.simulator?.running; store.realtime = { ...(store.realtime || {}), simulator: e.simulator }; if (was !== e.simulator.running) renderKpis(); });
+on('provider', (e) => { store.provider = e.provider; renderHeader(); updateMap(); });
+// Streaming lights up the real-time part of the map; only re-draw it when running/stopped flips.
+on('realtime.simulator', (e) => { const was = store.realtime?.simulator?.running; store.realtime = { ...(store.realtime || {}), simulator: e.simulator }; if (was !== e.simulator.running) updateMap(); });
 on('auth', (e) => { store.user = e.user; renderAll(); loadReadiness(true); });
 
 // ---------------- boot ----------------
@@ -497,7 +467,18 @@ async function refresh() {
   refreshHeader();
 }
 
-Object.assign(app, { go, ask: askCopilot, placeChat, refresh, refreshAll, rerender: () => renderView(current), jobCard, watchJob: (id) => { dockJobs.add(id); renderDock(); }, loadReadiness, moduleGrid });
+Object.assign(app, {
+  go, ask: askCopilot, placeChat, refresh, refreshAll, rerender: () => renderView(current), jobCard, watchJob: (id) => { dockJobs.add(id); renderDock(); }, loadReadiness, moduleGrid, showHealth,
+  selectedNode: () => mapState.selected,
+  selectNode: (id) => {
+    mapState.selected = id;
+    updateMap();
+    if (current !== 'home') return;
+    renderView('home');
+    $('#view-home .insp')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  },
+});
+on('studio.reset', () => { mapState.selected = null; });
 
 connectEvents();
 await refresh();

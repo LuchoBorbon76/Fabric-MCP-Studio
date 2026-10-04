@@ -154,7 +154,7 @@ export async function runMirror(ctx, { typeId, connectionId, connectionName, ser
   const ws = requireWorkspace();
   const st = sourceType(typeId);
   if (!st?.mirrorType) throw new Error(`${typeId} can't be mirrored.`);
-  if (!connectionId) throw new Error('A Fabric connection is required. Create one in the Data tab or pick an existing connection.');
+  if (!connectionId) throw new Error('A Fabric connection is required. Create one in the Data page or pick an existing connection.');
   const mirrorType = (st.mirrorTypeByVersion && st.mirrorTypeByVersion[sqlVersionMajor]) || st.mirrorType;
   const itemName = safeName(name || `Mirror_${database}`);
 
@@ -257,7 +257,7 @@ let discoveryCache = { key: null, at: 0, data: null };
 export async function describeModelSource({ refresh = false } = {}) {
   await assertProjectTenant();
   const ms = getProject().modelSource;
-  if (!ms) throw new Error('No data source yet. Load sample data or connect your data first (Data tab).');
+  if (!ms) throw new Error('No data source yet. Load sample data or connect your data first (Data page).');
   const key = `${ms.server}|${ms.endpointId}|${ms.database}`;
   if (!refresh && discoveryCache.key === key && Date.now() - discoveryCache.at < 5 * 60 * 1000) return discoveryCache.data;
   const d = await discoverSqlServer({ server: ms.server, database: ms.database }, { fabricEndpoint: true });
@@ -357,7 +357,7 @@ function modelMeasures(plan, preset, measures, useDefaults = true) {
 export async function proposeSemanticModel({ name, include, names, relationships, measures, summary }, { chatId = null } = {}) {
   await assertProjectTenant();
   const p = getProject();
-  if (!p.modelSource) throw new Error('No data source yet. Load sample data or connect data first (Data tab).');
+  if (!p.modelSource) throw new Error('No data source yet. Load sample data or connect data first (Data page).');
   const preset = presetFor(p);
   const schema = await describeModelSource();
   const known = new Set(schema.tables.flatMap((t) => [`${t.schema}.${t.name}`, t.name]));

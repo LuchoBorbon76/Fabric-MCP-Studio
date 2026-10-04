@@ -41,31 +41,11 @@ function draw(wrap, s) {
     h('div', { class: 'card' },
       h('div', { class: 'row sp', style: { alignItems: 'flex-start' } },
         h('div', {}, h('h2', {}, 'Real-time intelligence'), h('p', { class: 'lead' }, 'Stream events shaped like your data through an Eventstream into an Eventhouse, watch them on an auto-refreshing Real-Time Dashboard, and ask Copilot what is happening right now.')),
-        h('button', { class: 'btn ai', onclick: () => app.ask(setup ? 'What is happening in my live data right now? Use studio_realtime_status and studio_query_live_events, highlight business-rule breaks and where they come from.' : 'Explain what the Real-time step will create in my workspace (Eventhouse, table, Eventstream, dashboard) and what the live events will look like for my data.') }, setup ? '✦ Ask about live data' : '✦ Explain with Copilot')),
-      flow(s)),
+        h('button', { class: 'btn ai', onclick: () => app.ask(setup ? 'What is happening in my live data right now? Use studio_realtime_status and studio_query_live_events, highlight business-rule breaks and where they come from.' : 'Explain what the Real-time step will create in my workspace (Eventhouse, table, Eventstream, dashboard) and what the live events will look like for my data.') }, setup ? '✦ Ask about live data' : '✦ Explain with Copilot'))),
     h('div', { class: 'grid g2', style: { marginTop: '14px', alignItems: 'start' } }, setupCard(s, p), simulatorCard(s)),
     h('div', { class: 'grid g2', style: { marginTop: '14px', alignItems: 'start' } }, dashboardCard(s), nowCard(s)),
     h('div', { class: 'grid g2', style: { marginTop: '14px', alignItems: 'start' } }, ontologyCard(s), alertsCard(s)),
     setup ? endpointCard(s) : null);
-}
-
-function flow(s) {
-  const st = s.setup;
-  const steps = [
-    ['Live events', s.simulator.running ? `Streaming ${s.simulator.rate}/min` : 'Simulator or your app', s.simulator.running ? 'ok' : st ? '' : 'todo'],
-    ['Eventstream', st ? st.eventstream.name : 'Custom endpoint', st ? 'ok' : 'todo'],
-    ['Eventhouse', st ? `${st.database.name}.${st.table}` : 'KQL table', st ? 'ok' : 'todo'],
-  ];
-  const outs = [
-    ['Real-Time Dashboard', st?.dashboard ? st.dashboard.name : 'Auto-refresh', st?.dashboard ? 'ok' : 'todo'],
-    ['Ontology', st?.ontology ? `Live on ${st.ontology.entities.length} entity types` : 'Time-series properties', st?.ontology ? 'ok' : 'todo'],
-    ['Activator', st?.alerts ? `${st.alerts.rules.length} rule alert${st.alerts.rules.length === 1 ? '' : 's'}` : 'Alerts on rule breaks', st?.alerts ? 'ok' : 'todo'],
-  ];
-  const node = ([t, sub, state], k) => h('div', { class: `rtnode ${state}`, 'data-k': k || null }, h('b', {}, t), h('span', { class: 'tiny muted' }, sub));
-  return h('div', { class: 'rtflow' },
-    steps.map((x, i) => [i ? h('span', { class: 'rtarrow' }, '→') : null, node(x, i ? null : 'events')]),
-    h('span', { class: 'rtarrow' }, '→'),
-    h('div', { class: 'rtbranch' }, outs.map((x) => node(x))));
 }
 
 // ---------------- setup ----------------
@@ -150,8 +130,6 @@ function simulatorCard(s) {
     store.realtime = { ...(store.realtime || {}), simulator: x };
     status.className = `pill ${x.running ? 'ok' : ''}`;
     status.textContent = x.running ? '● Streaming' : 'Stopped';
-    const node = document.querySelector('.rtnode[data-k=events]');
-    if (node) { node.className = `rtnode ${x.running ? 'ok' : ready ? '' : 'todo'}`; node.lastChild.textContent = x.running ? `Streaming ${x.rate}/min` : 'Simulator or your app'; }
     start.hidden = x.running; stop.hidden = !x.running;
     note.textContent = x.running ? `Stops at ${new Date(x.stopsAt).toLocaleTimeString()} · ${x.rate} events per minute · ${x.ruleBreakPct}% rule breaks${x.backfilling ? ' · filling the last hour…' : x.backfilled ? ` · last hour filled with ${fmtNum(x.backfilled)} events` : ''}` : x.stopReason ? `Last run ${x.stopReason}${x.stoppedAt ? ` (${ago(x.stoppedAt)})` : ''}.` : '';
     if (x.lastError) note.append(h('div', { class: 'banner err', style: { marginTop: '8px' } }, x.lastError));

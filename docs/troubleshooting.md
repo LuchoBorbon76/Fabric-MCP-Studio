@@ -41,16 +41,16 @@
 | Banner: *This project belongs to another tenant* | You signed in with an account from a different Microsoft Entra tenant than the one the project's workspace lives in | Sign in to the project's tenant, or select **Start a new project here** (nothing is deleted in Fabric) |
 | Sign-in fails after setting a tenant ID while the Azure CLI has several accounts | `az account get-access-token --tenant` uses the default account | The studio picks an `az` account that belongs to that tenant; if there is none, run `az login --tenant <id> --allow-no-subscriptions` |
 
-## Tabs that can't run (red or amber dot)
+## Parts that can't run (red badge on the map)
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| Red dots on most tabs, *The workspace's capacity … is paused* | The Fabric capacity was paused (to save cost) | Resume it in the Azure portal (Microsoft Fabric capacity › Resume), then **Check again** |
+| Red badges on most parts of the map, *The workspace's capacity … is paused* | The Fabric capacity was paused (to save cost) | Resume it in the Azure portal (Microsoft Fabric capacity › Resume), then **Check again** |
 | *… isn't on a Fabric capacity* | The workspace runs on Pro or Premium Per User only | Workspace settings › License info › assign a Fabric capacity (F SKU, Premium or trial) |
 | *You're a Viewer in …* | Viewers can't create items | Ask a workspace admin for Contributor or higher, or use another workspace |
 | *Tenant setting "…" is off* | A Fabric administrator turned the feature off | Ask the administrator to turn it on in Admin portal › Tenant settings; the banner links there |
 | *Tenant setting "…" couldn't be checked* | Only Fabric administrators can read tenant settings | Nothing is blocked; confirm the listed settings with your administrator if a step fails |
-| A tab stays blocked after you fixed the cause | Results are kept for two minutes | Select **Check again** on the tab, or **Check setup** |
+| A part stays blocked after you fixed the cause | Results are kept for two minutes | Select **Check again** on its page, or **Check setup** |
 
 ## OAuth and app registrations
 
@@ -96,7 +96,7 @@ when it expires.
 | A visual shows an error after you renamed measures | The report binds to measure and column names | **Rebuild** the report in **Reports & apps** |
 | Month names sort alphabetically in your own model | The month-name column has no *Sort by column* | Set *Sort by column* to the month number in the model; models the studio generates do this automatically |
 | Report building fails with *Forbidden* | You need Contributor or higher on the workspace and Build permission on the semantic model | Ask the workspace admin |
-| The Business rules page is missing | No ontology rules or rule measures were found | Deploy the ontology (**Ontology** tab), or add measures in a *Business rules* display folder of your model |
+| The Business rules page is missing | No ontology rules or rule measures were found | Deploy the ontology (**Ontology** page), or add measures in a *Business rules* display folder of your model |
 | Creating the org app fails | Org apps need a Fabric capacity workspace and Contributor or higher | Check the workspace role; the app shares only reports in the same workspace |
 | People can't see the org app | The app has no audience yet | Open it in Fabric, add an audience (people or groups) and publish |
 

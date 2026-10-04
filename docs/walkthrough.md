@@ -12,18 +12,24 @@ connected to the same MCP servers. Allow 30–45 minutes the first time.
 - [ ] **Check setup** shows green for Microsoft Entra, Fabric capacity, your AI provider and the MCP servers
 - [ ] Optional: pick your AI provider in **Settings › AI provider** (GitHub Copilot, Azure AI Foundry, OpenAI, Anthropic, local)
 
-Everything below can be done with the quick action buttons **or** by asking Copilot. Copilot opens inside the tab you
+The app opens on the **solution map**: every part below is a box on the map, greyed out until it is configured,
+with lines showing what is built from what. Select a part to see its details and the suggested next step, and
+**Open** it (or double-click it) to work on it; while you work, the map stays on top in a compact form and selecting
+a part goes straight to its page. **Overview**, **Copilot**, **Activity** and **Settings** are at the top right of
+the map.
+
+Everything below can be done with the quick action buttons **or** by asking Copilot. Copilot opens inside the page you
 are working in (no separate window) and asks for your approval before each change.
 
 ## 1. Workspace
 
-**Workspace** tab › *Create new* (name + capacity) or *Use existing*.
+**Workspace** page (the frame around the Fabric parts of the map) › *Create new* (name + capacity) or *Use existing*.
 
 > Ask Copilot: *Create a new workspace called "Fabric MCP Demo" on one of my capacities.*
 
 ## 2. Data
 
-**Data** tab – pick one path:
+**Data** page – pick one path:
 
 | Path | What to do |
 |---|---|
@@ -32,7 +38,7 @@ are working in (no separate window) and asks for your approval before each chang
 | Your database | *Your databases* › source › details › Fabric connection (new or existing) › *Start mirroring* |
 | Existing Fabric data | *Existing Fabric data* › workspace › item › *Use in place* or *Create shortcuts* |
 
-Mirroring shows live replication status per table. Once data is connected, the **Data** tab shows the full source: where
+Mirroring shows live replication status per table. Once data is connected, the **Data** page shows the full source: where
 it lives, how it lands in Fabric, the SQL analytics endpoint, every table with row counts and keys, and live mirroring
 status for mirrored databases. The source tabs below open on the source in use, with its details filled in.
 
@@ -40,7 +46,7 @@ status for mirrored databases. The source tabs below open on the source in use, 
 
 ## 3. Semantic model
 
-**Semantic model** tab › review tables, business names and relationships › *Create semantic model*.
+**Semantic model** page › review tables, business names and relationships › *Create semantic model*.
 The studio generates a Direct Lake model. With the samples it also adds business measures from the glossary
 (18 for Contoso Retail, 24 for AdventureWorksDW2022 – a star schema of internet and reseller sales).
 
@@ -58,7 +64,7 @@ Then improve it with Copilot (Power BI Authoring MCP):
 
 ## 4. Ontology
 
-**Ontology** tab:
+**Ontology** page:
 
 1. Edit or upload your **business glossary** (or *Draft it with Copilot*).
 2. Review entities, relationships and business rules (one plain-English sentence each).
@@ -70,7 +76,7 @@ Ontology is in preview; the Ontology MCP endpoint (used by agents) needs a paid 
 
 ## 5. Reports & apps
 
-**Reports & apps** tab:
+**Reports & apps** page:
 
 1. Review **Recommended for your data**: reports picked for your model and audience (for example an executive report
    in the Executive Navy theme, a **business rules dashboard** built from your ontology rules with their live counts,
@@ -88,7 +94,7 @@ Ontology is in preview; the Ontology MCP endpoint (used by agents) needs a paid 
 
 ## 5b. Real-time
 
-**Real-time** tab:
+**Real-time** page:
 
 1. **Set up live data** (about 2 minutes): an Eventhouse with a table shaped like your data, and an Eventstream whose
    custom endpoint feeds it.
@@ -105,7 +111,7 @@ Ontology is in preview; the Ontology MCP endpoint (used by agents) needs a paid 
 
 ## 5c. Planning
 
-**Planning** tab (needs the semantic model; plans are stored in a Fabric SQL database or warehouse):
+**Planning** page (needs the semantic model; plans are stored in a Fabric SQL database or warehouse):
 
 1. **Design the plan** shows a recommended plan year, growth and forecast cut-off, with a preview by month and by
    region. Change the growth for one region in the table and select *Apply growth targets* to see the effect.
@@ -124,7 +130,7 @@ Ontology is in preview; the Ontology MCP endpoint (used by agents) needs a paid 
 
 ## 6. Ask and share
 
-**Ask & share** tab:
+**Ask & share** page:
 
 - **Ask in the app** – questions are answered through Fabric IQ (DAX over your model) and the ontology.
 - **Microsoft 365 Copilot & Teams** – *Install for me* adds the agent for you; *Publish to my organization* submits it for admin approval.
@@ -159,7 +165,7 @@ More in [fabric-demo-ask](../.github/skills/fabric-demo-ask/SKILL.md).
 **Settings › Clean up** deletes what the studio created (lakehouse, SQL database, mirrored database, semantic model,
 reports, org app, ontology, live data, alerts and the Fabric plan – or the whole workspace if the studio created it).
 Before anything is deleted it lists every item, shows which ones go to the workspace recycle bin and which are gone for
-good, and asks you to type the workspace name. When it finishes, every tab refreshes. *Start a new project* clears local
+good, and asks you to type the workspace name. When it finishes, the map and every page refresh. *Start a new project* clears local
 state only.
 
 ## Without the studio
