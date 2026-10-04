@@ -20,7 +20,12 @@ const sameUri = (a, b) => String(a).replace(/\/+$/, '').toLowerCase() === String
 export function liveEventsOf(p) {
   const rt = p?.realtime;
   if (!rt?.database?.id || !rt.eventhouse?.queryUri || !rt.scenario?.columns?.length) return null;
-  return { queryUri: rt.eventhouse.queryUri, database: rt.database, table: rt.table, columns: rt.scenario.columns, workspace: p.workspace ? { id: p.workspace.id, name: p.workspace.name } : null };
+  // With the medallion layers, entities read the checked, deduplicated Silver events instead of the raw Bronze table.
+  const clean = rt.medallion?.names?.clean || null;
+  return {
+    queryUri: rt.eventhouse.queryUri, database: rt.database, table: clean || rt.table, replaces: [rt.table, ...(clean ? [clean] : [`${rt.table}_Silver_Dedup`])],
+    columns: rt.scenario.columns, workspace: p.workspace ? { id: p.workspace.id, name: p.workspace.name } : null,
+  };
 }
 
 /** The Direct Lake source item behind the project's ontology tables (for the partition annotations). */
@@ -121,11 +126,13 @@ export function applyLiveOntology(input, { events = null, link = true, source = 
   }
   if (!events) return { files, linked: [], removed: [], annotated };
 
-  // 2. Earlier live tables: anything bound to the same events table (unless an entity's primary binding uses it).
+  // 2. Earlier live tables: anything bound to the same events table – or to another layer of it (Bronze ↔ Silver) –
+  // unless an entity's primary binding uses it.
   const primary = new Set(entityPaths.map((k) => parseEntity(files[k]).backingTable).filter(Boolean));
+  const eventTables = new Set([events.table, ...(events.replaces || [])].map((x) => String(x).toLowerCase()));
   const removed = new Set();
   for (const [path, t] of tables) {
-    if (t.kusto && sameUri(t.kusto.uri, events.queryUri) && t.kusto.db.toLowerCase() === events.database.name.toLowerCase() && t.kusto.table.toLowerCase() === events.table.toLowerCase() && !primary.has(t.name)) {
+    if (t.kusto && sameUri(t.kusto.uri, events.queryUri) && t.kusto.db.toLowerCase() === events.database.name.toLowerCase() && eventTables.has(t.kusto.table.toLowerCase()) && !primary.has(t.name)) {
       removed.add(t.name);
       delete files[path];
       tables.delete(path);

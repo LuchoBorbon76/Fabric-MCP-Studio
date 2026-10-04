@@ -317,6 +317,24 @@ td.num.good{color:var(--good)}td.num.bad{color:var(--bad)}
 .rtstats.big b{font-size:20px}
 .rtpages{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .rtpages>div{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:linear-gradient(135deg,color-mix(in srgb,var(--brand) 6%,var(--panel)),var(--panel))}
+.rtpages.three{grid-template-columns:repeat(3,1fr)}
+/* medallion layers: Bronze → Silver → Gold */
+.medflow{display:grid;grid-template-columns:1fr 92px 1fr 92px 1fr;align-items:stretch;margin-top:14px}
+.mlayer{--lc:#b0703a;position:relative;display:flex;flex-direction:column;gap:8px;padding:12px 14px 10px;border:1px solid color-mix(in srgb,var(--lc) 38%,var(--line));border-top:4px solid var(--lc);border-radius:12px;background:linear-gradient(160deg,color-mix(in srgb,var(--lc) 11%,var(--panel)),var(--panel) 70%);min-width:0}
+.mlayer.silver{--lc:#7c8a9a}.mlayer.gold{--lc:#c99400}
+.mlh{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.mlh b{font-size:15px;color:color-mix(in srgb,var(--lc) 75%,var(--ink))}
+.mlh .tiny{color:var(--muted);text-align:right}
+.mlayer ul{margin:0;padding-left:16px;font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:3px}
+.mlayer ul code{font-size:11.5px;color:var(--ink);word-break:break-all}
+.mstats{display:grid;grid-template-columns:repeat(auto-fit,minmax(78px,1fr));gap:6px}
+.mstat{display:flex;flex-direction:column;padding:6px 8px;border-radius:8px;background:color-mix(in srgb,var(--lc) 9%,var(--chip));min-width:0}
+.mstat b{font-size:16px;font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.marrow{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:0 4px;text-align:center}
+.marrow span{font-size:10.5px;font-weight:600;color:var(--muted);line-height:1.2}
+.marrow i{position:relative;display:block;width:100%;height:2px;background:linear-gradient(90deg,color-mix(in srgb,var(--muted) 30%,transparent),var(--brand))}
+.marrow i::after{content:'';position:absolute;right:-1px;top:-4px;border:5px solid transparent;border-left:7px solid var(--brand);border-right:0}
+@media (max-width:980px){.medflow{grid-template-columns:1fr}.marrow{flex-direction:row;padding:6px 0}.marrow i{width:40px}}
 pre.code{background:var(--chip);border-radius:8px;padding:10px 12px;font-size:12px;overflow:auto;max-height:260px;margin:6px 0 0}
 code.secret{letter-spacing:1px;color:var(--muted)}
 input[type=range]{width:100%;accent-color:var(--brand)}
@@ -391,6 +409,7 @@ input[type=range]{width:100%;accent-color:var(--brand)}
 .lsu{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lnode.done{border-color:color-mix(in srgb,var(--nc) 42%,var(--line));background:linear-gradient(135deg,color-mix(in srgb,var(--nc) 10%,var(--panel)),var(--panel) 72%)}
 .lnode.done::before{content:'';position:absolute;left:-1px;top:11px;bottom:11px;width:3px;border-radius:0 3px 3px 0;background:var(--nc)}
+.lnode.med::after{content:'';position:absolute;left:12px;right:12px;bottom:-1px;height:3px;border-radius:3px 3px 0 0;background:linear-gradient(90deg,#b0703a 0 33.3%,#9aa6b2 33.3% 66.6%,#d4a017 66.6%);pointer-events:none}
 .lnode.off{background:color-mix(in srgb,var(--bg) 70%,var(--panel));border-style:dashed;opacity:.6}
 .lnode.off .lic{filter:grayscale(1);opacity:.65}
 .lnode.off .lty,.lnode.off .lti{color:var(--muted)}

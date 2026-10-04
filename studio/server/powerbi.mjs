@@ -84,6 +84,32 @@ export async function refreshDataset(workspaceId, datasetId, { timeoutMs = 3 * 6
 }
 
 /**
+ * Make a DirectQuery semantic model use each viewer's own Microsoft Entra identity (single sign-on) for its cloud
+ * data sources, e.g. an Eventhouse. `tokenFor(datasource)` returns an access token for that source (the caller's).
+ * Returns the data sources that were set up and the ones that failed, with the reason.
+ */
+export async function useSingleSignOn(workspaceId, datasetId, tokenFor) {
+  const list = (await pbi('GET', `/groups/${workspaceId}/datasets/${datasetId}/datasources`))?.value || [];
+  const done = [];
+  const failed = [];
+  for (const ds of list) {
+    if (!ds.gatewayId || !ds.datasourceId) { failed.push({ datasource: ds.datasourceType, error: 'No cloud data source to configure yet.' }); continue; }
+    try {
+      const accessToken = await tokenFor(ds);
+      await pbi('PATCH', `/gateways/${ds.gatewayId}/datasources/${ds.datasourceId}`, {
+        credentialDetails: {
+          credentialType: 'OAuth2',
+          credentials: JSON.stringify({ credentialData: [{ name: 'accessToken', value: accessToken }] }),
+          encryptedConnection: 'Encrypted', encryptionAlgorithm: 'None', privacyLevel: 'Organizational', useEndUserOAuth2Credentials: true,
+        },
+      });
+      done.push({ datasource: ds.datasourceType, details: ds.connectionDetails || null });
+    } catch (e) { failed.push({ datasource: ds.datasourceType, error: e.message }); }
+  }
+  return { done, failed, total: list.length };
+}
+
+/**
  * Render a report for a preview. PNG needs the "Export reports as image files" tenant setting (off by default), so fall
  * back to PDF (on by default). Returns { format, contentType, bytes }.
  */

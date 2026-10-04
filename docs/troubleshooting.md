@@ -115,6 +115,10 @@ when it expires.
 | Ontology *Instances* says the item kind couldn't be identified | The ontology was created before the studio tagged its tables | **Connect live events** (or re-deploy the ontology) – it tags every table with its source item |
 | No Teams messages or emails from the alerts | No rule breaks since the alerts were created, the amount filter is too high, or the recipient isn't in your organization | Start events with some rule breaks; open the Activator › a rule › *History* to see activations; use work addresses in your tenant |
 | *The name … is still reserved by a deleted item* | Fabric keeps a deleted item's name for a few minutes | The studio picks a numbered name automatically; or wait a few minutes |
+| Medallion: *The workspace task flow wasn't updated* | Task flows have no public API; a tenant policy or a portal change can block the studio's update | The layers still work. Select **Update layers** to retry, or apply Fabric's *Event medallion* task flow by hand and assign the items |
+| Medallion: *Silver in OneLake* says *Not created yet* | OneLake publishes the Silver Delta table a few minutes after it is turned on | Select **Update layers** in a few minutes to add the lakehouse shortcut |
+| Medallion: Gold semantic model says *Sign in needed* | Single sign-on couldn't be set on the model's Eventhouse data source | In Fabric, open the model › *Settings* › *Data source credentials* › *Edit credentials* › OAuth2, and allow report viewers to use their own identity |
+| Medallion: *The last removal stopped half way* | Dropping the Silver tables took too long (OneLake copies are cleaned up too) | Select **Finish removing**, or apply the template again |
 
 ## Planning
 

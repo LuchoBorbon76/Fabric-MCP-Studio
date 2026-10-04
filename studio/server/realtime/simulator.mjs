@@ -15,7 +15,30 @@ let sim = idle();
 let conn = null; // { key: eventstreamId, ns, hub, keyName, key }
 
 function idle() {
-  return { running: false, startedAt: null, stopsAt: null, stoppedAt: null, stopReason: '', rate: 60, ruleBreakPct: 3, sent: 0, failed: 0, ruleBreaks: 0, amount: 0, batches: 0, lastSentAt: null, lastError: '', backfilled: 0, backfilling: false, recent: [], scenario: null };
+  return { running: false, startedAt: null, stopsAt: null, stoppedAt: null, stopReason: '', rate: 60, ruleBreakPct: 3, dataIssuePct: 0, sent: 0, failed: 0, ruleBreaks: 0, dataIssues: 0, amount: 0, batches: 0, lastSentAt: null, lastError: '', backfilled: 0, backfilling: false, recent: [], scenario: null };
+}
+
+/**
+ * Real feeds have flaws: a share of events is sent twice, or arrives with a missing key, a zero quantity, a negative
+ * amount or a clock far in the future – what the medallion's Silver checks and deduplication are for.
+ */
+function withDataIssues(events, scenario, pct) {
+  if (!pct) return events;
+  const R = Object.fromEntries(scenario.columns.filter((c) => c.role).map((c) => [c.role, c]));
+  const kinds = ['duplicate', R.order && 'noKey', R.qty && 'zeroQty', R.amount && 'negative', R.time && 'future'].filter(Boolean);
+  const out = [];
+  for (const e of events) {
+    out.push(e);
+    if (Math.random() >= pct / 100) continue;
+    sim.dataIssues++;
+    const kind = kinds[Math.floor(Math.random() * kinds.length)];
+    if (kind === 'duplicate') { out.push({ ...e }); continue; }
+    if (kind === 'noKey') e[R.order.name] = '';
+    else if (kind === 'zeroQty') e[R.qty.name] = 0;
+    else if (kind === 'negative') e[R.amount.name] = -Math.abs(Number(e[R.amount.name]) || 1);
+    else if (kind === 'future') e[R.time.name] = new Date(Date.parse(e[R.time.name]) + (2 + Math.random() * 6) * 3600 * 1000).toISOString();
+  }
+  return out;
 }
 
 export function simulatorStatus() {
@@ -92,27 +115,29 @@ function track(events, scenario, { recent = true } = {}) {
  * Start streaming. `scenario` is a loaded scenario (reference data in memory); `rt` the project's realtime setup.
  * rate = events per minute; minutes = auto-stop; backfillMinutes = history to send first so charts aren't empty.
  */
-export async function startSimulator(rt, scenario, { rate = 60, ruleBreakPct = 3, minutes = 60, backfillMinutes = 0 } = {}) {
+export async function startSimulator(rt, scenario, { rate = 60, ruleBreakPct = 3, dataIssuePct = 0, minutes = 60, backfillMinutes = 0 } = {}) {
   if (sim.running) stopSimulator('restarted');
   rate = Math.min(LIMITS.maxRate, Math.max(LIMITS.minRate, Math.round(Number(rate) || 60)));
   ruleBreakPct = Math.min(50, Math.max(0, Number(ruleBreakPct) || 0));
+  dataIssuePct = Math.min(20, Math.max(0, Number(dataIssuePct) || 0));
   minutes = Math.min(LIMITS.maxMinutes, Math.max(1, Math.round(Number(minutes) || 60)));
   backfillMinutes = Math.min(LIMITS.maxBackfillMinutes, Math.max(0, Math.round(Number(backfillMinutes) || 0)));
   await endpoint(rt);
-  sim = { ...idle(), running: true, startedAt: new Date().toISOString(), stopsAt: new Date(Date.now() + minutes * 60000).toISOString(), rate, ruleBreakPct, scenario: scenarioSummary(scenario), scenarioObj: scenario, carry: 0, failStreak: 0, backfilling: backfillMinutes > 0 };
+  sim = { ...idle(), running: true, startedAt: new Date().toISOString(), stopsAt: new Date(Date.now() + minutes * 60000).toISOString(), rate, ruleBreakPct, dataIssuePct, scenario: scenarioSummary(scenario), scenarioObj: scenario, carry: 0, failStreak: 0, backfilling: backfillMinutes > 0 };
   const run = sim;
-  logActivity('realtime.start', `Started live events: ${rate} ${scenario.unit}s per minute, ${ruleBreakPct}% rule breaks, stops after ${minutes} min`, {});
+  logActivity('realtime.start', `Started live events: ${rate} ${scenario.unit}s per minute, ${ruleBreakPct}% rule breaks, ${dataIssuePct}% data issues, stops after ${minutes} min`, {});
 
   // History first (in the background) so the dashboard's charts aren't empty; live events start right away.
   if (backfillMinutes) {
     const total = Math.min(6000, Math.round((rate / 2) * backfillMinutes));
-    const events = [];
+    let events = [];
     const from = Date.now() - backfillMinutes * 60000;
     while (events.length < total) {
       const at = new Date(from + Math.random() * backfillMinutes * 60000);
       events.push(...scenario.makeOrder(at, { ruleBreakPct }));
     }
     events.sort((a, b) => String(a.EventTime).localeCompare(String(b.EventTime)));
+    events = withDataIssues(events, scenario, dataIssuePct);
     sendEvents(rt, events)
       .then(() => { if (sim === run) { run.backfilled = events.length; track(events, scenario, { recent: false }); } })
       .catch((e) => { if (sim === run) run.lastError = `Could not fill the last ${backfillMinutes} minutes: ${e.message}`; })
@@ -129,15 +154,16 @@ export async function startSimulator(rt, scenario, { rate = 60, ruleBreakPct = 3
     const now = Date.now();
     while (events.length < due) events.push(...scenario.makeOrder(new Date(now - Math.random() * TICK_MS), { ruleBreakPct: sim.ruleBreakPct }));
     sim.carry -= events.length;
+    const batch = withDataIssues(events, scenario, sim.dataIssuePct);
     try {
-      await sendEvents(rt, events);
+      await sendEvents(rt, batch);
       sim.batches++;
       sim.failStreak = 0;
       sim.lastSentAt = new Date().toISOString();
       sim.lastError = '';
-      track(events, scenario);
+      track(batch, scenario);
     } catch (e) {
-      sim.failed += events.length;
+      sim.failed += batch.length;
       sim.failStreak++;
       sim.lastError = e.message;
       if (sim.failStreak >= 5) { stopSimulator(`stopped after repeated errors: ${e.message}`); return; }
@@ -149,10 +175,11 @@ export async function startSimulator(rt, scenario, { rate = 60, ruleBreakPct = 3
   return simulatorStatus();
 }
 
-export function updateSimulator({ rate, ruleBreakPct } = {}) {
+export function updateSimulator({ rate, ruleBreakPct, dataIssuePct } = {}) {
   if (!sim.running) return simulatorStatus();
   if (rate !== undefined) sim.rate = Math.min(LIMITS.maxRate, Math.max(LIMITS.minRate, Math.round(Number(rate) || sim.rate)));
   if (ruleBreakPct !== undefined) sim.ruleBreakPct = Math.min(50, Math.max(0, Number(ruleBreakPct) || 0));
+  if (dataIssuePct !== undefined) sim.dataIssuePct = Math.min(20, Math.max(0, Number(dataIssuePct) || 0));
   publish(true);
   return simulatorStatus();
 }

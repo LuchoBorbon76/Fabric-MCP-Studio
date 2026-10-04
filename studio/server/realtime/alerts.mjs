@@ -16,15 +16,18 @@ export function cleanRecipients(list) {
   return uniq;
 }
 
-/** The KQL the Activator runs. startTime/endTime are filled by Activator (watermark → now − ingestion delay). */
-export function alertQuery(scenario, { minAmount = 0 } = {}) {
+/**
+ * The KQL the Activator runs. startTime/endTime are filled by Activator (watermark → now − ingestion delay).
+ * `source` is the table or view to read: the raw events, or the checked, deduplicated Silver view (medallion).
+ */
+export function alertQuery(scenario, { minAmount = 0, source } = {}) {
   const R = Object.fromEntries(scenario.columns.filter((c) => c.role).map((c) => [c.role, c.name]));
   const time = R.time || 'EventTime';
   const keep = ['time', 'order', 'channel', 'item', 'party', 'region', 'site', 'qty', 'amount', 'discount', 'margin', 'rule'].map((r) => R[r]).filter(Boolean);
   const amountFilter = R.amount && Number(minAmount) > 0 ? ` and ${kqlName(R.amount)} >= ${Number(minAmount)}` : '';
   return [
     'declare query_parameters(startTime:datetime, endTime:datetime);',
-    kqlName(scenario.table),
+    kqlName(source || scenario.table),
     `| where ${kqlName(time)} > startTime and ${kqlName(time)} <= endTime`,
     `| where isnotempty(${kqlName(R.rule || 'RuleBreak')})${amountFilter}`,
     `| project ${[...new Set(keep)].map(kqlName).join(', ')}`,
@@ -39,7 +42,7 @@ const pair = (name, f) => ({ kind: 'NameReferencePair', type: 'complex', argumen
  * ReflexEntities.json for the alerts.
  * rules: scenario rules to alert on ([{ id, label, description }]); channel: teams | email; recipients: emails.
  */
-export function alertEntities({ workspaceId, database, scenario, rules, channel, recipients, minAmount = 0, intervalSeconds = 60, startAt = new Date() }) {
+export function alertEntities({ workspaceId, database, scenario, rules, channel, recipients, minAmount = 0, intervalSeconds = 60, startAt = new Date(), source }) {
   const id = (...p) => stableUuid('rfx', database.id, ...p);
   const R = Object.fromEntries(scenario.columns.filter((c) => c.role).map((c) => [c.role, c.name]));
   const label = (role) => scenario.columns.find((c) => c.role === role)?.label || role;
@@ -52,7 +55,7 @@ export function alertEntities({ workspaceId, database, scenario, rules, channel,
       payload: {
         name: `Live ${scenario.unit} rule breaks`,
         runSettings: { executionIntervalInSeconds: intervalSeconds },
-        query: { queryString: alertQuery(scenario, { minAmount }) },
+        query: { queryString: alertQuery(scenario, { minAmount, source }) },
         eventhouseItem: { itemId: database.id, workspaceId, itemType: 'KustoDatabase' },
         queryParameters: [{ name: 'startTime', type: 'DURATION_START', value: at }, { name: 'endTime', type: 'DURATION_END', value: at }],
         eventTimeSettings: { timeFieldName: R.time || 'EventTime', ingestionDelayInSeconds: 60, timeZone: 'UTC' },

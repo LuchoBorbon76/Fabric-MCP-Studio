@@ -13,7 +13,8 @@ chatting with the **AI the customer already licenses**:
 - **Ontology** – Fabric IQ entities, relationships and plain-English business rules.
 - **Reports & apps** – polished Power BI reports built on your semantic model from page templates and themes.
 - **Real-time** – live events shaped like your data streamed through an Eventstream into an Eventhouse, with an
-  auto-refreshing Real-Time Dashboard, live time-series properties in the ontology and Activator alerts on rule breaks.
+  auto-refreshing Real-Time Dashboard, live time-series properties in the ontology and Activator alerts on rule breaks,
+  plus the **medallion architecture** (Bronze, Silver, Gold) applied to the stream and shown as a Fabric task flow.
 - **Planning** – a budget and rolling forecast from your actuals, a Plan table with variance measures in the model, a
   Plan vs actual report, and the Fabric plan for planning sheets.
 - **Ask & share** – governed answers in the app chat, Microsoft 365 Copilot / Teams agent, other AI clients, Fabric data agent.
@@ -174,6 +175,36 @@ Copilot tools: `studio_realtime_status`, `studio_query_live_events` (read-only K
 `studio_start_live_events`, `studio_stop_live_events`, `studio_create_realtime_dashboard`,
 `studio_connect_live_ontology` and `studio_create_live_alerts`.
 
+### Medallion architecture for the live events
+
+**Real-time › Medallion architecture** applies Microsoft's
+[Real-Time Intelligence medallion pattern](https://learn.microsoft.com/fabric/real-time-intelligence/architecture-medallion)
+to the existing live events, and shows it in Fabric as a workspace **task flow** (the *Event medallion* flow).
+Everything is processed as it arrives – no schedules – and the template adapts to the table's columns.
+
+| Layer | In the Eventhouse (one KQL database, folders *Bronze*, *Silver*, *Gold*) | Fabric item (task flow task) |
+|---|---|---|
+| Bronze | The existing events table, kept as it arrives for replay (retention you choose) | Eventhouse (*Bronze layer*) |
+| Bronze → Silver | Update policies: data-quality checks (time, keys, quantity, price, discount, amount), enrichment (`EventHash`, `EventDate`, `IsRuleBreak`, `MarginPct`); failures go to `<table>_Quarantine` with the reason | KQL queryset `<name>_Bronze_to_Silver` (*Bronze to Silver*) |
+| Silver | `<table>_Silver` and the deduplicated view `<table>_Silver_Dedup` (`take_any(*)` by `EventHash`); Silver is published to OneLake as Delta | Lakehouse `<name>_Silver` with a shortcut to the Silver Delta table (*Silver layer*) |
+| Silver → Gold | Materialized views over the deduplicated Silver data, late events included | KQL queryset `<name>_Silver_to_Gold` (*Silver to Gold*) |
+| Gold | `<table>_Gold_PerMinute`, `<table>_Gold_Daily`, `<table>_Gold_Latest` (latest event per customer) | Semantic model `<model> Live Gold` – DirectQuery on the Gold views, single sign-on, measures for amount, events, rule breaks, margin (*Gold layer*) |
+
+The Real-Time Dashboard (*Realtime visualize*), the Activator (*Realtime activation*) and the live ontology
+(*Business context*) move to the clean data: the dashboard reads Silver and the Gold views and gains a *Medallion layers*
+page (events per layer, data quality, duplicates removed, Silver freshness, quarantine reasons); alerts and live
+properties read the deduplicated Silver view, so a duplicate event never sends a second message.
+
+- The simulator's **Data issues** setting (1% by default once the layers exist) sends duplicates, missing keys, zero
+  quantities, negative amounts and future times, so the quarantine and deduplication have something to show.
+- **Update layers** is safe to run again (it keeps what already matches and rebuilds what changed). **Remove** deletes
+  the task flow and the layer items, points the dashboard, alerts and ontology back at Bronze, then drops Silver and
+  Gold; the raw events stay. **Clean up resources** removes the task flow too.
+- Task flows have no public API; the studio uses the same workspace endpoints as the Fabric portal and only changes the
+  task flow it created. If that fails (for example a tenant policy), the layers still work and the card shows why.
+
+Copilot tools: `studio_medallion_status`, `studio_apply_medallion` and `studio_remove_medallion`.
+
 ## Planning
 
 **Planning** starts a budget and a rolling forecast from your actuals and connects them to Fabric planning (Fabric IQ).
@@ -214,7 +245,8 @@ Copilot tools: `studio_planning_status`, `studio_preview_plan`, `studio_create_p
 | `server/generators/pbir.mjs` | Power BI report (PBIR) generator: pages, visuals, filters, theme registration |
 | `server/reports/` | Model profile (`profile.mjs`), page templates, report themes and the report build/preview pipeline |
 | `server/powerbi.mjs` | Power BI REST: DAX queries, model metadata (`INFO.VIEW`), report export for previews |
-| `server/realtime/` | Live data: Eventhouse/Eventstream setup, live ontology and alerts (`index.mjs`), event scenarios shaped like the data (`scenarios.mjs`), simulator sending to the custom endpoint (`simulator.mjs`), Real-Time Dashboard generator (`dashboard.mjs`), Activator alert definition (`alerts.mjs`), KQL client (`kusto.mjs`) |
+| `server/realtime/` | Live data: Eventhouse/Eventstream setup, live ontology, alerts and medallion job (`index.mjs`), medallion layers – KQL generated from the column roles, apply, remove and health (`medallion.mjs`), the Fabric items per layer – querysets and the Gold DirectQuery model (`medallion-items.mjs`), event scenarios shaped like the data (`scenarios.mjs`), simulator sending to the custom endpoint (`simulator.mjs`), Real-Time Dashboard generator (`dashboard.mjs`), Activator alert definition (`alerts.mjs`), KQL client (`kusto.mjs`) |
+| `server/taskflow.mjs` | Workspace task flows (the portal's metadata endpoints): list, create, update, delete, item assignments |
 | `server/generators/ontology-live.mjs` | Adds or removes Eventhouse time-series bindings and dashboard links on an existing TMDL ontology |
 | `server/planning/` | Budgets and forecasts: plan design and calculation (`design.mjs`), plan values in the SQL database or warehouse (`store.mjs`), the Plan table patch for the semantic model (`model.mjs`), jobs, plan item and summary (`index.mjs`) |
 | `server/readiness.mjs` | Up-front checks: capacity, workspace role, tenant settings and data-source limits per step, and the guard that stops jobs of steps that can't run |

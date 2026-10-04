@@ -49,6 +49,33 @@ export async function kusto(clusterUri, database, csl, { mgmt = false, signal, t
   throw new KustoError('Eventhouse request failed after retries', 0);
 }
 
+/**
+ * Run an `async` management command (e.g. `.set-or-append async`, `.create async materialized-view`) and wait for its
+ * operation to finish. Commands that return no operation id (nothing to do) resolve at once.
+ */
+export async function kustoOperation(clusterUri, database, csl, { signal, label = 'Eventhouse operation', timeoutMs = 15 * 60 * 1000, onWait } = {}) {
+  const rows = await kusto(clusterUri, database, csl, { mgmt: true, signal });
+  const id = rows[0]?.OperationId;
+  if (!id) return null;
+  const started = Date.now();
+  for (let i = 0; ; i++) {
+    if (signal?.aborted) throw new Error('Cancelled');
+    const [op] = await kusto(clusterUri, database, `.show operations ${id}`, { mgmt: true, signal }).catch(() => []);
+    const state = String(op?.State || '');
+    if (/^(Completed|Succeeded)$/i.test(state)) return op;
+    if (/Failed|Abandoned|Cancel|BadInput|Throttled|Skipped/i.test(state)) throw new KustoError(`${label} ${state.toLowerCase()}: ${String(op?.Status || '').split('\n')[0].slice(0, 300)}`, 500);
+    if (Date.now() - started > timeoutMs) throw new KustoError(`${label} is still running. Check again in a few minutes.`, 504);
+    if (i && i % 10 === 0) onWait?.(Math.round((Date.now() - started) / 1000));
+    await sleep(3000);
+  }
+}
+
+/** Same KQL column type (getschema reports System.Int32, int, long, real…). */
+export function sameKqlType(a, b) {
+  const norm = (t) => String(t).toLowerCase().replace(/^system\./, '').replace('int32', 'int').replace('int64', 'long').replace('double', 'real').replace('boolean', 'bool').replace('sbyte', 'bool');
+  return norm(a) === norm(b);
+}
+
 /** Read-only KQL for Copilot and the UI: one query, no management commands. */
 export function assertReadOnlyKql(csl) {
   const text = String(csl || '').trim();

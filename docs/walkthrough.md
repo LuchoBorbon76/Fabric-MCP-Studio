@@ -108,6 +108,12 @@ Ontology is in preview; the Ontology MCP endpoint (used by agents) needs a paid 
 5. **Alerts on rule breaks** › pick Teams or email, the recipients and the rules, then *Create alerts*. The Activator
    checks the live events every minute; open it to see each rule running and its activation history.
 6. Optional: **Stream your own events** – copy the connection string and send events with the same columns from your app.
+7. **Medallion architecture** › *Apply medallion template* (about 2 minutes): Bronze keeps the raw events, Silver checks,
+   enriches and deduplicates them (rejects go to quarantine with the reason), Gold keeps per-minute, daily and latest
+   aggregates fresh. Open the workspace in Fabric (*Open task flow*): the **Event medallion** task flow shows each layer
+   with its item – Eventstream, Eventhouse, the Bronze → Silver queryset, the Silver lakehouse, the Silver → Gold
+   queryset, the Gold semantic model, the dashboard, the Activator and the ontology. Raise **Data issues** on the live
+   events card to watch the quarantine and the duplicates removed on the dashboard's *Medallion layers* page.
 
 ## 5c. Planning
 

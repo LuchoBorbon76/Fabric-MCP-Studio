@@ -8,6 +8,7 @@ let offSim = null;
 // Element.append() would print null/false as text; h() already skips them.
 const put = (el, ...kids) => el.append(...kids.flat().filter((x) => x !== null && x !== undefined && x !== false));
 let pollTimer = null;
+let medTimer = null;
 
 const money = (n) => (n === null || n === undefined ? '–' : Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 }));
 const ago = (iso) => {
@@ -19,6 +20,7 @@ const ago = (iso) => {
 export function renderRealtime(el) {
   offSim?.(); offSim = null;
   clearInterval(pollTimer); pollTimer = null;
+  clearInterval(medTimer); medTimer = null;
   const p = store.project || {};
   if (!p.workspace) {
     el.append(h('div', { class: 'banner warn' }, h('div', {}, h('b', {}, 'Select a workspace first. '), 'Live data goes into an Eventhouse in your workspace.'), h('button', { class: 'btn pri', onclick: () => app.go('workspace') }, 'Go to Workspace')));
@@ -43,6 +45,7 @@ function draw(wrap, s) {
         h('div', {}, h('h2', {}, 'Real-time intelligence'), h('p', { class: 'lead' }, 'Stream events shaped like your data through an Eventstream into an Eventhouse, watch them on an auto-refreshing Real-Time Dashboard, and ask Copilot what is happening right now.')),
         h('button', { class: 'btn ai', onclick: () => app.ask(setup ? 'What is happening in my live data right now? Use studio_realtime_status and studio_query_live_events, highlight business-rule breaks and where they come from.' : 'Explain what the Real-time step will create in my workspace (Eventhouse, table, Eventstream, dashboard) and what the live events will look like for my data.') }, setup ? '✦ Ask about live data' : '✦ Explain with Copilot'))),
     h('div', { class: 'grid g2', style: { marginTop: '14px', alignItems: 'start' } }, setupCard(s, p), simulatorCard(s)),
+    medallionCard(s),
     h('div', { class: 'grid g2', style: { marginTop: '14px', alignItems: 'start' } }, dashboardCard(s), nowCard(s)),
     h('div', { class: 'grid g2', style: { marginTop: '14px', alignItems: 'start' } }, ontologyCard(s), alertsCard(s)),
     setup ? endpointCard(s) : null);
@@ -73,7 +76,7 @@ function setupCard(s, p) {
   }
   const remove = h('button', { class: 'btn ghost', title: 'Forget the live data setup or delete it from Fabric' }, 'Remove…');
   remove.addEventListener('click', async () => {
-    const drop = await confirmDialog('Remove live data', `Delete the dashboard, the Eventstream ${st.eventstream.name} and the Eventhouse ${st.eventhouse.name} (with all events) from Fabric? Select Cancel to keep them.`, 'Delete from Fabric', true);
+    const drop = await confirmDialog('Remove live data', `Delete the dashboard, the Eventstream ${st.eventstream.name} and the Eventhouse ${st.eventhouse.name} (with all events)${st.medallion ? ', the medallion layers with their querysets, Gold semantic model and task flow' : ''} from Fabric? Select Cancel to keep them.`, 'Delete from Fabric', true);
     if (!drop) return;
     try { await del('/realtime?delete=1'); toast('Live data removed', 'ok'); app.refresh(); } catch (e) { toast(e.message, 'err'); }
   });
@@ -100,14 +103,17 @@ function simulatorCard(s) {
   const rateV = h('b', {}, `${rate.value}/min`);
   const rules = h('input', { type: 'range', min: 0, max: 20, step: 1, value: sim.ruleBreakPct ?? 3 });
   const rulesV = h('b', {}, `${rules.value}%`);
+  const issues = h('input', { type: 'range', min: 0, max: 10, step: 1, value: sim.running ? sim.dataIssuePct ?? 0 : s.setup?.medallion ? 1 : 0 });
+  const issuesV = h('b', {}, `${issues.value}%`);
   const minutes = select([15, 30, 60, 120, 240].map((m) => ({ value: m, label: m < 60 ? `${m} minutes` : `${m / 60} hour${m === 60 ? '' : 's'}`, selected: m === 60 })));
   let t = null;
-  const live = () => { clearTimeout(t); t = setTimeout(() => { if (store.realtime?.simulator?.running) patch('/realtime/simulator', { rate: Number(rate.value), ruleBreakPct: Number(rules.value) }).catch(() => {}); }, 400); };
+  const live = () => { clearTimeout(t); t = setTimeout(() => { if (store.realtime?.simulator?.running) patch('/realtime/simulator', { rate: Number(rate.value), ruleBreakPct: Number(rules.value), dataIssuePct: Number(issues.value) }).catch(() => {}); }, 400); };
   rate.addEventListener('input', () => { rateV.textContent = `${rate.value}/min`; live(); });
   rules.addEventListener('input', () => { rulesV.textContent = `${rules.value}%`; live(); });
+  issues.addEventListener('input', () => { issuesV.textContent = `${issues.value}%`; live(); });
   const start = h('button', { class: 'btn pri', 'data-busy': 'Starting…', disabled: !ready || undefined, title: ready ? 'Send events to the Eventstream' : 'Set up live data first' }, '▶ Start events');
   start.addEventListener('click', busy(start, async () => {
-    const r = await post('/realtime/simulator/start', { rate: Number(rate.value), ruleBreakPct: Number(rules.value), minutes: Number(minutes.value) });
+    const r = await post('/realtime/simulator/start', { rate: Number(rate.value), ruleBreakPct: Number(rules.value), dataIssuePct: Number(issues.value), minutes: Number(minutes.value) });
     updateSim(r);
     toast(r.backfilling ? "Streaming – the last hour is filled first so the charts aren't empty" : 'Streaming live events', 'ok');
   }));
@@ -120,9 +126,10 @@ function simulatorCard(s) {
   put(card, 
     h('div', { class: 'row sp' }, h('h3', { style: { margin: 0 } }, '2 · Live events'), status),
     h('p', { class: 'small muted' }, 'Simulated events use real keys, names and prices from your data, with a share of business-rule breaks. They stop on their own.'),
-    h('div', { class: 'grid', style: { gridTemplateColumns: '1fr 1fr', gap: '10px' } },
+    h('div', { class: 'grid', style: { gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' } },
       field(h('span', {}, 'Events per minute ', rateV), rate),
-      field(h('span', {}, 'Rule breaks ', rulesV), rules)),
+      field(h('span', {}, 'Rule breaks ', rulesV), rules),
+      field(h('span', { title: 'Duplicates, missing keys, zero quantities, negative amounts and future times – the medallion Silver layer quarantines or removes them' }, 'Data issues ', issuesV), issues)),
     field('Stop after', minutes),
     h('div', { class: 'row', style: { marginTop: '10px' } }, start, stop), note, stats, recent);
 
@@ -131,12 +138,12 @@ function simulatorCard(s) {
     status.className = `pill ${x.running ? 'ok' : ''}`;
     status.textContent = x.running ? '● Streaming' : 'Stopped';
     start.hidden = x.running; stop.hidden = !x.running;
-    note.textContent = x.running ? `Stops at ${new Date(x.stopsAt).toLocaleTimeString()} · ${x.rate} events per minute · ${x.ruleBreakPct}% rule breaks${x.backfilling ? ' · filling the last hour…' : x.backfilled ? ` · last hour filled with ${fmtNum(x.backfilled)} events` : ''}` : x.stopReason ? `Last run ${x.stopReason}${x.stoppedAt ? ` (${ago(x.stoppedAt)})` : ''}.` : '';
+    note.textContent = x.running ? `Stops at ${new Date(x.stopsAt).toLocaleTimeString()} · ${x.rate} events per minute · ${x.ruleBreakPct}% rule breaks · ${x.dataIssuePct ?? 0}% data issues${x.backfilling ? ' · filling the last hour…' : x.backfilled ? ` · last hour filled with ${fmtNum(x.backfilled)} events` : ''}` : x.stopReason ? `Last run ${x.stopReason}${x.stoppedAt ? ` (${ago(x.stoppedAt)})` : ''}.` : '';
     if (x.lastError) note.append(h('div', { class: 'banner err', style: { marginTop: '8px' } }, x.lastError));
     stats.innerHTML = '';
     if (x.sent || x.running) {
       stats.append(...[
-        ['Sent', fmtNum(x.sent)], ['Rule breaks', fmtNum(x.ruleBreaks)], ['Amount', money(x.amount)], ['Last batch', ago(x.lastSentAt)],
+        ['Sent', fmtNum(x.sent)], ['Rule breaks', fmtNum(x.ruleBreaks)], ['Data issues', fmtNum(x.dataIssues || 0)], ['Amount', money(x.amount)], ['Last batch', ago(x.lastSentAt)],
       ].map(([l, v]) => h('div', {}, h('span', { class: 'tiny muted' }, l), h('b', {}, v))));
     }
     recent.innerHTML = '';
@@ -153,6 +160,118 @@ function simulatorCard(s) {
   return card;
 }
 
+// ---------------- medallion layers ----------------
+const days = (d) => (d ? (d % 365 === 0 ? `${d / 365} year${d === 365 ? '' : 's'}` : `${d} days`) : 'As it is');
+
+function medallionCard(s) {
+  const st = s.setup;
+  const med = st?.medallion || null;
+  const card = h('div', { class: 'card med', style: { marginTop: '14px' } });
+  const job = h('div');
+  const def = s.medallionDefaults || { bronzeDays: 30, silverDays: 90, goldDays: 730, oneLake: true, choices: { bronze: [0, 7, 30, 90, 365], silver: [30, 90, 365], gold: [365, 730, 1825] } };
+  const cur = med?.options || def;
+  const pick = (layer, value) => select(def.choices[layer].map((d) => ({ value: d, label: d === 0 ? 'Keep as it is' : days(d), selected: d === value })));
+  const bronze = pick('bronze', cur.bronzeDays);
+  const silver = pick('silver', cur.silverDays);
+  const gold = pick('gold', cur.goldDays);
+  const oneLake = h('input', { type: 'checkbox', checked: cur.oneLake !== false || undefined });
+  const flow = h('div', { class: 'medflow' });
+  const extra = h('div');
+  const status = med ? h('span', { class: 'pill ok' }, 'Applied') : st ? h('span', { class: 'pill brand' }, 'Recommended') : h('span', { class: 'pill' }, 'Needs live data');
+
+  const apply = h('button', { class: 'btn pri', 'data-busy': 'Starting…', disabled: !st || undefined, title: st ? '' : 'Set up live data first' }, med ? '↻ Update layers' : 'Apply medallion template');
+  apply.addEventListener('click', busy(apply, async () => {
+    await startJob('/jobs/medallion', { bronzeDays: Number(bronze.value), silverDays: Number(silver.value), goldDays: Number(gold.value), oneLake: oneLake.checked }, job, 'Medallion layers are live – see the task flow in your workspace');
+  }));
+  const remove = h('button', { class: 'btn ghost', 'data-busy': 'Starting…' }, 'Remove…');
+  remove.addEventListener('click', busy(remove, async () => {
+    if (!(await confirmDialog('Remove the medallion layers', `Drop the Silver and Gold layers, delete the task flow, the two querysets, the Silver lakehouse and the ${med.items?.goldModel?.name || 'Gold'} semantic model, and point the dashboard, alerts and live ontology back at ${med.names.bronze}? The raw events in ${med.names.bronze} stay.`, 'Remove', true))) return;
+    await startJob('/jobs/medallion-remove', {}, job, 'Medallion layers removed');
+  }));
+
+  const layer = (cls, name, title, rows, lines) => h('div', { class: `mlayer ${cls}` },
+    h('div', { class: 'mlh' }, h('b', {}, name), h('span', { class: 'tiny' }, title)),
+    rows, h('ul', {}, lines.filter(Boolean).map((l) => h('li', {}, l))));
+  const arrow = (label) => h('div', { class: 'marrow' }, h('span', {}, label), h('i'));
+  const n = (x) => (x === null || x === undefined ? '–' : fmtNum(x));
+
+  const paint = (hl = null) => {
+    flow.innerHTML = '';
+    const names = med?.names || (st ? { bronze: st.table, silver: `${st.table}_Silver`, quarantine: `${st.table}_Quarantine`, clean: `${st.table}_Silver_Dedup` } : null);
+    if (!names) { flow.append(h('p', { class: 'small muted' }, 'Set up live data first: the template is applied to the events table.')); return; }
+    const L = hl?.layers || {};
+    const goldViews = med?.gold || [{ label: 'Per minute' }, { label: 'Daily' }, { label: 'Latest per customer' }];
+    const stat = (v, label) => h('div', { class: 'mstat' }, h('b', {}, n(v)), h('span', { class: 'tiny muted' }, label));
+    put(flow,
+      layer('bronze', 'Bronze', 'Raw events', med ? h('div', { class: 'mstats' }, stat(L.bronze?.total, 'events'), stat(L.bronze?.recent, 'last 15 min')) : null,
+        [h('code', {}, names.bronze), `From the Eventstream, as they arrive`, `Kept ${days(med?.options?.bronzeDays ?? Number(bronze.value)).toLowerCase()} for replay`]),
+      arrow('Update policy'),
+      layer('silver', 'Silver', 'Checked, enriched, deduplicated', med ? h('div', { class: 'mstats' }, stat(L.clean?.total, 'unique events'), stat(L.quarantine?.total, 'quarantined'), stat(hl?.duplicatesRemoved, 'duplicates removed')) : null,
+        [h('code', {}, names.clean), med ? `${med.checks.length} data-quality checks · rejects in ${names.quarantine}` : `Data-quality checks · rejects in ${names.quarantine}`, med?.items?.silverLakehouse?.shortcut ? `In OneLake as Delta (${med.items.silverLakehouse.name})` : med?.oneLake?.enabled ? 'Available in OneLake as Delta' : null]),
+      arrow('Materialized views'),
+      layer('gold', 'Gold', 'Always-fresh aggregates', med ? h('div', { class: 'mstats' }, ...(med.gold || []).map((g) => stat(L[g.kind]?.total, g.label.toLowerCase()))) : null,
+        [...goldViews.map((g) => (g.name ? h('code', {}, g.name) : g.label)), med?.items?.goldModel ? `Semantic model ${med.items.goldModel.name}` : 'Published as a semantic model']));
+  };
+  paint();
+
+  const itemsDl = () => {
+    if (!med) return null;
+    const L = s.links || {};
+    const tf = med.taskFlow;
+    const gm = med.items?.goldModel;
+    const link = (url, text) => (url ? h('a', { href: url, target: '_blank', rel: 'noopener' }, text, ' ↗') : h('span', { class: 'muted' }, text));
+    return h('dl', { class: 'kv', style: { marginTop: '12px' } },
+      h('dt', {}, 'Fabric task flow'), h('dd', {}, tf ? link(L.taskFlow, tf.name) : h('span', { class: 'pill warn', title: med.taskFlowError || '' }, 'Not created'), tf ? h('div', { class: 'tiny muted' }, `${tf.tasks} tasks · ${tf.items} items assigned · open the workspace to see it above the item list`) : med.taskFlowError ? h('div', { class: 'tiny muted' }, med.taskFlowError) : null),
+      h('dt', {}, 'Bronze → Silver'), h('dd', {}, link(L.silverQueryset, med.items?.silverQueryset?.name || 'Queryset'), h('div', { class: 'tiny muted' }, 'Update policies, checks, quarantine and duplicates (KQL queryset)')),
+      h('dt', {}, 'Silver in OneLake'), h('dd', {}, med.items?.silverLakehouse ? link(L.silverLakehouse, med.items.silverLakehouse.name) : h('span', { class: 'muted' }, med.options?.oneLake === false ? 'Off' : 'Not created yet'),
+        h('div', { class: 'tiny muted' }, med.items?.silverLakehouse?.shortcut ? `Lakehouse with a shortcut to ${med.items.silverLakehouse.shortcut} (Delta) for Spark, SQL and Direct Lake` : med.options?.oneLake === false ? 'Turn on "Silver in OneLake" and update the layers' : 'OneLake is still publishing the Silver table – update the layers in a few minutes')),
+      h('dt', {}, 'Silver → Gold'), h('dd', {}, link(L.goldQueryset, med.items?.goldQueryset?.name || 'Queryset'), h('div', { class: 'tiny muted' }, 'Gold materialized views and their health (KQL queryset)')),
+      h('dt', {}, 'Gold semantic model'), h('dd', {}, link(L.goldModel, gm?.name || 'Semantic model'), ' ', gm ? h('span', { class: `pill ${gm.check?.ok ? 'ok' : 'warn'}`, title: gm.check?.error || '' }, gm.check?.ok ? 'Answers' : gm.sso ? 'Not answering yet' : 'Sign in needed') : null,
+        h('div', { class: 'tiny muted' }, gm?.sso ? 'DirectQuery on the Gold views · viewers use their own identity (single sign-on)' : 'DirectQuery on the Gold views · in Fabric, set Data source credentials to OAuth2 once')),
+      h('dt', {}, 'Retention'), h('dd', {}, `Bronze ${days(med.options.bronzeDays).toLowerCase()} · Silver ${days(med.options.silverDays).toLowerCase()} · Gold ${days(med.options.goldDays).toLowerCase()}`),
+      h('dt', {}, 'Reading clean data'), h('dd', {}, [st.dashboard ? 'Real-Time Dashboard' : null, st.alerts ? 'Activator alerts' : null, st.ontology ? 'Live ontology' : null].filter(Boolean).join(' · ') || h('span', { class: 'muted' }, 'Build the dashboard, alerts or live ontology – they read Silver and Gold automatically')));
+  };
+
+  const options = h('div', { class: 'grid', style: { gridTemplateColumns: 'repeat(3, 1fr) auto', gap: '10px', alignItems: 'end', marginTop: '12px' } },
+    field('Bronze kept', bronze), field('Silver kept', silver), field('Gold kept', gold),
+    h('label', { class: 'row small', style: { paddingBottom: '8px' }, title: 'Expose the Silver table as Delta in OneLake for lakehouses, notebooks and Power BI' }, oneLake, 'Silver in OneLake'));
+  [bronze].forEach((x) => x.addEventListener('change', () => paint()));
+
+  put(card,
+    h('div', { class: 'row sp', style: { alignItems: 'flex-start' } },
+      h('div', {}, h('div', { class: 'row', style: { gap: '8px' } }, h('h3', { style: { margin: 0 } }, 'Medallion architecture'), status),
+        h('p', { class: 'small muted', style: { margin: '4px 0 0', maxWidth: '760px' } }, 'Microsoft\'s Real-Time Intelligence pattern for your live events: Bronze keeps the raw events, update policies check and enrich every event into Silver (rejects are quarantined with the reason, duplicates removed) and materialized views keep Gold aggregates fresh – no schedules. Each layer gets a Fabric item, and the layers appear as a task flow in your workspace.')),
+      med?.taskFlow && s.links?.taskFlow ? h('a', { class: 'btn', href: s.links.taskFlow, target: '_blank', rel: 'noopener' }, 'Open task flow ↗') : null),
+    !med && st?.medallionRemoval ? (() => {
+      const finish = h('button', { class: 'btn', 'data-busy': 'Starting…' }, 'Finish removing');
+      finish.addEventListener('click', busy(finish, async () => { await startJob('/jobs/medallion-remove', {}, job, 'Medallion layers removed'); }));
+      return h('div', { class: 'banner warn', style: { marginTop: '10px' } }, h('div', {}, h('b', {}, 'The last removal stopped half way. '), `Some Silver or Gold tables may still be in ${st.database.name}. Finish removing them, or apply the template again.`), finish);
+    })() : null,
+    flow, extra, itemsDl(), st ? options : null,
+    h('div', { class: 'row', style: { marginTop: '12px' } }, apply, med ? remove : null,
+      h('button', { class: 'btn ai', disabled: !st || undefined, onclick: () => app.ask(med ? 'How healthy are my medallion layers? Use studio_medallion_status: rows per layer, data quality (why events were quarantined), duplicates removed, Gold view health, and anything I should fix.' : 'Apply the medallion template to my live events with studio_apply_medallion and explain what each layer and Fabric item does.') }, med ? '✦ Check health' : '✦ With Copilot')),
+    job);
+
+  if (med) {
+    const load = async () => {
+      if (!card.isConnected) { clearInterval(medTimer); return; }
+      try {
+        const hl = await get('/realtime/medallion?minutes=15');
+        paint(hl);
+        extra.innerHTML = '';
+        const sick = (hl.views || []).filter((v) => !v.healthy || !v.enabled);
+        put(extra,
+          hl.reasons?.length ? h('div', { class: 'row small', style: { flexWrap: 'wrap', gap: '6px', marginTop: '10px' } }, h('span', { class: 'muted' }, 'Quarantined because:'), hl.reasons.map((r) => h('span', { class: 'pill warn' }, `${r.reason} · ${fmtNum(r.rows)}`))) : null,
+          sick.length ? h('div', { class: 'banner warn', style: { marginTop: '10px' } }, `${sick.map((v) => v.name).join(', ')} ${sick.length === 1 ? 'is' : 'are'} not healthy. Select "Update layers" to rebuild.`) : null,
+          h('div', { class: 'tiny muted', style: { marginTop: '6px' } }, `Newest Silver event ${hl.freshnessSeconds === null || hl.freshnessSeconds === undefined ? '–' : hl.freshnessSeconds < 120 ? `${hl.freshnessSeconds} s old` : `${Math.round(hl.freshnessSeconds / 60)} min old`} · refreshed ${new Date().toLocaleTimeString()}`));
+      } catch (e) { extra.innerHTML = ''; extra.append(h('div', { class: 'banner err', style: { marginTop: '10px' } }, e.message)); }
+    };
+    load();
+    medTimer = setInterval(load, 20000);
+  }
+  return card;
+}
+
 // ---------------- dashboard ----------------
 function dashboardCard(s) {
   const st = s.setup;
@@ -163,10 +282,11 @@ function dashboardCard(s) {
   build.addEventListener('click', busy(build, async () => { await startJob('/jobs/realtime-dashboard', d ? { name: d.name } : {}, job, 'Real-Time Dashboard ready'); }));
   put(card, 
     h('div', { class: 'row sp' }, h('h3', { style: { margin: 0 } }, '3 · Real-Time Dashboard'), d ? h('span', { class: 'pill ok' }, 'Built') : h('span', { class: 'pill brand' }, 'Recommended')),
-    h('p', { class: 'small muted' }, 'An auto-refreshing dashboard over the live table. Every tile query is checked against the Eventhouse before it is deployed.'),
-    h('div', { class: 'rtpages' },
+    h('p', { class: 'small muted' }, st?.medallion ? 'An auto-refreshing dashboard over the medallion layers: tiles read the checked, deduplicated Silver events and the Gold views. Every tile query is checked against the Eventhouse before it is deployed.' : 'An auto-refreshing dashboard over the live table. Every tile query is checked against the Eventhouse before it is deployed.'),
+    h('div', { class: `rtpages${st?.medallion ? ' three' : ''}` },
       h('div', {}, h('b', {}, 'Live overview'), h('span', { class: 'tiny muted' }, 'Orders, amount, margin and rule-break KPIs · amount per minute by channel · mix by category · regions · top items · latest events')),
-      h('div', {}, h('b', {}, 'Business rules'), h('span', { class: 'tiny muted' }, 'A count per rule · share of events breaking a rule · loss below cost · breaks per minute · who breaks the rules · latest breaks to review'))),
+      h('div', {}, h('b', {}, 'Business rules'), h('span', { class: 'tiny muted' }, 'A count per rule · share of events breaking a rule · loss below cost · breaks per minute · who breaks the rules · latest breaks to review')),
+      st?.medallion ? h('div', {}, h('b', {}, 'Medallion layers'), h('span', { class: 'tiny muted' }, 'Events per layer · data quality · duplicates removed · Silver freshness · why events were quarantined · Gold latest values')) : null),
     d ? h('dl', { class: 'kv', style: { marginTop: '10px' } },
       h('dt', {}, 'Dashboard'), h('dd', {}, h('a', { href: d.url, target: '_blank', rel: 'noopener' }, d.name, ' ↗')),
       h('dt', {}, 'Tiles'), h('dd', {}, `${d.tiles} on ${d.pages.length} pages · refreshes every ${d.refreshSeconds} seconds`),

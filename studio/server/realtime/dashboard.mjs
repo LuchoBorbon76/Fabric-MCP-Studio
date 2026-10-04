@@ -11,8 +11,10 @@ const GRID = 24;
  * @param {object} o.source { clusterUri, databaseId, databaseName, workspaceId }
  * @param {object} o.scenario { table, columns[], rules[], label, unit }
  * @param {number} [o.refreshSeconds]
+ * @param {object} [o.medallion] the medallion layers (project realtime.medallion): tiles read deduplicated Silver data,
+ *   trends and mixes come from the Gold per-minute view, and a "Medallion layers" page shows the flow and data quality.
  */
-export function buildDashboard({ title, source, scenario, refreshSeconds = 30 }) {
+export function buildDashboard({ title, source, scenario, refreshSeconds = 30, medallion = null }) {
   const id = (...p) => stableUuid('rtd', title, ...p);
   const R = Object.fromEntries(scenario.columns.filter((c) => c.role).map((c) => [c.role, c]));
   const name = (role) => (R[role] ? kqlName(R[role].name) : null);
@@ -23,6 +25,10 @@ export function buildDashboard({ title, source, scenario, refreshSeconds = 30 })
   const rule = name('rule');
   const order = name('order');
   const unitPlural = `${scenario.unit || 'event'}s`;
+  const M = medallion?.names ? medallion : null;
+  const perMinute = M?.gold?.find((g) => g.kind === 'perMinute') || null;
+  const inGold = (role) => Boolean(perMinute && R[role] && perMinute.by.includes(R[role].name));
+  const timeVars = ['_startTime', '_endTime'];
 
   const dsId = id('ds');
   const dataSources = [{
@@ -31,13 +37,16 @@ export function buildDashboard({ title, source, scenario, refreshSeconds = 30 })
   }];
   const pages = [{ id: id('page', 'live'), name: 'Live overview' }];
   if (rule) pages.push({ id: id('page', 'rules'), name: 'Business rules' });
-  const [live, rulesPage] = pages;
+  if (M) pages.push({ id: id('page', 'layers'), name: 'Medallion layers' });
+  const [live] = pages;
+  const rulesPage = pages.find((x) => x.name === 'Business rules');
+  const layersPage = pages.find((x) => x.name === 'Medallion layers');
 
   const queries = [];
   const tiles = [];
   const baseVar = '_events';
   const baseQueryId = id('q', 'base');
-  queries.push({ id: baseQueryId, dataSource: { kind: 'inline', dataSourceId: dsId }, text: `${kqlName(scenario.table)}\n| where ${T} between (_startTime .. _endTime)`, usedVariables: ['_startTime', '_endTime'] });
+  queries.push({ id: baseQueryId, dataSource: { kind: 'inline', dataSourceId: dsId }, text: `${kqlName(M ? M.names.clean : scenario.table)}\n| where ${T} between (_startTime .. _endTime)`, usedVariables: ['_startTime', '_endTime'] });
   const baseQueries = [{ id: id('bq', 'base'), queryId: baseQueryId, variableName: baseVar }];
 
   const q = (key, text, vars = [baseVar]) => {
@@ -64,10 +73,17 @@ export function buildDashboard({ title, source, scenario, refreshSeconds = 30 })
     id: id('rule', key), ruleType: 'colorByCondition', applyToColumn: null, hideText: false, applyTo: 'cells',
     conditions: [{ operator: '==', column: null, values: ['0'] }], chainingOperator: 'and', colorStyle: 'bold', color: 'green', tag: '', icon: 'completed', ruleName: '', visualType: 'card',
   });
-  const by = (role, n = 10) => (R[role] ? `${baseVar}\n| summarize ${kqlName(amountLabel)} = round(sum(${amount}), 2) by ${kqlName(label(role, role))} = ${name(role)}\n| top ${n} by ${kqlName(amountLabel)} desc` : null);
+  // Totals by a dimension: from the Gold per-minute view when it has that dimension, else from the events.
+  const by = (role, n = 10) => {
+    if (!R[role]) return null;
+    const agg = `| summarize ${kqlName(amountLabel)} = round(sum(${amount}), 2) by ${kqlName(label(role, role))} = ${name(role)}\n| top ${n} by ${kqlName(amountLabel)} desc`;
+    return inGold(role) ? [`${kqlName(perMinute.name)}\n| where ${T} between (_startTime .. _endTime)\n${agg}`, timeVars] : [`${baseVar}\n${agg}`];
+  };
 
   // ---- page 1: live overview ----
-  const desc = `Live events in **${md(source.databaseName)}** · table **${md(scenario.table)}** · refreshes every ${refreshSeconds} seconds · change the time range at the top`;
+  const desc = M
+    ? `Live events in **${md(source.databaseName)}** · checked and deduplicated in **${md(M.names.clean)}** (Silver), trends from **${md(perMinute?.name || M.names.clean)}** (Gold) · refreshes every ${refreshSeconds} seconds · change the time range at the top`
+    : `Live events in **${md(source.databaseName)}** · table **${md(scenario.table)}** · refreshes every ${refreshSeconds} seconds · change the time range at the top`;
   markdown(live, 'header', `## ${md(title)}\n${desc}`, { x: 0, y: 0, width: GRID, height: 3 });
   const cards = [
     order ? ['orders', R.order.role === 'order' && scenario.unit === 'sales line' ? 'Orders' : `${unitPlural[0].toUpperCase()}${unitPlural.slice(1)}`, `${baseVar}\n| summarize Value = ${scenario.unit === 'sales line' ? `dcount(${order})` : 'count()'}`] : null,
@@ -79,28 +95,29 @@ export function buildDashboard({ title, source, scenario, refreshSeconds = 30 })
   const w = Math.floor(GRID / cards.length);
   cards.forEach(([key, t, text], i) => tile(live, `card-${key}`, t, 'card', { x: i * w, y: 3, width: i === cards.length - 1 ? GRID - w * i : w, height: 3 }, text, card(key === 'breaks' ? [warnRule('breaks'), okRule('breaks-ok')] : [])));
 
-  const perMinute = R.channel
-    ? `${baseVar}\n| summarize ${kqlName(amountLabel)} = round(sum(${amount}), 2) by bin(${T}, 1m), ${kqlName(label('channel', 'Channel'))} = ${name('channel')}\n| order by ${T} asc`
-    : `${baseVar}\n| summarize ${kqlName(amountLabel)} = round(sum(${amount}), 2) by bin(${T}, 1m)\n| order by ${T} asc`;
-  tile(live, 'trend', `${amountLabel} per minute${R.channel ? ' by channel' : ''}`, R.channel ? 'stackedarea' : 'line', { x: 0, y: 6, width: 16, height: 8 }, perMinute,
-    chart(R.time.name, [amountLabel], R.channel ? [label('channel', 'Channel')] : null, { xTitle: 'Time' }));
+  const perMinuteSrc = inGold('channel') || (perMinute && !R.channel) ? `${kqlName(perMinute.name)}\n| where ${T} between (_startTime .. _endTime)` : baseVar;
+  const trend = R.channel
+    ? `${perMinuteSrc}\n| summarize ${kqlName(amountLabel)} = round(sum(${amount}), 2) by bin(${T}, 1m), ${kqlName(label('channel', 'Channel'))} = ${name('channel')}\n| order by ${T} asc`
+    : `${perMinuteSrc}\n| summarize ${kqlName(amountLabel)} = round(sum(${amount}), 2) by bin(${T}, 1m)\n| order by ${T} asc`;
+  tile(live, 'trend', `${amountLabel} per minute${R.channel ? ' by channel' : ''}`, R.channel ? 'stackedarea' : 'line', { x: 0, y: 6, width: 16, height: 8 }, trend,
+    chart(R.time.name, [amountLabel], R.channel ? [label('channel', 'Channel')] : null, { xTitle: 'Time' }), perMinuteSrc === baseVar ? undefined : timeVars);
   const mix = by('group', 8) || by('channel', 8);
   if (mix) {
     const role = R.group ? 'group' : 'channel';
-    tile(live, 'mix', `${amountLabel} by ${label(role, role).toLowerCase()}`, 'pie', { x: 16, y: 6, width: 8, height: 8 }, mix, {
+    tile(live, 'mix', `${amountLabel} by ${label(role, role).toLowerCase()}`, 'pie', { x: 16, y: 6, width: 8, height: 8 }, mix[0], {
       hideLegend: false, legendLocation: 'bottom', xColumn: label(role, role), yColumns: [amountLabel], seriesColumns: null, crossFilterDisabled: false, drillthroughDisabled: false,
       labelDisabled: false, pie__label: ['name', 'percentage'], tooltipDisabled: false, pie__tooltip: ['name', 'percentage', 'value'], pie__orderBy: 'size', pie__kind: 'donut', pie__topNSlices: null, crossFilter: [], drillthrough: [],
-    });
+    }, mix[1]);
   }
   const lower = [];
   if (R.region) lower.push(['region', `${amountLabel} by ${label('region', 'region').toLowerCase()}`, 'bar', by('region', 12), label('region', 'Region')]);
   if (R.item) lower.push(['item', `Top ${label('item', 'items').toLowerCase()}s right now`, 'bar', by('item', 10), label('item', 'Item')]);
   const recentCols = scenario.columns.filter((c) => ['time', 'channel', 'item', 'party', 'region', 'qty', 'amount', 'rule'].includes(c.role));
-  lower.push(['latest', `Latest ${unitPlural}`, 'table', `${baseVar}\n| top 50 by ${T} desc\n| project ${friendly(recentCols)}`]);
+  lower.push(['latest', `Latest ${unitPlural}`, 'table', [`${baseVar}\n| top 50 by ${T} desc\n| project ${friendly(recentCols)}`]]);
   const lw = Math.floor(GRID / lower.length);
-  lower.forEach(([key, t, vt, text, x], i) => tile(live, key, t, vt, { x: i * lw, y: 14, width: i === lower.length - 1 ? GRID - lw * i : lw, height: 9 }, text,
+  lower.forEach(([key, t, vt, [text, vars], x], i) => tile(live, key, t, vt, { x: i * lw, y: 14, width: i === lower.length - 1 ? GRID - lw * i : lw, height: 9 }, text,
     vt === 'table' ? { table__enableRenderLinks: false, colorRulesDisabled: !rule, colorRules: rule ? tableRules((i) => id('rule', 'latest', i), label('rule', R.rule.name), scenario.rules) : [], crossFilterDisabled: false, drillthroughDisabled: false, crossFilter: [], drillthrough: [], table__renderLinks: [] }
-      : chart(x, [amountLabel], null)));
+      : chart(x, [amountLabel], null), vars));
 
   // ---- page 2: business rules ----
   if (rulesPage) {
@@ -123,6 +140,50 @@ export function buildDashboard({ title, source, scenario, refreshSeconds = 30 })
     tile(rulesPage, 'rule-list', 'Latest rule breaks – review these first', 'table', { x: 0, y: 14, width: GRID, height: 9 },
       `${baseVar}\n| where isnotempty(${rule})\n| top 100 by ${T} desc\n| project ${friendly(exCols)}`,
       { table__enableRenderLinks: false, colorRulesDisabled: false, colorRules: tableRules((i) => id('rule', 'list', i), label('rule', R.rule.name), scenario.rules), crossFilterDisabled: false, drillthroughDisabled: false, crossFilter: [], drillthrough: [], table__renderLinks: [] });
+  }
+
+  // ---- page 3: medallion layers (flow and data quality per layer, by ingestion time) ----
+  if (layersPage) {
+    const N = M.names;
+    const B = kqlName(N.bronze), S = kqlName(N.silver), Q = kqlName(N.quarantine);
+    const hash = kqlName(M.extras.find((e) => e.role === 'hash')?.name || 'EventHash');
+    const reason = kqlName(M.reasonColumn || 'Reason');
+    const qAt = kqlName(M.quarantinedAtColumn || 'QuarantinedAt');
+    const inRange = '| where ingestion_time() between (_startTime .. _endTime)';
+    const days = (d) => (d ? `${d} days` : 'retention unchanged');
+    const o = M.options || {};
+    markdown(layersPage, 'layers-header', [
+      '## Medallion layers',
+      `**Bronze** ${md(N.bronze)} – raw events from the Eventstream (${days(o.bronzeDays)}) → **Silver** ${md(N.silver)} – checked and enriched by an update policy, rejects in ${md(N.quarantine)}, duplicates removed in ${md(N.clean)} (${days(o.silverDays)}) → **Gold** ${(M.gold || []).map((g) => md(g.name)).join(', ')} – materialized views (${days(o.goldDays)}).`,
+    ].join('\n'), { x: 0, y: 0, width: GRID, height: 3 });
+    const lc = [
+      ['bronze', 'Bronze · raw events', `${B}\n${inRange}\n| summarize Value = count()`],
+      ['silver', 'Silver · passed the checks', `${S}\n${inRange}\n| summarize Value = count()`],
+      ['dups', 'Duplicates removed', `${S}\n${inRange}\n| summarize n = count() by ${hash}\n| summarize Value = sum(n) - count()`],
+      ['quarantine', 'Quarantined', `${Q}\n${inRange}\n| summarize Value = count()`],
+      ['quality', 'Data quality (%)', `union (${B} ${inRange} | summarize b = count()), (${Q} ${inRange} | summarize q = count())\n| summarize b = sum(b), q = sum(q)\n| project Value = iff(b == 0, 100.0, round(100.0 * (b - q) / b, 2))`],
+      ['latency', 'Silver freshness (s)', `${S}\n${inRange}\n| summarize Value = coalesce(datetime_diff('second', now(), max(${T})), 0)`],
+    ];
+    const lcw = GRID / lc.length;
+    lc.forEach(([key, t, text], i) => tile(layersPage, `lcard-${key}`, t, 'card', { x: i * lcw, y: 3, width: lcw, height: 3 }, text,
+      card(key === 'quarantine' || key === 'dups' ? [warnRule(`l-${key}`, 'yellow'), okRule(`l-${key}-ok`)] : []), timeVars));
+    tile(layersPage, 'layer-flow', 'Events per minute by layer', 'line', { x: 0, y: 6, width: 14, height: 8 },
+      `union\n  (${B} ${inRange} | summarize Events = count() by Minute = bin(ingestion_time(), 1m) | extend Layer = "Bronze"),\n  (${S} ${inRange} | summarize Events = count() by Minute = bin(ingestion_time(), 1m) | extend Layer = "Silver"),\n  (${Q} ${inRange} | summarize Events = count() by Minute = bin(ingestion_time(), 1m) | extend Layer = "Quarantine")\n| order by Minute asc`,
+      chart('Minute', ['Events'], ['Layer'], { xTitle: 'Ingestion time' }), timeVars);
+    tile(layersPage, 'layer-reasons', 'Why events were quarantined', 'bar', { x: 14, y: 6, width: 10, height: 8 },
+      `${Q}\n${inRange}\n| summarize Events = count() by Reason = ${reason}\n| order by Events desc`, chart('Reason', ['Events'], null), timeVars);
+    const qCols = scenario.columns.filter((c) => ['time', 'order', 'item', 'party', 'qty', 'amount'].includes(c.role));
+    tile(layersPage, 'layer-quarantine', 'Latest quarantined events', 'table', { x: 0, y: 14, width: 12, height: 9 },
+      `${Q}\n${inRange}\n| top 50 by ${qAt} desc\n| project Quarantined = ${qAt}, Reason = ${reason}, ${friendly(qCols)}`,
+      { table__enableRenderLinks: false, colorRulesDisabled: true, colorRules: [], crossFilterDisabled: false, drillthroughDisabled: false, crossFilter: [], drillthrough: [], table__renderLinks: [] }, timeVars);
+    const latest = (M.gold || []).find((g) => g.kind === 'latest');
+    if (latest) {
+      const lCols = scenario.columns.filter((c) => c.name !== latest.by[0] && ['time', 'channel', 'item', 'region', 'amount', 'rule'].includes(c.role));
+      const key = scenario.columns.find((c) => c.name === latest.by[0]);
+      tile(layersPage, 'layer-latest', `Gold · ${latest.label.toLowerCase()}`, 'table', { x: 12, y: 14, width: 12, height: 9 },
+        `${kqlName(latest.name)}\n| top 50 by ${T} desc\n| project ${friendly([key, ...lCols].filter(Boolean))}`,
+        { table__enableRenderLinks: false, colorRulesDisabled: true, colorRules: [], crossFilterDisabled: false, drillthroughDisabled: false, crossFilter: [], drillthrough: [], table__renderLinks: [] }, []);
+    }
   }
 
   return {
@@ -157,10 +218,11 @@ function tableRules(idOf, column, rules) {
 
 /** The KQL behind each tile with the time range filled in – used to check every tile before deploying. */
 export function tileQueries(dashboard, { minutes = 60 } = {}) {
+  const fill = (text) => text.replace(/_startTime/g, `ago(${minutes}m)`).replace(/_endTime/g, 'now()');
   const base = dashboard.queries.find((x) => x.id === dashboard.baseQueries[0].queryId);
-  const baseText = base.text.replace(/_startTime/g, `ago(${minutes}m)`).replace(/_endTime/g, 'now()');
+  const baseText = fill(base.text);
   return dashboard.tiles.filter((t) => t.queryRef).map((t) => {
     const qx = dashboard.queries.find((x) => x.id === t.queryRef.queryId);
-    return { title: t.title, visualType: t.visualType, kql: `let _events = ${baseText};\n${qx.text}` };
+    return { title: t.title, visualType: t.visualType, kql: qx.usedVariables.includes('_events') ? `let _events = ${baseText};\n${fill(qx.text)}` : fill(qx.text) };
   });
 }

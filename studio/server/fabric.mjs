@@ -244,6 +244,13 @@ export async function createShortcut(workspaceId, itemId, { path = 'Tables', nam
 
 // ---------------- OneLake (DFS) ----------------
 
+/** True when a folder or file exists in an item's OneLake storage (e.g. "Tables/MyTable/_delta_log"). */
+export async function oneLakePathExists(workspaceId, itemId, path) {
+  const token = await getToken(SCOPES.storage);
+  const res = await fetch(`${ONELAKE}/${workspaceId}/${itemId}/${path.split('/').map(encodeURIComponent).join('/')}`, { method: 'HEAD', headers: { Authorization: `Bearer ${token}`, 'x-ms-version': '2023-11-03' } });
+  return res.ok;
+}
+
 export async function uploadOneLake(workspaceId, itemId, remotePath, bytes, { signal } = {}) {
   const token = await getToken(SCOPES.storage);
   const base = `${ONELAKE}/${workspaceId}/${itemId}/${remotePath.split('/').map(encodeURIComponent).join('/')}`;

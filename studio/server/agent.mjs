@@ -323,6 +323,9 @@ const STUDIO_TOOLS_META = {
   studio_create_realtime_dashboard: { write: true, title: 'Create Real-Time Dashboard' },
   studio_connect_live_ontology: { write: true, title: 'Bind live events to the ontology' },
   studio_create_live_alerts: { write: true, title: 'Set up Activator alerts on rule breaks' },
+  studio_medallion_status: { write: false, title: 'Read the medallion layers (Bronze, Silver, Gold)' },
+  studio_apply_medallion: { write: true, title: 'Apply the medallion layers and the Fabric task flow' },
+  studio_remove_medallion: { write: true, title: 'Remove the medallion layers' },
   studio_planning_status: { write: false, title: 'Read the plan (budget, forecast, variance)' },
   studio_preview_plan: { write: false, title: 'Preview a budget and forecast' },
   studio_create_plan: { write: true, title: 'Build the budget and forecast' },
@@ -354,6 +357,7 @@ function projectSummary() {
       eventhouse: p.realtime.eventhouse?.name, table: p.realtime.table, eventstream: p.realtime.eventstream?.name, dashboard: p.realtime.dashboard?.name || null, rules: (p.realtime.scenario?.rules || []).map((r) => r.label),
       liveOntology: p.realtime.ontology ? p.realtime.ontology.entities.map((e) => e.entity) : null,
       alerts: p.realtime.alerts ? { activator: p.realtime.alerts.name, channel: p.realtime.alerts.channel, rules: p.realtime.alerts.rules, recipients: p.realtime.alerts.recipients?.length || 0 } : null,
+      medallion: p.realtime.medallion ? { silver: p.realtime.medallion.names.clean, gold: (p.realtime.medallion.gold || []).map((g) => g.name), goldModel: p.realtime.medallion.items?.goldModel?.name || null, taskFlow: p.realtime.medallion.taskFlow?.name || null } : null,
     } : null,
     planning: p.planning ? { measure: p.planning.measure?.name, planYear: p.planning.planYear, baseYear: p.planning.baseYear, asOfMonth: p.planning.asOfMonth, growthPct: p.planning.growthPct, dimensions: (p.planning.dims || []).map((d) => d.labelText), measures: Object.values(p.planning.spec?.names || {}), planItem: p.planning.planItem?.name || null } : null,
     notReady: (() => {
@@ -597,6 +601,7 @@ function studioTools(chatId) {
           dashboard: s.setup?.dashboard ? { name: s.setup.dashboard.name, url: s.setup.dashboard.url, pages: s.setup.dashboard.pages } : null,
           liveOntology: s.setup?.ontology ? { ontology: s.setup.ontology.name, entities: s.setup.ontology.entities } : null,
           alerts: s.setup?.alerts ? { activator: s.setup.alerts.name, url: s.setup.alerts.url, channel: s.setup.alerts.channel, rules: s.setup.alerts.rules, recipients: s.setup.alerts.recipients?.length || 0, minAmount: s.setup.alerts.minAmount } : null,
+          medallion: s.setup?.medallion ? { bronze: s.setup.medallion.names.bronze, silver: s.setup.medallion.names.clean, quarantine: s.setup.medallion.names.quarantine, gold: s.setup.medallion.gold.map((g) => g.name), taskFlow: s.setup.medallion.taskFlow?.name || null } : null,
           streaming: { running: sim.running, eventsPerMinute: sim.rate, ruleBreakPct: sim.ruleBreakPct, sent: sim.sent, stopsAt: sim.stopsAt, lastError: sim.lastError || null },
           last15Minutes: live, links: s.links,
         };
@@ -617,13 +622,14 @@ function studioTools(chatId) {
       parameters: obj({
         eventsPerMinute: { type: 'number', description: 'Events per minute (6–600, default 60)' },
         ruleBreakPct: { type: 'number', description: 'Share of events that break a business rule, in percent (0–50, default 3)' },
+        dataIssuePct: { type: 'number', description: 'Share of events with data-quality issues – duplicates, missing keys, zero quantities, negative amounts, future times – in percent (0–20, default 1). The medallion Silver layer quarantines or removes them' },
         minutes: { type: 'number', description: 'Stop automatically after this many minutes (1–240, default 60)' },
       }),
       handler: async (a) => {
         await assertProjectTenant();
         await assertLiveEventsAllowed();
-        const s = await RT.startLiveEvents({ rate: a.eventsPerMinute, ruleBreakPct: a.ruleBreakPct, minutes: a.minutes });
-        return { ok: true, running: s.running, eventsPerMinute: s.rate, ruleBreakPct: s.ruleBreakPct, stopsAt: s.stopsAt, backfilled: s.backfilled };
+        const s = await RT.startLiveEvents({ rate: a.eventsPerMinute, ruleBreakPct: a.ruleBreakPct, dataIssuePct: a.dataIssuePct, minutes: a.minutes });
+        return { ok: true, running: s.running, eventsPerMinute: s.rate, ruleBreakPct: s.ruleBreakPct, dataIssuePct: s.dataIssuePct, stopsAt: s.stopsAt, backfilled: s.backfilled };
       },
     }),
     studioTool('studio_stop_live_events', {
@@ -653,6 +659,37 @@ function studioTools(chatId) {
         const recipients = a.recipients?.length ? a.recipients : [(await whoAmI()).upn].filter(Boolean);
         return runAsJob('realtime-alerts', 'Set up Activator alerts on rule breaks', (ctx) => RT.runRealtimeAlerts(ctx, { channel: a.channel || 'teams', recipients, rules: a.rules, minAmount: a.minAmount }));
       },
+    }),
+    studioTool('studio_medallion_status', {
+      description: 'Read the medallion layers of the live events: the Bronze table, the Silver table, quarantine and deduplicated view, the Gold materialized views, their rows (total and last 15 minutes), why events were quarantined, duplicates removed, Silver freshness (age of the newest checked event), view health, the Fabric items per layer (querysets, Silver lakehouse, Gold semantic model) and the workspace task flow. Read-only. Query the layers with studio_query_live_events (Silver: the deduplicated view; Gold: the materialized views).',
+      parameters: obj({}),
+      handler: async () => {
+        const rt = getProject().realtime;
+        if (!rt) return { applied: false, hint: 'Set up live data first (studio_setup_live_data).' };
+        if (!rt.medallion) return { applied: false, hint: 'Apply the medallion template with studio_apply_medallion.', preview: RT.medallionPreview() };
+        const m = rt.medallion;
+        return {
+          applied: true, names: m.names, options: m.options, checks: m.checks.map((c) => c.reason), extras: m.extras, gold: m.gold.map((g) => ({ name: g.name, label: g.label, grain: g.grain, by: g.by })),
+          items: { bronzeToSilver: m.items?.silverQueryset?.name, silverLakehouse: m.items?.silverLakehouse ? { name: m.items.silverLakehouse.name, shortcut: m.items.silverLakehouse.shortcut } : null, silverToGold: m.items?.goldQueryset?.name, goldSemanticModel: m.items?.goldModel ? { name: m.items.goldModel.name, measures: m.items.goldModel.measures, singleSignOn: m.items.goldModel.sso, answers: m.items.goldModel.check?.ok ?? null } : null },
+          taskFlow: m.taskFlow ? { name: m.taskFlow.name, tasks: m.taskFlow.tasks, itemsAssigned: m.taskFlow.items } : { error: m.taskFlowError || 'not created' },
+          oneLake: m.oneLake, health: await RT.medallionHealth({ minutes: 15 }).catch((e) => ({ error: e.message })),
+        };
+      },
+    }),
+    studioTool('studio_apply_medallion', {
+      description: 'Apply Microsoft\'s Real-Time Intelligence medallion template to the live events (safe to run again): Bronze keeps the raw events (retention for replay); update policies check every new event (time, keys, quantity, price, discount, amount), enrich it and route failures to a quarantine table with the reason; a materialized view removes duplicates (Silver); materialized views keep Gold aggregates (per minute, daily, latest per customer) fresh. Creates one Fabric item per layer (Bronze→Silver and Silver→Gold KQL querysets, a Gold DirectQuery semantic model with single sign-on), shows the layers as a task flow in the workspace with the items assigned, and moves the dashboard, alerts and live ontology to the clean data. A few minutes.',
+      parameters: obj({
+        bronzeDays: { type: 'number', description: 'Days the raw Bronze events are kept for replay (0 keeps the current retention; default 30)' },
+        silverDays: { type: 'number', description: 'Days the Silver layer is kept (default 90)' },
+        goldDays: { type: 'number', description: 'Days the Gold aggregates are kept (default 730)' },
+        oneLake: { type: 'boolean', description: 'Expose the Silver table in OneLake as Delta (default true)' },
+      }),
+      handler: async (a) => runAsJob('medallion', 'Apply the medallion layers (Bronze, Silver, Gold)', (ctx) => RT.runMedallion(ctx, a)),
+    }),
+    studioTool('studio_remove_medallion', {
+      description: 'Remove the medallion layers: deletes the task flow, the two querysets and the Gold semantic model, points the dashboard, alerts and live ontology back at the Bronze table, then drops the Silver and Gold tables and views. The raw events stay. Ask the user to confirm first.',
+      parameters: obj({}),
+      handler: async () => runAsJob('medallion-remove', 'Remove the medallion layers', (ctx) => RT.removeMedallion(ctx, { deleteItems: true })),
     }),
     studioTool('studio_planning_status', {
       description: 'Read the budget and forecast: plan year, base year, growth, forecast cut-off, planned dimensions, the Plan table measures, the Fabric plan item, and plan vs actual for the plan year (overall and by the first dimension) through the semantic model. Read-only.',

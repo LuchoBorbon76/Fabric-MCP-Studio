@@ -162,6 +162,7 @@ export function fabricUrl(type, workspaceId, id) {
     KQLDashboard: `/kustodashboards/${id}`,
     Reflex: `/reflexes/${id}`,
     Plan: `/plans/${id}`,
+    KQLQueryset: `/queryworkbenches/${id}`,
   }[type];
   return seg === undefined ? `${base}/list` : `${base}${seg}`;
 }

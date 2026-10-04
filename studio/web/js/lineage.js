@@ -75,6 +75,7 @@ const JOB_NODES = {
   sample: ['source', 'data'], mirror: ['source', 'data'], shortcut: ['source', 'data'], 'semantic-model': ['model'], ontology: ['ontology'],
   report: ['reports'], 'org-app': ['orgapp'], realtime: ['events', 'eventstream', 'eventhouse'], 'realtime-dashboard': ['dashboard'],
   'realtime-ontology': ['ontology'], 'realtime-alerts': ['alerts'], planning: ['planning'], 'plan-item': ['planitem'], 'teams-agent': ['agent'],
+  medallion: ['eventhouse'], 'medallion-remove': ['eventhouse'],
 };
 
 const ITEM = { Lakehouse: 'Lakehouse', Warehouse: 'Warehouse', MirroredDatabase: 'Mirrored database', SQLDatabase: 'SQL database' };
@@ -165,9 +166,22 @@ function describe(id, s) {
     case 'eventstream':
       if (!rt?.eventstream) return { done: false, avail: Boolean(ws) && rtOk, needs: rtNeeds, title: 'Not created', sub: 'Custom endpoint' };
       return { done: true, title: rt.eventstream.name, sub: 'Custom endpoint', url: links.eventstream || at('Eventstream', rt.eventstream.id), facts: [['Source', 'Custom endpoint (Event Hubs compatible)'], ['Destination', `${rt.eventhouse?.name || 'Eventhouse'} · ${rt.table || 'events'}`]] };
-    case 'eventhouse':
+    case 'eventhouse': {
       if (!rt?.eventhouse) return { done: false, avail: Boolean(ws) && rtOk, needs: rtNeeds, title: 'Not created', sub: 'KQL database' };
-      return { done: true, live: Boolean(sim.running), title: rt.eventhouse.name, sub: `KQL · ${rt.table || 'events'}`, url: links.eventhouse || at('Eventhouse', rt.eventhouse.id), facts: [['KQL database', rt.database?.name || rt.eventhouse.name], ['Table', rt.table || '–'], ['Query URI', rt.eventhouse.queryUri || '–']] };
+      const med = rt.medallion;
+      if (!med) return { done: true, live: Boolean(sim.running), title: rt.eventhouse.name, sub: `KQL · ${rt.table || 'events'}`, url: links.eventhouse || at('Eventhouse', rt.eventhouse.id), facts: [['KQL database', rt.database?.name || rt.eventhouse.name], ['Table', rt.table || '–'], ['Medallion layers', 'Not applied – Real-time › Medallion architecture'], ['Query URI', rt.eventhouse.queryUri || '–']] };
+      return {
+        done: true, live: Boolean(sim.running), medallion: true, title: rt.eventhouse.name, sub: 'Bronze › Silver › Gold', url: links.eventhouse || at('Eventhouse', rt.eventhouse.id),
+        facts: [
+          ['Bronze', `${med.names.bronze} · raw events${med.options?.bronzeDays ? ` · ${med.options.bronzeDays} days` : ''}`],
+          ['Silver', `${med.names.clean} · ${plural(med.checks?.length || 0, 'check')}, quarantine, deduplicated${med.oneLake?.enabled ? ' · in OneLake' : ''}`],
+          ['Silver lakehouse', med.items?.silverLakehouse?.name || '–', links.silverLakehouse],
+          ['Gold', (med.gold || []).map((g) => g.label).join(', ') || '–'],
+          ['Gold semantic model', med.items?.goldModel?.name || '–', links.goldModel],
+          ['Fabric task flow', med.taskFlow?.name || (med.taskFlowError ? 'Not created' : '–'), links.taskFlow],
+        ],
+      };
+    }
     case 'dashboard':
       if (!rt?.dashboard) return { done: false, avail: Boolean(rt), needs: 'Needs live data', title: 'Not built', sub: 'Auto-refresh tiles' };
       return { done: true, title: rt.dashboard.name, sub: `${rt.dashboard.tiles ? `${plural(rt.dashboard.tiles, 'tile')} · ` : ''}auto-refresh`, url: rt.dashboard.url || links.dashboard, facts: [['Pages', (rt.dashboard.pages || []).join(', ') || '–'], ['Tiles', rt.dashboard.tiles || '–'], ['Refresh', rt.dashboard.refreshSeconds ? `Every ${rt.dashboard.refreshSeconds} s` : '–']] };
@@ -232,7 +246,9 @@ export function buildGraph(s = store) {
     const b = nodes[to];
     let state = a.done && b.done ? 'on' : a.done && b.state !== 'off' ? 'ready' : 'off';
     if (from === 'eventhouse' && to === 'ontology') state = a.done && b.done ? (rt?.ontology ? 'on' : 'ready') : 'off';
-    const lbl = from === 'source' ? METHOD[p.source?.method] || null : label || null;
+    let lbl = from === 'source' ? METHOD[p.source?.method] || null : label || null;
+    // With the medallion layers, consumers read the clean layers instead of the raw table.
+    if (from === 'eventhouse' && rt?.medallion) lbl = { dashboard: 'Silver + Gold', alerts: 'Silver', ontology: 'Silver' }[to] || lbl;
     const live = state === 'on' && ((sim.running && ['events', 'eventstream', 'eventhouse'].includes(from)) || (from === 'source' && p.source?.method === 'mirror'));
     return { key: `${from}>${to}`, i, from, to, label: lbl, kind, state, live };
   });
@@ -401,7 +417,7 @@ export function mountMap(root, { onNode, onTab }) {
       const n = g.nodes[d.id];
       const b = els[d.id];
       const sel = mode === 'full' ? selected === d.id : d.view === view;
-      b.className = ['lnode', n.state, n.flag ? `f-${n.flag}` : '', n.next ? 'next' : '', sel ? 'sel' : '', n.live ? 'live' : ''].filter(Boolean).join(' ');
+      b.className = ['lnode', n.state, n.flag ? `f-${n.flag}` : '', n.next ? 'next' : '', sel ? 'sel' : '', n.live ? 'live' : '', n.medallion ? 'med' : ''].filter(Boolean).join(' ');
       b.setAttribute('aria-label', `${n.type}: ${n.title}. ${n.status}`);
       if (mode === 'full') b.title = `${n.title}${n.state === 'off' ? '' : ` · ${n.sub}`}\n${n.status}`; else b.removeAttribute('title');
       // Only rebuild the content when it changed: replacing it between two clicks would swallow a double-click.

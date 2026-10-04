@@ -10,9 +10,16 @@ import { buildDashboard, tileQueries } from './dashboard.mjs';
 import * as SIM from './simulator.mjs';
 import { applyLiveOntology, liveEventsOf, ontologySourceOf } from '../generators/ontology-live.mjs';
 import { ALERT_CHANNELS, alertEntities, alertQuery, cleanRecipients } from './alerts.mjs';
+import * as MED from './medallion.mjs';
+import { querysetDefinition, silverTabs, goldTabs, goldModelFiles } from './medallion-items.mjs';
+import * as TF from '../taskflow.mjs';
+import { getToken } from '../auth.mjs';
+import { dax, useSingleSignOn } from '../powerbi.mjs';
+import { stableUuid } from '../config.mjs';
 
 export const dashboardUrl = (ws, id) => `https://app.fabric.microsoft.com/groups/${ws}/kustodashboards/${id}`;
 export const activatorUrl = (ws, id) => `https://app.fabric.microsoft.com/groups/${ws}/reflexes/${id}`;
+export const taskFlowUrl = (ws) => `https://app.fabric.microsoft.com/groups/${ws}/list?experience=fabric-developer`;
 
 function requireWorkspace() {
   const p = getProject();
@@ -27,11 +34,15 @@ function requireRealtime() {
 }
 
 const rtRef = (p) => ({ workspaceId: p.workspace.id, ...p.realtime });
+const kq = (rt) => ({ cluster: rt.eventhouse.queryUri, database: rt.database.name });
+/** The table or view consumers read: the deduplicated Silver view once the medallion layers exist. */
+export const cleanSource = (rt) => rt?.medallion?.names?.clean || rt?.table;
 
 /** What the UI and Copilot need: setup, scenario summary, dashboard and simulator state (no secrets). */
 export function realtimeState() {
   const p = getProject();
   const rt = p.realtime || null;
+  const med = rt?.medallion || null;
   return {
     available: Boolean(p.workspace && scenarioKind(p)),
     scenarioKind: scenarioKind(p),
@@ -44,7 +55,13 @@ export function realtimeState() {
       dashboard: rt.dashboard ? dashboardUrl(p.workspace.id, rt.dashboard.id) : null,
       ontology: p.ontology ? fabricUrl('Ontology', p.workspace.id, p.ontology.id) : null,
       activator: rt.alerts ? activatorUrl(p.workspace.id, rt.alerts.id) : null,
+      silverQueryset: med?.items?.silverQueryset ? fabricUrl('KQLQueryset', p.workspace.id, med.items.silverQueryset.id) : null,
+      goldQueryset: med?.items?.goldQueryset ? fabricUrl('KQLQueryset', p.workspace.id, med.items.goldQueryset.id) : null,
+      goldModel: med?.items?.goldModel ? fabricUrl('SemanticModel', p.workspace.id, med.items.goldModel.id) : null,
+      silverLakehouse: med?.items?.silverLakehouse ? fabricUrl('Lakehouse', p.workspace.id, med.items.silverLakehouse.id) : null,
+      taskFlow: med?.taskFlow ? taskFlowUrl(p.workspace.id) : null,
     } : null,
+    medallionDefaults: { ...MED.DEFAULT_OPTIONS, choices: MED.RETENTION_CHOICES },
     simulator: SIM.simulatorStatus(),
     limits: SIM.LIMITS,
   };
@@ -169,6 +186,8 @@ export async function runRealtimeSetup(ctx, { name } = {}) {
     dashboard: same ? prev.dashboard || null : null,
     ontology: same ? prev.ontology || null : null,
     alerts: same ? prev.alerts || null : null,
+    medallion: same ? prev.medallion || null : null,
+    medallionRemoval: same ? prev.medallionRemoval || null : null,
     createdAt: prev?.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -192,7 +211,7 @@ export async function startLiveEvents(opts = {}) {
     const n = await kusto(p.realtime.eventhouse.queryUri, p.realtime.database.name, `${kqlName(p.realtime.table)} | where EventTime > ago(1h) | count`).catch(() => [{ Count: 1 }]);
     backfillMinutes = Number(n[0]?.Count) ? 0 : 60;
   }
-  return SIM.startSimulator(rtRef(p), scenario, { ...opts, backfillMinutes });
+  return SIM.startSimulator(rtRef(p), scenario, { ...opts, backfillMinutes, dataIssuePct: opts.dataIssuePct ?? (p.realtime.medallion ? 1 : 0) });
 }
 
 export const stopLiveEvents = () => SIM.stopSimulator('stopped by user');
@@ -230,8 +249,8 @@ export async function runRealtimeDashboard(ctx, { name, refreshSeconds = 30 } = 
   const ws = p.workspace;
   const title = F.itemName('KQLDashboard', name || `${rt.scenario.label} – live`);
   ctx.step('Design the dashboard');
-  const dash = buildDashboard({ title, source: { clusterUri: rt.eventhouse.queryUri, databaseId: rt.database.id, databaseName: rt.database.name, workspaceId: ws.id }, scenario: rt.scenario, refreshSeconds });
-  ctx.log(`${dash.pages.length} pages · ${dash.tiles.length} tiles · auto refresh every ${refreshSeconds} seconds`);
+  const dash = buildDashboard({ title, source: { clusterUri: rt.eventhouse.queryUri, databaseId: rt.database.id, databaseName: rt.database.name, workspaceId: ws.id }, scenario: rt.scenario, refreshSeconds, medallion: rt.medallion || null });
+  ctx.log(`${dash.pages.length} pages · ${dash.tiles.length} tiles · auto refresh every ${refreshSeconds} seconds${rt.medallion ? ` · reads Silver ${rt.medallion.names.clean} and Gold views` : ''}`);
   ctx.progress(20);
 
   ctx.step('Check every tile against the Eventhouse');
@@ -257,6 +276,7 @@ export async function runRealtimeDashboard(ctx, { name, refreshSeconds = 30 } = 
   const dashboard = { id: item.id, name: title, url: dashboardUrl(ws.id, item.id), pages: dash.pages.map((x) => x.name), tiles: dash.tiles.length, refreshSeconds, builtAt: new Date().toISOString() };
   updateProject({ realtime: { ...getProject().realtime, dashboard } });
   logActivity('realtime.dashboard', `Real-Time Dashboard "${title}" deployed`, {});
+  await syncTaskFlow(ctx);
   return dashboard;
 }
 
@@ -292,7 +312,7 @@ export async function runLiveOntology(ctx, { unlink = false } = {}) {
   const files = await readOntology(p);
   ctx.progress(25);
 
-  ctx.step(unlink ? 'Remove the live properties' : `Bind ${p.realtime.database.name}.${p.realtime.table} to the entity types`);
+  ctx.step(unlink ? 'Remove the live properties' : `Bind ${p.realtime.database.name}.${cleanSource(p.realtime)} to the entity types`);
   const out = applyLiveOntology(files, { events: liveEventsOf(p), link: !unlink, source: ontologySourceOf(p), dashboard: p.realtime.dashboard, workspaceId: ws.id });
   if (!unlink && !out.linked.length) {
     const keys = p.realtime.scenario.columns.filter((c) => /key$|id$/i.test(c.name)).map((c) => c.name);
@@ -312,6 +332,7 @@ export async function runLiveOntology(ctx, { unlink = false } = {}) {
   };
   updateProject({ realtime: { ...getProject().realtime, ontology } });
   logActivity('realtime.ontology', unlink ? `Removed the live properties from "${p.ontology.name}"` : `Live events bound to ${out.linked.map((l) => l.entity).join(', ')} in "${p.ontology.name}"`, {});
+  await syncTaskFlow(ctx);
   return unlink ? { ontology: p.ontology.name, removed: out.removed.length } : { ontology: p.ontology.name, entities: ontology.entities, url: fabricUrl('Ontology', ws.id, p.ontology.id) };
 }
 
@@ -329,15 +350,17 @@ export async function runRealtimeAlerts(ctx, { channel = 'teams', recipients, ru
   const min = Math.max(0, Number(minAmount) || 0);
 
   ctx.step('Check the alert query against the Eventhouse');
+  const source = cleanSource(rt);
   const ruleCol = rt.scenario.columns.find((c) => c.role === 'rule')?.name || 'RuleBreak';
-  const probe = alertQuery(rt.scenario, { minAmount: min }).replace(/^declare query_parameters\(.*\);/, 'let startTime = ago(60m); let endTime = now();');
+  const probe = alertQuery(rt.scenario, { minAmount: min, source }).replace(/^declare query_parameters\(.*\);/, 'let startTime = ago(60m); let endTime = now();');
   const counts = await kusto(rt.eventhouse.queryUri, rt.database.name, `${probe}\n| summarize Breaks = count() by ${kqlName(ruleCol)}`, { signal: ctx.signal });
   ctx.log(counts.length ? `Last hour: ${counts.map((c) => `${c.Breaks} × ${c[ruleCol]}`).join(', ')}` : 'No rule breaks in the last hour yet – alerts start with the next ones');
+  if (rt.medallion) ctx.log(`Reads ${source} (Silver: checked and deduplicated), so a duplicate event never sends a second message`);
   ctx.progress(30);
 
   let itemName = F.itemName('Reflex', name || rt.alerts?.name || `${rt.eventhouse.name}_Alerts`, 'Alerts');
   ctx.step(`${rt.alerts ? 'Update' : 'Create'} the Activator "${itemName}"`);
-  const entities = alertEntities({ workspaceId: ws.id, database: rt.database, scenario: rt.scenario, rules, channel, recipients: to, minAmount: min });
+  const entities = alertEntities({ workspaceId: ws.id, database: rt.database, scenario: rt.scenario, rules, channel, recipients: to, minAmount: min, source });
   const definition = F.toParts({ 'ReflexEntities.json': entities });
   let item = rt.alerts?.id ? await F.getItem(ws.id, rt.alerts.id).catch(() => null) : null;
   item ||= await F.findItem(ws.id, 'Reflex', itemName);
@@ -363,9 +386,10 @@ export async function runRealtimeAlerts(ctx, { channel = 'teams', recipients, ru
   ctx.progress(90);
 
   const now = new Date().toISOString();
-  const alerts = { id: item.id, name: itemName, url: activatorUrl(ws.id, item.id), channel, recipients: to, rules: rules.map((r) => r.label), minAmount: min, intervalSeconds: 60, createdAt: rt.alerts?.createdAt || now, updatedAt: now };
+  const alerts = { id: item.id, name: itemName, url: activatorUrl(ws.id, item.id), channel, recipients: to, rules: rules.map((r) => r.label), ruleIds: rules.map((r) => r.id), minAmount: min, source, intervalSeconds: 60, createdAt: rt.alerts?.createdAt || now, updatedAt: now };
   updateProject({ realtime: { ...getProject().realtime, alerts } });
   logActivity('realtime.alerts', `Activator "${itemName}": ${rules.length} rule alert${rules.length === 1 ? '' : 's'} by ${channel === 'email' ? 'email' : 'Teams'}`, {});
+  await syncTaskFlow(ctx);
   return { ...alerts, recipients: to.length };
 }
 
@@ -376,6 +400,7 @@ export async function removeAlerts({ keepItem = false } = {}) {
   if (a?.id && !keepItem) await F.deleteItem(p.workspace.id, a.id).catch((e) => { if (!/not\s*found|404/i.test(e.message)) throw e; });
   updateProject({ realtime: { ...getProject().realtime, alerts: null } });
   if (a) logActivity('realtime.alerts', `Activator "${a.name}" removed`, {});
+  await syncTaskFlow(QUIET);
   return { ok: true };
 }
 
@@ -387,12 +412,243 @@ export async function removeRealtime({ deleteItems = false } = {}) {
   const rt = p.realtime;
   if (rt && deleteItems && p.workspace) {
     // The ontology would point at a deleted table: take the live properties off first.
-    if (rt.ontology && p.ontology?.id) {
-      const quiet = { step() {}, log() {}, progress() {} };
-      await runLiveOntology(quiet, { unlink: true }).catch(() => {});
-    }
-    for (const id of [rt.alerts?.id, rt.dashboard?.id, rt.eventstream?.id, rt.eventhouse?.id].filter(Boolean)) await F.deleteItem(p.workspace.id, id).catch(() => {});
+    if (rt.ontology && p.ontology?.id) await runLiveOntology(QUIET, { unlink: true }).catch(() => {});
+    if (rt.medallion?.taskFlow?.id) await TF.deleteTaskFlow(p.workspace.id, rt.medallion.taskFlow.id).catch(() => {});
+    const med = rt.medallion?.items || {};
+    for (const id of [rt.alerts?.id, rt.dashboard?.id, med.goldModel?.id, med.goldQueryset?.id, med.silverLakehouse?.id, med.silverQueryset?.id, rt.eventstream?.id, rt.eventhouse?.id].filter(Boolean)) await F.deleteItem(p.workspace.id, id).catch(() => {});
   }
   updateProject({ realtime: null });
   return { ok: true };
+}
+
+// ---------------- medallion layers ----------------
+
+const QUIET = { step() {}, log() {}, progress() {}, signal: undefined };
+
+/** A job context that reports a nested job's steps as log lines of the parent, within a progress range. */
+function nested(ctx, from, to) {
+  return { signal: ctx.signal, step: (s) => ctx.log(`· ${s}`), log: (l) => ctx.log(`  ${l}`), progress: (p) => ctx.progress(from + ((to - from) * Math.min(100, p)) / 100) };
+}
+
+async function upsertItem(ctx, ws, { type, name, description, definition }) {
+  let item = await F.findItem(ws.id, type, name);
+  if (item) { await F.updateDefinition(ws.id, item.id, definition); ctx.log(`Updated ${name}`); return { item, created: false }; }
+  item = await F.createItem(ws.id, { name, type, description, definition });
+  recordArtifact({ type, id: item.id, name, workspaceId: ws.id });
+  ctx.log(`Created ${name}`);
+  return { item, created: true };
+}
+
+/** The Fabric items of each layer, as task flow tasks (Microsoft's "Event medallion" flow, one item per task). */
+function medallionFlow(p) {
+  const rt = p.realtime;
+  const med = rt.medallion;
+  const N = med.names;
+  const items = med.items || {};
+  const o = med.options;
+  const tasks = [
+    { key: 'ingest', name: 'Live events ingest', type: 'get data', x: 0, y: 80, items: [{ type: 'Eventstream', id: rt.eventstream.id }],
+      description: `Live ${rt.scenario.unit}s from the studio simulator or your own apps arrive through the custom endpoint of ${rt.eventstream.name}.` },
+    { key: 'bronze', name: 'Bronze layer', type: 'store data', x: 360, y: 80, items: [{ type: 'Eventhouse', id: rt.eventhouse.id }],
+      description: `Raw events land in ${rt.database.name}.${N.bronze} exactly as they arrive${o.bronzeDays ? `, kept ${o.bronzeDays} days for replay` : ''}. The Silver and Gold tables and views live in the same KQL database (folders Bronze, Silver, Gold).` },
+    { key: 'toSilver', name: 'Bronze to Silver', type: 'prepare data', x: 720, y: 80, items: [{ type: 'KQLQueryset', id: items.silverQueryset?.id }],
+      description: `Update policies check every new event (${med.checks.map((c) => c.reason.toLowerCase()).join('; ')}), enrich it and send failures to ${N.quarantine} with the reason.` },
+    { key: 'silver', name: 'Silver layer', type: 'store data', x: 1080, y: 80, items: [{ type: 'Lakehouse', id: items.silverLakehouse?.id }],
+      description: `${N.silver}: checked and enriched events; ${N.clean} removes duplicates as they arrive (materialized view)${items.silverLakehouse ? `; ${items.silverLakehouse.name} exposes Silver in OneLake as Delta` : ''}. Kept ${o.silverDays} days.` },
+    { key: 'toGold', name: 'Silver to Gold', type: 'prepare data', x: 1440, y: 80, items: [{ type: 'KQLQueryset', id: items.goldQueryset?.id }],
+      description: `Materialized views aggregate Silver continuously, late events included: ${med.gold.map((g) => g.label.toLowerCase()).join(', ')}.` },
+    { key: 'gold', name: 'Gold layer', type: 'store data', x: 1800, y: 80, items: [{ type: 'SemanticModel', id: items.goldModel?.id }],
+      description: `${med.gold.map((g) => g.name).join(', ')} (kept ${o.goldDays} days), published as the ${items.goldModel?.name || 'Gold'} semantic model for Power BI and Copilot.` },
+    { key: 'visualize', name: 'Realtime visualize', type: 'visualize', x: 2160, y: 80, items: [{ type: 'KQLDashboard', id: rt.dashboard?.id }],
+      description: 'Real-Time Dashboard over the deduplicated Silver events and the Gold views, refreshed automatically.' },
+    { key: 'activate', name: 'Realtime activation', type: 'track data', x: 1440, y: 300, items: [{ type: 'Reflex', id: rt.alerts?.id }],
+      description: 'Activator checks the Silver events every minute and sends a Teams message or email for each business-rule break.' },
+    { key: 'context', name: 'Business context', type: 'analyze and train data', x: 1800, y: 300, items: [{ type: 'Ontology', id: rt.ontology ? p.ontology?.id : null }],
+      description: 'The ontology gives each product, customer and region its live Silver events as time-series properties, for agents and people.' },
+  ];
+  const edges = [['ingest', 'bronze'], ['bronze', 'toSilver'], ['toSilver', 'silver'], ['silver', 'toGold'], ['toGold', 'gold'], ['gold', 'visualize'], ['silver', 'activate'], ['silver', 'context']];
+  return {
+    name: `Event medallion – ${rt.scenario.label}`,
+    description: `Bronze, Silver and Gold layers for ${rt.scenario.label}, built by Fabric MCP Studio on Microsoft's Real-Time Intelligence medallion pattern: events are checked, deduplicated and aggregated as they arrive, with no schedules.`,
+    tasks, edges,
+  };
+}
+
+/** Create or update the workspace task flow so it matches the medallion's items (quietly skipped without one). */
+export async function syncTaskFlow(ctx = QUIET) {
+  const p = getProject();
+  const rt = p.realtime;
+  if (!p.workspace || !rt?.medallion) return null;
+  try {
+    const flow = await TF.buildTaskFlow(medallionFlow(p), { idOf: (...k) => stableUuid('taskflow', p.workspace.id, rt.eventhouse.id, ...k), workspaceId: p.workspace.id });
+    const saved = await TF.saveTaskFlow(p.workspace.id, flow, { id: rt.medallion.taskFlow?.id });
+    const assigned = flow.tasks.reduce((a, t) => a + t.items.filter((i) => i.artifactObjectId).length, 0);
+    const taskFlow = { id: saved.id, name: flow.name, tasks: flow.tasks.length, items: assigned, url: taskFlowUrl(p.workspace.id), syncedAt: new Date().toISOString() };
+    updateProject({ realtime: { ...getProject().realtime, medallion: { ...getProject().realtime.medallion, taskFlow, taskFlowError: null } } });
+    ctx.log(`Task flow "${flow.name}" ${saved.created ? 'created' : 'updated'} in the workspace: ${flow.tasks.length} tasks, ${assigned} items assigned`);
+    return taskFlow;
+  } catch (e) {
+    updateProject({ realtime: { ...getProject().realtime, medallion: { ...getProject().realtime.medallion, taskFlowError: e.message } } });
+    ctx.log(`The workspace task flow wasn't updated: ${e.message}`);
+    return null;
+  }
+}
+
+/**
+ * Apply the medallion template to the live events: Bronze/Silver/Gold layers in the Eventhouse, one Fabric item per
+ * layer (querysets and a Gold semantic model), the workspace task flow, and the dashboard, alerts and live ontology
+ * moved to the clean data. Safe to run again: what already matches is kept.
+ */
+export async function runMedallion(ctx, opts = {}) {
+  const p = requireRealtime();
+  const ws = p.workspace;
+  const rt = p.realtime;
+  const model = MED.medallionModel(rt.scenario, MED.medallionOptions(opts, rt.medallion?.options));
+  const out = await MED.applyMedallion(kq(rt), model, ctx);
+  const summary = MED.modelSummary(model);
+  const prevItems = rt.medallion?.items || {};
+  const base = rt.eventhouse.name.replace(/_Live$/i, '');
+  updateProject({ realtime: { ...getProject().realtime, medallionRemoval: null, medallion: {
+    ...summary, items: prevItems, taskFlow: rt.medallion?.taskFlow || null, counts: out.counts, oneLake: out.oneLake,
+    bronzePolicies: rt.medallion?.bronzePolicies ?? rt.medallionRemoval?.bronzePolicies ?? out.bronzePolicies, appliedAt: rt.medallion?.appliedAt || new Date().toISOString(), updatedAt: new Date().toISOString(),
+  } } });
+
+  // One Fabric item per layer step, so the task flow can show each layer.
+  ctx.step('Create the layer items: Bronze → Silver and Silver → Gold querysets');
+  const qs = async (key, label, tabs, description) => {
+    const name = F.itemName('KQLQueryset', `${base}_${label}`);
+    const def = querysetDefinition({ key: `${rt.database.id}/${key}`, cluster: rt.eventhouse.queryUri, database: rt.database.name, tabs });
+    const { item } = await upsertItem(ctx, ws, { type: 'KQLQueryset', name, description, definition: F.toParts({ 'RealTimeQueryset.json': def }) });
+    return { id: item.id, name, tabs: tabs.map((t) => t.title) };
+  };
+  const silverQueryset = await qs('silver', 'Bronze_to_Silver', silverTabs(summary), `Medallion: how ${rt.table} events are checked, enriched, quarantined and deduplicated into Silver. Generated by Fabric MCP Studio.`);
+  const goldQueryset = await qs('gold', 'Silver_to_Gold', goldTabs(summary), `Medallion: the Gold materialized views over ${summary.names.clean}. Generated by Fabric MCP Studio.`);
+  // Recorded as soon as they exist, so a later failure still lets "Remove" and "Clean up" find them.
+  const saveItems = (extra) => updateProject({ realtime: { ...getProject().realtime, medallion: { ...getProject().realtime.medallion, items: { ...(getProject().realtime.medallion.items || {}), ...extra } } } });
+  saveItems({ silverQueryset, goldQueryset });
+  ctx.progress(58);
+
+  ctx.step('Publish the Gold layer as a semantic model (DirectQuery, single sign-on)');
+  const schemas = {};
+  for (const g of model.gold) schemas[g.name] = (await kusto(rt.eventhouse.queryUri, rt.database.name, `${kqlName(g.name)} | getschema | project name = ColumnName, type = ColumnType`, { signal: ctx.signal }));
+  const goldName = F.itemName('SemanticModel', `${(p.semanticModel?.name || rt.scenario.label).replace(/\s+(semantic model|model)$/i, '')} Live Gold`);
+  const gm = goldModelFiles({ name: goldName, cluster: rt.eventhouse.queryUri, database: rt.database.name, med: summary, schemas, scenario: rt.scenario });
+  const { item: goldItem } = await upsertItem(ctx, ws, { type: 'SemanticModel', name: goldName, description: `Gold layer of the live ${rt.scenario.label}: DirectQuery over ${model.gold.map((g) => g.name).join(', ')}. Generated by Fabric MCP Studio.`, definition: F.toParts(gm.files) });
+  ctx.log(`${gm.tables.length} tables (${gm.tables.map((t) => t.name).join(', ')}) · ${gm.measures.length} measures`);
+  const goldModel = { id: goldItem.id, name: goldName, tables: gm.tables, measures: gm.measures, sso: false, check: null };
+  saveItems({ goldModel });
+  try {
+    const sso = await useSingleSignOn(ws.id, goldItem.id, () => getToken(`${rt.eventhouse.queryUri.replace(/\/+$/, '')}/.default`));
+    goldModel.sso = sso.done.length > 0 && !sso.failed.length;
+    if (goldModel.sso) ctx.log('Report viewers query the Eventhouse with their own identity (single sign-on)');
+    else ctx.log(`Single sign-on not set up${sso.failed[0] ? `: ${sso.failed[0].error}` : ''}. In Fabric, open the model's settings › Data source credentials and sign in with OAuth2.`);
+  } catch (e) { ctx.log(`Single sign-on not set up: ${e.message}. In Fabric, open the model's settings › Data source credentials and sign in with OAuth2.`); }
+  if (gm.eventsMeasure) {
+    try {
+      const [row] = await dax(ws.id, goldItem.id, `EVALUATE ROW ( "Events", [${gm.eventsMeasure.replace(/]/g, ']]')}] )`);
+      goldModel.check = { ok: true, events: Number(row?.Events) || 0 };
+      ctx.log(`Checked: the Gold model answers – ${goldModel.check.events.toLocaleString('en-US')} events`);
+    } catch (e) {
+      goldModel.check = { ok: false, error: e.message };
+      ctx.log(`The Gold model doesn't answer yet: ${e.message.split('\n')[0].slice(0, 200)}`);
+    }
+  }
+  ctx.progress(70);
+  saveItems({ goldModel });
+
+  // Consumers read the clean data from now on.
+  const now = getProject().realtime;
+  if (now.dashboard) {
+    ctx.step('Point the Real-Time Dashboard at the Silver and Gold layers');
+    await runRealtimeDashboard(nested(ctx, 70, 78), { name: now.dashboard.name, refreshSeconds: now.dashboard.refreshSeconds });
+  }
+  if (now.alerts) {
+    ctx.step('Point the Activator alerts at the Silver layer');
+    const a = now.alerts;
+    await runRealtimeAlerts(nested(ctx, 78, 84), { channel: a.channel, recipients: a.recipients, rules: a.ruleIds || a.rules, minAmount: a.minAmount, name: a.name });
+  }
+  if (now.ontology && getProject().ontology?.id) {
+    ctx.step('Point the live ontology at the Silver layer');
+    await runLiveOntology(nested(ctx, 84, 90), {});
+  }
+  ctx.progress(90);
+
+  // Silver as Delta in OneLake, in a lakehouse of its own (Spark, SQL endpoint, Direct Lake) – the Silver task's item.
+  if (out.oneLake.enabled) {
+    ctx.step('Silver in OneLake: a lakehouse with a shortcut to the Silver Delta table');
+    const lhName = F.itemName('Lakehouse', `${base}_Silver`);
+    const lh = await F.ensureLakehouse(ws.id, lhName, `Silver layer of the live ${rt.scenario.label}: a OneLake shortcut to ${rt.database.name}.${summary.names.silver} (Delta). Generated by Fabric MCP Studio.`);
+    if (lh.created) recordArtifact({ type: 'Lakehouse', id: lh.id, name: lhName, workspaceId: ws.id });
+    ctx.log(`${lh.created ? 'Created' : 'Using'} lakehouse ${lhName}`);
+    let ready = false;
+    for (let i = 0; i < 48 && !ready; i++) {
+      if (ctx.signal?.aborted) throw new Error('Cancelled');
+      ready = await F.oneLakePathExists(ws.id, rt.database.id, `Tables/${summary.names.silver}/_delta_log`).catch(() => false);
+      if (!ready) { if (i % 6 === 0) ctx.log('Waiting for OneLake to publish the Silver Delta table (a few minutes the first time)…'); await sleep(5000); }
+    }
+    let shortcut = null;
+    if (ready) {
+      try {
+        await F.createShortcut(ws.id, lh.id, { path: 'Tables', name: summary.names.silver, target: { oneLake: { workspaceId: ws.id, itemId: rt.database.id, path: `Tables/${summary.names.silver}` } } });
+        shortcut = summary.names.silver;
+        ctx.log(`Shortcut Tables/${shortcut} → ${rt.database.name}.${summary.names.silver} (before deduplication: use ${summary.extras.find((e) => e.role === 'hash')?.name} to drop repeats)`);
+      } catch (e) { ctx.log(`Shortcut not created: ${e.message}`); }
+    } else ctx.log('OneLake is still publishing the Silver table – select "Update layers" in a few minutes to add the shortcut');
+    saveItems({ silverLakehouse: { id: lh.id, name: lhName, shortcut } });
+  }
+  ctx.progress(95);
+
+  ctx.step('Show the layers as a task flow in the workspace');
+  const taskFlow = await syncTaskFlow(ctx);
+  setStep('medallion', 'done', `${summary.names.silver} · ${model.gold.length} Gold views`);
+  logActivity('realtime.medallion', `Medallion layers on ${rt.table}: Silver ${summary.names.silver}, ${model.gold.length} Gold views${taskFlow ? `, task flow "${taskFlow.name}"` : ''}`, {});
+  const final = getProject().realtime.medallion;
+  return { names: summary.names, gold: model.gold.map((g) => g.name), counts: out.counts, oneLake: out.oneLake.enabled, items: final.items, taskFlow: final.taskFlow, taskFlowError: final.taskFlowError || null };
+}
+
+/** Remove the medallion layers, their items and the task flow; the dashboard, alerts and ontology go back to Bronze. */
+export async function removeMedallion(ctx = QUIET, { deleteItems = true } = {}) {
+  const p = requireRealtime();
+  const rt = p.realtime;
+  // A removal that stopped half way (e.g. a timeout while dropping) is kept so it can be finished.
+  const pending = rt.medallionRemoval || null;
+  const med = rt.medallion || pending;
+  if (!med) return { ok: true };
+  if (rt.medallion) {
+    ctx.step('Remove the task flow and the layer items');
+    if (med.taskFlow?.id) await TF.deleteTaskFlow(p.workspace.id, med.taskFlow.id).then((x) => ctx.log(x ? `Deleted task flow "${med.taskFlow.name}"` : 'The task flow was already gone')).catch((e) => ctx.log(`Task flow not deleted: ${e.message}`));
+    if (deleteItems) {
+      for (const it of [med.items?.goldModel, med.items?.goldQueryset, med.items?.silverLakehouse, med.items?.silverQueryset].filter((x) => x?.id)) {
+        await F.deleteItem(p.workspace.id, it.id).then(() => ctx.log(`Deleted ${it.name}`)).catch((e) => ctx.log(/404|not\s*found/i.test(e.message) ? `${it.name} was already deleted` : `Could not delete ${it.name}: ${e.message}`));
+      }
+    }
+    ctx.progress(20);
+    // Consumers go back to the Bronze table before its Silver and Gold views disappear.
+    updateProject({ realtime: { ...getProject().realtime, medallion: null, medallionRemoval: { names: med.names, gold: med.gold, bronzePolicies: med.bronzePolicies } } });
+    const now = getProject().realtime;
+    if (now.dashboard) { ctx.step('Point the dashboard back at the Bronze table'); await runRealtimeDashboard(nested(ctx, 20, 40), { name: now.dashboard.name, refreshSeconds: now.dashboard.refreshSeconds }); }
+    if (now.alerts) { ctx.step('Point the alerts back at the Bronze table'); const a = now.alerts; await runRealtimeAlerts(nested(ctx, 40, 55), { channel: a.channel, recipients: a.recipients, rules: a.ruleIds || a.rules, minAmount: a.minAmount, name: a.name }); }
+    if (now.ontology && getProject().ontology?.id) { ctx.step('Point the live ontology back at the Bronze table'); await runLiveOntology(nested(ctx, 55, 70), {}); }
+  } else ctx.log('Finishing a removal that stopped half way');
+  ctx.step('Drop the Silver and Gold layers');
+  await MED.dropMedallion(kq(rt), med.names, { gold: med.gold, bronzePolicies: med.bronzePolicies }, ctx);
+  updateProject({ realtime: { ...getProject().realtime, medallionRemoval: null } });
+  setStep('medallion', 'todo', '');
+  logActivity('realtime.medallion', `Medallion layers removed from ${rt.table}`, {});
+  return { ok: true };
+}
+
+/** Rows per layer, data quality and view health. */
+export async function medallionHealth({ minutes = 15 } = {}) {
+  const p = requireRealtime();
+  const med = p.realtime.medallion;
+  if (!med) return { applied: false };
+  return { applied: true, ...(await MED.layerHealth(kq(p.realtime), med, { minutes })) };
+}
+
+/** What applying the template would create for the current live events (nothing changes in Fabric). */
+export function medallionPreview(opts = {}) {
+  const p = requireRealtime();
+  const m = MED.medallionModel(p.realtime.scenario, MED.medallionOptions(opts, p.realtime.medallion?.options));
+  return { ...MED.modelSummary(m), functions: m.functions.map((f) => ({ name: f.name, doc: f.doc, body: f.body })) };
 }

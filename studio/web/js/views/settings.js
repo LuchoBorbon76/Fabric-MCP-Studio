@@ -161,6 +161,7 @@ function cleanupSummary(plan) {
         h('td', {}, i.label), h('td', {}, i.name),
         h('td', {}, i.recoverable ? h('span', { class: 'pill ok', title: 'Can be restored from the workspace recycle bin' }, 'Recycle bin') : h('span', { class: 'pill err' }, 'Gone for good'))))))),
     plan.ontologyCompanions ? muted('The ontology\'s graph and Eventhouse companion items are deleted with it.') : null,
+    plan.taskFlow ? muted(`The workspace task flow "${plan.taskFlow.name}" is removed too (your other task flows stay).`) : null,
     plan.liveEvents ? muted('The live event simulator stops.') : null,
     muted(restorable
       ? 'Items marked Recycle bin can be restored from the workspace recycle bin for a few days (3 by default) when item recovery is on in your tenant. The others can\'t be restored, but the studio can build them again.'

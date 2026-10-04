@@ -15,6 +15,7 @@ import { RETAIL, ADVENTUREWORKS, presetFor } from './presets.mjs';
 import { AWDW, getKit, loadAdventureWorksDW, salesTotalsMatch } from './samples/adventureworks-dw.mjs';
 import { resetProfileCache } from './reports/index.mjs';
 import { stopSimulator } from './realtime/simulator.mjs';
+import { deleteTaskFlow } from './taskflow.mjs';
 
 const safeName = (s, fallback = 'Item') => (String(s || '').replace(/[^A-Za-z0-9_]/g, '_').replace(/^_+|_+$/g, '').replace(/_+/g, '_') || fallback).slice(0, 120);
 
@@ -569,14 +570,19 @@ const RECOVERABLE = new Set(['Lakehouse', 'SQLDatabase', 'MirroredDatabase', 'Wa
 
 /** What "Clean up resources" deletes, in delete order: only items the studio created or mirrored. */
 function teardownItems(p) {
+  const med = p.realtime?.medallion?.items || {};
   const list = [
     ['OrgApp', 'Org app', p.orgApp],
     ...(p.reports || []).map((r) => ['Report', 'Report', r]),
     ['Plan', 'Fabric plan', p.planning?.planItem],
     ['Reflex', 'Activator alerts', p.realtime?.alerts],
     ['KQLDashboard', 'Real-Time Dashboard', p.realtime?.dashboard],
+    ['SemanticModel', 'Gold semantic model (medallion)', med.goldModel],
+    ['KQLQueryset', 'Silver to Gold queryset (medallion)', med.goldQueryset],
+    ['Lakehouse', 'Silver lakehouse (medallion, shortcut only)', med.silverLakehouse],
+    ['KQLQueryset', 'Bronze to Silver queryset (medallion)', med.silverQueryset],
     ['Eventstream', 'Eventstream', p.realtime?.eventstream],
-    ['Eventhouse', 'Eventhouse (all live events)', p.realtime?.eventhouse],
+    ['Eventhouse', 'Eventhouse (all live events and medallion layers)', p.realtime?.eventhouse],
     ['Ontology', 'Ontology', p.ontology],
     ['SemanticModel', 'Semantic model', p.semanticModel],
     ['MirroredDatabase', 'Mirrored database (replication stops)', p.source?.method === 'mirror' && p.modelSource?.itemId ? { id: p.modelSource.itemId, name: p.modelSource.itemName } : null],
@@ -596,6 +602,7 @@ export function teardownPlan({ deleteWorkspace = false } = {}) {
     workspace,
     deleteWorkspace: Boolean(deleteWorkspace && workspace.created),
     items,
+    taskFlow: p.realtime?.medallion?.taskFlow ? { name: p.realtime.medallion.taskFlow.name } : null,
     ontologyCompanions: Boolean(p.ontology?.id),
     liveEvents: Boolean(p.realtime),
   };
@@ -614,6 +621,10 @@ export async function runTeardown(ctx, { deleteWorkspace = false } = {}) {
   } else if (p.workspace) {
     ctx.step('Delete items created by the studio');
     stopSimulator('clean up');
+    const tf = p.realtime?.medallion?.taskFlow;
+    if (tf?.id) {
+      try { ctx.log((await deleteTaskFlow(p.workspace.id, tf.id)) ? `Deleted task flow "${tf.name}"` : `Task flow "${tf.name}" was already deleted`); } catch (e) { ctx.log(`Could not delete task flow "${tf.name}": ${e.message}`); }
+    }
     for (const it of teardownItems(p)) {
       if (it.type === 'MirroredDatabase') { try { await F.stopMirroring(p.workspace.id, it.id); } catch { /* already stopped */ } }
       try { await F.deleteItem(p.workspace.id, it.id); ctx.log(`Deleted ${it.name} (${it.label.replace(/ \(.*\)$/, '')})`); } catch (e) { ctx.log(e.status === 404 ? `${it.name} was already deleted` : `Could not delete ${it.name}: ${e.message}`); }
