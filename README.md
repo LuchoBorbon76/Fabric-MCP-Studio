@@ -28,8 +28,8 @@ Every step has a quick action **and** a Copilot path. Copilot calls the Fabric M
 **asks for approval before every change**; database credentials never go through the chat.
 
 ```powershell
-git clone https://github.com/luisbor_microsoft/fabric-mcp-server-luisbor.git
-cd fabric-mcp-server-luisbor
+git clone https://github.com/luisbor_microsoft/Fabric-MCP-Studio.git
+cd Fabric-MCP-Studio
 .\Start-Studio.cmd            # Windows  (macOS/Linux: ./studio/start-studio.sh)
 .\scripts\create-shortcut.ps1 # optional: "Fabric MCP Studio" desktop icon, runs in the background (-StartMenu adds it to the Start menu)
 ```
