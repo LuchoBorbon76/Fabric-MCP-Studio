@@ -75,7 +75,7 @@ const EDGES = [
 const NEXT = ['source', 'model', 'ontology', 'reports', 'events', 'dashboard', 'planning', 'agent', 'alerts', 'orgapp', 'planitem'];
 
 const JOB_NODES = {
-  sample: ['source', 'data'], mirror: ['source', 'data'], shortcut: ['source', 'data'], 'semantic-model': ['model'], 'model-fix': ['model'], 'model-links': ['model', 'reports', 'answers'], ontology: ['ontology'],
+  sample: ['source', 'data'], mirror: ['source', 'data'], shortcut: ['source', 'data'], 'semantic-model': ['model'], 'model-fix': ['model'], 'model-reload': ['model'], 'model-links': ['model', 'reports', 'answers'], ontology: ['ontology'],
   report: ['reports'], 'report-template': ['reports'], 'org-app': ['orgapp'], realtime: ['events', 'eventstream', 'eventhouse'], 'realtime-dashboard': ['dashboard'],
   'realtime-ontology': ['ontology'], 'realtime-alerts': ['alerts'], planning: ['planning'], 'plan-item': ['planitem'], 'teams-agent': ['agent'],
   medallion: ['eventhouse'], 'medallion-remove': ['eventhouse'], 'data-prep': ['data'], 'data-agent': ['answers'],

@@ -197,52 +197,73 @@ export function modelCheckDialog() {
       h('td', { class: 'num small' }, num(k.rows)),
       h('td', { class: 'num small' }, num(k.keys)),
       h('td', {},
-        k.status === 'ok' ? h('span', { class: 'pill ok' }, 'Unique')
-          : k.status === 'duplicates' ? h('span', { class: 'pill err' }, `${num(k.extraRows)} extra rows`)
-            : k.status === 'warn' ? h('span', { class: 'pill warn' }, 'Empty keys') : h('span', { class: 'pill' }, 'Not checked'),
+        k.status === 'ok' && k.stale ? h('span', { class: 'pill warn' }, 'Model has older rows')
+          : k.status === 'ok' ? h('span', { class: 'pill ok' }, 'Unique')
+            : k.status === 'duplicates' ? h('span', { class: 'pill err' }, `${num(k.extraRows)} extra rows`)
+              : k.status === 'warn' ? h('span', { class: 'pill warn' }, 'Empty keys') : h('span', { class: 'pill' }, 'Not checked'),
         k.reason ? h('div', { class: 'tiny muted', style: { marginTop: '4px' } }, k.reason) : null,
+        k.stale ? h('div', { class: 'tiny muted', style: { marginTop: '4px' } }, `The model holds ${num(k.modelRows)} rows of ${k.table}; the data has ${num(k.rows)}.`)
+          : k.modelRows !== null && k.modelRows !== undefined && k.rows !== null && k.modelRows !== k.rows
+            ? h('div', { class: 'tiny muted', style: { marginTop: '4px' } }, `The model holds ${num(k.modelRows)} rows; the SQL endpoint counts ${num(k.rows)} (it may still be syncing).`) : null,
         k.sample?.length ? h('div', { class: 'tiny muted' }, `For example ${k.sample.slice(0, 3).map((x) => `${x.value} (${x.rows} rows)`).join(', ')}`) : null)));
     const t = h('table', { class: 't stable' }, h('tr', {}, h('th', {}, 'Relationship'), h('th', { class: 'num' }, 'Rows'), h('th', { class: 'num' }, 'Keys'), h('th', {}, 'Result')), ...rows);
     const fixes = r.keys.filter((k) => k.fix === 'dedupe');
     const where = (k) => `${k.sourceTable}${k.source?.itemName ? ` (${k.source.itemType === 'Warehouse' ? 'warehouse' : k.source.itemType || 'source'} ${k.source.itemName})` : ''}`;
     const unchecked = r.keys.filter((k) => k.status === 'unknown');
-    // An all-clear only when every relationship was checked.
+    const staleTables = [...new Set(r.keys.filter((k) => k.stale).map((k) => k.table))];
+    // An all-clear only when every relationship was checked and the model holds the data it reads.
     const head = r.problems
       ? h('div', { class: `banner ${fixes.length ? 'warn' : 'err'}` }, h('div', {},
         h('b', {}, `${r.problems} relationship${r.problems === 1 ? '' : 's'} can't work: `),
         `the key repeats in ${[...new Set(r.keys.filter((k) => k.status === 'duplicates').map(where))].join(', ')}. `,
         fixes.length ? 'The extra rows are exact copies, so removing them changes no number.' : 'Fix the data where it is loaded, then refresh the model.',
         unchecked.length ? ` ${unchecked.length} other relationship${unchecked.length === 1 ? '' : 's'} couldn't be checked.` : ''))
-      : !r.keys.length || unchecked.length
+      : staleTables.length
         ? h('div', { class: 'banner warn' }, h('div', {},
-          h('b', {}, r.keys.length ? `${unchecked.length} of ${r.keys.length} relationships couldn't be checked. ` : 'The relationships couldn\'t be checked. '),
-          [...r.notes, ...unchecked.map((k) => k.reason)].filter(Boolean).slice(0, 3).join(' ')))
-        : h('div', { class: 'banner ok' }, `Every relationship key in ${r.model.name} is unique in its data.`);
+          h('b', {}, 'The data is fine, but the model still holds older rows. '),
+          `${r.model.name} hasn't read ${staleTables.join(', ')} again since the data changed, so its queries (and reports) still see the old rows – for example the duplicates that were removed. Reload the model.`))
+        : !r.keys.length || unchecked.length
+          ? h('div', { class: 'banner warn' }, h('div', {},
+            h('b', {}, r.keys.length ? `${unchecked.length} of ${r.keys.length} relationships couldn't be checked. ` : 'The relationships couldn\'t be checked. '),
+            [...r.notes, ...unchecked.map((k) => k.reason)].filter(Boolean).slice(0, 3).join(' ')))
+          : h('div', { class: 'banner ok' }, `Every relationship key in ${r.model.name} is unique in its data, and the model holds that data.`);
     const actions = h('div', { class: 'row mt' });
+    const runJob = async (path, payload, okText) => {
+      const j = await post(path, payload);
+      app.watchJob(j.id);
+      const render = (x) => job.replaceChildren(h('div', { class: 'mt' }, app.jobCard(x)));
+      render(j);
+      const off = on('job', (ev) => {
+        if (ev.job.id !== j.id) return;
+        render(ev.job);
+        if (ev.job.status === 'running') return;
+        off();
+        if (ev.job.status === 'succeeded') {
+          const left = ev.job.result?.stale;
+          toast(left ? 'The model still holds older rows – wait a few minutes and reload it again' : okText, left ? 'err' : 'ok');
+          fire('model.fixed'); app.refresh();
+        }
+      });
+    };
     if (fixes.length) {
       const fix = h('button', { class: 'btn pri', 'data-busy': 'Starting…' }, `Remove ${num(fixes.reduce((a, k) => a + k.extraRows, 0))} duplicate rows`);
       fix.addEventListener('click', busy(fix, async () => {
         const ok = await confirmFix(r, fixes);
         if (!ok) return;
-        const j = await post('/jobs/model-fix', { id: r.model.id, tables: fixes.map((k) => k.fixKey) });
-        app.watchJob(j.id);
-        const render = (x) => job.replaceChildren(h('div', { class: 'mt' }, app.jobCard(x)));
-        render(j);
-        const off = on('job', (ev) => {
-          if (ev.job.id !== j.id) return;
-          render(ev.job);
-          if (ev.job.status === 'running') return;
-          off();
-          if (ev.job.status === 'succeeded') { toast('Duplicate rows removed – the model reloaded', 'ok'); fire('model.fixed'); app.refresh(); }
-        });
+        await runJob('/jobs/model-fix', { id: r.model.id, tables: fixes.map((k) => k.fixKey) }, 'Duplicate rows removed – the model reloaded');
       }));
       actions.append(fix);
+    } else if (staleTables.length) {
+      const reload = h('button', { class: 'btn pri', 'data-busy': 'Starting…', title: 'Reload the model so it reads its tables again (no data changes)' }, '↻ Reload the model');
+      reload.addEventListener('click', busy(reload, () => runJob('/jobs/model-reload', { id: r.model.id }, `${r.model.name} reloaded – it holds the current data`)));
+      actions.append(reload);
     }
     const again = h('button', { class: 'btn', 'data-busy': 'Checking…' }, '↻ Check again');
     again.addEventListener('click', busy(again, async () => { draw(await get(`/models/check?id=${encodeURIComponent(r.model.id)}&fresh=1`)); }));
     actions.append(again, h('button', { class: 'btn ai', onclick: () => { dlg?.close(); app.ask(`My semantic model ${r.model.name} has duplicate keys: ${r.keys.filter((k) => k.status === 'duplicates').map((k) => `${k.sourceTable} (${k.reason})`).join('; ')}. Explain what happened and how to prevent it where the data is loaded.`); } }, '✦ Ask Copilot'));
-    body.replaceChildren(head, h('div', { class: 'scroll' }, t), actions, job,
-      fixes.length ? h('p', { class: 'tiny muted', style: { margin: 0 } }, 'Removing them keeps a backup copy of each table in its warehouse (<table>_backup_<time>), works in one transaction per warehouse – all or nothing – and reloads the model. Drop the backup once the numbers look right.') : null);
+    // replaceChildren() would show a missing note as the text "null".
+    body.replaceChildren(...[head, h('div', { class: 'scroll' }, t), actions, job,
+      fixes.length ? h('p', { class: 'tiny muted', style: { margin: 0 } }, 'Removing them keeps a backup copy of each table in its warehouse (<table>_backup_<time>), works in one transaction per warehouse – all or nothing – and reloads the model. Drop the backup once the numbers look right.') : null].filter(Boolean));
   };
   dlg = modal({ title: `Check ${sm?.name || 'the semantic model'}`, className: 'wide', body, actions: [{ label: 'Close' }] });
   get('/models/check').then(draw).catch((e) => { status.replaceChildren(h('div', { class: 'banner err' }, e.message)); });

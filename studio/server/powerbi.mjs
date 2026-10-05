@@ -34,7 +34,7 @@ async function pbi(method, path, body, { raw = false } = {}) {
       if (/Failed to open the MSOLAP connection/i.test(msg)) throw new PowerBIError('The semantic model can\'t be queried right now. Check that the workspace\'s Fabric capacity is running (a paused capacity can\'t answer queries), then try again.', res.status, json);
       // A key that repeats on the "one" side of a relationship breaks every query that uses it.
       const dup = msg.match(/Column '([^']+)' in Table '([^']+)' contains a duplicate value '([^']*)'/i);
-      if (dup) throw Object.assign(new PowerBIError(`The semantic model can't answer: ${dup[2]}[${dup[1]}] has repeated values (for example ${dup[3]}), but it is the "one" side of a relationship. Select "Check and fix the data" to find the tables with repeated keys and remove exact copies.`, res.status, json), { code: 'MODEL_DUPLICATE_KEYS', table: dup[2], column: dup[1] });
+      if (dup) throw Object.assign(new PowerBIError(`The semantic model can't answer: ${dup[2]}[${dup[1]}] has repeated values (for example ${dup[3]}), but it is the "one" side of a relationship. Select "Check and fix the data": it finds the tables with repeated keys and removes exact copies – or, when the data was fixed already, reloads the model so it stops using the old rows.`, res.status, json), { code: 'MODEL_DUPLICATE_KEYS', table: dup[2], column: dup[1] });
       throw new PowerBIError(`${method} ${path} failed (${res.status}): ${msg}`, res.status, json);
     }
     return json;
@@ -75,7 +75,7 @@ export async function dax(workspaceId, datasetId, query) {
   if (t?.error) {
     const msg = String(t.error.message || t.error.code || 'DAX query failed').replace(/<\/?oii>/g, '');
     const dup = msg.match(/Column '([^']+)' in Table '([^']+)' contains a duplicate value '([^']*)'/i);
-    if (dup) throw Object.assign(new PowerBIError(`The semantic model can't answer: ${dup[2]}[${dup[1]}] has repeated values (for example ${dup[3]}), but it is the "one" side of a relationship. Select "Check and fix the data" to find the tables with repeated keys and remove exact copies.`, 400, t.error), { code: 'MODEL_DUPLICATE_KEYS', table: dup[2], column: dup[1] });
+    if (dup) throw Object.assign(new PowerBIError(`The semantic model can't answer: ${dup[2]}[${dup[1]}] has repeated values (for example ${dup[3]}), but it is the "one" side of a relationship. Select "Check and fix the data": it finds the tables with repeated keys and removes exact copies – or, when the data was fixed already, reloads the model so it stops using the old rows.`, 400, t.error), { code: 'MODEL_DUPLICATE_KEYS', table: dup[2], column: dup[1] });
     throw new PowerBIError(msg, 400, t.error);
   }
   return (t?.tables?.[0]?.rows || []).map((row) => Object.fromEntries(Object.entries(row).map(([k, v]) => [k.replace(/^.*\[(.*)\]$/, '$1'), v])));
@@ -108,9 +108,12 @@ export async function modelMetadata(workspaceId, datasetId) {
     dax(workspaceId, datasetId, 'EVALUATE SELECTCOLUMNS(INFO.VIEW.RELATIONSHIPS(), "FromTable", [FromTable], "FromColumn", [FromColumn], "ToTable", [ToTable], "ToColumn", [ToColumn], "IsActive", [IsActive], "FromCardinality", [FromCardinality], "ToCardinality", [ToCardinality])'),
   ]);
   const visibleCol = (c) => !c.IsHidden && c.Type !== 'RowNumber' && !/^RowNumber-/.test(c.Name);
+  const shape = (c) => ({ table: c.Table, name: c.Name, dataType: c.DataType, dataCategory: c.DataCategory || '', isKey: Boolean(c.IsKey), formatString: c.FormatString || '', sortBy: c.SortByColumn || '', description: c.Description || '' });
   return {
     tables: tables.filter((t) => !t.IsHidden).map((t) => ({ name: t.Name, dataCategory: t.DataCategory || '', description: t.Description || '' })),
-    columns: columns.filter(visibleCol).map((c) => ({ table: c.Table, name: c.Name, dataType: c.DataType, dataCategory: c.DataCategory || '', isKey: Boolean(c.IsKey), formatString: c.FormatString || '', sortBy: c.SortByColumn || '', description: c.Description || '' })),
+    columns: columns.filter(visibleCol).map(shape),
+    // Hidden columns can still be used by reports (for example a hidden year in the date table).
+    hiddenColumns: columns.filter((c) => c.IsHidden && c.Type !== 'RowNumber' && !/^RowNumber-/.test(c.Name)).map((c) => ({ ...shape(c), hidden: true })),
     measures: measures.filter((m) => !m.IsHidden).map((m) => ({ table: m.Table, name: m.Name, expression: m.Expression || '', formatString: m.FormatString || '', displayFolder: m.DisplayFolder || '', description: m.Description || '', dataType: m.DataType })),
     relationships: relationships.map((r) => ({ fromTable: r.FromTable, fromColumn: r.FromColumn, toTable: r.ToTable, toColumn: r.ToColumn, active: r.IsActive !== false, fromCardinality: r.FromCardinality, toCardinality: r.ToCardinality })),
   };

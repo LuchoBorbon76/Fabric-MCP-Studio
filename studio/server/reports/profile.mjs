@@ -66,19 +66,52 @@ function channelMeasures(measures, primary) {
   return measures.filter((m) => m !== primary && rx.test(m.name) && !isComparison(m)).slice(0, 4);
 }
 
+// A year column: "Year", "Calendar Year", "Fiscal Year", "Order Year"… – not "Week Number Of Year" or "Day Of Year".
+const NOT_YEAR = /day|week|month|quarter|semester|period|half|of\s*year|number\s*of/i;
+const isYearName = (n) => /year/i.test(n) && !NOT_YEAR.test(n);
+
+/**
+ * Year columns among cols, best first: the calendar year, then other years (fiscal last). Each kind is looked for in the
+ * visible columns, then the hidden ones, before the next kind – a hidden CalendarYear beats a visible Fiscal Year.
+ */
+function yearColumns(cols, hidden = []) {
+  const all = [...cols, ...hidden];
+  const typed = (c, types) => types.includes(c.dataType);
+  const tiers = [
+    (c) => /^(calendar\s*)?year(\s*(number|no|num))?$/i.test(c.name) && typed(c, ['Integer', 'Number', 'Text']),
+    (c) => isYearName(c.name) && !/fiscal/i.test(c.name) && typed(c, ['Integer', 'Number']),
+    (c) => isYearName(c.name) && typed(c, ['Integer', 'Number']),
+  ];
+  const out = [];
+  for (const t of tiers) for (const c of all) if (t(c) && !out.includes(c)) out.push(c);
+  return out;
+}
+
 export function dateInfo(meta) {
   const dateTable = meta.tables.find((t) => t.dataCategory === 'Time')?.name
     || meta.tables.find((t) => /^(dim)?(date|calendar|time)$/i.test(t.name.replace(/\s+/g, '')))?.name;
   if (!dateTable) return null;
   const cols = meta.columns.filter((c) => c.table === dateTable);
+  const hidden = (meta.hiddenColumns || []).filter((c) => c.table === dateTable);
   const find = (rx, type) => cols.find((c) => rx.test(c.name) && (!type || type.includes(c.dataType)));
-  const year = find(/^(calendar)?\s?year$/i, ['Integer', 'Number', 'Text']) || find(/year/i, ['Integer']);
+  // A model can hide its year (and date) and show only labels: reports can still use the hidden column.
+  const years = yearColumns(cols, hidden);
   const quarter = find(/^(calendar)?\s?quarter(number)?$/i, ['Integer', 'Number']);
   const monthNum = find(/^month(number)?(ofyear)?$|^month ?(no|num(ber)?)( of year)?$/i, ['Integer', 'Number']);
   const monthName = find(/^(english)?month(name)?$|^month name$/i, ['Text']);
-  const date = cols.find((c) => c.dataType === 'Date' && c.isKey) || find(/date/i, ['Date']);
-  return { table: dateTable, year, quarter, monthNum, monthName, date };
+  const date = cols.find((c) => c.dataType === 'Date' && c.isKey) || find(/date/i, ['Date'])
+    || hidden.find((c) => c.dataType === 'Date' && c.isKey) || hidden.find((c) => /date/i.test(c.name) && c.dataType === 'Date');
+  return { table: dateTable, year: years[0] || null, yearCandidates: years, quarter, monthNum, monthName, date };
 }
+
+/** Values that look like years (four digits, "FY2014" too). Blanks (facts without a matching date) don't count. */
+const looksLikeYears = (values) => {
+  const set = values.filter((v) => v !== null && v !== undefined && v !== '');
+  return !set.length || set.every((v) => {
+    const n = Number(String(v).match(/\d{4}/)?.[0] ?? NaN);
+    return n >= 1000 && n <= 9999;
+  });
+};
 
 const col = (c, label) => ({ kind: 'column', table: c.table, name: c.name, label: label || columnLabel(c.name) });
 const meas = (m, label) => ({ kind: 'measure', table: m.table, name: m.name, label: label || m.name, formatString: m.formatString, percent: isPercent(m), displayFolder: m.displayFolder || '', description: m.description || '' });
@@ -155,14 +188,28 @@ export async function profileModel(workspaceId, datasetId, { modelName = '' } = 
   // Time: periods with data decide the grain (monthly up to two years, quarterly beyond).
   let time = null;
   const insights = [];
+  let rows = null;
   if (date?.year) {
     const periodCol = date.monthNum || date.quarter;
-    const rows = await dax(workspaceId, datasetId, `EVALUATE SUMMARIZECOLUMNS(${cRef(date.year)}${periodCol ? `, ${cRef(periodCol)}` : ''}, "v", ${mRef(primary)}) ORDER BY ${cRef(date.year)}${periodCol ? `, ${cRef(periodCol)}` : ''}`);
-    const years = [...new Set(rows.map((r) => r[date.year.name]))];
+    // The first candidate that really holds years (a name can mislead: "Year Offset" holds -3…0).
+    const rejected = [];
+    for (const cand of date.yearCandidates.slice(0, 3)) {
+      const got = await dax(workspaceId, datasetId, `EVALUATE SUMMARIZECOLUMNS(${cRef(cand)}${periodCol ? `, ${cRef(periodCol)}` : ''}, "v", ${mRef(primary)}) ORDER BY ${cRef(cand)}${periodCol ? `, ${cRef(periodCol)}` : ''}`);
+      if (looksLikeYears(got.map((r) => r[cand.name]))) { date.year = cand; rows = got; break; }
+      rejected.push(cand.name);
+    }
+    if (!rows) {
+      warnings.push(`${date.table} has no column with years (${rejected.join(', ')} hold other numbers), so trend visuals were left out. Add a year column to the date table.`);
+      date.year = null;
+    } else if (date.year.hidden) warnings.push(`The years come from ${date.table}[${date.year.name}], which is hidden in the model; the reports use it anyway.`);
+  }
+  if (date?.year) {
+    // Facts without a matching date show as a blank year: not a period to compare.
+    const years = [...new Set(rows.map((r) => r[date.year.name]))].filter((y) => y !== null && y !== undefined && y !== '');
     const perYear = new Map();
     for (const r of rows) perYear.set(r[date.year.name], (perYear.get(r[date.year.name]) || []).concat(r));
     const fullYears = years.filter((y) => (date.monthNum ? perYear.get(y).length === 12 : date.quarter ? perYear.get(y).length === 4 : true));
-    const months = date.monthNum ? rows.length : null;
+    const months = date.monthNum ? rows.filter((r) => years.includes(r[date.year.name])).length : null;
     const grain = !date.monthNum && !date.quarter ? 'year' : months && months <= 24 ? 'month' : date.quarter ? 'quarter' : 'month';
     const monthCol = date.monthName && date.monthName.sortBy ? date.monthName : date.monthNum;
     const axis = grain === 'year' ? [col(date.year, 'Year')] : [col(date.year, 'Year'), grain === 'quarter' ? col(date.quarter, 'Quarter') : col(monthCol, 'Month')];
@@ -174,7 +221,8 @@ export async function profileModel(workspaceId, datasetId, { modelName = '' } = 
       if (growth !== null) insights.push({ kind: 'growth', text: `${primary.name} ${growth >= 0 ? 'grew' : 'fell'} ${Math.abs(growth * 100).toFixed(1)}% in ${last} vs ${prev}.`, value: growth });
     }
     if (years.length && fullYears.length < years.length) insights.push({ kind: 'partial', text: `Partial periods: ${years.filter((y) => !fullYears.includes(y)).join(', ')} (compare full years only).` });
-  } else warnings.push('No date table found; trend visuals were left out.');
+  } else if (!date) warnings.push('No date table found; trend visuals were left out.');
+  else if (!warnings.some((w) => w.includes('has no column with years'))) warnings.push(`${date.table} has no year column; trend visuals were left out.`);
 
   // Concentration insight for the share dimension.
   if (share) {

@@ -203,6 +203,12 @@ step fails), reloads the model and checks again. Rows that differ, or copies in 
 have to be fixed where the data is loaded – the check says which. Copilot: `studio_check_semantic_model` and
 `studio_fix_model_duplicates`.
 
+The check also compares the rows each table has in the **model** with its data. A warehouse change takes a little while
+to reach OneLake, where a Direct Lake model reads it: a model reloaded too early keeps the old rows, so the data looks
+fine while every query still fails. The fix therefore reloads until the model holds the new rows (up to 5 times, 20
+seconds apart), and the check shows **Model has older rows** with **↻ Reload the model** when a model still holds old
+data (Copilot: `studio_reload_semantic_model`). Reloading changes no data.
+
 ## Task flows
 
 The **Workspace** page organizes the workspace with a Fabric **task flow** – the boxes above the workspace's item list –

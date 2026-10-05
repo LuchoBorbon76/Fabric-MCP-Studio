@@ -359,6 +359,7 @@ const STUDIO_TOOLS_META = {
   studio_apply_task_flow: { write: true, title: 'Apply a task flow and assign the items to its tasks' },
   studio_list_semantic_models: { write: false, title: 'List the project\'s semantic models' },
   studio_check_semantic_model: { write: false, title: 'Check the semantic model\'s data (relationship keys)' },
+  studio_reload_semantic_model: { write: true, title: 'Reload the semantic model with the current data' },
   studio_find_model_dependents: { write: false, title: 'Find the reports and data agents built on the semantic model' },
   studio_fix_model_duplicates: { write: true, title: 'Remove duplicate rows from warehouse tables' },
   studio_use_semantic_model: { write: false, title: 'Switch the active semantic model or add an existing one' },
@@ -906,7 +907,7 @@ function studioTools(chatId) {
       },
     }),
     studioTool('studio_check_semantic_model', {
-      description: 'Find why a semantic model can\'t answer (for example "contains a duplicate value … not allowed for columns on the one side of a many-to-one relationship"): reads the tables the model is built on and checks that every relationship key on the "one" side is unique – repeated keys, how many extra rows, whether they are exact copies, the source table and item, and whether the studio can fix it. Read-only; about a minute. Use it whenever the model profile or a DAX query fails with a relationship or duplicate-value error.',
+      description: 'Find why a semantic model can\'t answer (for example "contains a duplicate value … not allowed for columns on the one side of a many-to-one relationship"): reads the tables the model is built on and checks that every relationship key on the "one" side is unique – repeated keys, how many extra rows, whether they are exact copies, the source table and item, and whether the studio can fix it. It also compares the rows of each table in the model with its data: `stale` tables mean the data was fixed but the model still holds the old rows (queries keep failing) – reload it with studio_reload_semantic_model. Read-only; about a minute. Use it whenever the model profile or a DAX query fails with a relationship or duplicate-value error.',
       parameters: obj({ id: str('Semantic model id (default: the active model)') }),
       handler: async ({ id }) => MC.checkModel({ id }),
     }),
@@ -914,6 +915,11 @@ function studioTools(chatId) {
       description: 'Remove exact duplicate rows from Fabric warehouse tables a semantic model reads (only tables studio_check_semantic_model reported with fix "dedupe"): keeps a backup copy of each table (<table>_backup_<time>), works in one transaction (all or nothing), then reloads the model and checks again. Only call it after the user agreed to change their warehouse data. Rows that differ are never removed.',
       parameters: obj({ id: str('Semantic model id (default: the active model)'), tables: { type: 'array', items: { type: 'string' }, description: 'fixKey values from studio_check_semantic_model (or schema.table names) to fix (default: every fixable table)' } }),
       handler: async (a) => runAsJob('model-fix', 'Remove duplicate rows the semantic model can\'t use', (ctx) => MC.runFixDuplicates(ctx, { id: a.id, tables: a.tables })),
+    }),
+    studioTool('studio_reload_semantic_model', {
+      description: 'Reload a semantic model (the active one by default) so it reads its data again – when studio_check_semantic_model reports "stale" tables (the model holds other row counts than the data, for example after duplicates were removed in the warehouse): queries keep failing with the old duplicate-value error until it reloads. Reloads again (up to 5 times, 20 seconds apart) until the model holds the current rows, then checks again. Changes no data.',
+      parameters: obj({ id: str('Semantic model id (default: the active model)') }),
+      handler: async (a) => runAsJob('model-reload', 'Reload the semantic model with the current data', (ctx) => MC.runReloadModel(ctx, { id: a.id })),
     }),
     studioTool('studio_planning_status', {
       description: 'Read the budget and forecast: plan year, base year, growth, forecast cut-off, planned dimensions, the Plan table measures, the Fabric plan item, and plan vs actual for the plan year (overall and by the first dimension) through the semantic model. Read-only.',

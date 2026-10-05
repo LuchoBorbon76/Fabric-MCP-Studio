@@ -7,6 +7,7 @@ import { dax, refreshDataset } from './powerbi.mjs';
 import { withPool } from './sql.mjs';
 import { getProject, logActivity, assertProjectTenant, projectModels, modelWorkspaceId } from './project.mjs';
 import { resetProfileCache } from './reports/index.mjs';
+import { sleep } from './config.mjs';
 
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const q = (s) => `[${String(s).replace(/]/g, ']]')}]`;
@@ -256,13 +257,26 @@ export async function checkModel({ id, fresh = false } = {}) {
     if (row.status === 'warn') row.reason = `${row.emptyKeys.toLocaleString('en-US')} rows have an empty ${k.column}; the model treats them as one blank key.`;
   };
   try {
-    const rows = keys.map((k) => ({ ...k, sourceTable: null, source: null, rows: null, keys: null, duplicateKeys: 0, extraRows: 0, emptyKeys: 0, exactCopies: null, status: 'ok', fix: null, reason: null, sample: [] }));
+    const rows = keys.map((k) => ({ ...k, sourceTable: null, source: null, rows: null, keys: null, duplicateKeys: 0, extraRows: 0, emptyKeys: 0, exactCopies: null, status: 'ok', fix: null, reason: null, sample: [], modelRows: null, stale: false }));
     result.keys.push(...rows);
     await Promise.all(keys.map((k, i) => checkKey(k, rows[i])));
   } finally {
     for (const x of pools) x.release();
     await Promise.allSettled(pools.map((x) => x.held));
   }
+  // What the model holds: after the data changed (rows removed in the warehouse) it keeps the old rows until it is
+  // reloaded – the data then looks fine while every query still fails. Only a warehouse count is current at once; a
+  // lakehouse or mirrored database is counted through its SQL endpoint, which can lag behind what the model reads.
+  const tables = [...new Set(result.keys.filter((r) => r.rows !== null && r.status !== 'unknown').map((r) => r.table))];
+  const held = await modelRowCounts(ws, m.id, tables).catch(() => null);
+  if (held) {
+    for (const r of result.keys) {
+      if (held[r.table] === undefined || r.rows === null) continue;
+      r.modelRows = held[r.table];
+      r.stale = r.modelRows !== r.rows && r.source?.itemType === 'Warehouse';
+    }
+    result.stale = new Set(result.keys.filter((r) => r.stale).map((r) => r.table)).size;
+  } else result.stale = 0;
   // The same table (in the same source) can be the "one" side of several relationships: fix it once.
   const fixTables = new Set();
   const seenSources = new Map();
@@ -280,8 +294,68 @@ export async function checkModel({ id, fresh = false } = {}) {
 export function checkSummary(r) {
   if (!r) return 'The model couldn\'t be checked again.';
   if (r.problems) return `${r.problems} relationship${r.problems === 1 ? '' : 's'} still ha${r.problems === 1 ? 's' : 've'} repeated keys`;
+  if (r.stale) return `The data is fine, but the model still holds older rows in ${r.stale} table${r.stale === 1 ? '' : 's'} – reload it`;
   if (!r.keys.length || r.unchecked) return `${r.unchecked || 'The'} relationship${r.unchecked === 1 ? '' : 's'} couldn't be checked${r.notes.length ? ` – ${r.notes.join(' ')}` : ''}`;
   return 'Every relationship key is unique now';
+}
+
+// ---------------- what the model holds, and reloading it ----------------
+
+/** Rows of each checked model table in its data: { modelTable: rows } (warehouse tables – their count is current). */
+function expectedRows(check) {
+  const out = {};
+  for (const r of check.keys) if (r.rows !== null && r.status !== 'unknown' && r.source?.itemType === 'Warehouse') out[r.table] = r.rows;
+  return out;
+}
+
+/** Rows the model holds in each table (one DAX query). Works while relationships are broken. */
+async function modelRowCounts(ws, id, tables) {
+  if (!tables.length) return {};
+  const cols = tables.map((t, i) => `"c${i}", COUNTROWS('${String(t).replace(/'/g, "''")}')`).join(', ');
+  const row = (await dax(ws, id, `EVALUATE ROW(${cols})`))?.[0] || {};
+  const pick = (i) => row[`c${i}`] ?? row[`[c${i}]`];
+  return Object.fromEntries(tables.map((t, i) => [t, pick(i) === undefined || pick(i) === null ? undefined : count(pick(i))]));
+}
+
+/**
+ * Reload (reframe or refresh) a model until it holds the rows its tables have in the data. A change in a warehouse
+ * takes a little while to reach OneLake, where a Direct Lake model reads it: a reload right after the change can still
+ * see the old rows. expected: { modelTable: rows }. Returns true when the model is current (or can't be compared).
+ */
+async function reloadUntilCurrent(ctx, { workspaceId, id, name }, expected, { firstWaitMs = 0, attempts = 5 } = {}) {
+  const tables = Object.keys(expected);
+  const nf = (x) => Number(x).toLocaleString('en-US');
+  if (firstWaitMs) await sleep(firstWaitMs);
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    if (ctx.signal?.aborted) throw new Error('Cancelled');
+    const r = await refreshDataset(workspaceId, id, { signal: ctx.signal, timeoutMs: 6 * 60 * 1000 });
+    if (r.status !== 'Completed') { ctx.log(`Model refresh: ${r.status}${r.error ? ` – ${String(r.error).slice(0, 300)}` : ''}`); return false; }
+    const held = await modelRowCounts(workspaceId, id, tables).catch(() => null);
+    if (!held) { ctx.log(`${name} reloaded`); return true; }
+    const behind = tables.filter((t) => held[t] !== undefined && held[t] !== expected[t]);
+    if (!behind.length) { ctx.log(`${name} reloaded and holds the current data`); return true; }
+    const what = behind.map((t) => `${t}: ${nf(held[t])} rows (the data has ${nf(expected[t])})`).join(', ');
+    if (attempt === attempts) { ctx.log(`${name} still holds older rows – ${what}. Wait a few minutes, then select "Reload the model" in the check.`); return false; }
+    ctx.log(`${name} still holds older rows – ${what}. The change hasn't reached OneLake yet; reloading again in 20 seconds (attempt ${attempt + 1} of ${attempts}).`);
+    await sleep(20000);
+  }
+  return false;
+}
+
+/** Job: reload a model whose data changed (for example after duplicates were removed) and check it again. */
+export async function runReloadModel(ctx, { id } = {}) {
+  ctx.step('Check the tables the model is built on');
+  const check = await checkModel({ id });
+  ctx.progress(30);
+  ctx.step(`Reload ${check.model.name}`);
+  const current = await reloadUntilCurrent(ctx, { workspaceId: check.model.workspaceId, id: check.model.id, name: check.model.name }, expectedRows(check));
+  resetProfileCache();
+  ctx.progress(85);
+  ctx.step('Check again');
+  const after = await checkModel({ id: check.model.id }).catch(() => null);
+  ctx.log(checkSummary(after));
+  logActivity('model.reload', `Reloaded ${check.model.name}${current ? '' : ' (it still holds older rows)'}`, { semanticModelId: check.model.id });
+  return { reloaded: current, stale: after?.stale ?? null, remaining: after?.problems ?? null };
 }
 
 // ---------------- the fix ----------------
@@ -335,7 +409,7 @@ export async function runFixDuplicates(ctx, { id, tables } = {}) {
             await run(`TRUNCATE TABLE ${S}.${q(f.entity)}`);
             await run(`INSERT INTO ${S}.${q(f.entity)} SELECT * FROM ${S}.${q(work)}`);
             await run(`DROP TABLE ${S}.${q(work)}`);
-            here.push({ table: f.sourceTable, warehouse: source.itemName, before: f.rows, after: kept, removed: f.rows - kept, backup: `${f.schema}.${backup}` });
+            here.push({ table: f.sourceTable, modelTable: f.table, warehouse: source.itemName, before: f.rows, after: kept, removed: f.rows - kept, backup: `${f.schema}.${backup}` });
           }
           await tx.commit();
         } catch (e) {
@@ -357,10 +431,16 @@ export async function runFixDuplicates(ctx, { id, tables } = {}) {
   logActivity('model.fix', `Removed exact duplicate rows from ${done.map((d) => `${d.table} (${d.warehouse})`).join(', ')} for ${check.model.name} (backups kept)`, { semanticModelId: check.model.id });
 
   ctx.step(`Reload ${check.model.name}`);
+  // The model must read the fixed tables: until it reloads after the change has reached OneLake, it keeps the copies.
+  const expected = expectedRows(check);
+  for (const f of fixes) {
+    const d = done.find((x) => x.modelTable === f.table && x.table === f.sourceTable);
+    if (d) expected[f.table] = d.after;
+    else delete expected[f.table];
+  }
   try {
-    const r = await refreshDataset(check.model.workspaceId, check.model.id, { signal: ctx.signal, timeoutMs: 6 * 60 * 1000 });
-    ctx.log(r.status === 'Completed' ? 'The model reloaded the fixed tables' : `Model refresh: ${r.status}${r.error ? ` – ${String(r.error).slice(0, 300)}` : ''}`);
-  } catch (e) { ctx.log(`The model couldn't be refreshed (${e.message.split('\n')[0].slice(0, 200)}) – refresh it in Fabric.`); }
+    await reloadUntilCurrent(ctx, { workspaceId: check.model.workspaceId, id: check.model.id, name: check.model.name }, expected, { firstWaitMs: 10000 });
+  } catch (e) { ctx.log(`The model couldn't be reloaded (${e.message.split('\n')[0].slice(0, 200)}) – select "Reload the model" in the check, or refresh it in Fabric.`); }
   resetProfileCache();
   ctx.progress(85);
 
@@ -368,7 +448,7 @@ export async function runFixDuplicates(ctx, { id, tables } = {}) {
   const after = await checkModel({ id: check.model.id }).catch(() => null);
   ctx.log(checkSummary(after));
   ctx.log('The backup tables stay in the warehouse until you drop them (DROP TABLE …) once the numbers look right.');
-  return { fixed: done, remaining: after?.problems ?? null, unchecked: after?.unchecked ?? null };
+  return { fixed: done, remaining: after?.problems ?? null, stale: after?.stale ?? null, unchecked: after?.unchecked ?? null };
 }
 /** Plain-language hint for an error a model query returned (used by the UI and Copilot). */
 export function explainModelError(message) {
