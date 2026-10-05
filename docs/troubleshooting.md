@@ -127,6 +127,18 @@ when it expires.
 | Medallion: Gold semantic model says *Sign in needed* | Single sign-on couldn't be set on the model's Eventhouse data source | In Fabric, open the model › *Settings* › *Data source credentials* › *Edit credentials* › OAuth2, and allow report viewers to use their own identity |
 | Medallion: *The last removal stopped half way* | Dropping the Silver tables took too long (OneLake copies are cleaned up too) | Select **Finish removing**, or apply the template again |
 
+## Semantic models and task flows
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| An existing model shows *tables and measures not read yet* | The studio reads it with DAX (INFO.VIEW): you need Build permission on the model and its capacity must be running | Ask the model owner for Build permission (or resume the capacity), then **↻ Read again** on the Semantic model page |
+| *"…" is an existing semantic model you added to the project* when creating a model | A model you added has that name; the studio never replaces it | Choose another name for the new model |
+| *"…" is a report on another semantic model* | A report with that name belongs to another model in the project | Give this model's report another name (recommended reports already do) |
+| Planning says it *needs a model the studio built* | The active model is one you added; the Plan table goes next to the data a model reads | Switch to a model the studio built on the project's data |
+| A model isn't on the task flow | Only items in the project workspace can be assigned (an existing model in another workspace stays off) | Expected – a task flow belongs to one workspace |
+| Your own item didn't move to the box the studio suggests | Items you placed on a task in Fabric stay where you put them | Move it in Fabric, or leave it |
+| *The workspace's task flows couldn't be read* | Task flows have no public API; the studio uses the portal's metadata service, which a tenant policy can block | Predesigned flows may still work; otherwise organize the items in Fabric |
+| A box in your own task flow gets no items | The studio matches boxes by task type, name (Bronze, Silver, Gold, Semantic…) and position; *General* and *Develop data* boxes are manual only | Move items there with the menu next to each item |
 ## Planning
 
 | Symptom | Cause | Fix |

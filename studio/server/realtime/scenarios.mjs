@@ -253,7 +253,7 @@ function factTableOf(measureName, meta, seen = new Set()) {
 }
 
 async function loadGeneric(project, profile) {
-  const ws = project.workspace.id, sm = project.semanticModel.id;
+  const ws = project.semanticModel.workspaceId || project.workspace.id, sm = project.semanticModel.id;
   const meta = await modelMetadata(ws, sm);
   const dims = [];
   for (const [role, c] of [['item', profile.entity], ['group', profile.breakdown], ['region', profile.share]]) {

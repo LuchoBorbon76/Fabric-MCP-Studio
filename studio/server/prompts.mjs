@@ -78,7 +78,8 @@ function modelPrompts(p, pr, preset) {
 }
 
 function reportPrompts(p, pr) {
-  const reports = p.reports || [];
+  // Reports on the active model only (questions about another model's reports would be answered from the wrong model).
+  const reports = (p.reports || []).filter((r) => !r.semanticModelId || r.semanticModelId === p.semanticModel?.id);
   if (!reports.length) return null;
   const prompts = [];
   for (const r of reports.slice(0, 2)) {
@@ -150,18 +151,20 @@ function dataPrompts(p) {
 /** The next build steps (the studio's guided path). */
 function nextPrompts(p, preset) {
   if (!p.workspace) return ['Ask me what this environment is for, then create a workspace on one of my capacities', 'Show me my Fabric workspaces and capacities', 'What can you build for me in Microsoft Fabric?'];
-  if (!p.modelSource) return ['Load the Contoso Retail sample data into my workspace', 'List the lakehouses and warehouses I could use as a data source', 'Which Fabric connections can I use to mirror a database?'];
+  if (!p.modelSource && !p.semanticModel) return ['Load the Contoso Retail sample data into my workspace', 'Use an existing semantic model from one of my workspaces', 'List the lakehouses and warehouses I could use as a data source'];
   const out = [];
   if (!p.semanticModel) out.push('Describe my data and propose a star schema', 'Create the semantic model with business measures from my glossary');
   else {
-    if (!p.ontology) out.push(`Deploy an ontology with the business rules from my glossary`);
-    if (!p.reports?.length) out.push('Recommend and build a Power BI report for my semantic model');
+    const theirs = p.semanticModel.origin === 'existing';
+    if ((p.semanticModels || []).length > 1) out.push('Compare my semantic models: what each one covers and which one answers which questions');
+    if (!p.ontology && p.modelSource) out.push(`Deploy an ontology with the business rules from my glossary`);
+    if (!p.reports?.some((r) => (r.semanticModelId || p.semanticModel.id) === p.semanticModel.id)) out.push('Recommend and build a Power BI report for my semantic model');
     else if (!p.orgApp) out.push('Bundle my reports into an org app for business users');
-    out.push('Add descriptions to every measure and column in plain business language');
+    out.push(theirs ? 'Run a best-practice review of my semantic model and show me a scorecard' : 'Add descriptions to every measure and column in plain business language');
     if (!p.realtime) out.push('Stream live events shaped like my data and build a real-time dashboard');
-    if (!p.planning) out.push('Recommend a budget and forecast for next year from my actuals');
+    if (!p.planning && !theirs) out.push('Recommend a budget and forecast for next year from my actuals');
     if (!p.dataAgent) out.push('Suggest a Fabric data agent for my semantic model');
-    if (!p.medallionFlow) out.push('Organize my workspace with the Medallion task flow (Bronze, Silver, Gold)');
+    if (!p.taskFlow) out.push('Organize my workspace with a task flow (Medallion, Basic data analytics, or the one already in my workspace)');
     if (!p.teamsAgent) out.push('Make these answers available in Microsoft Teams and Microsoft 365 Copilot');
   }
   return out;

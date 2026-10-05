@@ -3,6 +3,7 @@ import { h, toast, busy, field, input, fmtDate, confirmDialog, modal } from '../
 import { app, copilotSlot } from '../app.js';
 import { askCard } from '../prompts.js';
 import { standardName, purposeOf, parseName } from '../naming.js';
+import { modelBar } from '../models.js';
 
 const TOKEN = document.querySelector('meta[name="studio-token"]').content;
 let catalog = null;
@@ -17,7 +18,13 @@ export function renderReports(el) {
     el.append(h('div', { class: 'banner warn' }, h('div', {}, h('b', {}, 'Create the semantic model first. '), 'Reports, dashboards and apps are built on your semantic model, so every number matches its measures.'), h('button', { class: 'btn pri', onclick: () => app.go('model') }, 'Go to Semantic model')));
     return;
   }
-  const reports = p.reports || [];
+  const bar = modelBar({ note: 'Reports, recommendations and the org app below are for this model' });
+  if (bar) el.append(bar);
+  // Reports on the active model (reports from before models were tracked count as its own).
+  const all = p.reports || [];
+  const reports = all.filter((r) => !r.semanticModelId || r.semanticModelId === p.semanticModel.id);
+  const elsewhere = all.length - reports.length;
+  if (elsewhere) el.append(h('div', { class: 'tiny muted', style: { margin: '-6px 0 10px 2px' } }, `${elsewhere} more report${elsewhere === 1 ? ' is' : 's are'} built on the other semantic models – switch model above to see ${elsewhere === 1 ? 'it' : 'them'}.`));
   // What's already built comes first; recommendations and the designer follow.
   if (reports.length || p.orgApp || p.realtime?.dashboard) {
     const built = reportsCard(p, reports);

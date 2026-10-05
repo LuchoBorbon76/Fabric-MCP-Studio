@@ -18,6 +18,7 @@ const FALLBACK_TYPES = {
   KQLDashboard: 'KustoDashboard', Reflex: 'ReflexProject', SemanticModel: 'Model', Report: 'Report', Ontology: 'Ontology',
   Lakehouse: 'Lakehouse', Warehouse: 'Warehouse', SQLDatabase: 'SQLDbNative', MirroredDatabase: 'MountedRelationalDatabase',
   Notebook: 'SynapseNotebook', OrgApp: 'OrgApp', Plan: 'Planning', GraphModel: 'GraphIndex', DataPipeline: 'Pipeline',
+  DataAgent: 'LLMPlugin',
 };
 
 let cluster = { tenant: null, url: null };
@@ -124,12 +125,52 @@ export async function saveTaskFlow(workspaceId, flow, { id } = {}) {
   return { id: made.id, created: true };
 }
 
+/** Delete the task flow (the items stay). */
 export async function deleteTaskFlow(workspaceId, id) {
   const current = await getTaskFlow(workspaceId, id);
   if (!current) return false;
   await call('DELETE', `${await base(workspaceId)}/taskflow202512/${current.id}`, undefined, { etag: current.etag, raw: true });
   return true;
 }
+
+/**
+ * Change a task flow that is already in the workspace: `mutate` gets { name, description, tasks, edges } as stored and
+ * returns the new version. Read and write use the same version (etag), so a change made in Fabric meanwhile is never
+ * overwritten – the update is retried on the newer version.
+ */
+export async function patchTaskFlow(workspaceId, id, mutate) {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const cur = await getTaskFlow(workspaceId, id);
+    if (!cur) throw new TaskFlowError('The task flow is no longer in the workspace.', 404);
+    const flow = structuredClone({ name: cur.name, ...(cur.description !== undefined ? { description: cur.description } : {}), tasks: cur.tasks || [], edges: cur.edges || [] });
+    const next = mutate(flow) || flow;
+    try {
+      await call('PUT', `${await base(workspaceId)}/taskflow202512/${cur.id}`, { ...next, id: cur.taskFlowId }, { etag: cur.etag });
+      return cur;
+    } catch (e) { if (e.status === 412 && attempt < 3) continue; throw e; }
+  }
+  throw new TaskFlowError('The task flow kept changing while the studio updated it. Try again.', 409);
+}
+
+/**
+ * How task assignments reference items: { itemId -> [refs] } for items [{ type: <public item type>, id }]. Semantic
+ * models and reports are also referenced by their portal ids (with `workspaceId`), which is how the portal shows them.
+ */
+export async function itemRefs(items, { workspaceId } = {}) {
+  const types = await artifactTypes();
+  const needLegacy = items.some((i) => i?.id && LEGACY[i.type]);
+  const legacy = needLegacy && workspaceId ? await portalIds(workspaceId).catch(() => new Map()) : new Map();
+  return new Map(items.filter((i) => i?.id).map((i) => {
+    const artifactType = types[i.type] || i.type;
+    const out = [{ artifactType, artifactUniqueId: `${artifactType}:${i.id}`, artifactObjectId: i.id }];
+    const l = LEGACY[i.type] && legacy.get(String(i.id).toLowerCase());
+    if (l?.id) out.push({ artifactType: LEGACY[i.type].artifactType, artifactUniqueId: `${l.type ?? LEGACY[i.type].code}:${l.id}` });
+    return [i.id, out];
+  }));
+}
+
+/** Whether a task's item reference points to the same item as one of `refs`. */
+export const sameItem = (x, refs) => refs.some((r) => x.artifactUniqueId === r.artifactUniqueId || (x.artifactObjectId && r.artifactObjectId && String(x.artifactObjectId).toLowerCase() === String(r.artifactObjectId).toLowerCase()));
 
 /**
  * Build a task flow from a simple description:
@@ -139,9 +180,7 @@ export async function deleteTaskFlow(workspaceId, id) {
  * are also referenced by their portal ids, which is how the portal shows them on the task.
  */
 export async function buildTaskFlow({ name, description, tasks, edges }, { idOf = () => randomUUID(), workspaceId } = {}) {
-  const types = await artifactTypes();
-  const needLegacy = tasks.some((t) => (t.items || []).some((i) => i?.id && LEGACY[i.type]));
-  const legacy = needLegacy && workspaceId ? await portalIds(workspaceId).catch(() => new Map()) : new Map();
+  const refs = await itemRefs(tasks.flatMap((t) => t.items || []), { workspaceId });
   const ids = Object.fromEntries(tasks.map((t) => [t.key, idOf('task', t.key)]));
   return {
     id: idOf('flow'),
@@ -151,13 +190,7 @@ export async function buildTaskFlow({ name, description, tasks, edges }, { idOf 
       if (!TASK_TYPES.includes(t.type)) throw new TaskFlowError(`Unknown task type "${t.type}".`, 400);
       return {
         id: ids[t.key], name: String(t.name).slice(0, 100), type: t.type, description: String(t.description || '').slice(0, 1000), loc: `${t.x} ${t.y}`,
-        items: (t.items || []).filter((i) => i?.id).flatMap((i) => {
-          const artifactType = types[i.type] || i.type;
-          const out = [{ artifactType, artifactUniqueId: `${artifactType}:${i.id}`, artifactObjectId: i.id }];
-          const l = LEGACY[i.type] && legacy.get(String(i.id).toLowerCase());
-          if (l?.id) out.push({ artifactType: LEGACY[i.type].artifactType, artifactUniqueId: `${l.type ?? LEGACY[i.type].code}:${l.id}` });
-          return out;
-        }),
+        items: (t.items || []).filter((i) => i?.id).flatMap((i) => refs.get(i.id) || []),
       };
     }),
     edges: edges.filter(([a, b]) => ids[a] && ids[b]).map(([a, b]) => ({ id: idOf('edge', a, b), source: ids[a], target: ids[b], fromPort: 'right', toPort: 'left' })),

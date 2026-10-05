@@ -6,7 +6,7 @@ import { existsSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { DATA_DIR, readJson, writeJson, newId } from '../config.mjs';
 import { dax } from '../powerbi.mjs';
-import { getProject, assertProjectTenant } from '../project.mjs';
+import { getProject, assertProjectTenant, modelWorkspaceId } from '../project.mjs';
 import { pascal } from '../naming.mjs';
 import { openZip, isZip, decodeText } from './zip.mjs';
 import { setUploadedThemes, themeFromPowerBi } from './themes.mjs';
@@ -609,7 +609,7 @@ async function analyze(id) {
   const p = requireModel();
   const parts = loadParts(id);
   const { units, extensions, extMeasures } = readReport(meta.format, parts);
-  const model = await modelFields(p.workspace.id, p.semanticModel.id);
+  const model = await modelFields(modelWorkspaceId(p), p.semanticModel.id);
   const refs = new Map();
   const perVisual = [];
   for (const u of units) {

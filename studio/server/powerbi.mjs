@@ -73,6 +73,21 @@ export async function dax(workspaceId, datasetId, query) {
 }
 
 /**
+ * How a model stores its data, from INFO.VIEW.TABLES (readable with the same permission as the data): 'DirectLake',
+ * 'Import', 'DirectQuery', 'Dual', 'Mixed', or null when the model can't tell.
+ */
+export async function modelStorageMode(workspaceId, datasetId) {
+  try {
+    const rows = await dax(workspaceId, datasetId, 'EVALUATE SELECTCOLUMNS(FILTER(INFO.VIEW.TABLES(), NOT [IsPrivate]), "Mode", [StorageMode], "Calc", NOT ISBLANK([Expression]))');
+    const name = (s) => ({ directlake: 'DirectLake', import: 'Import', directquery: 'DirectQuery', dual: 'Dual' }[String(s || '').replace(/[\s_-]/g, '').toLowerCase()] || null);
+    // Calculated tables (measure tables, calculation groups, date tables written in DAX) don't say where the data is.
+    const data = rows.filter((r) => !r.Calc);
+    const modes = [...new Set((data.length ? data : rows).map((r) => name(r.Mode)).filter(Boolean))];
+    return modes.length === 1 ? modes[0] : modes.length ? 'Mixed' : null;
+  } catch { return null; }
+}
+
+/**
  * Semantic model metadata from the INFO.VIEW functions: works for any model the user can query (not only models the
  * studio created), and needs only Build/Read permission.
  */

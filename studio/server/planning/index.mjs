@@ -19,11 +19,30 @@ const tRef = (t) => `'${String(t).replace(/'/g, "''")}'`;
 const cRef = (t, c) => `${tRef(t)}[${String(c).replace(/]/g, ']]')}]`;
 const mRef = (m) => `[${String(m).replace(/]/g, ']]')}]`;
 
+/**
+ * The semantic model the plan is on: the one its Plan table was added to, or the active model while there is no plan.
+ * A project can hold several models, but the plan values live next to the project's data, so there is one plan.
+ */
+export function planModelOf(p = getProject()) {
+  if (p.planning?.semanticModelId) return (p.semanticModels || []).find((m) => m.id === p.planning.semanticModelId) || null;
+  return p.semanticModel || null;
+}
+
+/** Why a new plan can't go on a model (null when it can): the Plan table reads the project's data source. */
+export function planModelProblem(p, sm) {
+  if (!sm) return null;
+  if (sm.origin === 'existing') return `"${sm.name}" is an existing model you added to the project. Planning adds a Plan table next to the data the model reads, so it works on semantic models the studio built on the project's data – switch to one on the Semantic model page.`;
+  if (sm.sourceItemId && p.modelSource?.itemId && sm.sourceItemId !== p.modelSource.itemId) return `"${sm.name}" reads another data source than the project's current one, so the plan values can't be added to it. Switch to a model built on ${p.modelSource.itemName}.`;
+  return null;
+}
+
+// Planning works on the plan's model: the project as the functions below see it has that model as semanticModel.
 function requireModel() {
   const p = getProject();
   if (!p.workspace) throw new Error('Select a workspace first.');
-  if (!p.semanticModel?.id) throw new Error('Create the semantic model first – the plan is built on it.');
-  return p;
+  const sm = planModelOf(p);
+  if (!sm?.id) throw new Error(p.planning ? 'The semantic model the plan was built on is no longer in the project.' : 'Create the semantic model first – the plan is built on it.');
+  return { ...p, semanticModel: sm };
 }
 
 /** Plan options from a request or a Copilot call (only known fields, typed). */
@@ -42,18 +61,23 @@ export function planningState() {
   const p = getProject();
   const pl = p.planning || null;
   const ms = p.modelSource;
+  const sm = planModelOf(p);
+  const modelProblem = pl ? null : planModelProblem(p, sm);
   return {
-    available: Boolean(p.workspace && p.semanticModel),
-    writable: !planStoreProblem(ms),
-    // Why the plan can't be built on this data source (shown on the Planning page and to Copilot), or null.
-    problem: ms ? planStoreProblem(ms) : null,
+    available: Boolean(p.workspace && sm) && !modelProblem,
+    writable: !planStoreProblem(ms) && !modelProblem,
+    // Why the plan can't be built on this data source or model (shown on the Planning page and to Copilot), or null.
+    problem: modelProblem || (ms ? planStoreProblem(ms) : null),
+    // The model the plan is on, and whether that's another model than the active one.
+    model: sm ? { id: sm.id, name: sm.name, active: sm.id === p.semanticModel?.id } : null,
+    activeModel: p.semanticModel ? { id: p.semanticModel.id, name: p.semanticModel.name } : null,
     // Where the plan values go for this data source.
     store: ms?.itemType === 'Lakehouse' ? 'A planning warehouse in the project workspace, read by the lakehouse through a OneLake shortcut (a lakehouse SQL endpoint is read-only)' : ms?.itemType === 'SQLDatabase' ? 'A planning schema in the Fabric SQL database' : ms?.itemType === 'Warehouse' ? 'A planning schema in the warehouse' : null,
     source: ms ? { type: ms.itemType, name: ms.itemName } : null,
     plan: pl,
     links: pl && p.workspace ? {
       planItem: pl.planItem ? planItemUrl(p.workspace.id, pl.planItem.id) : null,
-      model: fabricUrl('SemanticModel', p.workspace.id, p.semanticModel?.id),
+      model: fabricUrl('SemanticModel', sm?.workspaceId || p.workspace.id, sm?.id),
       newPlan: `https://app.fabric.microsoft.com/groups/${p.workspace.id}/list`,
     } : null,
     runRate: RUN_RATE,
@@ -63,7 +87,8 @@ export function planningState() {
 /** Preview a plan (no writes): defaults, totals, months and members. */
 export async function planPreview(opts = {}) {
   const p = requireModel();
-  const profile = await currentProfile().catch(() => null);
+  // The profile is of the active model: use it only when the plan is on that model.
+  const profile = p.semanticModel.id === getProject().semanticModel?.id ? await currentProfile().catch(() => null) : null;
   const out = await previewPlan(p.workspace.id, p.semanticModel.id, opts, { profile });
   const { rows, ...rest } = out;
   return { ...rest, rows: rows.length };
@@ -104,11 +129,13 @@ async function readModelFiles(p) {
  */
 export async function runPlan(ctx, opts = {}) {
   const p = requireModel();
+  if (!p.planning) { const why = planModelProblem(p, p.semanticModel); if (why) throw new Error(why); }
   const ws = p.workspace;
   const target = await planTarget(p);
 
   ctx.step('Read the model and the actuals');
-  const profile = await currentProfile().catch(() => null);
+  // The profile is of the active model: use it only when the plan is on that model.
+  const profile = p.semanticModel.id === getProject().semanticModel?.id ? await currentProfile().catch(() => null) : null;
   const pv = await previewPlan(ws.id, p.semanticModel.id, opts, { profile });
   const d = pv.design;
   const fmt = (n) => Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
@@ -167,6 +194,7 @@ export async function runPlan(ctx, opts = {}) {
 
   const prev = getProject().planning;
   const planning = {
+    semanticModelId: p.semanticModel.id,
     measure: d.measure, date: d.date, dims: spec.dims, planYear: d.planYear, baseYear: d.baseYear, asOfMonth: d.asOfMonth, growthPct: d.growthPct, overrides: d.overrides,
     target: { kind: target.kind, label: target.label, table: `${target.source.schema}.${target.source.table}`, warehouse: target.warehouse || null, lakehouse: target.lakehouse || null, shortcut: target.shortcut || null },
     spec: { modelTable: spec.modelTable, source: spec.source, columns: spec.columns, date: spec.date, dateYear: spec.dateYear, dims: spec.dims, measure: spec.measure, names: spec.names, description: spec.description, keyCols: spec.keyCols },

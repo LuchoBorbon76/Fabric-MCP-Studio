@@ -3,45 +3,79 @@ import { h, toast, busy, field, input, fmtNum, modal } from '../ui.js';
 import { app, copilotSlot } from '../app.js';
 import { askCard } from '../prompts.js';
 import { standardName, parseName, purposeOf } from '../naming.js';
+import { modelsCard } from '../models.js';
 
 let schema = null;
 let schemaKey = null;
 const include = new Set();
 const names = {};
 let nameDraft = null;     // typed model name, kept when the designer re-renders
-on('studio.reset', () => { schema = null; schemaKey = null; include.clear(); for (const k of Object.keys(names)) delete names[k]; nameDraft = null; });
+let newModel = false;     // the designer builds another model instead of updating the active one
+on('studio.reset', () => { schema = null; schemaKey = null; include.clear(); for (const k of Object.keys(names)) delete names[k]; nameDraft = null; newModel = false; });
+
+const STORAGE = { DirectLake: 'Direct Lake', Import: 'Import', DirectQuery: 'DirectQuery', Dual: 'Dual', Mixed: 'Mixed' };
 
 export function renderModel(el) {
   const p = store.project || {};
+  const sm = p.semanticModel;
+  const designer = h('div', { class: 'card' });
+  const startNew = () => { newModel = true; nameDraft = null; drawDesigner(designer, store.project || {}); designer.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+  el.append(modelsCard({ onNew: startNew }));
+  if (sm) el.append(modelCard(p), askCard({ title: `Ask ${sm.name}`, lead: 'Questions built from your measures, dimensions and years – answered through Fabric IQ with the DAX shown.', only: ['numbers', 'compare', 'sample'] }));
   if (!p.modelSource) {
-    el.append(h('div', { class: 'banner warn' }, h('div', {}, h('b', {}, 'Connect data first. '), 'The semantic model is built on the data source you choose in the Data page.'), h('button', { class: 'btn pri', onclick: () => app.go('data') }, 'Go to Data')));
+    el.append(h('div', { class: 'banner warn' }, h('div', {}, h('b', {}, 'Connect data to design a new model. '), sm ? 'The studio designs Direct Lake models from the data source you choose in the Data page; the models above keep working.' : 'The studio designs Direct Lake models from the data source you choose in the Data page – or add an existing semantic model above.'), h('button', { class: 'btn pri', onclick: () => app.go('data') }, 'Go to Data')));
     return;
   }
-  if (p.semanticModel) el.append(modelCard(p), askCard({ title: `Ask ${p.semanticModel.name}`, lead: 'Questions built from your measures, dimensions and years – answered through Fabric IQ with the DAX shown.', only: ['numbers', 'compare', 'sample'] }));
-
-  const designer = h('div', { class: 'card' });
   el.append(designer);
   drawDesigner(designer, p);
 }
 
+/** The model the designer updates, or null when it builds a new one (an existing model is never regenerated). */
+function updatable(p) {
+  const sm = p.semanticModel;
+  if (!sm || newModel || sm.origin === 'existing') return null;
+  if (sm.sourceItemId && p.modelSource?.itemId && sm.sourceItemId !== p.modelSource.itemId) return null;
+  return sm;
+}
+
+/** A standard name for a new model that no model in the project has yet. */
+function newModelName(p, purpose) {
+  const taken = new Set((p.semanticModels || []).map((m) => m.name.toLowerCase()));
+  for (let i = 1; i < 50; i++) {
+    const n = standardName('SemanticModel', i === 1 ? purpose : `${purpose}${i}`);
+    if (!taken.has(n.toLowerCase())) return n;
+  }
+  return standardName('SemanticModel', purpose);
+}
+
 function modelCard(p) {
   const sm = p.semanticModel;
-  const ws = p.workspace.id;
+  const ws = sm.workspaceId || p.workspace.id;
+  const wsName = sm.workspaceName || p.workspace.name;
+  const theirs = sm.origin === 'existing';
   const actions = [
-    ['Add business measures from my glossary', `Connect to semantic model '${sm.name}' in workspace '${p.workspace.name}'. Read my glossary and add any missing business measures with descriptions, format strings and display folders. Validate each with a DAX query.`],
-    ['Document every table, column and measure', `Connect to semantic model '${sm.name}' in workspace '${p.workspace.name}' and add plain-language descriptions to every table, column and measure that has none.`],
-    ['Run a best-practice review', `Connect to semantic model '${sm.name}' in workspace '${p.workspace.name}', run a best-practice review, and show me a scorecard before fixing anything.`],
-    ['Add Spanish translations', `Connect to semantic model '${sm.name}' in workspace '${p.workspace.name}' and add an es-MX culture with translated table, column, measure and display folder names.`],
-    ['Create a row-level security role', `Propose a row-level security role for semantic model '${sm.name}' (for example by region), explain it, then create it after I approve.`],
+    ['Add business measures from my glossary', `Connect to semantic model '${sm.name}' in workspace '${wsName}'. Read my glossary and add any missing business measures with descriptions, format strings and display folders. Validate each with a DAX query.`],
+    ['Document every table, column and measure', `Connect to semantic model '${sm.name}' in workspace '${wsName}' and add plain-language descriptions to every table, column and measure that has none.`],
+    ['Run a best-practice review', `Connect to semantic model '${sm.name}' in workspace '${wsName}', run a best-practice review, and show me a scorecard before fixing anything.`],
+    ['Add Spanish translations', `Connect to semantic model '${sm.name}' in workspace '${wsName}' and add an es-MX culture with translated table, column, measure and display folder names.`],
+    ['Create a row-level security role', `Propose a row-level security role for semantic model '${sm.name}' in workspace '${wsName}' (for example by region), explain it, then create it after I approve.`],
     ['Answer a business question', `Using the '${sm.name}' semantic model, what are the three most important numbers I should know? Use Fabric IQ and show the DAX.`],
   ];
+  const counts = sm.tables === null || sm.tables === undefined ? 'tables and measures not read yet' : `${sm.tables} tables · ${sm.relationships ?? '–'} relationships · ${sm.measures} measures`;
+  const how = theirs
+    ? `Existing model${STORAGE[sm.storageMode] ? ` · ${STORAGE[sm.storageMode]}` : ''}${ws !== p.workspace.id ? ` · in ${wsName}` : ''}`
+    : `Direct Lake${sm.sourceItemId && sm.sourceItemId === p.modelSource?.itemId ? ` on ${p.modelSource.itemName}` : ''}`;
+  const reread = theirs ? h('button', { class: 'btn', 'data-busy': 'Reading…', title: 'Read the tables, measures and relationships again after the model changed in Fabric' }, '↻ Read again') : null;
+  reread?.addEventListener('click', busy(reread, async () => { await post('/models/refresh', { id: sm.id }); toast(`${sm.name} read again`, 'ok'); await app.refresh(); }));
   return h('div', { class: 'card', style: { marginBottom: '14px' } },
     h('div', { class: 'row sp' },
-      h('div', {}, h('div', { class: 'row' }, h('h2', {}, sm.name), h('span', { class: 'pill ok' }, 'Deployed')), h('div', { class: 'muted small' }, `Direct Lake on ${p.modelSource.itemName} · ${sm.tables} tables · ${sm.relationships} relationships · ${sm.measures} measures`)),
+      h('div', {}, h('div', { class: 'row' }, h('h2', {}, sm.name), h('span', { class: `pill ${theirs ? 'brand' : 'ok'}` }, theirs ? 'Existing model' : 'Deployed'), h('span', { class: 'pill ok' }, 'Active')), h('div', { class: 'muted small' }, `${how} · ${counts}`)),
       h('div', { class: 'row' },
+        reread,
         h('a', { class: 'btn', href: `https://app.fabric.microsoft.com/groups/${ws}/datasets/${sm.id}/details`, target: '_blank', rel: 'noopener' }, 'Open in Fabric ↗'),
         h('a', { class: 'btn', href: `https://app.powerbi.com/groups/${ws}/modeling/${sm.id}/modelView`, target: '_blank', rel: 'noopener' }, 'Edit data model ↗'),
-        h('button', { class: 'btn pri', onclick: () => app.go('ontology') }, 'Next: ontology →'))),
+        p.modelSource ? h('button', { class: 'btn pri', onclick: () => app.go('ontology') }, 'Next: ontology →') : h('button', { class: 'btn pri', onclick: () => app.go('reports') }, 'Next: reports →'))),
+    theirs ? h('p', { class: 'tiny muted', style: { margin: '6px 0 0' } }, 'The studio never regenerates or deletes a model you added. Changes go through Copilot (Power BI authoring) and only after you approve each one.') : null,
     h('div', { class: 'mt' }, h('div', { class: 'tiny muted mb' }, 'Improve it with Copilot (Power BI Authoring MCP)'), h('div', { class: 'chips' }, actions.map(([label, prompt]) => h('button', { class: 'chip', onclick: () => app.ask(prompt) }, `✦ ${label}`)))));
 }
 
@@ -69,16 +103,28 @@ const presetName = (t) => store.preset?.names?.[`${t.schema}.${t.name}`] || stor
 function drawDesigner(card, p) {
   card.innerHTML = '';
   const preset = store.preset;
-  const smName = input({ value: nameDraft ?? (p.semanticModel?.name || standardName('SemanticModel', parseName(preset?.semanticModelName)?.purpose || purposeOf(p.modelSource.itemName, p.modelSource.itemType) || 'Main')) });
+  const target = updatable(p);
+  const purpose = parseName(preset?.semanticModelName)?.purpose || purposeOf(p.modelSource.itemName, p.modelSource.itemType) || 'Main';
+  const smName = input({ value: nameDraft ?? (target ? target.name : newModelName(p, purpose)) });
   smName.addEventListener('input', () => { nameDraft = smName.value; });
   const body = h('div', {}, h('div', { class: 'row muted' }, h('span', { class: 'spin' }), 'Reading tables, keys and relationships from the SQL analytics endpoint…'));
   const slot = copilotSlot();   // Copilot opens here, right below the tables and relationships
   const footer = h('div');
   const job = h('div', { class: 'mt' });
+  // Switch between updating the active model and building another one next to it.
+  const canUpdate = Boolean(p.semanticModel && p.semanticModel.origin !== 'existing' && !(p.semanticModel.sourceItemId && p.semanticModel.sourceItemId !== p.modelSource.itemId));
+  const toggle = p.semanticModel
+    ? (target
+      ? h('button', { class: 'btn', title: 'Build another semantic model from this data; the active one stays as it is', onclick: () => { newModel = true; nameDraft = null; drawDesigner(card, store.project || p); } }, '+ New model instead')
+      : canUpdate ? h('button', { class: 'btn', onclick: () => { newModel = false; nameDraft = null; drawDesigner(card, store.project || p); } }, `Update ${p.semanticModel.name} instead`) : null)
+    : null;
   card.append(
     h('div', { class: 'row sp' },
-      h('div', {}, h('h2', {}, p.semanticModel ? 'Update the semantic model' : 'Design the semantic model'), h('p', { class: 'lead' }, 'The studio generates a Direct Lake model (TMDL) from your tables and relationships. Copilot can then add business measures, descriptions, security and translations.')),
-      h('button', { class: 'btn', onclick: () => { schema = null; drawDesigner(card, p); } }, '↻ Re-read schema')),
+      h('div', {}, h('h2', {}, target ? 'Update the semantic model' : p.semanticModel ? 'Design a new semantic model' : 'Design the semantic model'),
+        h('p', { class: 'lead' }, target
+          ? `Changes regenerate ${target.name} (Direct Lake TMDL) from your tables and relationships. Copilot can then add business measures, descriptions, security and translations.`
+          : `The studio generates a Direct Lake model (TMDL) from your tables and relationships${p.semanticModel ? ' and adds it to the project next to the models you have – it becomes the active model' : ''}. Copilot can then add business measures, descriptions, security and translations.`)),
+      h('div', { class: 'row' }, toggle, h('button', { class: 'btn', onclick: () => { schema = null; drawDesigner(card, p); } }, '↻ Re-read schema'))),
     body, slot, footer, job);
   app.placeChat();   // keep an open Copilot chat after the designer is rebuilt
 
@@ -101,16 +147,19 @@ function drawDesigner(card, p) {
     const rels = h('table', { class: 't' }, h('tr', {}, h('th', {}, 'From (many)'), h('th', {}, ''), h('th', {}, 'To (one)'), h('th', {}, 'Source')));
     for (const r of s.relationships) rels.append(h('tr', {}, h('td', { class: 'mono tiny' }, `${r.from.table}.${r.from.column}`), h('td', {}, '→'), h('td', { class: 'mono tiny' }, `${r.to.table}.${r.to.column}`), h('td', {}, h('span', { class: `pill ${r.active === false ? '' : 'brand'}` }, r.active === false ? 'inactive' : (r.source || 'sample preset')))));
 
-    const create = h('button', { class: 'btn pri big', 'data-busy': 'Starting…' }, p.semanticModel ? 'Update semantic model' : 'Create semantic model');
+    const create = h('button', { class: 'btn pri big', 'data-busy': 'Starting…' }, target ? 'Update semantic model' : 'Create semantic model');
     create.addEventListener('click', busy(create, async () => {
       const inc = [...include];
       if (!inc.length) throw new Error('Select at least one table.');
+      const nm = smName.value.trim();
+      const clash = (store.project?.semanticModels || []).find((m) => m.name.toLowerCase() === nm.toLowerCase() && m.id !== target?.id);
+      if (clash && !target && clash.origin === 'existing') throw new Error(`"${clash.name}" is an existing model in the project. Choose another name.`);
       const nameMap = Object.fromEntries(Object.entries(names).filter(([, v]) => v && v.trim()).map(([k, v]) => [k, v.trim()]));
-      const j = await post('/jobs/semantic-model', { name: smName.value.trim(), include: inc, names: Object.keys(nameMap).length ? nameMap : undefined });
+      const j = await post('/jobs/semantic-model', { name: nm, include: inc, names: Object.keys(nameMap).length ? nameMap : undefined });
       app.watchJob(j.id);
       const render = (x) => { job.innerHTML = ''; job.append(app.jobCard(x)); };
       render(j);
-      const off = on('job', (e) => { if (e.job.id !== j.id) return; render(e.job); if (e.job.status !== 'running') { off(); if (e.job.status === 'succeeded') { toast('Semantic model deployed', 'ok'); app.refresh(); } } });
+      const off = on('job', (e) => { if (e.job.id !== j.id) return; render(e.job); if (e.job.status !== 'running') { off(); if (e.job.status === 'succeeded') { newModel = false; nameDraft = null; toast('Semantic model deployed', 'ok'); app.refresh(); } } });
     }));
     const measuresNote = preset?.measureCount
       ? `The ${preset.label} sample adds ${preset.measureCount} business measures from its glossary (${preset.measureNames.slice(0, 4).join(', ')}…).`

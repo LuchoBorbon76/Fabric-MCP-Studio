@@ -2,7 +2,7 @@
 // page, a section per kind of content and the report theme's colors. Sharing (audiences) is done in Fabric.
 import { randomUUID } from 'node:crypto';
 import * as F from '../fabric.mjs';
-import { getProject, updateProject, setStep, recordArtifact, assertProjectTenant } from '../project.mjs';
+import { getProject, updateProject, setStep, recordArtifact, assertProjectTenant, projectModels, modelContext } from '../project.mjs';
 import { themeById } from './themes.mjs';
 import { tint } from '../generators/pbir.mjs';
 import { itemNameFor, parseName, purposeOf } from '../naming.mjs';
@@ -54,15 +54,19 @@ export async function runOrgApp(ctx, { name, theme: themeId, reportIds, title, b
   await assertProjectTenant();
   const p = getProject();
   if (!p.workspace) throw new Error('Select a workspace first.');
-  const all = p.reports || [];
-  const reports = reportIds?.length ? all.filter((r) => reportIds.includes(r.id)) : all;
-  if (!reports.length) throw new Error('Build at least one report first – the app shares your reports.');
+  // The org app belongs to the active model: by default it shares that model's reports (reports built before models
+  // were tracked belong to it too).
+  const all = (p.reports || []).filter((r) => !r.semanticModelId || r.semanticModelId === p.semanticModel?.id);
+  const reports = reportIds?.length ? (p.reports || []).filter((r) => reportIds.includes(r.id)) : all;
+  if (!reports.length) throw new Error(`Build at least one report on ${p.semanticModel?.name || 'the semantic model'} first – the app shares your reports.`);
   const theme = themeById(themeId || reports[0].theme);
   const model = p.semanticModel?.name || '';
   const appName = F.itemName('OrgApp', itemNameFor('OrgApp', { name, current: p.orgApp?.name, purpose: purposeOf(model, 'SemanticModel') || 'Reports' }));
   ctx.step(`Design the app (${reports.length} report${reports.length === 1 ? '' : 's'}, ${theme.name} colors)`);
   const ws = p.workspace;
   const existingItem = await F.findItem(ws.id, 'OrgApp', appName);
+  const otherModel = existingItem && existingItem.id !== p.orgApp?.id ? projectModels(p).find((m) => m.id !== p.semanticModel?.id && modelContext(p, m.id).orgApp?.id === existingItem.id) : null;
+  if (otherModel) throw new Error(`"${appName}" is the org app of ${otherModel.name}. Choose another name for this model's app.`);
   let existing = null;
   if (existingItem) {
     try {

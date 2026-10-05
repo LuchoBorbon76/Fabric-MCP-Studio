@@ -3,6 +3,7 @@ import { h, toast, busy, field, input, select, confirmDialog } from '../ui.js';
 import { app, copilotSlot } from '../app.js';
 import { askCard } from '../prompts.js';
 import { standardName } from '../naming.js';
+import { modelBar } from '../models.js';
 
 // Budgets and forecasts on the semantic model: design and preview the plan, build it (plan values next to the data +
 // Plan table in the model), the Plan vs actual report, and the Fabric plan item for planning sheets.
@@ -22,6 +23,8 @@ export function renderPlanning(el) {
     return;
   }
   const wrap = h('div', { id: 'planningWrap' }, h('div', { class: 'row muted' }, h('span', { class: 'spin' }), 'Reading the plan…'));
+  const bar = modelBar({ note: 'The plan is built on one model the studio made from the project\'s data' });
+  if (bar) el.append(bar);
   el.append(askCard({ title: 'Ask about the plan', only: ['plan'] }), wrap, copilotSlot());
   get('/planning').then((s) => { store.planning = s; draw(wrap, s); }).catch((e) => { wrap.innerHTML = ''; wrap.append(h('div', { class: 'banner err' }, e.message)); });
 }
@@ -29,8 +32,16 @@ export function renderPlanning(el) {
 function draw(wrap, s) {
   wrap.innerHTML = '';
   const p = store.project || {};
+  // The plan lives on one model; with another model active, the page still shows that plan and offers to switch.
+  if (s.plan && s.model && !s.model.active) {
+    const sw = h('button', { class: 'btn pri', 'data-busy': 'Switching…' }, `Use ${s.model.name}`);
+    sw.addEventListener('click', busy(sw, async () => { await post('/models/active', { id: s.model.id }); await app.refresh(); }));
+    wrap.append(h('div', { class: 'banner', style: { marginBottom: '14px' } }, h('div', { style: { flex: 1 } }, h('b', {}, `The plan is on ${s.model.name}. `), `${s.activeModel?.name || 'The active model'} has no plan – the project keeps one plan, on the model whose Plan table it added. Rebuilding it below updates the plan on ${s.model.name}.`), sw));
+  }
   if (!s.available) {
-    wrap.append(h('div', { class: 'banner warn' }, h('div', {}, h('b', {}, 'Create the semantic model first. '), 'The budget and forecast are derived from its actuals and added to it as a Plan table.'), h('button', { class: 'btn pri', onclick: () => app.go('model') }, 'Go to Semantic model')));
+    wrap.append(s.problem && p.semanticModel
+      ? h('div', { class: 'banner warn' }, h('div', {}, h('b', {}, 'Planning needs a model the studio built. '), s.problem), h('button', { class: 'btn pri', onclick: () => app.go('model') }, 'Go to Semantic model'))
+      : h('div', { class: 'banner warn' }, h('div', {}, h('b', {}, 'Create the semantic model first. '), 'The budget and forecast are derived from its actuals and added to it as a Plan table.'), h('button', { class: 'btn pri', onclick: () => app.go('model') }, 'Go to Semantic model')));
     return;
   }
   const pl = s.plan;
@@ -53,7 +64,7 @@ function flow(s, p) {
   const pl = s.plan;
   const report = pl && (p.reports || []).find((r) => r.pages?.includes('Plan vs actual'));
   const steps = [
-    ['Actuals', p.semanticModel?.name || 'Semantic model', 'ok'],
+    ['Actuals', s.model?.name || p.semanticModel?.name || 'Semantic model', 'ok'],
     ['Budget & forecast', pl ? `${pl.planYear} · ${pl.growthPct >= 0 ? '+' : ''}${pl.growthPct}%` : 'From last year + growth', pl ? 'ok' : 'todo'],
     ['Plan table', pl ? `${Object.keys(pl.spec?.names || {}).length} measures in the model` : 'Budget, forecast, variance', pl ? 'ok' : 'todo'],
     ['Plan vs actual', report ? report.name : 'Power BI report', report ? 'ok' : 'todo'],
@@ -200,13 +211,13 @@ function buildCard(s) {
   const build = h('button', { class: 'btn pri', 'data-busy': 'Starting…', disabled: !s.writable || !draft.preview || undefined, title: s.writable ? '' : (s.problem || 'This data source can\'t hold plan values') }, pl ? '↻ Rebuild the plan' : 'Build the plan');
   build.addEventListener('click', busy(build, async () => {
     const pv = draft.preview;
-    const ok = await confirmDialog(pl ? 'Rebuild the plan' : 'Build the plan', `Write the ${pv.design.planYear} budget and forecast (${pv.rows} rows) to a "planning" schema in your ${s.source?.type === 'Warehouse' ? 'warehouse' : 'SQL database'}, and add a Plan table with budget, forecast and variance measures to ${store.project.semanticModel.name}.`, pl ? 'Rebuild' : 'Build');
+    const ok = await confirmDialog(pl ? 'Rebuild the plan' : 'Build the plan', `Write the ${pv.design.planYear} budget and forecast (${pv.rows} rows) to a "planning" schema in your ${s.source?.type === 'Warehouse' ? 'warehouse' : 'SQL database'}, and add a Plan table with budget, forecast and variance measures to ${(store.planning?.model?.name || store.project.semanticModel?.name)}.`, pl ? 'Rebuild' : 'Build');
     if (!ok) return;
     await startJob('/jobs/planning', currentOptions(), job, 'The plan is in your semantic model');
   }));
   const remove = h('button', { class: 'btn ghost' }, 'Remove…');
   remove.addEventListener('click', async () => {
-    const drop = await confirmDialog('Remove the plan', `Take the Plan table out of ${store.project.semanticModel.name} and delete the plan values${pl?.planItem ? ` and the Fabric plan ${pl.planItem.name}` : ''}? Reports that use the plan measures stop showing them.`, 'Remove', true);
+    const drop = await confirmDialog('Remove the plan', `Take the Plan table out of ${(store.planning?.model?.name || store.project.semanticModel?.name)} and delete the plan values${pl?.planItem ? ` and the Fabric plan ${pl.planItem.name}` : ''}? Reports that use the plan measures stop showing them.`, 'Remove', true);
     if (!drop) return;
     try { await del('/planning?data=1&item=1'); toast('Plan removed', 'ok'); draft.preview = null; app.refresh(); } catch (e) { toast(e.message, 'err'); }
   });
@@ -278,7 +289,7 @@ function planItemCard(s) {
   const card = h('div', { class: 'card', style: { marginTop: 0 } });
   const job = h('div');
   const wsName = store.project.workspace?.name || 'the workspace';
-  const model = store.project.semanticModel?.name || 'your model';
+  const model = store.planning?.model?.name || store.project.semanticModel?.name || 'your model';
   const me = store.user?.upn || store.user?.name || 'the account the studio uses';
 
   // Planners connect the plan to the model with their own sign-in (planning sheet › Data › Add). Microsoft deprecated the
@@ -307,7 +318,7 @@ function planItemCard(s) {
       h('li', {}, 'Rows: ', h('b', {}, dims.join(' › ')), ' · Columns: ', h('b', {}, 'Year › Month'), ' · Values: ', h('b', {}, `${n.budget}, ${n.forecast}, ${n.actual}`), '.'),
       h('li', {}, 'Add input rows or columns to adjust the budget; to collaborate and keep the planners\' numbers, set up the plan\'s database connection.')),
     h('div', { class: 'row', style: { marginTop: '10px' } }, go, recreate, it ? h('a', { class: 'btn', href: it.url, target: '_blank', rel: 'noopener' }, 'Open plan ↗') : null),
-    it?.semanticModelId && it.semanticModelId !== store.project.semanticModel?.id ? h('div', { class: 'banner err mt' }, h('div', {}, h('b', {}, 'The plan points to a semantic model that no longer exists. '),
+    it?.semanticModelId && it.semanticModelId !== (store.planning?.model?.id || store.project.semanticModel?.id) ? h('div', { class: 'banner err mt' }, h('div', {}, h('b', {}, 'The plan points to a semantic model that no longer exists. '),
       `${model} was created again since the plan was made. Select Check the plan to recreate the plan on the current model.`)) : null,
     it ? h('div', { class: 'banner warn mt' }, h('div', {},
       h('b', {}, 'The plan asks for a shared cloud connection, or says "DMTS connection owner missing" or "Can\'t access the semantic model"? '),

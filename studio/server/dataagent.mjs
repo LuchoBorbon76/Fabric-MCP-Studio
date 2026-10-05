@@ -4,7 +4,7 @@
 // can use it. Copilot suggests the name and instructions; the user applies them with one click.
 import { newId, stableUuid } from './config.mjs';
 import * as F from './fabric.mjs';
-import { getProject, updateProject, setStep, recordArtifact, logActivity, assertProjectTenant, fabricUrl } from './project.mjs';
+import { getProject, updateProject, setStep, recordArtifact, logActivity, assertProjectTenant, fabricUrl, modelWorkspaceId, projectModels, modelContext } from './project.mjs';
 import { modelMetadata } from './powerbi.mjs';
 import { itemNameFor, purposeOf } from './naming.mjs';
 
@@ -56,8 +56,8 @@ export function defaultInstructions(p, meta) {
 
 /** The semantic model as a data agent data source: every visible table with its columns and measures. */
 function dataSource(p, meta, { instructions, description }) {
-  const ws = p.workspace.id;
   const sm = p.semanticModel;
+  const ws = modelWorkspaceId(p);
   const id = (...parts) => stableUuid('data-agent', sm.id, ...parts);
   const elements = meta.tables.map((t) => ({
     id: id('table', t.name), is_selected: true, display_name: t.name, type: 'semantic_model.table', description: t.description || null,
@@ -120,7 +120,7 @@ export async function proposeDataAgent({ name, instructions, description, summar
   const n = agentName(p, name);
   const warnings = [];
   let text = String(instructions || '').trim();
-  if (!text) { text = defaultInstructions(p, await modelMetadata(p.workspace.id, p.semanticModel.id).catch(() => null)); warnings.push('No instructions were suggested – the studio wrote them from the model\'s measures and the glossary.'); }
+  if (!text) { text = defaultInstructions(p, await modelMetadata(modelWorkspaceId(p), p.semanticModel.id).catch(() => null)); warnings.push('No instructions were suggested – the studio wrote them from the model\'s measures and the glossary.'); }
   if (text.length > MAX_INSTRUCTIONS) warnings.push(`Instructions were shortened to ${MAX_INSTRUCTIONS.toLocaleString()} characters (the data agent limit).`);
   const proposal = {
     id: newId(), kind: 'data-agent', chatId, createdAt: new Date().toISOString(),
@@ -143,7 +143,7 @@ export async function runDataAgent(ctx, { name, instructions, description, publi
   const n = agentName(p, name);
 
   ctx.step(`Read "${p.semanticModel.name}" (tables, columns, measures)`);
-  const meta = await modelMetadata(ws.id, p.semanticModel.id);
+  const meta = await modelMetadata(modelWorkspaceId(p), p.semanticModel.id);
   if (!meta.tables.length) throw new Error(`"${p.semanticModel.name}" has no visible tables to answer from.`);
   ctx.log(`${meta.tables.length} tables · ${meta.columns.length} columns · ${meta.measures.length} measures · ${meta.relationships.length} relationships`);
   ctx.progress(25);
@@ -159,7 +159,10 @@ export async function runDataAgent(ctx, { name, instructions, description, publi
   let item = p.dataAgent?.id ? await F.getItem(ws.id, p.dataAgent.id).catch(() => null) : null;
   // Never take over or overwrite an agent the studio didn't make.
   const sameName = await F.findItem(ws.id, 'DataAgent', n);
-  if (sameName && sameName.id !== item?.id) throw new Error(`A data agent named "${n}" already exists in ${ws.name} and wasn't created by the studio. Choose another name.`);
+  if (sameName && sameName.id !== item?.id) {
+    const other = projectModels(p).find((m) => m.id !== p.semanticModel.id && modelContext(getProject(), m.id).dataAgent?.id === sameName.id);
+    throw new Error(other ? `"${n}" is the data agent of ${other.name}. Choose another name for this model's agent.` : `A data agent named "${n}" already exists in ${ws.name} and wasn't created by the studio. Choose another name.`);
+  }
   if (item) {
     if (item.displayName !== n) {
       await F.fabric('PATCH', `/workspaces/${ws.id}/items/${item.id}`, { displayName: n });

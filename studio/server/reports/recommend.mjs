@@ -32,12 +32,18 @@ function reasonsFor(profile, focus) {
  */
 export function recommendations(profile, project, { rules = null, values = [] } = {}) {
   const model = project.semanticModel?.name || profile.model.name || 'Semantic model';
-  const built = new Map((project.reports || []).map((r) => [r.name.toLowerCase(), r]));
+  // Reports on the active model (reports from before models were tracked count as its own); the other models' reports
+  // keep their names, so a new report here never takes over one of theirs.
+  const own = (project.reports || []).filter((r) => !r.semanticModelId || r.semanticModelId === project.semanticModel?.id);
+  const theirs = new Set((project.reports || []).filter((r) => !own.includes(r)).map((r) => r.name.toLowerCase()));
+  const built = new Map(own.map((r) => [r.name.toLowerCase(), r]));
   // A report already built for the same purpose (or with the name older versions used) keeps its name, so rebuilding
   // updates it; new ones follow the naming standard.
   const nameFor = (purpose, legacy) => {
-    const b = (project.reports || []).find((r) => r.name.toLowerCase() === legacy.toLowerCase() || parseName(r.name)?.purpose.toLowerCase() === purpose.toLowerCase());
-    return b ? b.name : standardName('Report', purpose, project);
+    const b = own.find((r) => r.name.toLowerCase() === legacy.toLowerCase() || parseName(r.name)?.purpose.toLowerCase() === purpose.toLowerCase());
+    if (b) return b.name;
+    const n = standardName('Report', purpose, project);
+    return theirs.has(n.toLowerCase()) ? standardName('Report', `${purposeOf(model, 'SemanticModel') || 'Model'}${purpose}`, project) : n;
   };
   const out = [];
   const hasTime = Boolean(profile.time);
@@ -90,8 +96,8 @@ export function recommendations(profile, project, { rules = null, values = [] } 
     r.available = true;
   }
 
-  // The org app shares what was built; recommend it once there is something to share.
-  const reports = project.reports || [];
+  // The org app shares what was built on this model; recommend it once there is something to share.
+  const reports = own;
   const app = {
     id: 'org-app', kind: 'app', title: 'Org app for your organization', audience: 'Everyone who needs the numbers',
     theme: project.orgApp?.theme || reports[0]?.theme || 'executive', pages: [], name: project.orgApp?.name || standardName('OrgApp', purposeOf(model, 'SemanticModel'), project),

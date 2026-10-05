@@ -4,7 +4,7 @@ import { join, basename, extname } from 'node:path';
 import { spawn } from 'node:child_process';
 import { REPO_ROOT, sleep, stableUuid, newId } from './config.mjs';
 import * as F from './fabric.mjs';
-import { getProject, updateProject, setStep, recordArtifact, logActivity, assertProjectTenant } from './project.mjs';
+import { getProject, updateProject, setStep, recordArtifact, logActivity, assertProjectTenant, projectModels, modelContext } from './project.mjs';
 import { discoverSqlServer, testSqlServer, readOnlyQuery, withPool } from './sql.mjs';
 import { discoverPostgres, testPostgres } from './pg.mjs';
 import { sourceType } from './sources.mjs';
@@ -16,6 +16,7 @@ import { AWDW, getKit, loadAdventureWorksDW, salesTotalsMatch } from './samples/
 import { resetProfileCache } from './reports/index.mjs';
 import { stopSimulator } from './realtime/simulator.mjs';
 import { deleteTaskFlow } from './taskflow.mjs';
+import * as WTF from './workspace-taskflow.mjs';
 import { clearDataPrepFiles } from './dataprep.mjs';
 import { standardName, standardize, itemNameFor, purposeOf, parseName, namingOf, setNaming, suggestNaming, pascal } from './naming.mjs';
 
@@ -49,7 +50,7 @@ export async function selectWorkspace({ workspaceId, name, capacityId, descripti
   const prev = getProject().workspace;
   const workspace = { id: ws.id, name: ws.displayName, capacityId: ws.capacityId, created: created || (prev?.id === ws.id && prev.created) };
   // Naming guessed for the previous workspace (from its name or a sample) doesn't carry over; a confirmed one does.
-  const reset = prev?.id !== ws.id ? { lakehouse: null, sqlDatabase: null, modelSource: null, semanticModel: null, ontology: null, source: null, dataPrep: null, dataPrepItems: [], dataAgent: null, dataAgentProposal: null, medallionFlow: null, planStore: null, ...(getProject().naming?.inferred ? { naming: null } : {}) } : {};
+  const reset = prev?.id !== ws.id ? { lakehouse: null, sqlDatabase: null, modelSource: null, semanticModel: null, ontology: null, source: null, dataPrep: null, dataPrepItems: [], dataAgent: null, dataAgentProposal: null, taskFlow: null, semanticModels: [], planStore: null, ...(getProject().naming?.inferred ? { naming: null } : {}) } : {};
   updateProject({ workspace, ...reset });
   // A workspace that already follows the standard tells the domain and environment until the user chooses.
   const parsed = parseName(ws.displayName);
@@ -330,10 +331,14 @@ export async function runSemanticModel(ctx, { name, include, names, relationship
   const m = modelMeasures(plan, preset, measures, useDefaults);
   const dateTable = preset?.dateTable && plan.tables.some((t) => t.name === preset.dateTable.table) ? preset.dateTable : null;
   const modelName = modelNameFor(p, preset, name);
+  // A model the user added to the project (not built by the studio) is never overwritten by a generated one.
+  const theirs = (p.semanticModels || []).find((x) => x.origin === 'existing' && (x.workspaceId || ws.id) === ws.id && x.name.toLowerCase() === modelName.toLowerCase());
+  if (theirs) throw new Error(`"${theirs.name}" is an existing semantic model you added to the project, so the studio won't replace it. Choose another name for the new model.`);
+  const planModel = p.planning?.spec ? (p.semanticModels || []).find((x) => x.id === p.planning.semanticModelId) || p.semanticModel : null;
 
   ctx.step('Generate the Direct Lake model (TMDL)');
   let files = semanticModelFiles({ name: modelName, src: { server: p.modelSource.server, endpointId: p.modelSource.endpointId, itemName: p.modelSource.itemName }, plan, measures: m, dateTable });
-  if (p.planning?.spec && p.semanticModel?.name === modelName) {
+  if (planModel?.name === modelName) {
     files = reapplyPlan(files, p);
     ctx.log(`Plan ${p.planning.planYear} kept (Plan table with budget and forecast measures)`);
   }
@@ -353,18 +358,27 @@ export async function runSemanticModel(ctx, { name, include, names, relationship
   ctx.progress(90);
   resetProfileCache();
   const proposal = getProject().modelProposal;
+  const isNew = !(p.semanticModels || []).some((x) => x.id === item.id);
   updateProject({
-    // sourceItemId: the item the model reads (so the item can't be removed while the model uses it).
-    semanticModel: { id: item.id, name: modelName, tables: plan.tables.length, measures: m.length, relationships: plan.relationships.length, sourceItemId: p.modelSource.itemId },
+    // sourceItemId: the item the model reads (so the item can't be removed while the model uses it). The model becomes
+    // the active one; a model built before stays in the project with its own reports and data agent.
+    semanticModel: { id: item.id, name: modelName, workspaceId: ws.id, workspaceName: ws.name, origin: 'studio', storageMode: 'DirectLake', tables: plan.tables.length, measures: m.length, relationships: plan.relationships.length, sourceItemId: p.modelSource.itemId },
     ...(proposalId && proposal?.id === proposalId ? { modelProposal: { ...proposal, appliedAt: new Date().toISOString(), semanticModelId: item.id } } : {}),
   });
+  const others = (getProject().semanticModels || []).filter((x) => x.id !== item.id);
+  if (isNew && others.length) ctx.log(`${modelName} is now the active model; ${others.length === 1 ? `${others[0].name} stays` : `the other ${others.length} models stay`} in the project (switch on the Semantic model page)`);
   setStep('model', 'done', modelName);
   return { id: item.id, name: modelName, tables: plan.tables.map((t) => t.name), measures: m.map((x) => x.name), relationships: plan.relationships.length };
 }
 
-/** The semantic model's name: the current model keeps its name; a new one follows the naming standard. */
+/**
+ * The semantic model's name: without a name the active model keeps its name (when the studio built it); a new one
+ * follows the naming standard. Names of the other models the studio built are accepted as they are (updating them).
+ */
 export function modelNameFor(p, preset, name) {
-  return F.itemName('SemanticModel', itemNameFor('SemanticModel', { name, current: p.semanticModel?.name, purpose: preset?.naming?.model || purposeOf(p.modelSource?.itemName, p.modelSource?.itemType) || 'Main' }));
+  const ours = (p.semanticModels || []).filter((x) => x.origin !== 'existing').map((x) => x.name);
+  const current = p.semanticModel?.origin !== 'existing' ? p.semanticModel?.name : undefined;
+  return F.itemName('SemanticModel', itemNameFor('SemanticModel', { name, current, known: ours, purpose: preset?.naming?.model || purposeOf(p.modelSource?.itemName, p.modelSource?.itemType) || 'Main' }));
 }
 
 /**
@@ -411,7 +425,7 @@ export async function proposeSemanticModel({ name, include, names, relationships
     names: names || {},
     relationships: relationships?.length ? relationships : null,
     measures: given,
-    updatesExisting: p.semanticModel?.name === modelName,
+    updatesExisting: (p.semanticModels || []).some((x) => x.origin !== 'existing' && x.name.toLowerCase() === modelName.toLowerCase()),
     preview: {
       tables: plan.tables.map((t) => ({ key: t.key, name: t.name, role: role(t) })),
       relationships: plan.relationships.map((r) => ({ from: `${r.from.name}[${r.fromColumn}]`, to: `${r.to.name}[${r.toColumn}]`, active: r.active })),
@@ -605,9 +619,14 @@ const RECOVERABLE = new Set(['Lakehouse', 'SQLDatabase', 'MirroredDatabase', 'Wa
 /** What "Clean up resources" deletes, in delete order: only items the studio created or mirrored. */
 function teardownItems(p) {
   const med = p.realtime?.medallion?.items || {};
+  // Every model's data agent and org app (the active model's are live, the others' are kept with their model). Models
+  // the user added to the project (origin 'existing') are theirs and stay.
+  const contexts = projectModels(p).map((m) => modelContext(p, m.id));
+  if (!p.semanticModel) contexts.push({ dataAgent: p.dataAgent, orgApp: p.orgApp });
+  const studioModels = projectModels(p).filter((m) => m.origin !== 'existing' && (m.workspaceId || p.workspace?.id) === p.workspace?.id);
   const list = [
-    ['OrgApp', 'Org app', p.orgApp],
-    ['DataAgent', 'Fabric data agent', p.dataAgent],
+    ...contexts.map((c) => ['OrgApp', 'Org app', c.orgApp]),
+    ...contexts.map((c) => ['DataAgent', 'Fabric data agent', c.dataAgent]),
     ...(p.reports || []).map((r) => ['Report', 'Report', r]),
     ['Plan', 'Fabric plan', p.planning?.planItem],
     ['Warehouse', 'Planning warehouse (plan values)', [p.planning?.target?.warehouse, p.planStore?.warehouse].find((w) => w?.created) || null],
@@ -620,13 +639,14 @@ function teardownItems(p) {
     ['Eventstream', 'Eventstream', p.realtime?.eventstream],
     ['Eventhouse', 'Eventhouse (all live events and medallion layers)', p.realtime?.eventhouse],
     ['Ontology', 'Ontology', p.ontology],
-    ['SemanticModel', 'Semantic model', p.semanticModel],
+    ...studioModels.map((m) => ['SemanticModel', 'Semantic model', m]),
     ...(p.dataPrepItems || []).filter((i) => i.id !== p.lakehouse?.id).map((i) => [i.type, i.type === 'Notebook' ? 'Data prep notebook' : 'Curated lakehouse (data prep notebook)', i]),
     ['MirroredDatabase', 'Mirrored database (replication stops)', p.source?.method === 'mirror' && p.modelSource?.itemId ? { id: p.modelSource.itemId, name: p.modelSource.itemName } : null],
     ['Lakehouse', 'Lakehouse', p.lakehouse],
     ['SQLDatabase', 'SQL database', p.sqlDatabase],
   ];
-  return list.filter(([, , it]) => it?.id).map(([type, label, it]) => ({ type, label, id: it.id, name: it.name || it.displayName || it.id }));
+  const seen = new Set();
+  return list.filter(([, , it]) => it?.id && !seen.has(it.id) && seen.add(it.id)).map(([type, label, it]) => ({ type, label, id: it.id, name: it.name || it.displayName || it.id }));
 }
 
 /** Shown before "Clean up resources" runs, so the user confirms exactly what is deleted. */
@@ -635,12 +655,17 @@ export function teardownPlan({ deleteWorkspace = false } = {}) {
   if (!p.workspace) return { workspace: null, deleteWorkspace: false, items: [] };
   const workspace = { id: p.workspace.id, name: p.workspace.name, created: Boolean(p.workspace.created) };
   const items = teardownItems(p).map((i) => ({ ...i, recoverable: RECOVERABLE.has(i.type) }));
+  const tf = p.taskFlow?.id ? p.taskFlow : null;
   return {
     workspace,
     deleteWorkspace: Boolean(deleteWorkspace && workspace.created),
     items,
     taskFlow: p.realtime?.medallion?.taskFlow ? { name: p.realtime.medallion.taskFlow.name } : null,
-    taskFlows: [p.realtime?.medallion?.taskFlow, p.medallionFlow].filter((x) => x?.id).map((x) => ({ name: x.name })),
+    // A task flow the studio created is deleted; in one that was already in the workspace only the studio's items are
+    // taken off its tasks.
+    taskFlows: [p.realtime?.medallion?.taskFlow, tf?.mode !== 'existing' ? tf : null].filter((x) => x?.id).map((x) => ({ name: x.name })),
+    taskFlowUnassign: tf?.mode === 'existing' ? { name: tf.name } : null,
+    keptModels: projectModels(p).filter((m) => m.origin === 'existing').map((m) => ({ name: m.name })),
     ontologyCompanions: Boolean(p.ontology?.id),
     liveEvents: Boolean(p.realtime),
   };
@@ -661,7 +686,7 @@ export async function runTeardown(ctx, { deleteWorkspace = false } = {}) {
     ctx.step(`Delete workspace ${p.workspace.name}`);
     await F.deleteWorkspace(p.workspace.id);
     // Everything lived in that workspace; keep only the glossary for the next project.
-    updateProject({ workspace: null, lakehouse: null, sqlDatabase: null, source: null, modelSource: null, modelProposal: null, reportProposal: null, dataAgentProposal: null, dataAgent: null, semanticModel: null, ontology: null, reports: [], orgApp: null, teamsAgent: null, scenario: null, realtime: null, planning: null, medallionFlow: null, planStore: null, dataPrep: null, dataPrepItems: [], tenant: null, steps: {} });
+    updateProject({ workspace: null, lakehouse: null, sqlDatabase: null, source: null, modelSource: null, modelProposal: null, reportProposal: null, dataAgentProposal: null, dataAgent: null, semanticModel: null, ontology: null, reports: [], orgApp: null, teamsAgent: null, scenario: null, realtime: null, planning: null, taskFlow: null, semanticModels: [], planStore: null, dataPrep: null, dataPrepItems: [], tenant: null, steps: {} });
     clearDataPrepFiles();
   } else if (p.workspace) {
     ctx.step('Delete items created by the studio');
@@ -670,9 +695,9 @@ export async function runTeardown(ctx, { deleteWorkspace = false } = {}) {
     if (tf?.id) {
       try { ctx.log((await deleteTaskFlow(p.workspace.id, tf.id)) ? `Deleted task flow "${tf.name}"` : `Task flow "${tf.name}" was already deleted`); } catch (e) { ctx.log(`Could not delete task flow "${tf.name}": ${e.message}`); }
     }
-    const mf = p.medallionFlow;
+    const mf = p.taskFlow;
     if (mf?.id) {
-      try { ctx.log((await deleteTaskFlow(p.workspace.id, mf.id)) ? `Deleted task flow "${mf.name}"` : `Task flow "${mf.name}" was already deleted`); } catch (e) { ctx.log(`Could not delete task flow "${mf.name}": ${e.message}`); }
+      try { ctx.log(await WTF.teardownTaskFlow()); } catch (e) { ctx.log(`Could not ${mf.mode === 'existing' ? 'take the studio\'s items off' : 'delete'} task flow "${mf.name}": ${e.message}`); }
     }
     for (const it of teardownItems(p)) {
       if (it.type === 'MirroredDatabase') { try { await F.stopMirroring(p.workspace.id, it.id); } catch { /* already stopped */ } }
@@ -680,7 +705,7 @@ export async function runTeardown(ctx, { deleteWorkspace = false } = {}) {
       if (it.type === 'Ontology') await deleteOntologyCompanions(p.workspace.id, it.id, ctx.log);
     }
     // The project starts empty again: the workspace itself stays in Fabric, but the studio no longer points to it.
-    updateProject({ workspace: null, lakehouse: null, sqlDatabase: null, source: null, modelSource: null, modelProposal: null, reportProposal: null, dataAgentProposal: null, dataAgent: null, semanticModel: null, ontology: null, reports: [], orgApp: null, teamsAgent: null, scenario: null, realtime: null, planning: null, medallionFlow: null, planStore: null, dataPrep: null, dataPrepItems: [], tenant: null, steps: {} });
+    updateProject({ workspace: null, lakehouse: null, sqlDatabase: null, source: null, modelSource: null, modelProposal: null, reportProposal: null, dataAgentProposal: null, dataAgent: null, semanticModel: null, ontology: null, reports: [], orgApp: null, teamsAgent: null, scenario: null, realtime: null, planning: null, taskFlow: null, semanticModels: [], planStore: null, dataPrep: null, dataPrepItems: [], tenant: null, steps: {} });
     clearDataPrepFiles();
     ctx.log(`The project is empty again – ${p.workspace.name} stays in Fabric; choose a workspace to start a new one`);
   }

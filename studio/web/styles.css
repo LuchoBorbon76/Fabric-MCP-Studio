@@ -583,3 +583,34 @@ table.t.items td.act .btn{padding:4px 9px}
 .tplact{flex:0 0 auto}
 .tsname .tsyours{margin-left:6px;font-size:10px;font-weight:700;color:var(--brand);text-transform:uppercase;letter-spacing:.3px}
 .tplfields{max-height:180px;overflow:auto;margin:6px 0 0}
+/* Semantic models: the active model with a switch (pages built on the model) and the models table */
+.modelbar{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;margin:0 0 14px;padding:8px 12px;border:1px solid var(--line);border-left:3px solid var(--brand);border-radius:10px;background:var(--panel);box-shadow:var(--shadow)}
+.modelbar .mbl{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--muted)}
+.modelbar .msel{width:auto;min-width:220px;max-width:420px;padding:5px 8px;font-weight:600}
+.modelbar .mbnote{max-width:340px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.modelbar>.btn{margin-left:auto}
+.modelbar .btn{padding:4px 10px}
+table.t.mtable td{vertical-align:top}
+table.t.mtable td.act{white-space:nowrap;text-align:right}
+table.t.mtable td a{color:inherit;text-decoration:none}
+table.t.mtable td a:hover{text-decoration:underline}
+/* Task flow: canvas like Fabric's (boxes where the flow puts them, with connectors) and the items per box */
+.tfcanvas{margin-top:12px;overflow:auto;border:1px solid var(--line);border-radius:12px;background:var(--bg);background-image:radial-gradient(color-mix(in srgb,var(--muted) 28%,transparent) 1px,transparent 1px);background-size:16px 16px;max-height:340px}
+.tfinner{position:relative;min-width:100%}
+.tfedges{position:absolute;left:0;top:0;color:color-mix(in srgb,var(--good) 80%,var(--ink));pointer-events:none}
+.tfedges path{fill:none;stroke:currentColor;stroke-width:1.6}
+.tfbox{position:absolute;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;padding:6px 10px 6px 14px;text-align:left;border:1px solid color-mix(in srgb,var(--tc) 55%,var(--line));border-radius:8px;background:var(--panel);color:var(--ink);box-shadow:var(--shadow);cursor:pointer;overflow:hidden;font:inherit}
+.tfbox::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--tc)}
+.tfbox b{font-size:12.5px;line-height:1.2;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tfbox .tftype{font-size:10.5px;color:var(--muted)}
+.tfbox .tfcount{font-size:10.5px;color:var(--muted)}
+.tfbox.has .tfcount{color:var(--ink);font-weight:650}
+.tfbox:hover{border-color:var(--tc)}
+.tftask{display:inline-block;font-weight:650;font-size:12.5px;padding:1px 8px 1px 10px;border-radius:7px;border-left:4px solid var(--tc);background:color-mix(in srgb,var(--tc) 12%,transparent);color:var(--ink)}
+.tftable td{vertical-align:top;padding-top:7px;padding-bottom:7px}
+.tftable td:first-child{width:34%}
+.tftable tr.tfnone td{background:color-mix(in srgb,var(--muted) 6%,transparent)}
+.tfitem{display:inline-flex;align-items:center;gap:4px;max-width:100%}
+.tfitem .tfname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px}
+.tfmove{border:0;background:transparent;color:var(--muted);font:inherit;font-size:11px;max-width:22px;cursor:pointer;padding:0}
+.tfmove:focus{max-width:220px;color:var(--ink);background:var(--panel)}

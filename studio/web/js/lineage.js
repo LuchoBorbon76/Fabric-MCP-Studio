@@ -134,9 +134,17 @@ function describe(id, s) {
         facts: [['Item', ITEM[ms.itemType] || ms.itemType], ['Name', ms.itemName], ['SQL endpoint', ms.server || '–'], ['Database', ms.database || ms.itemName], ...prep],
       };
     }
-    case 'model':
-      if (!sm) return { done: false, avail: Boolean(ms), needs: 'Needs data', title: 'Not created', sub: 'Direct Lake' };
-      return { done: true, title: sm.name, sub: `${plural(sm.tables, 'table')} · ${plural(sm.measures, 'measure')}`, url: at('SemanticModel', sm.id), facts: [['Tables', sm.tables], ['Measures', sm.measures], ['Relationships', sm.relationships ?? '–'], ['Storage mode', 'Direct Lake']] };
+    case 'model': {
+      if (!sm) return { done: false, avail: Boolean(ws), needs: 'Needs a workspace', title: 'Not created', sub: 'New from your data, or existing' };
+      const n = (p.semanticModels || []).length;
+      const storage = { DirectLake: 'Direct Lake', Import: 'Import', DirectQuery: 'DirectQuery', Dual: 'Dual', Mixed: 'Mixed' }[sm.storageMode] || (sm.origin === 'existing' ? '–' : 'Direct Lake');
+      const counts = sm.tables === null || sm.tables === undefined ? (sm.origin === 'existing' ? 'Existing model' : 'Semantic model') : `${plural(sm.tables, 'table')} · ${plural(sm.measures, 'measure')}`;
+      const where = sm.workspaceId && sm.workspaceId !== ws?.id ? ` in ${sm.workspaceName || 'another workspace'}` : '';
+      return {
+        done: true, title: sm.name, sub: `${counts}${n > 1 ? ` · 1 of ${n}` : ''}`, url: fabricItemUrl('SemanticModel', sm.workspaceId || ws?.id, sm.id),
+        facts: [['Tables', sm.tables ?? '–'], ['Measures', sm.measures ?? '–'], ['Relationships', sm.relationships ?? '–'], ['Storage mode', storage], ['Built by', sm.origin === 'existing' ? `Existing model${where}` : 'The studio'], n > 1 ? ['Models in the project', `${n} – switch on the Semantic model page`] : null].filter(Boolean),
+      };
+    }
     case 'ontology':
       if (!ont) return { done: false, avail: Boolean(ms), needs: 'Needs data', title: 'Not created', sub: 'Entities and business rules' };
       return {
@@ -237,7 +245,7 @@ export function buildGraph(s = store) {
     sub: ws ? (ws.created ? 'Created by the studio' : 'Existing workspace') : signedIn ? 'New or existing' : 'Microsoft Entra account',
     capacity: cap?.visible ? cap : null, role: s.readiness?.role || null,
     url: ws ? `https://app.fabric.microsoft.com/groups/${ws.id}/list` : null,
-    facts: ws ? [['Capacity', cap?.visible ? `${cap.name} · ${cap.sku}${cap.trial ? ' (trial)' : ''} · ${cap.state === 'Active' ? 'Running' : 'Paused'}` : 'Not visible to you'], ['Region', cap?.region || '–'], ['Your role', s.readiness?.role || '–'], ['Created by the studio', ws.created ? 'Yes' : 'No'], ['Naming', namingFact()], ['Medallion task flow', p.medallionFlow ? `${p.medallionFlow.name} · ${p.medallionFlow.items} items` : 'Not applied – Workspace page']] : [],
+    facts: ws ? [['Capacity', cap?.visible ? `${cap.name} · ${cap.sku}${cap.trial ? ' (trial)' : ''} · ${cap.state === 'Active' ? 'Running' : 'Paused'}` : 'Not visible to you'], ['Region', cap?.region || '–'], ['Your role', s.readiness?.role || '–'], ['Created by the studio', ws.created ? 'Yes' : 'No'], ['Naming', namingFact()], ['Task flow', p.taskFlow ? `${p.taskFlow.name} · ${p.taskFlow.items} items${p.taskFlow.mode === 'existing' ? ' (your task flow)' : ''}` : 'Not applied – Workspace page']] : [],
   };
   workspace.state = workspace.done ? (cleaning ? 'running' : 'done') : signedIn ? 'available' : 'off';
   workspace.needs = 'Sign in first';

@@ -2,7 +2,7 @@
 // Each artifact: { key, nodes (solution map parts), type, name, url, uses: [keys], removes (what Remove does) }.
 // "Used by" is the reverse of uses, plus Fabric reports the studio didn't build on the semantic model.
 import * as F from './fabric.mjs';
-import { getProject, updateProject, setStep, logActivity, assertProjectTenant, fabricUrl } from './project.mjs';
+import { getProject, updateProject, setStep, logActivity, assertProjectTenant, fabricUrl, projectModels, modelContext, updateModelContext } from './project.mjs';
 import { workspaceReports } from './powerbi.mjs';
 import * as P from './pipelines.mjs';
 import * as R from './reports/index.mjs';
@@ -10,7 +10,7 @@ import * as RT from './realtime/index.mjs';
 import * as PL from './planning/index.mjs';
 import * as DP from './dataprep.mjs';
 import * as DA from './dataagent.mjs';
-import * as MF from './medallion-flow.mjs';
+import * as WTF from './workspace-taskflow.mjs';
 
 const PLAN_PAGE = 'Plan vs actual';
 const LABEL = { Lakehouse: 'Lakehouse', Warehouse: 'Warehouse', SQLDatabase: 'SQL database', MirroredDatabase: 'Mirrored database' };
@@ -62,24 +62,41 @@ function artifactList(p = getProject()) {
       removes: `Deletes the notebook${dp.target && !dp.target.same ? ` and the curated lakehouse ${dp.target.name}` : ''}`,
     });
   }
-  // A model or ontology reads the item it was built on (older projects didn't record it: the current source).
-  if (p.semanticModel?.id) add({ key: 'model', nodes: ['model'], type: 'Semantic model', name: p.semanticModel.name, url: url('SemanticModel', p.semanticModel.id), uses: usesItem(p.semanticModel.sourceItemId), removes: `Deletes ${p.semanticModel.name}` });
+  // A model or ontology reads the item it was built on (older projects didn't record it: the current source). Every
+  // model in the project is listed; an existing model the user added is only taken out of the project, never deleted.
+  const activeId = p.semanticModel?.id || null;
+  for (const m of projectModels(p)) {
+    const theirs = m.origin === 'existing';
+    add({
+      key: `model:${m.id}`, nodes: ['model'], type: theirs ? 'Semantic model (existing)' : 'Semantic model', name: m.name, url: url('SemanticModel', m.id, m.workspaceId || ws),
+      uses: theirs ? [] : usesItem(m.sourceItemId), removes: theirs ? `Stops using ${m.name} in the studio – the model stays in Fabric` : `Deletes ${m.name}`,
+      model: { id: m.id, origin: m.origin || 'studio', active: m.id === activeId, workspaceId: m.workspaceId || ws },
+    });
+  }
+  const modelKey = (id) => (id || activeId ? `model:${id || activeId}` : null);
   if (p.ontology?.id) add({ key: 'ontology', nodes: ['ontology'], type: 'Ontology', name: p.ontology.name, url: url('Ontology', p.ontology.id), uses: usesItem(p.ontology.sourceItemId), removes: `Deletes ${p.ontology.name} and the graph and Eventhouse Fabric made for it` });
   for (const r of p.reports || []) {
-    add({ key: `report:${r.id}`, nodes: ['reports'], type: 'Report', name: r.name, url: r.url || url('Report', r.id), uses: [...(p.semanticModel ? ['model'] : []), ...(r.pages?.includes(PLAN_PAGE) && p.planning ? ['planning'] : [])], removes: `Deletes ${r.name}` });
+    add({ key: `report:${r.id}`, nodes: ['reports'], type: 'Report', name: r.name, url: r.url || url('Report', r.id), uses: [modelKey(r.semanticModelId), ...(r.pages?.includes(PLAN_PAGE) && p.planning ? ['planning'] : [])].filter(Boolean), removes: `Deletes ${r.name}` });
   }
   if (p.orgApp?.id) add({ key: 'orgApp', nodes: ['orgapp'], type: 'Org app', name: p.orgApp.name, url: p.orgApp.url, uses: (p.orgApp.reports || []).filter((id) => (p.reports || []).some((r) => r.id === id)).map((id) => `report:${id}`), removes: `Deletes ${p.orgApp.name}` });
   if (p.planning) {
     const t = p.planning.target;
+    const pm = projectModels(p).find((m) => m.id === p.planning.semanticModelId) || p.semanticModel;
     add({
-      key: 'planning', nodes: ['planning'], type: 'Budget and forecast', name: `Plan ${p.planning.planYear}`, url: null, uses: p.semanticModel ? ['model'] : [],
-      removes: `Takes the Plan table out of ${p.semanticModel?.name || 'the model'} and deletes the plan values${t?.warehouse?.created ? ` (and the warehouse ${t.warehouse.name})` : ''}`,
+      key: 'planning', nodes: ['planning'], type: 'Budget and forecast', name: `Plan ${p.planning.planYear}`, url: null, uses: [modelKey(pm?.id)].filter(Boolean),
+      removes: `Takes the Plan table out of ${pm?.name || 'the model'} and deletes the plan values${t?.warehouse?.created ? ` (and the warehouse ${t.warehouse.name})` : ''}`,
     });
     const it = p.planning.planItem;
     if (it?.id) add({ key: 'planItem', nodes: ['planitem'], type: 'Fabric plan', name: it.name, url: it.url, uses: ['planning'], removes: `Deletes ${it.name} with its planning sheets` });
   }
-  if (p.dataAgent?.id) add({ key: 'dataAgent', nodes: ['answers'], type: 'Fabric data agent', name: p.dataAgent.name, url: url('DataAgent', p.dataAgent.id, p.dataAgent.workspaceId), uses: p.semanticModel ? ['model'] : [], removes: `Deletes ${p.dataAgent.name}` });
-  if (p.teamsAgent) add({ key: 'teamsAgent', nodes: ['agent'], type: 'Microsoft 365 agent', name: 'Teams & Copilot agent', url: null, uses: [...(p.semanticModel ? ['model'] : []), ...(p.teamsAgent.includeOntology && p.ontology ? ['ontology'] : [])], removes: 'Uninstalls the agent from Microsoft 365 and Teams' });
+  if (p.dataAgent?.id) add({ key: 'dataAgent', nodes: ['answers'], type: 'Fabric data agent', name: p.dataAgent.name, url: url('DataAgent', p.dataAgent.id, p.dataAgent.workspaceId), uses: [modelKey(p.dataAgent.semanticModelId)].filter(Boolean), removes: `Deletes ${p.dataAgent.name}` });
+  // Data agents and org apps kept with the models that aren't active.
+  for (const m of projectModels(p).filter((x) => x.id !== activeId)) {
+    const c = modelContext(p, m.id);
+    if (c.dataAgent?.id) add({ key: `dataAgent:${m.id}`, nodes: ['answers'], type: `Fabric data agent · ${m.name}`, name: c.dataAgent.name, url: url('DataAgent', c.dataAgent.id, c.dataAgent.workspaceId), uses: [`model:${m.id}`], removes: `Deletes ${c.dataAgent.name}` });
+    if (c.orgApp?.id) add({ key: `orgApp:${m.id}`, nodes: ['orgapp'], type: `Org app · ${m.name}`, name: c.orgApp.name, url: c.orgApp.url, uses: (c.orgApp.reports || []).filter((id) => (p.reports || []).some((r) => r.id === id)).map((id) => `report:${id}`), removes: `Deletes ${c.orgApp.name}` });
+  }
+  if (p.teamsAgent) add({ key: 'teamsAgent', nodes: ['agent'], type: 'Microsoft 365 agent', name: 'Teams & Copilot agent', url: null, uses: [modelKey(), ...(p.teamsAgent.includeOntology && p.ontology ? ['ontology'] : [])].filter(Boolean), removes: 'Uninstalls the agent from Microsoft 365 and Teams' });
 
   const rt = p.realtime;
   if (rt?.eventhouse || rt?.eventstream) {
@@ -89,34 +106,40 @@ function artifactList(p = getProject()) {
     if (rt.ontology && p.ontology) add({ key: 'liveOntology', nodes: ['ontology'], type: 'Live ontology properties', name: `Live properties in ${p.ontology.name}`, url: null, uses: ['realtime', 'ontology', ...(rt.ontology.dashboardLinked && rt.dashboard ? ['dashboard'] : [])], removes: `Takes the live time-series properties${rt.ontology.dashboardLinked ? ' and the dashboard links' : ''} out of ${p.ontology.name}` });
     if (rt.medallion) add({ key: 'medallion', nodes: ['eventhouse'], type: 'Medallion layers (live)', name: `Bronze › Silver › Gold on ${rt.eventhouse?.name || 'the Eventhouse'}`, url: null, uses: ['realtime'], removes: 'Deletes the Silver and Gold layers, their querysets, Gold semantic model, Silver lakehouse and task flow – the raw events stay' });
   }
-  if (p.medallionFlow?.id) add({ key: 'medallionFlow', nodes: ['workspace'], type: 'Task flow', name: p.medallionFlow.name, url: MF.taskFlowUrl(ws), removes: `Deletes the task flow "${p.medallionFlow.name}" – the items stay` });
+  if (p.taskFlow?.id) add({ key: 'taskFlow', nodes: ['workspace'], type: 'Task flow', name: p.taskFlow.name, url: WTF.taskFlowUrl(ws), removes: p.taskFlow.mode === 'existing' ? `Takes the studio's items off the tasks of "${p.taskFlow.name}" – the task flow and its other items stay` : `Deletes the task flow "${p.taskFlow.name}" – the items stay` });
   return out;
 }
 
 /**
- * The artifacts with what uses each of them. With `external`, Fabric reports the studio didn't build on the semantic
- * model count as users too (so the model can't be removed from under them).
+ * The artifacts with what uses each of them. With `external`, Fabric reports the studio didn't build on a semantic
+ * model the studio built count as users too (so the model can't be deleted from under them).
  */
 export async function projectArtifacts({ external = true } = {}) {
   const p = getProject();
   const list = artifactList(p);
-  let others = [];
-  let checkFailed = null;
-  if (external && p.workspace && p.semanticModel?.id) {
+  const others = new Map();     // model id -> reports the studio didn't build
+  const failed = new Map();     // model id -> why its reports couldn't be read
+  if (external && p.workspace) {
     const ours = new Set((p.reports || []).map((r) => r.id));
-    // If the reports can't be read, the model counts as used: never delete it from under reports nobody checked.
-    try { others = (await workspaceReports(p.workspace.id)).filter((r) => r.datasetId === p.semanticModel.id && !ours.has(r.id)); }
-    catch (e) { checkFailed = e.message.split('\n')[0].slice(0, 160); }
+    const studioModels = list.filter((a) => a.model && a.model.origin !== 'existing');
+    const byWs = new Map();
+    for (const a of studioModels) {
+      // If the reports can't be read, the model counts as used: never delete it from under reports nobody checked.
+      if (!byWs.has(a.model.workspaceId)) byWs.set(a.model.workspaceId, workspaceReports(a.model.workspaceId).catch((e) => ({ error: e.message.split('\n')[0].slice(0, 160) })));
+      const r = await byWs.get(a.model.workspaceId);
+      if (r?.error) failed.set(a.model.id, r.error);
+      else others.set(a.model.id, r.filter((x) => x.datasetId === a.model.id && !ours.has(x.id)));
+    }
   }
   const byKey = new Map(list.map((a) => [a.key, a]));
   return list.map((a) => {
     const usedBy = list.filter((b) => b.uses.includes(a.key)).map((b) => ({ key: b.key, name: b.name, type: b.type }));
-    if (a.key === 'model') {
-      for (const r of others) usedBy.push({ key: null, name: r.name, type: 'Report (not built by the studio)' });
-      if (checkFailed) usedBy.push({ key: null, name: 'reports the studio couldn\'t check', type: `Power BI: ${checkFailed}` });
+    if (a.model) {
+      for (const r of others.get(a.model.id) || []) usedBy.push({ key: null, name: r.name, type: 'Report (not built by the studio)' });
+      if (failed.has(a.model.id)) usedBy.push({ key: null, name: 'reports the studio couldn\'t check', type: `Power BI: ${failed.get(a.model.id)}` });
     }
-    const { uses, ...rest } = a;
-    return { ...rest, uses: uses.filter((k) => byKey.has(k)), usedBy, removable: usedBy.length === 0 };
+    const { uses, model, ...rest } = a;
+    return { ...rest, ...(model ? { model } : {}), uses: uses.filter((k) => byKey.has(k)), usedBy, removable: usedBy.length === 0 };
   });
 }
 
@@ -136,12 +159,20 @@ async function removeOne(ctx, a, p) {
     case 'lakehouse': await delItem(ctx, ws, p.lakehouse.id, p.lakehouse.name); updateProject({ lakehouse: null }); break;
     case 'sqlDatabase': await delItem(ctx, ws, p.sqlDatabase.id, p.sqlDatabase.name); updateProject({ sqlDatabase: null }); break;
     case 'dataPrep': await DP.removeDataPrep({ deleteItems: true }); break;
-    case 'model':
-      await delItem(ctx, ws, p.semanticModel.id, p.semanticModel.name);
-      updateProject({ semanticModel: null, reportProposal: null, dataAgentProposal: null });
+    case 'model': {
+      const id = a.key.slice('model:'.length);
+      const m = (p.semanticModels || []).find((x) => x.id === id);
+      if (!m) { ctx.log(`${a.name} is no longer in the project`); break; }
+      if (m.origin === 'existing') ctx.log(`${m.name} stays in Fabric – the studio stops using it`);
+      else await delItem(ctx, m.workspaceId || ws, m.id, m.name);
+      // The active model: the next model (if any) becomes active. Another model: just leaves the list.
+      if (m.id === p.semanticModel?.id) updateProject({ semanticModel: null, reportProposal: null, dataAgentProposal: null });
+      else updateProject({ semanticModels: (p.semanticModels || []).filter((x) => x.id !== m.id) });
       R.resetProfileCache();
-      setStep('model', 'todo', '');
+      const left = getProject().semanticModel;
+      if (left) { setStep('model', 'done', left.name); ctx.log(`Active semantic model: ${left.name}`); } else setStep('model', 'todo', '');
       break;
+    }
     case 'ontology':
       await delItem(ctx, ws, p.ontology.id, p.ontology.name);
       if (ws) await P.deleteOntologyCompanions(ws, p.ontology.id, ctx.log);
@@ -155,21 +186,37 @@ async function removeOne(ctx, a, p) {
       await R.removeReport(id, { deleteItem: false });
       break;
     }
-    case 'orgApp': await delItem(ctx, wsOfUrl(p.orgApp.url) || ws, p.orgApp.id, p.orgApp.name); updateProject({ orgApp: null }); setStep('apps', 'todo', ''); break;
+    case 'orgApp': {
+      const modelId = a.key.split(':')[1];
+      if (modelId) {
+        const app = modelContext(p, modelId).orgApp;
+        if (app?.id) await delItem(ctx, wsOfUrl(app.url) || ws, app.id, app.name);
+        updateModelContext(modelId, { orgApp: null });
+      } else { await delItem(ctx, wsOfUrl(p.orgApp.url) || ws, p.orgApp.id, p.orgApp.name); updateProject({ orgApp: null }); setStep('apps', 'todo', ''); }
+      break;
+    }
     case 'planning':
-      // Without the semantic model there is no Plan table to take out; forget the plan (its values stay where they are).
-      if (p.semanticModel?.id) await PL.removePlan({ deleteData: true, deleteItem: false });
+      // Without its semantic model there is no Plan table to take out; forget the plan (its values stay where they are).
+      if ((p.semanticModels || []).some((m) => m.id === (p.planning.semanticModelId || p.semanticModel?.id))) await PL.removePlan({ deleteData: true, deleteItem: false });
       else { updateProject({ planning: null, planStore: null }); setStep('planning', 'todo', ''); ctx.log('The semantic model is gone, so only the plan settings were removed'); }
       break;
     case 'planItem': await delItem(ctx, wsOfUrl(p.planning.planItem.url) || ws, p.planning.planItem.id, p.planning.planItem.name); updateProject({ planning: { ...getProject().planning, planItem: null } }); break;
-    case 'dataAgent': await DA.removeDataAgent({ deleteItem: true }); break;
+    case 'dataAgent': {
+      const modelId = a.key.split(':')[1];
+      if (modelId) {
+        const ag = modelContext(p, modelId).dataAgent;
+        if (ag?.id) await delItem(ctx, ag.workspaceId || ws, ag.id, ag.name);
+        updateModelContext(modelId, { dataAgent: null, dataAgentProposal: null });
+      } else await DA.removeDataAgent({ deleteItem: true });
+      break;
+    }
     case 'teamsAgent': await P.uninstallTeamsAgent(ctx); break;
     case 'realtime': await RT.removeRealtime({ deleteItems: true }); break;
     case 'dashboard': await RT.removeDashboard(); break;
     case 'alerts': await RT.removeAlerts({ keepItem: false }); break;
     case 'liveOntology': await RT.runLiveOntology(nestedCtx, { unlink: true }); break;
     case 'medallion': await RT.removeMedallion(nestedCtx, { deleteItems: true }); break;
-    case 'medallionFlow': await MF.removeMedallionTaskFlow(); break;
+    case 'taskFlow': await WTF.removeTaskFlow(); break;
     default: throw new Error(`Unknown item "${a.key}".`);
   }
 }

@@ -58,6 +58,7 @@ function renderHeader() {
   if (u?.signedIn) parts.push(`${u.upn || u.name} · ${u.tenantDomain || 'tenant'}`);
   if (store.provider) parts.push(`AI: ${store.provider.name}${store.provider.model ? ` (${store.provider.model})` : ''}`);
   if (p?.workspace) parts.push(`Workspace: ${p.workspace.name}`);
+  if (p?.semanticModel) parts.push(`Model: ${p.semanticModel.name}${(p.semanticModels || []).length > 1 ? ` (1 of ${p.semanticModels.length})` : ''}`);
   $('#subtitle').textContent = parts.length ? parts.join(' · ') : 'Build lakehouses, semantic models and ontologies in Microsoft Fabric by chatting with the Copilot you already use.';
   renderTenantBanner();
 }

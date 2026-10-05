@@ -46,6 +46,8 @@
     { "date": "2026-10-05", "type": "improvement", "commit": "69a7dc0", "title": "Remove buttons for every item, disabled while something uses it; Items in this project shows what uses what" },
     { "date": "2026-10-05", "type": "improvement", "commit": "22ecc90", "title": "Your own Power BI templates: upload .pbit, .pbix, zipped Power BI projects, report layouts and themes; reports are bound to your semantic model with fields matched by name" },
     { "date": "2026-10-05", "type": "fix", "commit": "22ecc90", "title": "Items in this project fits its column: long names wrap, no horizontal scrollbar" },
-    { "date": "2026-10-05", "type": "fix", "title": "Items in this project no longer touches the Activity button" }
+    { "date": "2026-10-05", "type": "fix", "commit": "2233ea0", "title": "Items in this project no longer touches the Activity button" },
+    { "date": "2026-10-05", "type": "improvement", "title": "Task flows: use the task flow already in your workspace or one of Fabric's predesigned flows (Medallion, Basic data analytics, Event analytics, Event medallion, Lambda, Basic machine learning models); every item goes to its box, you can move items, and the flow stays up to date" },
+    { "date": "2026-10-05", "type": "improvement", "title": "Several semantic models per project: design new ones or add existing models from any workspace, switch the active model, and reports, data agent, org app and answers follow it" }
   ]
 }

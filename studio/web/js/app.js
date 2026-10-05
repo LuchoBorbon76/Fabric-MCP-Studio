@@ -58,11 +58,11 @@ export function suggestions(project, preset) {
       'What can you build for me in Microsoft Fabric?',
     ];
   }
-  if (!p.modelSource) {
+  if (!p.modelSource && !p.semanticModel) {
     return [
       'Load the Contoso Retail sample data into my workspace',
+      'Use an existing semantic model from one of my workspaces',
       'List the lakehouses and warehouses I could use as a data source',
-      'Which Fabric connections can I use to mirror a database?',
     ];
   }
   if (!p.semanticModel) {

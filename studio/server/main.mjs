@@ -23,7 +23,8 @@ import { readiness, cachedReadiness, resetReadiness, assertModuleReady, assertLi
 import { catalog } from './sources.mjs';
 import { getProject, updateProject, resetProject, getActivity, clearActivity, logActivity, assertProjectTenant } from './project.mjs';
 import { startJob, listJobs, getJob, cancelJob, flushRunningJobs, onJobSucceeded } from './jobs.mjs';
-import * as MF from './medallion-flow.mjs';
+import * as WTF from './workspace-taskflow.mjs';
+import * as MODELS from './models.mjs';
 import * as ARTS from './artifacts.mjs';
 import { health } from './health.mjs';
 import { presetSummary } from './presets.mjs';
@@ -266,10 +267,22 @@ route('POST', '/api/realtime/medallion/preview', (_, b) => RT.medallionPreview(b
 route('POST', '/api/jobs/medallion', (_, b) => startJob('medallion', 'Apply the medallion layers (Bronze, Silver, Gold)', (ctx) => RT.runMedallion(ctx, { bronzeDays: b.bronzeDays, silverDays: b.silverDays, goldDays: b.goldDays, oneLake: b.oneLake })));
 route('POST', '/api/jobs/medallion-remove', (_, b) => startJob('medallion-remove', 'Remove the medallion layers', (ctx) => RT.removeMedallion(ctx, { deleteItems: b.deleteItems !== false })));
 route('POST', '/api/realtime/taskflow/sync', async () => { await assertProjectTenant(); return (await RT.syncTaskFlow()) || { ok: false, error: RT.realtimeState().setup?.medallion?.taskFlowError || 'Apply the medallion layers first.' }; });
-// Fabric's Medallion task flow over the project's items (Bronze, Silver, Gold).
-route('GET', '/api/medallion-flow', () => MF.medallionFlowState());
-route('POST', '/api/jobs/medallion-flow', () => startJob('medallion-flow', 'Apply the Medallion task flow', (ctx) => MF.runMedallionTaskFlow(ctx)));
-route('DELETE', '/api/medallion-flow', () => MF.removeMedallionTaskFlow());
+// Task flow moves from the UI or Copilot: { itemId: taskKey | '' } (an empty task keeps the item off the flow).
+const cleanOverrides = (o) => (o && typeof o === 'object' && !Array.isArray(o)
+  ? Object.fromEntries(Object.entries(o).slice(0, 300).filter(([k, v]) => /^[0-9a-z-]{8,64}$/i.test(k) && typeof v === 'string' && v.length <= 120))
+  : undefined);
+// Workspace task flows: Fabric's predesigned flows or a task flow already in the workspace, with the project's items
+// assigned to their tasks.
+route('GET', '/api/taskflow', (_, __, q) => WTF.taskFlowState({ choice: q.get('choice') || undefined, fresh: q.get('refresh') === '1' }));
+route('POST', '/api/taskflow/preview', (_, b) => WTF.taskFlowState({ choice: b.choice, overrides: cleanOverrides(b.overrides) }));
+route('POST', '/api/jobs/taskflow', (_, b) => startJob('taskflow', 'Apply the task flow', (ctx) => WTF.runTaskFlow(ctx, { choice: b.choice, overrides: cleanOverrides(b.overrides) })));
+route('DELETE', '/api/taskflow', () => WTF.removeTaskFlow());
+// Semantic models: the project's models (one active), existing models in any workspace, adding and switching.
+route('GET', '/api/models', () => MODELS.modelsState());
+route('GET', '/api/models/available', (_, __, q) => MODELS.availableModels(q.get('workspaceId') || undefined));
+route('POST', '/api/models/active', async (_, b) => { const s = await MODELS.useModel(String(b.id || '')); WTF.syncTaskFlow().catch(() => {}); return s; });
+route('POST', '/api/models/existing', async (_, b) => { const s = await MODELS.addExistingModel({ workspaceId: b.workspaceId ? String(b.workspaceId) : undefined, id: String(b.id || '') }); WTF.syncTaskFlow().catch(() => {}); return s; });
+route('POST', '/api/models/refresh', (_, b) => MODELS.refreshModelInfo(b.id ? String(b.id) : undefined));
 // Everything the project built, what uses what, and removing items nothing uses any more.
 route('GET', '/api/artifacts', () => ARTS.projectArtifacts());
 route('POST', '/api/jobs/remove', (_, b) => {
@@ -277,7 +290,7 @@ route('POST', '/api/jobs/remove', (_, b) => {
   if (!keys.length) throw Object.assign(new Error('Choose what to remove.'), { status: 400 });
   return startJob('remove', keys.length === 1 ? `Remove ${b.name || keys[0]}` : `Remove ${keys.length} items`, (ctx) => ARTS.removeArtifacts(ctx, keys));
 });
-onJobSucceeded((j) => { if (MF.SYNC_KINDS.has(j.kind)) MF.syncMedallionTaskFlow().catch(() => {}); });
+onJobSucceeded((j) => { if (WTF.SYNC_KINDS.has(j.kind)) WTF.syncTaskFlow().catch(() => {}); });
 route('GET', '/api/planning', () => PL.planningState());
 route('GET', '/api/readiness', (_, __, q) => readiness({ refresh: q.get('refresh') === '1' }));
 route('POST', '/api/planning/preview', (_, b) => PL.planPreview(PL.planOptions(b)));

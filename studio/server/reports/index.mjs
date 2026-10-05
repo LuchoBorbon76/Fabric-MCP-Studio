@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { DATA_DIR } from '../config.mjs';
 import * as F from '../fabric.mjs';
 import { exportReport } from '../powerbi.mjs';
-import { getProject, updateProject, setStep, recordArtifact, assertProjectTenant } from '../project.mjs';
+import { getProject, updateProject, setStep, recordArtifact, assertProjectTenant, modelWorkspaceId } from '../project.mjs';
 import { profileModel } from './profile.mjs';
 import { allThemes, themeById } from './themes.mjs';
 import { PAGE_TEMPLATES, buildReportPages } from './templates.mjs';
@@ -35,9 +35,9 @@ export function requireModel() {
 export async function currentProfile({ refresh = false } = {}) {
   await assertProjectTenant();
   const p = requireModel();
-  const key = `${p.workspace.id}|${p.semanticModel.id}`;
+  const key = `${modelWorkspaceId(p)}|${p.semanticModel.id}`;
   if (!refresh && profileCache.key === key && Date.now() - profileCache.at < 10 * 60 * 1000) return profileCache.data;
-  const data = await profileModel(p.workspace.id, p.semanticModel.id, { modelName: p.semanticModel.name });
+  const data = await profileModel(modelWorkspaceId(p), p.semanticModel.id, { modelName: p.semanticModel.name });
   profileCache = { key, at: Date.now(), data };
   return data;
 }
@@ -51,7 +51,7 @@ export async function currentRecommendations({ refresh = false } = {}) {
   const rules = ruleSet(profile, project);
   let values = [];
   if (rules.rules.some((r) => r.metrics.length)) {
-    try { values = await ruleValues(project.workspace.id, project.semanticModel.id, rules); } catch { values = []; }
+    try { values = await ruleValues(modelWorkspaceId(project), project.semanticModel.id, rules); } catch { values = []; }
   }
   return { recommendations: recommendations(profile, project, { rules, values }), insights: profile.insights, rules: { source: rules.source, count: rules.rules.length, values } };
 }
@@ -148,6 +148,12 @@ export async function deployReport(ctx, { reportName, files, description, entry:
   ctx.step(`Deploy report "${reportName}"`);
   const definition = F.toParts(files);
   let item = await F.findItem(ws.id, 'Report', reportName);
+  // A report the studio built on another semantic model of the project is never rebound to this one.
+  const other = item && (p.reports || []).find((r) => r.id === item.id && r.semanticModelId && r.semanticModelId !== p.semanticModel.id);
+  if (other) {
+    const owner = (p.semanticModels || []).find((m) => m.id === other.semanticModelId);
+    throw new Error(`"${reportName}" is a report on ${owner?.name || 'another semantic model'}. Choose another name for this model's report.`);
+  }
   if (item) {
     await F.updateDefinition(ws.id, item.id, definition);
     ctx.log('Updated the existing report');

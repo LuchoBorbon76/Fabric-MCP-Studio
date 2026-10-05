@@ -83,7 +83,8 @@ export async function confirmRemove(arts) {
 export function nodeRemoveActions(nodeId) {
   const box = h('div', { class: 'iremove' });
   loadArtifacts().then((list) => {
-    const arts = list.filter((a) => a.nodes.includes(nodeId));
+    // Only the active model's Remove button: the other models are managed on the Semantic model page.
+    const arts = list.filter((a) => a.nodes.includes(nodeId) && (!a.model || a.model.active));
     if (!arts.length) return;
     const reports = arts.filter((a) => a.key.startsWith('report:'));
     const others = arts.filter((a) => !a.key.startsWith('report:'));

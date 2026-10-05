@@ -5,7 +5,7 @@ import { existsSync, readFileSync, mkdirSync } from 'node:fs';
 import { COPILOT_HOME, DATA_DIR, REPO_ROOT, STUDIO_ROOT, getSettings, envApiKey, newId, truncate, readJson, writeJson, isDeveloper } from './config.mjs';
 import { getToken, tokenExpiresOn, SCOPES, whoAmI } from './auth.mjs';
 import { emit } from './events.mjs';
-import { getProject, updateProject, logActivity, assertProjectTenant } from './project.mjs';
+import { getProject, updateProject, logActivity, assertProjectTenant, projectModels } from './project.mjs';
 import { startJob, waitForJob } from './jobs.mjs';
 import * as P from './pipelines.mjs';
 import * as R from './reports/index.mjs';
@@ -19,7 +19,8 @@ import { readiness, cachedReadiness, assertModuleReady, assertLiveEventsAllowed 
 import * as F from './fabric.mjs';
 import { presetFor, presetSummary } from './presets.mjs';
 import * as N from './naming.mjs';
-import * as MF from './medallion-flow.mjs';
+import * as WTF from './workspace-taskflow.mjs';
+import * as MODELS from './models.mjs';
 import * as ARTS from './artifacts.mjs';
 
 export const MCP_ENDPOINTS = {
@@ -350,8 +351,10 @@ const STUDIO_TOOLS_META = {
   studio_medallion_status: { write: false, title: 'Read the medallion layers (Bronze, Silver, Gold)' },
   studio_apply_medallion: { write: true, title: 'Apply the medallion layers and the Fabric task flow' },
   studio_remove_medallion: { write: true, title: 'Remove the medallion layers' },
-  studio_medallion_task_flow_status: { write: false, title: 'Read the Medallion task flow mapping' },
-  studio_apply_medallion_task_flow: { write: true, title: 'Apply the Medallion task flow to existing items' },
+  studio_task_flow_status: { write: false, title: 'Read the workspace task flow and where each item goes' },
+  studio_apply_task_flow: { write: true, title: 'Apply a task flow and assign the items to its tasks' },
+  studio_list_semantic_models: { write: false, title: 'List the project\'s semantic models' },
+  studio_use_semantic_model: { write: false, title: 'Switch the active semantic model or add an existing one' },
   studio_planning_status: { write: false, title: 'Read the plan (budget, forecast, variance)' },
   studio_preview_plan: { write: false, title: 'Preview a budget and forecast' },
   studio_create_plan: { write: true, title: 'Build the budget and forecast' },
@@ -379,6 +382,10 @@ function projectSummary() {
   return {
     workspace: p.workspace, lakehouse: p.lakehouse, source: p.source, modelSource: p.modelSource,
     semanticModel: p.semanticModel, ontology: p.ontology, steps: p.steps,
+    // Every semantic model in the project; the active one is semanticModel above (reports, data agent, org app and
+    // suggestions use it). Switch with studio_use_semantic_model.
+    semanticModels: projectModels(p).map((m) => ({ id: m.id, name: m.name, active: m.id === p.semanticModel?.id, origin: m.origin || 'studio', workspace: m.workspaceName || null, storageMode: m.storageMode || null })),
+    taskFlow: p.taskFlow ? { name: p.taskFlow.name, kind: p.taskFlow.mode === 'existing' ? 'task flow already in the workspace' : `studio's ${p.taskFlow.template} flow`, items: p.taskFlow.items } : 'none – studio_task_flow_status',
     naming: {
       pattern: nm.pattern, domain: nm.domain, environment: nm.environment, intent: nm.intent,
       confirmed: nm.configured ? true : 'no – ask the user what this environment is for and the business domain, then call studio_set_naming',
@@ -387,7 +394,7 @@ function projectSummary() {
     glossaryChars: (p.glossary || '').length,
     sample: preset ? { semanticModelName: presetSummary(p).semanticModelName, ontologyName: presetSummary(p).ontologyName, measures: (preset.measures || []).map((m) => `${m.table}[${m.name}]`) } : null,
     modelProposal: p.modelProposal ? { name: p.modelProposal.name, createdAt: p.modelProposal.createdAt, appliedAt: p.modelProposal.appliedAt || null } : null,
-    reports: (p.reports || []).map((r) => ({ name: r.name, theme: r.theme, pages: r.pages, url: r.url })),
+    reports: (p.reports || []).map((r) => ({ name: r.name, theme: r.theme, pages: r.pages, url: r.url, semanticModel: projectModels(p).find((m) => m.id === r.semanticModelId)?.name || null })),
     orgApp: p.orgApp ? { name: p.orgApp.name, reports: p.orgApp.reports.length } : null,
     dataAgent: p.dataAgent ? { name: p.dataAgent.name, semanticModel: p.dataAgent.semanticModel, published: p.dataAgent.published } : null,
     realtime: p.realtime ? {
@@ -805,15 +812,66 @@ function studioTools(chatId) {
       parameters: obj({}),
       handler: async () => runAsJob('medallion-remove', 'Remove the medallion layers', (ctx) => RT.removeMedallion(ctx, { deleteItems: true })),
     }),
-    studioTool('studio_medallion_task_flow_status', {
-      description: 'Read how the project\'s existing items map to Fabric\'s predesigned Medallion task flow (Data ingest, Bronze data, Initial process, Silver data, Further transform, Gold data, Visualize, Business context and AI, Plan and forecast, Distribute) and whether the workspace task flow exists and is up to date. Read-only. This is for the project\'s data (lakehouse, SQL database, mirrored database, notebook, curated lakehouse, semantic model, reports…); live events have their own medallion (studio_medallion_status).',
-      parameters: obj({}),
-      handler: async () => MF.medallionFlowState(),
+    studioTool('studio_task_flow_status', {
+      description: 'Read the workspace task flow: the flows to choose from (Fabric\'s predesigned flows the studio builds – Medallion, Basic data analytics, Event analytics, Event medallion, Lambda, Basic machine learning models – and the task flows already in the workspace), which task ("box") each of the project\'s items goes to in the selected flow and why, the items no task takes, and whether the applied flow is up to date. Read-only. Pass flow to preview another choice.',
+      parameters: obj({ flow: str('Optional: a template id (medallion, basic, event, eventMedallion, lambda, ml), a template name, or the name or id of a task flow in the workspace') }),
+      handler: async ({ flow }) => {
+        const s = await WTF.taskFlowState({ choice: flow || undefined, fresh: true });
+        if (!s.plan) return s;
+        return {
+          available: s.available, reason: s.reason, templates: s.templates.map((t) => `${t.id}: ${t.name} – ${t.description}`),
+          inWorkspace: s.existing.map((f) => `${f.name} (${f.tasks} tasks, ${f.items} items${f.studio ? ', created by the studio' : ''})`), listError: s.listError,
+          selected: { choice: s.choice, name: s.plan.name, kind: s.mode === 'existing' ? 'a task flow already in the workspace (only the studio\'s own assignments change)' : 'a predesigned flow the studio builds as its own canvas' },
+          tasks: s.plan.tasks.map((t) => ({ task: t.name, type: t.type, items: t.items.map((i) => `${i.name} (${i.type}${i.pinned ? ', placed in Fabric' : ''})`), otherItems: t.others })),
+          notAssigned: s.plan.unassigned.map((i) => `${i.name} (${i.type}): ${i.reason}`),
+          applied: s.applied ? { name: s.applied.name, mode: s.applied.mode, items: s.applied.items, syncedAt: s.applied.syncedAt } : null,
+          upToDate: s.upToDate,
+        };
+      },
     }),
-    studioTool('studio_apply_medallion_task_flow', {
-      description: 'Apply Fabric\'s predesigned Medallion task flow to the existing items: creates (or updates) a task flow in the project workspace with Bronze (raw data as it lands), Initial process (data prep notebook), Silver (curated lakehouse), Gold (semantic model and plan values), Visualize (reports), Business context and AI (ontology, data agent), Plan and forecast (Fabric plan) and Distribute (org app), with the items assigned. Nothing else changes. It is updated automatically as the studio adds items. Seconds.',
-      parameters: obj({}),
-      handler: async () => runAsJob('medallion-flow', 'Apply the Medallion task flow', (ctx) => MF.runMedallionTaskFlow(ctx)),
+    studioTool('studio_apply_task_flow', {
+      description: 'Apply a task flow to the project workspace and assign every item the studio built to its task ("box"): a predesigned flow (Medallion, Basic data analytics, Event analytics, Event medallion, Lambda, Basic machine learning models) is created as the studio\'s own canvas; a task flow already in the workspace keeps its tasks, connectors, layout and the items people assigned – the studio only adds (and later updates) its own items. Moves put an item on another task or keep it off ("" as task). The flow is updated automatically as the studio adds or removes items. Call studio_task_flow_status first and tell the user where the items go. Seconds.',
+      parameters: obj({
+        flow: str('Template id (medallion, basic, event, eventMedallion, lambda, ml), template name, or the name or id of a task flow in the workspace'),
+        moves: { type: 'array', items: obj({ item: str('Item name'), task: str('Task name, or empty to keep the item off the flow') }, ['item', 'task']), description: 'Optional: items to put on another task than the studio would' },
+      }, ['flow']),
+      handler: async ({ flow, moves }) => {
+        let overrides;
+        if (moves?.length) {
+          const s = await WTF.taskFlowState({ choice: flow, fresh: true });
+          const items = [...s.plan.tasks.flatMap((t) => t.items), ...s.plan.unassigned];
+          overrides = { ...(s.plan.overrides || {}) };
+          for (const m of moves) {
+            const it = items.find((i) => i.name.toLowerCase() === String(m.item).toLowerCase());
+            if (!it) return { ok: false, error: `No item named "${m.item}" in the project.` };
+            const task = m.task ? s.plan.tasks.find((t) => t.name.toLowerCase() === String(m.task).toLowerCase()) : null;
+            if (m.task && !task) return { ok: false, error: `No task named "${m.task}" in ${s.plan.name}. Tasks: ${s.plan.tasks.map((t) => t.name).join(', ')}` };
+            overrides[it.id] = task ? task.key : '';
+          }
+        }
+        return runAsJob('taskflow', 'Apply the task flow', (ctx) => WTF.runTaskFlow(ctx, { choice: flow, overrides }));
+      },
+    }),
+    studioTool('studio_list_semantic_models', {
+      description: 'List the semantic models in the project (the active one first; the studio\'s reports, data agent, org app, profile and suggestions work on the active model) with what is built on each, and – with workspaceId – the semantic models in a workspace that could be added to the project. Read-only.',
+      parameters: obj({ workspaceId: str('Optional: a workspace to list existing semantic models from (the project workspace when "project")') }),
+      handler: async ({ workspaceId }) => {
+        const s = MODELS.modelsState();
+        const out = { active: s.models.find((m) => m.active)?.name || null, models: s.models.map((m) => ({ id: m.id, name: m.name, active: m.active, origin: m.origin === 'existing' ? 'existing model added to the project' : 'built by the studio', workspace: m.workspaceName, storage: m.storage, tables: m.tables, measures: m.measures, reports: m.reports.map((r) => r.name), dataAgent: m.dataAgent?.name || null, orgApp: m.orgApp?.name || null, plan: m.plan })) };
+        if (workspaceId) out.available = await MODELS.availableModels(workspaceId === 'project' ? undefined : workspaceId);
+        return out;
+      },
+    }),
+    studioTool('studio_use_semantic_model', {
+      description: 'Make a semantic model the active one: a model already in the project (by id or name), or an existing model from any workspace the user can read (id + workspaceId), which is added to the project. Nothing changes in Fabric. Reports, the data agent, the org app, planning prompts and your answers then use that model. Use studio_list_semantic_models to find ids.',
+      parameters: obj({ id: str('Semantic model id'), name: str('Semantic model name (for a model already in the project)'), workspaceId: str('Workspace id of an existing model to add') }),
+      handler: async ({ id, name, workspaceId }) => {
+        const p = getProject();
+        const known = projectModels(p).find((m) => m.id === id || (name && m.name.toLowerCase() === String(name).toLowerCase()));
+        const s = known ? await MODELS.useModel(known.id) : await MODELS.addExistingModel({ id, workspaceId });
+        WTF.syncTaskFlow().catch(() => {});
+        return { ok: true, active: s.models.find((m) => m.active)?.name, models: s.models.length, warning: s.warning || undefined };
+      },
     }),
     studioTool('studio_planning_status', {
       description: 'Read the budget and forecast: plan year, base year, growth, forecast cut-off, planned dimensions, the Plan table measures, the Fabric plan item, and plan vs actual for the plan year (overall and by the first dimension) through the semantic model. Read-only.',

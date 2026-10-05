@@ -12,8 +12,11 @@ chatting with the **AI the customer already licenses**:
   for PostgreSQL), or reuse Fabric lakehouses, warehouses, mirrored databases and SQL databases (in place or with
   OneLake shortcuts). When the data source is a **lakehouse**, an option creates a **data prep notebook** (Python)
   that cleans, renames, models, measures and charts the data.
-- **Semantic model** – Direct Lake model generated from your tables and relationships, then enriched by Copilot
-  (business measures from your glossary, descriptions, RLS, translations, best-practice review).
+- **Semantic model** – Direct Lake models generated from your tables and relationships, then enriched by Copilot
+  (business measures from your glossary, descriptions, RLS, translations, best-practice review) – or existing semantic
+  models from any workspace. Several models per project; switch the active one any time.
+- **Task flows** – Fabric's predesigned task flows (Medallion, Basic data analytics, Event analytics…) or the task flow
+  already in your workspace, with every item the studio builds in its box.
 - **Ontology** – Fabric IQ entities, relationships and plain-English business rules.
 - **Reports & apps** – polished Power BI reports built on your semantic model from page templates and themes.
 - **Real-time** – live events shaped like your data streamed through an Eventstream into an Eventhouse, with an
@@ -148,19 +151,49 @@ ontology use the data source, and Fabric reports the studio didn't build count t
 the studio didn't create (a lakehouse or warehouse used in place) is only disconnected. Copilot:
 `studio_list_artifacts` and `studio_remove_artifacts`.
 
-## Medallion task flow
+## Semantic models: several per project, new or existing
 
-The **Workspace** page applies Fabric's predesigned **Medallion** task flow to what the studio already built, so the
-workspace shows how the data flows, with each item assigned to its task: **Data ingest** (how the data arrives) ›
-**Bronze data** (the lakehouse, SQL database or mirrored database as the data lands) › **Initial process** (the data
-prep notebook) › **Silver data** (the curated lakehouse) › **Further transform** (optional) › **Gold data** (the semantic
-model with governed measures, and the plan values) › **Visualize** (reports) and **Distribute** (the org app), plus
-**Business context and AI** (ontology, data agent) and **Plan and forecast** (the Fabric plan). The card shows the
-mapping before anything changes; *Apply the Medallion task flow* creates it (named `<Domain>_TF_Medallion_<Env>`), and
-it's updated automatically as the studio adds items. Only items in the project workspace can be assigned. Copilot:
-`studio_medallion_task_flow_status` and `studio_apply_medallion_task_flow`. (Live events have their own medallion on
-the Real-time page.)
+A project can hold **several semantic models**: the ones the studio designs from your data (Direct Lake) and
+**existing models from any workspace you can read** – Direct Lake, Import or DirectQuery. The **Semantic model** page
+lists them with what is built on each (reports, data agent, org app, plan); **+ New model from my data** designs another
+model next to the ones you have, and **+ Add an existing model** picks a workspace and one of its models (default models
+of lakehouses and warehouses are marked). One model is **active**: reports and recommendations, the model profile, the
+data agent, the org app, suggested questions and Copilot's answers use it. Switch with the **Semantic model** bar at the
+top of Reports & apps, Planning and Ask & share (or *Use this model*) – nothing changes in Fabric. Each model keeps its
+own reports, data agent, org app and Copilot suggestions, and gets them back when it's active again.
 
+- The studio **never regenerates or deletes a model you added**: Remove only stops using it, clean up leaves it, and a
+  new model can't take its name. Changes to it go through Copilot (Power BI authoring) after you approve each one.
+- An existing model can live in another workspace; reports and data agents built on it go to the project workspace and
+  point to it there. The studio reads its tables, measures, relationships and storage mode with DAX (`INFO.VIEW`), so
+  Build permission on the model is enough.
+- Planning adds a Plan table next to the data a model reads, so the plan is built on a model the studio made from the
+  project's data. The project keeps one plan; with another model active, the Planning page says which model has it.
+
+Copilot: `studio_list_semantic_models` (with a workspace, also the models you could add) and
+`studio_use_semantic_model` (switch, or add an existing model).
+
+## Task flows
+
+The **Workspace** page organizes the workspace with a Fabric **task flow** – the boxes above the workspace's item list –
+and puts every item the studio built in its box. Choose:
+
+- **A task flow already in the workspace** (for example one you made or applied in Fabric and renamed). The studio reads
+  its boxes – type, name and place in the flow (*Bronze*, *Silver*, *Gold*, *Semantic models*, *events*…) – and adds its
+  items to the right ones. Your tasks, connectors, layout and the items you assigned stay exactly as they are; an item
+  you already placed in Fabric stays where you put it. Stop using it and only the studio's assignments come off.
+- **One of Fabric's predesigned task flows**, which the studio creates as its own task flow
+  (`<Domain>_TF_<Flow>_<Env>`): **Medallion**, **Basic data analytics**, **Event analytics**, **Event medallion**,
+  **Lambda** or **Basic machine learning models**. Switching to another predesigned flow changes the same task flow.
+
+The card draws the flow like Fabric's canvas with the item count per box, and lists each box's items before anything
+changes: raw data → Bronze/Store, the data prep notebook → Initial process/Prepare, curated lakehouses → Silver, semantic
+models (all of them, built or added, in the project workspace) and plan values → Gold/Serve, reports and dashboards →
+Visualize, the ontology and data agents → AI, plans and alerts → Track, org apps → Distribute, live-data items → the
+event boxes. Move any item to another box (or keep it off the flow) with the small menu next to it. After you apply,
+the flow is updated automatically whenever the studio adds or removes items. Only items in the project workspace can be
+assigned (a task flow belongs to one workspace). Copilot: `studio_task_flow_status` and `studio_apply_task_flow`. (Live
+events also have their own Event medallion flow on the Real-time page.)
 ## Data source scenarios
 
 | Source | How it lands | Notes |
@@ -369,7 +402,8 @@ Copilot tools: `studio_planning_status`, `studio_preview_plan`, `studio_create_p
 | `server/planning/` | Budgets and forecasts: plan design and calculation (`design.mjs`), plan values in the SQL database, warehouse or (for a lakehouse) a planning warehouse with a shortcut (`store.mjs`), the Plan table patch for the semantic model (`model.mjs`), jobs, plan item and summary (`index.mjs`) |
 | `server/readiness.mjs` | Up-front checks: capacity, workspace role, tenant settings and data-source limits per step, and the guard that stops jobs of steps that can't run |
 | `server/artifacts.mjs` | Everything the project built, what uses what (plus Fabric reports on the model), and removing items nothing uses; `web/js/artifacts.js` draws the Remove buttons |
-| `server/medallion-flow.mjs` | Fabric's Medallion task flow over the project's items (layers, mapping, create/update, automatic sync after jobs); `web/js/medallionflow.js` is the Workspace page card |
+| `server/workspace-taskflow.mjs` | Workspace task flows: the predesigned flows the studio builds, roles of the project's items, mapping to the boxes of a predesigned flow or of a task flow already in the workspace, apply / sync after jobs / stop using; `web/js/taskflow.js` is the Workspace page card (canvas, boxes, moves) |
+| `server/models.mjs` | The project's semantic models: the list with what is built on each, existing models in a workspace, adding one, switching the active model, reading a model again; `web/js/models.js` has the model bar, the models table and the Add an existing model dialog |
 | `server/naming.mjs` | Naming standard `[Domain]_[Object]_[Purpose]_[Environment]`: environments, object codes, the name of every item the studio creates (`web/js/naming.js` shows the same names and asks what the environment is for) |
 | `server/presets.mjs` | Sample presets (names, relationships, measures, rules) |
 | `server/samples/adventureworks-dw.mjs` | AdventureWorksDW2022 loader for Fabric SQL database (install kit → tables, keys, bulk load, verification) |

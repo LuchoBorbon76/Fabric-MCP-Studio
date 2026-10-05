@@ -77,6 +77,14 @@ Then improve it with Copilot (Power BI Authoring MCP):
 - *Add Spanish translations*
 - *Create a row-level security role*
 
+**Several models, new or existing.** The **Semantic models** card at the top lists every model in the project.
+*+ New model from my data* designs another model next to the ones you have; *+ Add an existing model* brings a model
+from any workspace you can read (Direct Lake, Import or DirectQuery). The active model is the one reports, the data
+agent, the org app and Copilot use – switch it with *Use this model* or the **Semantic model** bar at the top of Reports
+& apps, Planning and Ask & share. The studio never changes or deletes a model you added.
+
+> Ask Copilot: *Use the Sales model from the Finance workspace and build an executive report on it.*
+
 ## 4. Ontology
 
 **Ontology** page:
@@ -155,16 +163,19 @@ Ontology is in preview; the Ontology MCP endpoint (used by agents) needs a paid 
 > Ask Copilot: *What is happening in my live data right now?* Copilot queries the Eventhouse with KQL and points out
 > rule breaks and where they come from. Simulated events are labeled `Studio simulator` in the `Source` column.
 
-## 5d. Medallion task flow
+## 5d. Task flow
 
-**Workspace** page › **Medallion task flow**: the card maps what you built to Fabric's predesigned Medallion task flow –
-raw data in **Bronze**, the data prep notebook in **Initial process**, the curated lakehouse in **Silver**, the semantic
-model (and plan values) in **Gold**, reports in **Visualize**, the org app in **Distribute**, the ontology and data
-agent in **Business context and AI**. *Apply the Medallion task flow* creates it in the workspace with the items
-assigned; it's updated automatically as you add items. *Open in Fabric* shows it above the workspace item list.
+**Workspace** page › **Task flow**: pick the task flow already in your workspace (for example a Medallion flow you
+applied in Fabric and renamed) or one of Fabric's predesigned flows – **Medallion**, **Basic data analytics**, **Event
+analytics**, **Event medallion**, **Lambda**, **Basic machine learning models**. The card draws the flow like Fabric's
+canvas and lists each box's items: raw data in **Bronze**, the data prep notebook in **Initial process**, the curated
+lakehouse in **Silver**, the semantic models (and plan values) in **Gold**, reports in **Visualize**, the org app in
+**Distribute**, the ontology and data agents in the AI box. Move an item with the small menu next to it. *Apply*
+assigns the items (in your own task flow the studio only adds its items – your boxes, connectors and assignments stay);
+it's updated automatically as you add or remove items. *Open in Fabric* shows it above the workspace item list.
 
-> Ask Copilot: *Organize my workspace with the Medallion task flow (Bronze, Silver, Gold).* Copilot shows the mapping
-> and an **Apply** button.
+> Ask Copilot: *Organize my workspace with the task flow that fits best.* Copilot compares the flows, shows where each
+> item goes and offers an **Apply** button.
 
 ## 6. Ask and share
 

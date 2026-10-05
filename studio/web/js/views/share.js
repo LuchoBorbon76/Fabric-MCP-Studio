@@ -3,9 +3,12 @@ import { h, toast, busy, confirmDialog, modal, field, input } from '../ui.js';
 import { app, copilotSlot } from '../app.js';
 import { promptGallery } from '../prompts.js';
 import { fabricItemUrl } from '../lineage.js';
+import { modelBar } from '../models.js';
 
 export function renderShare(el) {
   const p = store.project || {};
+  const bar = modelBar({ note: 'Answers, the data agent and the Microsoft 365 agent use it' });
+  if (bar) el.append(bar);
   el.append(h('div', { class: 'grid g2' },
     askCard(p),
     teamsCard(p),
