@@ -839,7 +839,7 @@ function studioTools(chatId) {
       handler: async () => ({ access: await PL.planAccess(), connections: (await PL.planConnections()).connections }),
     }),
     studioTool('studio_add_planner', {
-      description: 'Give a person access to the project workspace for planning: Contributor for planners; Member for the account saved in a shared connection (Fabric requires the connection's owner to be Member or Admin, and not a guest). Confirm the email and role with the user first.',
+      description: 'Give a person access to the project workspace for planning: Contributor for planners; Member for the account saved in a shared connection (Fabric requires the connection\'s owner to be Member or Admin, and not a guest). Confirm the email and role with the user first.',
       parameters: obj({ email: str('The person\'s Microsoft Entra sign-in (email)'), role: { type: 'string', enum: ['Contributor', 'Member'], description: 'Default Contributor' } }, ['email']),
       handler: async (a) => PL.addPlanner({ email: a.email, role: a.role || 'Contributor' }),
     }),
