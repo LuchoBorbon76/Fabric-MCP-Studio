@@ -109,6 +109,27 @@ async function connectionFor(src, item) {
   return null;
 }
 
+/**
+ * The Fabric items a semantic model reads (lakehouse, warehouse, mirrored or SQL database), from its definition. A
+ * lakehouse's SQL analytics endpoint stands for the lakehouse. Reading the definition needs write access to the model.
+ */
+export async function modelSourceItems(ws, id) {
+  const def = await modelDefinition(ws, id);
+  const used = [...new Set(Object.values(def.tables).map((t) => t.expression).filter((n) => n && def.exprs[n]))];
+  const out = new Map();
+  for (const name of used.length ? used : Object.keys(def.exprs)) {
+    const src = sourceOfExpression(def.exprs[name]);
+    if (!src) continue;
+    let it = await itemFor(src, ws);
+    if (it?.type === 'SQLEndpoint') {
+      const lake = (await F.listItems(it.workspaceId).catch(() => [])).find((i) => i.type === 'Lakehouse' && i.displayName === it.displayName);
+      if (lake) it = { ...lake, workspaceId: it.workspaceId };
+    }
+    if (it && !out.has(it.id)) out.set(it.id, { id: it.id, type: it.type, name: it.displayName, workspaceId: it.workspaceId });
+  }
+  return [...out.values()];
+}
+
 // ---------------- the check ----------------
 
 const count = (v) => Number(v ?? 0);

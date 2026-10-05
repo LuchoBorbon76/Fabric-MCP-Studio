@@ -26,7 +26,7 @@ export function renderReports(el) {
   const elsewhere = all.length - reports.length;
   if (elsewhere) el.append(h('div', { class: 'tiny muted', style: { margin: '-6px 0 10px 2px' } }, `${elsewhere} more report${elsewhere === 1 ? ' is' : 's are'} built on the other semantic models – switch model above to see ${elsewhere === 1 ? 'it' : 'them'}.`));
   // What's already built comes first; recommendations and the designer follow.
-  if (reports.length || p.orgApp || p.realtime?.dashboard) {
+  if (reports.length || p.orgApp || p.realtime?.dashboard || (p.semanticModel.linked?.reports || []).length) {
     const built = reportsCard(p, reports);
     built.style.marginBottom = '14px';
     el.append(built);
@@ -242,6 +242,16 @@ function reportsCard(p, reports) {
           h('a', { class: 'btn pri', href: r.url, target: '_blank', rel: 'noopener' }, 'Open in Power BI ↗'),
           toggle, rebuild, remove)),
       preview));
+  }
+  // Reports already built on the model in Fabric: the studio shows them and never changes or deletes them.
+  const theirs = (p.semanticModel?.linked?.reports || []).filter((r) => !reports.some((x) => x.id === r.id));
+  for (const r of theirs) {
+    list.append(h('div', { class: 'rrow' },
+      h('div', { class: 'row sp' },
+        h('div', {},
+          h('div', { class: 'row' }, h('b', {}, r.name), h('span', { class: 'pill', title: 'Built in Fabric, not by the studio. The studio never changes or deletes it.' }, 'Existing report'), r.type === 'PaginatedReport' ? h('span', { class: 'pill' }, 'Paginated') : null),
+          h('div', { class: 'tiny muted' }, `On ${p.semanticModel.name}${r.workspaceId && r.workspaceId !== p.workspace?.id ? ' · in another workspace' : ''}`)),
+        h('a', { class: 'btn', href: r.url, target: '_blank', rel: 'noopener' }, 'Open in Power BI ↗'))));
   }
   return h('div', { class: 'card' },
     h('div', { class: 'row sp' }, h('div', {}, h('h2', {}, p.orgApp ? 'Your reports and app' : 'Your reports'), h('p', { class: 'lead' }, 'Power BI reports built on your semantic model, with your security and measures.')),

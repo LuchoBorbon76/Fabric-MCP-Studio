@@ -90,6 +90,11 @@ from any workspace you can read (Direct Lake, Import or DirectQuery). The active
 agent, the org app and Copilot use – switch it with *Use this model* in the pop-up or the **Semantic model** bar at the top of Reports
 & apps, Planning and Ask & share. The studio never changes or deletes a model you added.
 
+When you add an existing model, the studio also looks in Fabric for what is already built on it: its Power BI reports
+appear on the map and on Reports & apps as *Existing report*, the data agents that answer from it on Copilot answers,
+and – when the project has no data yet – the lakehouse or warehouse it reads becomes the data source (in place). The
+studio never changes these items; *↻ Look again* in the Semantic models pop-up refreshes the list.
+
 If a model you add fails with a *duplicate value … one side of a relationship* error, select **🩺 Check and fix the data**:
 the studio finds the table with repeated keys and, when they are exact copies in a warehouse, removes them (with a
 backup) and reloads the model.

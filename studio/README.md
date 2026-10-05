@@ -51,6 +51,10 @@ Options: `--port 5000`, `--no-open`, `--check` (readiness checks only), `--new-i
 
 The desktop icon starts the studio in the background, with no console window (`Start-Studio-Silent.wsf`, Windows
 Script Host). Stop it with **Shut down** in the app header; server output goes to `studio/data/studio.log`.
+After an update (git pull, files copied from another computer) the pages are new but the running server isn't: the
+studio shows **A newer version is installed – Restart now** at the top, and *Restart now* starts the new version on the
+same port and reloads the page (running jobs have to finish first). A studio from before this version is restarted once
+by hand: Shut down, then start it again.
 `Start-Studio.cmd` runs it in a console window instead (`create-shortcut.ps1 -ShowConsole` makes the icon do the same,
 and it is used automatically when Windows Script Host is turned off).
 
@@ -166,14 +170,23 @@ own reports, data agent, org app and Copilot suggestions, and gets them back whe
 
 - The studio **never regenerates or deletes a model you added**: Remove only stops using it, clean up leaves it, and a
   new model can't take its name. Changes to it go through Copilot (Power BI authoring) after you approve each one.
+- **What is already built on it shows on the map.** When you add an existing model (or make it active for the first
+  time), the studio looks in Fabric in the background: Power BI reports on the model and Fabric data agents that answer
+  from it (in the model's and the project's workspace – reading a data agent takes Fabric about 20 seconds, 4 at a
+  time), and the lakehouse or warehouse it reads. Reports appear on the Power BI reports node and on Reports & apps
+  (*Existing report*, with *Open in Power BI* only), data agents on Copilot answers, and a project without data takes
+  the model's lakehouse or warehouse as its data source, in place (nothing is copied). The studio never changes,
+  rebuilds or deletes these items, clean up leaves them, and a new report can't take an existing report's name. *Look in
+  Fabric* / *↻ Look again* in the Semantic models pop-up looks again (for any model).
 - An existing model can live in another workspace; reports and data agents built on it go to the project workspace and
   point to it there. The studio reads its tables, measures, relationships and storage mode with DAX (`INFO.VIEW`), so
   Build permission on the model is enough.
 - Planning adds a Plan table next to the data a model reads, so the plan is built on a model the studio made from the
   project's data. The project keeps one plan; with another model active, the Planning page says which model has it.
 
-Copilot: `studio_list_semantic_models` (with a workspace, also the models you could add) and
-`studio_use_semantic_model` (switch, or add an existing model).
+Copilot: `studio_list_semantic_models` (with a workspace, also the models you could add),
+`studio_use_semantic_model` (switch, or add an existing model) and `studio_find_model_dependents` (what is built on a
+model in Fabric).
 
 ### Check a model's data (repeated keys)
 
@@ -447,6 +460,7 @@ Copilot tools: `studio_planning_status`, `studio_preview_plan`, `studio_create_p
 | `server/artifacts.mjs` | Everything the project built, what uses what (plus Fabric reports on the model), and removing items nothing uses; `web/js/artifacts.js` draws the Remove buttons |
 | `server/workspace-taskflow.mjs` | Workspace task flows: the predesigned flows the studio builds, roles of the project's items, mapping to the boxes of a predesigned flow or of a task flow already in the workspace, apply / sync after jobs / stop using; `web/js/taskflow.js` is the Workspace page card (canvas, boxes, moves) |
 | `server/models.mjs` | The project's semantic models: the list with what is built on each, existing models in a workspace, adding one, switching the active model, reading a model again; `web/js/models.js` has the model bar, the models table and the Add an existing model dialog |
+| `server/modellinks.mjs` | What is built on a semantic model in Fabric: reports (Power BI `datasetId`), data agents (their definition names the model) and the item the model reads (its TMDL definition); shown on the map as existing items, never changed. A project without data takes that item in place. |
 | `server/naming.mjs` | Naming standard `[Domain]_[Object]_[Purpose]_[Environment]`: environments, object codes, the name of every item the studio creates (`web/js/naming.js` shows the same names and asks what the environment is for) |
 | `server/presets.mjs` | Sample presets (names, relationships, measures, rules) |
 | `server/samples/adventureworks-dw.mjs` | AdventureWorksDW2022 loader for Fabric SQL database (install kit → tables, keys, bulk load, verification) |

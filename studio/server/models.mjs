@@ -15,6 +15,10 @@ export function modelsState() {
   const models = projectModels(p).map((m) => {
     const c = modelContext(p, m.id);
     const reports = (p.reports || []).filter((r) => (r.semanticModelId || p.semanticModel?.id) === m.id);
+    // Reports and data agents found in Fabric that the studio didn't build: shown, never changed or deleted.
+    const linked = m.linked || null;
+    const theirReports = (linked?.reports || []).filter((r) => !reports.some((x) => x.id === r.id));
+    const theirAgents = (linked?.agents || []).filter((a) => a.id !== c.dataAgent?.id);
     return {
       id: m.id, name: m.name, active: m.id === p.semanticModel?.id, origin: m.origin || 'studio',
       workspaceId: m.workspaceId || p.workspace?.id || null, workspaceName: m.workspaceName || (m.workspaceId && m.workspaceId !== p.workspace?.id ? null : p.workspace?.name) || null,
@@ -23,8 +27,11 @@ export function modelsState() {
       storageMode: m.storageMode || null, storage: storageLabel(m.storageMode),
       builtOnProjectData: Boolean(m.sourceItemId && m.sourceItemId === p.modelSource?.itemId),
       url: fabricUrl('SemanticModel', m.workspaceId || p.workspace?.id, m.id),
-      reports: reports.map((r) => ({ id: r.id, name: r.name })),
+      reports: [...reports.map((r) => ({ id: r.id, name: r.name })), ...theirReports.map((r) => ({ id: r.id, name: r.name, url: r.url, existing: true }))],
       dataAgent: c.dataAgent ? { id: c.dataAgent.id, name: c.dataAgent.name } : null,
+      existingAgents: theirAgents.map((a) => ({ id: a.id, name: a.name, url: a.url, published: Boolean(a.published) })),
+      reads: (linked?.sources || []).map((s) => ({ id: s.id, name: s.name, type: s.type })),
+      linkedAt: linked?.at || null,
       orgApp: c.orgApp ? { id: c.orgApp.id, name: c.orgApp.name } : null,
       plan: p.planning?.semanticModelId === m.id ? { planYear: p.planning.planYear } : null,
       addedAt: m.addedAt || null,

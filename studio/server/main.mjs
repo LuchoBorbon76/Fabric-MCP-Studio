@@ -1,10 +1,11 @@
 // Fabric MCP Studio - local web server (127.0.0.1 only). No framework: node:http + SSE + static files.
 import { createServer } from 'node:http';
-import { readFileSync, existsSync, statSync, rmSync } from 'node:fs';
+import { readFileSync, existsSync, statSync, rmSync, openSync } from 'node:fs';
 import { join, extname, normalize } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { WEB_ROOT, DATA_DIR, VERSION, BUILD, RELEASES, getSettings, saveSettings, publicSettings, readJson, writeJson, shortHash, isDeveloper } from './config.mjs';
+import { WEB_ROOT, DATA_DIR, STUDIO_ROOT, VERSION, BUILD, RELEASES, getSettings, saveSettings, publicSettings, readJson, writeJson, shortHash, isDeveloper, pendingUpdate } from './config.mjs';
 import { addClient, emit } from './events.mjs';
 import * as auth from './auth.mjs';
 import * as F from './fabric.mjs';
@@ -26,6 +27,7 @@ import { startJob, listJobs, getJob, cancelJob, flushRunningJobs, onJobSucceeded
 import * as WTF from './workspace-taskflow.mjs';
 import * as MODELS from './models.mjs';
 import * as MC from './modelcheck.mjs';
+import * as LINKS from './modellinks.mjs';
 import * as ARTS from './artifacts.mjs';
 import { health } from './health.mjs';
 import { presetSummary } from './presets.mjs';
@@ -68,6 +70,15 @@ if (flag('--check')) {
 
 const INSTANCE = shortHash(DATA_DIR.toLowerCase());
 const RUNTIME_FILE = join(DATA_DIR, 'runtime.json');
+
+// Started by "Restart" in the app: wait until the copy that started this one has stopped and freed its port.
+const restartOf = Number(opt('--restart-of', 0));
+if (restartOf) {
+  for (let i = 0; i < 100; i++) {
+    try { process.kill(restartOf, 0); } catch { break; }
+    await new Promise((r) => setTimeout(r, 150));
+  }
+}
 
 async function runningInstanceUrl() {
   const ports = new Set([Number(readJson(RUNTIME_FILE, {}).port) || 0, PORT].filter(Boolean));
@@ -135,8 +146,9 @@ const route = (method, pattern, handler) => {
 route('GET', '/api/bootstrap', async () => {
   const me = await auth.whoAmI();
   const p = getProject();
-  return { version: VERSION, build: BUILD, user: me, settings: publicSettings(), provider: A.providerSummary(), providers: A.visibleProviders(), project: p, preset: presetSummary(p), naming: N.namingState(p), catalog: catalog(), jobs: listJobs().slice(0, 20), chats: A.listChats(), approvals: A.pendingApprovals(), realtime: RT.realtimeState(), planning: PL.planningState(), readiness: cachedReadiness(), platform: process.platform };
+  return { version: VERSION, build: BUILD, update: pendingUpdate(), user: me, settings: publicSettings(), provider: A.providerSummary(), providers: A.visibleProviders(), project: p, preset: presetSummary(p), naming: N.namingState(p), catalog: catalog(), jobs: listJobs().slice(0, 20), chats: A.listChats(), approvals: A.pendingApprovals(), realtime: RT.realtimeState(), planning: PL.planningState(), readiness: cachedReadiness(), platform: process.platform };
 });
+route('GET', '/api/update', () => ({ version: VERSION, update: pendingUpdate() }));
 route('GET', '/api/health', () => health());
 route('GET', '/api/about', () => ({ version: VERSION, build: BUILD, improvements: RELEASES.improvements, fixes: RELEASES.fixes, changes: RELEASES.changes }));
 // The disclaimer is shown until it is acknowledged once per installation (and again when its text changes).
@@ -285,9 +297,15 @@ route('DELETE', '/api/taskflow', () => WTF.removeTaskFlow());
 // Semantic models: the project's models (one active), existing models in any workspace, adding and switching.
 route('GET', '/api/models', () => MODELS.modelsState());
 route('GET', '/api/models/available', (_, __, q) => MODELS.availableModels(q.get('workspaceId') || undefined));
-route('POST', '/api/models/active', async (_, b) => { const s = await MODELS.useModel(String(b.id || '')); WTF.syncTaskFlow().catch(() => {}); return s; });
-route('POST', '/api/models/existing', async (_, b) => { const s = await MODELS.addExistingModel({ workspaceId: b.workspaceId ? String(b.workspaceId) : undefined, id: String(b.id || '') }); WTF.syncTaskFlow().catch(() => {}); return s; });
+// An existing model that becomes active brings what is built on it to the map (looked for in the background, once).
+route('POST', '/api/models/active', async (_, b) => { const s = await MODELS.useModel(String(b.id || '')); WTF.syncTaskFlow().catch(() => {}); return { ...s, linksJob: LINKS.ensureModelLinks(s.active) }; });
+route('POST', '/api/models/existing', async (_, b) => { const s = await MODELS.addExistingModel({ workspaceId: b.workspaceId ? String(b.workspaceId) : undefined, id: String(b.id || '') }); WTF.syncTaskFlow().catch(() => {}); return { ...s, linksJob: LINKS.ensureModelLinks(s.active) }; });
 route('POST', '/api/models/refresh', (_, b) => MODELS.refreshModelInfo(b.id ? String(b.id) : undefined));
+route('POST', '/api/jobs/model-links', (_, b) => {
+  const id = b.id ? String(b.id) : getProject().semanticModel?.id;
+  if (!id) throw Object.assign(new Error('There is no semantic model yet.'), { status: 400 });
+  return LINKS.startModelLinks(id);
+});
 // Check a model's relationships against the data it reads, and remove exact duplicate rows in a warehouse.
 route('GET', '/api/models/check', (_, __, q) => MC.checkModel({ id: q.get('id') || undefined, fresh: q.get('fresh') === '1' }));
 route('POST', '/api/jobs/model-fix', (_, b) => startJob('model-fix', 'Remove duplicate rows the semantic model can\'t use', (ctx) => MC.runFixDuplicates(ctx, { id: b.id ? String(b.id) : undefined, tables: Array.isArray(b.tables) ? b.tables.map(String) : undefined })));
@@ -334,6 +352,26 @@ route('POST', '/api/shutdown', () => {
   return { ok: true, cancelled: running.length };
 });
 
+// Restart with the code on disk (after an update): a new copy takes over this port once this one has stopped. Its
+// output goes to data\studio.log. Running jobs would be cut off, so they have to finish first.
+route('POST', '/api/restart', () => {
+  const running = listJobs().filter((j) => j.status === 'running');
+  if (running.length) throw Object.assign(new Error(`"${running[0].title}"${running.length > 1 ? ` and ${running.length - 1} more` : ''} ${running.length > 1 ? 'are' : 'is'} still running. Wait for ${running.length > 1 ? 'them' : 'it'} to finish (or stop ${running.length > 1 ? 'them' : 'it'}), then restart.`), { status: 409, code: 'JOBS_RUNNING' });
+  const keep = [];
+  for (let i = 0; i < args.length; i++) {
+    if (['--port', '--restart-of'].includes(args[i])) { i++; continue; }
+    if (args[i] !== '--no-open') keep.push(args[i]);
+  }
+  let out = 'ignore';
+  try { out = openSync(join(DATA_DIR, 'studio.log'), 'a'); } catch { /* read-only data folder */ }
+  const child = spawn(process.execPath, [fileURLToPath(import.meta.url), ...keep, '--no-open', '--port', String(PORT), '--restart-of', String(process.pid)], { cwd: STUDIO_ROOT, env: process.env, detached: true, stdio: ['ignore', out, out], windowsHide: true });
+  child.unref();
+  logActivity('studio.restart', `Restarting Fabric MCP Studio${pendingUpdate() ? ` to update from ${VERSION} to ${pendingUpdate().onDisk}` : ''}`, {});
+  RT.stopLiveEvents();
+  setTimeout(async () => { await A.stopAgent(); process.exit(0); }, 300);
+  return { ok: true };
+});
+
 // ---------------- server ----------------
 
 const server = createServer(async (req, res) => {
@@ -369,7 +407,7 @@ const server = createServer(async (req, res) => {
     }    if (pathname.startsWith('/api/')) {
       if (req.headers['x-studio-token'] !== TOKEN) return send(res, 401, { error: 'Unauthorized' });
       const r = routes.find((x) => x.method === req.method && x.rx.test(pathname));
-      if (!r) return send(res, 404, { error: 'Not found' });
+      if (!r) return send(res, 404, { error: 'Not found', code: 'NO_ROUTE' });
       const m = pathname.match(r.rx);
       const params = Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])]));
       const b = ['POST', 'PUT', 'PATCH'].includes(req.method) ? await body(req) : {};

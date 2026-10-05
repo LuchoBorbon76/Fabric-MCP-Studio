@@ -22,6 +22,7 @@ import * as N from './naming.mjs';
 import * as WTF from './workspace-taskflow.mjs';
 import * as MODELS from './models.mjs';
 import * as MC from './modelcheck.mjs';
+import * as LINKS from './modellinks.mjs';
 import * as ARTS from './artifacts.mjs';
 
 export const MCP_ENDPOINTS = {
@@ -358,6 +359,7 @@ const STUDIO_TOOLS_META = {
   studio_apply_task_flow: { write: true, title: 'Apply a task flow and assign the items to its tasks' },
   studio_list_semantic_models: { write: false, title: 'List the project\'s semantic models' },
   studio_check_semantic_model: { write: false, title: 'Check the semantic model\'s data (relationship keys)' },
+  studio_find_model_dependents: { write: false, title: 'Find the reports and data agents built on the semantic model' },
   studio_fix_model_duplicates: { write: true, title: 'Remove duplicate rows from warehouse tables' },
   studio_use_semantic_model: { write: false, title: 'Switch the active semantic model or add an existing one' },
   studio_planning_status: { write: false, title: 'Read the plan (budget, forecast, variance)' },
@@ -391,7 +393,7 @@ function projectSummary() {
     semanticModel: p.semanticModel, ontology: p.ontology, steps: p.steps,
     // Every semantic model in the project; the active one is semanticModel above (reports, data agent, org app and
     // suggestions use it). Switch with studio_use_semantic_model.
-    semanticModels: projectModels(p).map((m) => ({ id: m.id, name: m.name, active: m.id === p.semanticModel?.id, origin: m.origin || 'studio', workspace: m.workspaceName || null, storageMode: m.storageMode || null })),
+    semanticModels: projectModels(p).map((m) => ({ id: m.id, name: m.name, active: m.id === p.semanticModel?.id, origin: m.origin || 'studio', workspace: m.workspaceName || null, storageMode: m.storageMode || null, ...(m.linked ? { existingReports: (m.linked.reports || []).map((r) => r.name), existingDataAgents: (m.linked.agents || []).map((a) => a.name) } : {}) })),
     taskFlow: p.taskFlow ? { name: p.taskFlow.name, kind: p.taskFlow.mode === 'existing' ? 'task flow already in the workspace' : `studio's ${p.taskFlow.template} flow`, items: p.taskFlow.items } : 'none – studio_task_flow_status',
     naming: {
       pattern: nm.pattern, domain: nm.domain, environment: nm.environment, intent: nm.intent,
@@ -874,7 +876,7 @@ function studioTools(chatId) {
       parameters: obj({ workspaceId: str('Optional: a workspace to list existing semantic models from (the project workspace when "project")') }),
       handler: async ({ workspaceId }) => {
         const s = MODELS.modelsState();
-        const out = { active: s.models.find((m) => m.active)?.name || null, models: s.models.map((m) => ({ id: m.id, name: m.name, active: m.active, origin: m.origin === 'existing' ? 'existing model added to the project' : 'built by the studio', workspace: m.workspaceName, storage: m.storage, tables: m.tables, measures: m.measures, reports: m.reports.map((r) => r.name), dataAgent: m.dataAgent?.name || null, orgApp: m.orgApp?.name || null, plan: m.plan })) };
+        const out = { active: s.models.find((m) => m.active)?.name || null, models: s.models.map((m) => ({ id: m.id, name: m.name, active: m.active, origin: m.origin === 'existing' ? 'existing model added to the project' : 'built by the studio', workspace: m.workspaceName, storage: m.storage, tables: m.tables, measures: m.measures, reports: m.reports.map((r) => (r.existing ? `${r.name} (existing report in Fabric – never changed by the studio)` : r.name)), dataAgent: m.dataAgent?.name || null, existingDataAgents: m.existingAgents.map((a) => `${a.name}${a.published ? ' (published)' : ''}`), reads: m.reads.map((x) => `${x.name} (${x.type})`), lookedInFabric: m.linkedAt || 'not yet – studio_find_model_dependents', orgApp: m.orgApp?.name || null, plan: m.plan })) };
         if (workspaceId) out.available = await MODELS.availableModels(workspaceId === 'project' ? undefined : workspaceId);
         return out;
       },
@@ -887,7 +889,20 @@ function studioTools(chatId) {
         const known = projectModels(p).find((m) => m.id === id || (name && m.name.toLowerCase() === String(name).toLowerCase()));
         const s = known ? await MODELS.useModel(known.id) : await MODELS.addExistingModel({ id, workspaceId });
         WTF.syncTaskFlow().catch(() => {});
-        return { ok: true, active: s.models.find((m) => m.active)?.name, models: s.models.length, warning: s.warning || undefined };
+        const looking = LINKS.ensureModelLinks(s.active);
+        return { ok: true, active: s.models.find((m) => m.active)?.name, models: s.models.length, warning: s.warning || undefined, builtOnIt: looking ? 'The studio is looking in Fabric for the reports and data agents built on it (and the data it reads) in the background; they appear on the map in a minute.' : undefined };
+      },
+    }),
+    studioTool('studio_find_model_dependents', {
+      description: 'Look in Fabric for what is built on a semantic model (the active one by default): Power BI reports on it and Fabric data agents that answer from it (in the model\'s and the project\'s workspace), and the lakehouse or warehouse it reads. They are shown on the map as existing items – the studio never changes or deletes them. A project without data takes the model\'s data in place (nothing is copied). Runs automatically when an existing model is added; about a minute when there are data agents.',
+      parameters: obj({ id: str('Semantic model id (default: the active model)') }),
+      handler: async ({ id }) => {
+        await assertProjectTenant();
+        const mid = id || getProject().semanticModel?.id;
+        if (!mid) return { ok: false, error: 'There is no semantic model yet.' };
+        const done = await waitForJob(LINKS.startModelLinks(mid).id);
+        if (done.status !== 'succeeded') return { ok: false, error: done.error, log: done.logLines.slice(-8) };
+        return { ok: true, result: done.result };
       },
     }),
     studioTool('studio_check_semantic_model', {

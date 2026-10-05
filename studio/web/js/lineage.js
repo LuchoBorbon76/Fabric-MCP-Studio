@@ -75,7 +75,7 @@ const EDGES = [
 const NEXT = ['source', 'model', 'ontology', 'reports', 'events', 'dashboard', 'planning', 'agent', 'alerts', 'orgapp', 'planitem'];
 
 const JOB_NODES = {
-  sample: ['source', 'data'], mirror: ['source', 'data'], shortcut: ['source', 'data'], 'semantic-model': ['model'], 'model-fix': ['model'], ontology: ['ontology'],
+  sample: ['source', 'data'], mirror: ['source', 'data'], shortcut: ['source', 'data'], 'semantic-model': ['model'], 'model-fix': ['model'], 'model-links': ['model', 'reports', 'answers'], ontology: ['ontology'],
   report: ['reports'], 'report-template': ['reports'], 'org-app': ['orgapp'], realtime: ['events', 'eventstream', 'eventhouse'], 'realtime-dashboard': ['dashboard'],
   'realtime-ontology': ['ontology'], 'realtime-alerts': ['alerts'], planning: ['planning'], 'plan-item': ['planitem'], 'teams-agent': ['agent'],
   medallion: ['eventhouse'], 'medallion-remove': ['eventhouse'], 'data-prep': ['data'], 'data-agent': ['answers'],
@@ -105,6 +105,10 @@ function describe(id, s) {
   const sm = p.semanticModel;
   const ont = p.ontology;
   const reports = p.reports || [];
+  // Reports and data agents built on the model in Fabric (found by the studio, never changed by it).
+  const theirReports = (sm?.linked?.reports || []).filter((r) => !reports.some((x) => x.id === r.id));
+  const allReports = [...reports, ...theirReports.map((r) => ({ ...r, existing: true }))];
+  const agents = [...(p.dataAgent ? [p.dataAgent] : []), ...(sm?.linked?.agents || []).filter((a) => a.id !== p.dataAgent?.id).map((a) => ({ ...a, existing: true }))];
   const pl = p.planning;
   const rt = p.realtime;
   const sim = s.realtime?.simulator || {};
@@ -143,9 +147,11 @@ function describe(id, s) {
       const storage = { DirectLake: 'Direct Lake', Import: 'Import', DirectQuery: 'DirectQuery', Dual: 'Dual', Mixed: 'Mixed' }[sm.storageMode] || (sm.origin === 'existing' ? '–' : 'Direct Lake');
       const counts = sm.tables === null || sm.tables === undefined ? (sm.origin === 'existing' ? 'Existing model' : 'Semantic model') : `${plural(sm.tables, 'table')} · ${plural(sm.measures, 'measure')}`;
       const where = sm.workspaceId && sm.workspaceId !== ws?.id ? ` in ${sm.workspaceName || 'another workspace'}` : '';
+      const found = sm.linked ? [['Already built on it in Fabric', `${plural(theirReports.length, 'report')} · ${plural(agents.filter((a) => a.existing).length, 'data agent')}`]] : [];
+      const reads = (sm.linked?.sources || []).length && !(sm.linked.sources.some((x) => x.id === ms?.itemId)) ? [['Reads', sm.linked.sources.map((x) => `${x.name} (${ITEM[x.type] || x.type})`).join(', ')]] : [];
       return {
         done: true, title: sm.name, sub: `${counts}${n > 1 ? ` · 1 of ${n}` : ''}`, url: fabricItemUrl('SemanticModel', sm.workspaceId || ws?.id, sm.id),
-        facts: [['Tables', sm.tables ?? '–'], ['Measures', sm.measures ?? '–'], ['Relationships', sm.relationships ?? '–'], ['Storage mode', storage], ['Built by', sm.origin === 'existing' ? `Existing model${where}` : 'The studio'], n > 1 ? ['Models in the project', `${n} – switch on the Semantic model page`] : null].filter(Boolean),
+        facts: [['Tables', sm.tables ?? '–'], ['Measures', sm.measures ?? '–'], ['Relationships', sm.relationships ?? '–'], ['Storage mode', storage], ['Built by', sm.origin === 'existing' ? `Existing model${where}` : 'The studio'], ...found, ...reads, n > 1 ? ['Models in the project', `${n} – switch on the Semantic model page`] : null].filter(Boolean),
       };
     }
     case 'ontology':
@@ -154,11 +160,14 @@ function describe(id, s) {
         done: true, title: ont.name, sub: `${plural(ont.entities?.length || 0, 'entity').replace('entitys', 'entities')} · ${plural(ont.rules?.length || 0, 'rule')}${rt?.ontology ? ' · live' : ''}`, url: at('Ontology', ont.id),
         facts: [['Entities', (ont.entities || []).slice(0, 8).join(', ') + ((ont.entities || []).length > 8 ? '…' : '')], ['Business rules', (ont.rules || []).length], ['Live properties', rt?.ontology ? `${plural(rt.ontology.entities?.length || 0, 'entity').replace('entitys', 'entities')} linked to live events` : 'Not connected']],
       };
-    case 'reports':
-      if (!reports.length) return { done: false, avail: Boolean(sm), needs: 'Needs the semantic model', title: 'Not built', sub: 'Templates and themes' };
-      return { done: true, title: plural(reports.length, 'report'), sub: shortName(reports[0].name, sm?.name), url: reports.length === 1 ? reports[0].url : null, facts: reports.slice(0, 5).map((r) => ['Report', shortName(r.name, sm?.name), r.url]) };
+    case 'reports': {
+      if (!allReports.length) return { done: false, avail: Boolean(sm), needs: 'Needs the semantic model', title: 'Not built', sub: 'Templates and themes' };
+      const extra = allReports.length > 6 ? [['More', `${allReports.length - 6} more – Reports & apps`]] : [];
+      const sub = reports.length ? shortName(reports[0].name, sm?.name) : `Existing · ${shortName(theirReports[0].name, sm?.name)}`;
+      return { done: true, title: plural(allReports.length, 'report'), sub, url: allReports.length === 1 ? allReports[0].url : null, facts: [...allReports.slice(0, 6).map((r) => [r.existing ? 'Existing report' : 'Report', shortName(r.name, sm?.name), r.url]), ...extra] };
+    }
     case 'orgapp':
-      if (!p.orgApp) return { done: false, avail: reports.length > 0, needs: 'Needs a report', title: 'Not published', sub: 'Bundle your reports' };
+      if (!p.orgApp) return { done: false, avail: reports.length > 0, needs: theirReports.length ? 'Needs a report built by the studio' : 'Needs a report', title: 'Not published', sub: 'Bundle your reports' };
       return { done: true, title: p.orgApp.name, sub: plural(p.orgApp.reports?.length || 0, 'report'), url: p.orgApp.url, facts: [['Reports', p.orgApp.reports?.length || 0], ['Built', when(p.orgApp.builtAt)]] };
     case 'planning':
       if (!pl) return { done: false, avail: Boolean(sm), needs: 'Needs the semantic model', title: 'No plan', sub: 'From your actuals' };
@@ -171,9 +180,13 @@ function describe(id, s) {
       if (!pi) return { done: false, avail: Boolean(pl), needs: 'Needs the budget', title: 'Not created', sub: 'Planning sheets' };
       return { done: true, title: pi.name, sub: pi.connected ? 'Deprecated shared connection' : 'Planners connect with their sign-in', url: pi.url, facts: [['Connection', pi.connectionName ? `${pi.connectionName} (deprecated for planning)` : 'Each planner\'s own sign-in (planning sheet › Data › Add)'], ['Created', when(pi.createdAt)]] };
     }
-    case 'answers':
+    case 'answers': {
       if (!sm) return { done: false, avail: false, needs: 'Needs the semantic model', title: 'Not available', sub: 'Fabric IQ' };
-      return { done: true, title: 'Fabric IQ', sub: ont ? 'Model and ontology' : 'Semantic model', facts: [['Grounded in', `${sm.name}${ont ? ` and ${ont.name}` : ''}`], ['Security', 'Each person\'s permissions and row-level security'], ['Fabric data agent', p.dataAgent ? `${p.dataAgent.name}${p.dataAgent.published ? ' (published)' : ' (draft)'}` : 'Not created – Ask & share', p.dataAgent ? fabricItemUrl('DataAgent', p.dataAgent.workspaceId, p.dataAgent.id) : null]] };
+      const agentFacts = agents.length
+        ? agents.slice(0, 4).map((a) => ['Fabric data agent', `${a.name}${a.published ? ' (published)' : ' (draft)'}${a.existing ? ' · existing' : ''}`, fabricItemUrl('DataAgent', a.workspaceId, a.id)])
+        : [['Fabric data agent', 'Not created – Ask & share']];
+      return { done: true, title: 'Fabric IQ', sub: `${ont ? 'Model and ontology' : 'Semantic model'}${agents.length ? ` · ${plural(agents.length, 'data agent')}` : ''}`, facts: [['Grounded in', `${sm.name}${ont ? ` and ${ont.name}` : ''}`], ['Security', 'Each person\'s permissions and row-level security'], ...agentFacts] };
+    }
     case 'agent':
       if (!p.teamsAgent) return { done: false, avail: Boolean(sm), needs: 'Needs the semantic model', title: 'Not installed', sub: 'Teams and Microsoft 365 Copilot' };
       return { done: true, title: 'Teams & Copilot', sub: p.teamsAgent.published ? 'Published to your organization' : 'Installed for you', facts: [['Installed', when(p.teamsAgent.installedAt)], ['Ontology', p.teamsAgent.includeOntology ? 'Included' : 'Not included'], ['Availability', p.teamsAgent.published ? 'Submitted to your organization' : 'You']] };

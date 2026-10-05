@@ -12,8 +12,11 @@ export async function api(path, { method = 'GET', body, raw } = {}) {
   try { data = text ? JSON.parse(text) : null; } catch { data = text; }
   if (!res.ok) {
     if (res.status === 401 && data?.error === 'Unauthorized') { staleSession(); }
-    const err = new Error(data?.error || `${res.status} ${res.statusText}`);
-    err.status = res.status; err.code = data?.code;
+    // The pages are newer than the server (updated on disk while it runs): it doesn't know this request yet.
+    const noRoute = res.status === 404 && data?.error === 'Not found' && (data.code === 'NO_ROUTE' || data.code == null);
+    if (noRoute) fire('update.needed', {});
+    const err = new Error(noRoute ? 'This part of Fabric MCP Studio was updated and needs a restart. Use "Restart now" at the top of the page (or shut down and start the studio again).' : data?.error || `${res.status} ${res.statusText}`);
+    err.status = res.status; err.code = noRoute ? 'RESTART_NEEDED' : data?.code;
     throw err;
   }
   return data;

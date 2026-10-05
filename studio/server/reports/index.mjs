@@ -157,6 +157,9 @@ export async function deployReport(ctx, { reportName, files, description, entry:
     const owner = (p.semanticModels || []).find((m) => m.id === other.semanticModelId);
     throw new Error(`"${reportName}" is a report on ${owner?.name || 'another semantic model'}. Choose another name for this model's report.`);
   }
+  // Reports found in Fabric on the project's models (built outside the studio) are never changed.
+  const theirs = item && !(p.reports || []).some((r) => r.id === item.id) && (p.semanticModels || []).some((m) => (m.linked?.reports || []).some((r) => r.id === item.id));
+  if (theirs) throw new Error(`"${reportName}" is an existing report in ${ws.name} that the studio didn't build, and the studio never changes it. Choose another name for the new report.`);
   if (item) {
     await F.updateDefinition(ws.id, item.id, definition);
     ctx.log('Updated the existing report');

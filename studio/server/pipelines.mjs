@@ -77,8 +77,9 @@ function requireWorkspace() {
 
 // ---------------- data sources: each one keeps its own items ----------------
 
-// Jobs that don't write to the project's data source.
-const SOURCE_NEUTRAL_JOBS = new Set(['github-login']);
+// Jobs that don't write to the project's data source (finding what is built on a model only adopts a source when the
+// project has none, and checks that again right before it does).
+const SOURCE_NEUTRAL_JOBS = new Set(['github-login', 'model-links']);
 
 /** Another job still writing to the current data source would land in the wrong one after a switch. */
 function assertNoOtherJobs(selfId) {
@@ -122,8 +123,8 @@ export function sourcesState() {
 }
 
 const DATA_ITEM_TYPES = ['Lakehouse', 'Warehouse', 'MirroredDatabase', 'SQLDatabase'];
-// Items Fabric makes for itself (dataflow staging).
-const SYSTEM_ITEM = /^(DataflowsStaging|StagingLakehouseForDataflows|StagingWarehouseForDataflows)/i;
+// Items Fabric makes for itself (dataflow staging, and system databases such as the one behind a Fabric plan).
+const SYSTEM_ITEM = /^(DataflowsStaging|StagingLakehouseForDataflows|StagingWarehouseForDataflows|__)/i;
 
 /**
  * Every item in the project workspace that can be a data source (lakehouses, warehouses, mirrored and SQL databases),
@@ -375,15 +376,34 @@ export async function listTablesOfItem({ workspaceId, itemId, itemType }) {
 
 const ITEM_LABEL = { Lakehouse: 'Lakehouse', Warehouse: 'Warehouse', MirroredDatabase: 'Mirrored database', SQLDatabase: 'SQL database' };
 
-export async function useInPlace({ workspaceId, itemId, itemType, typeId }) {
+export async function useInPlace({ workspaceId, itemId, itemType, typeId }, ctx, { onlyIf } = {}) {
   await assertProjectTenant();
   requireWorkspace();
   const ep = await endpointFor(workspaceId, itemId, itemType);
   const source = { kind: 'fabric', type: typeId || itemType, itemType, itemName: ep.itemName, label: `${ITEM_LABEL[itemType] || itemType} · ${ep.itemName}`, method: 'in-place', itemId, workspaceId };
-  beginSource(source);
+  // Checked again after the wait for the SQL endpoint: the project may have changed in the meantime.
+  if (onlyIf && !onlyIf()) return null;
+  beginSource(source, ctx);
   updateProject({ scenario: 'byod', source });
   setModelSource({ itemType, itemId, itemName: ep.itemName, workspaceId, server: ep.server, endpointId: ep.endpointId, database: ep.database }, `Using ${ep.itemName} in place`);
   return getProject().modelSource;
+}
+
+/**
+ * A project without data takes the item an existing semantic model reads, in place (nothing is copied), so the map shows
+ * where the model's numbers come from. Returns null when the project already has data, or the item already has its own
+ * items in the workspace (switching would put the model away).
+ */
+export async function adoptModelSource({ workspaceId, itemId, itemType, modelId }, ctx) {
+  const key = sourceKeyOf({ kind: 'fabric', method: 'in-place', itemId, workspaceId });
+  const wsId = getProject().workspace?.id;
+  const free = () => {
+    const p = getProject();
+    return Boolean(p.workspace) && p.workspace.id === wsId && !p.sourceKey && !p.modelSource && (!modelId || p.semanticModel?.id === modelId)
+      && DATA_ITEM_TYPES.includes(itemType) && !(p.sources || []).some((e) => e.key === key && e.state);
+  };
+  if (!free()) return null;
+  return useInPlace({ workspaceId, itemId, itemType }, ctx, { onlyIf: free });
 }
 
 export async function runShortcuts(ctx, { sourceWorkspaceId, sourceItemId, sourceItemType, tables = [], typeId }) {

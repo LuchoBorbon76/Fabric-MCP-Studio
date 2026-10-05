@@ -121,9 +121,86 @@ function signInDialog() {
 
 $('#exitBtn').addEventListener('click', async () => {
   if (!confirm('Shut down Fabric MCP Studio? Running jobs will stop.')) return;
+  await shutDown();
+});
+
+async function shutDown() {
   try { await post('/shutdown'); } catch { /* ignore */ }
   document.body.innerHTML = '<div style="padding:60px;text-align:center;font:16px Segoe UI">Fabric MCP Studio has stopped. You can close this tab.<br><br>Start it again with <code>Start-Studio.cmd</code> or <code>npm start</code>.</div>';
+}
+
+// ---------------- updates ----------------
+// Pages are read from disk on every load, the server's code only when it starts: after an update (git pull, files
+// copied from another computer) the server must restart to match.
+function renderUpdateBanner() {
+  const el = $('#updateBanner');
+  if (!el) return;
+  el.innerHTML = '';
+  const u = store.update;
+  if (!u) return;
+  const btn = h('button', { class: 'btn pri', 'data-busy': 'Restarting…' }, 'Restart now');
+  btn.addEventListener('click', busy(btn, restartStudio));
+  el.append(h('div', { class: 'banner warn' },
+    h('div', { style: { flex: '1' } },
+      h('b', {}, u.onDisk && u.onDisk !== u.running ? `Fabric MCP Studio ${u.onDisk} is installed. ` : 'Fabric MCP Studio was updated. '),
+      `The studio still runs ${u.running ? `version ${u.running}` : 'the earlier version'} – restart it to use the update (some parts don't work until then). Your project, chats and settings are kept.`),
+    btn));
+}
+
+let restarting = false;
+let updateKnown = false;
+async function restartStudio() {
+  try { await post('/restart'); } catch (e) {
+    // A studio from before this version can't restart itself.
+    if (e.code !== 'RESTART_NEEDED') throw e;
+    modal({
+      title: 'Restart Fabric MCP Studio',
+      body: h('p', {}, 'The running studio is from before it could restart itself. Shut it down here, then start it again from the desktop shortcut or Start-Studio.cmd – this time only.'),
+      actions: [{ label: 'Shut down now', class: 'pri', onClick: () => shutDown() }, { label: 'Cancel' }],
+    });
+    return;
+  }
+  restarting = true;
+  $('#offline').innerHTML = '<b>Restarting Fabric MCP Studio…</b> This page reloads when it is back.';
+  $('#offline').hidden = false;
+  // The new server has a new token: the first answer from it (401 on the old token) reloads the page.
+  const t0 = Date.now();
+  while (Date.now() - t0 < 90000) {
+    await new Promise((r) => setTimeout(r, 1000));
+    try { await get('/update'); } catch { /* restarting */ }
+  }
+  restarting = false;
+  $('#offline').innerHTML = '<b>Fabric MCP Studio didn\'t come back.</b> Start it from the desktop shortcut or <code>Start-Studio.cmd</code>; the log is in <code>studio\\data\\studio.log</code>.';
+}
+
+async function checkUpdate() {
+  if (restarting) return;
+  // A missing route proved the server is older than the pages: keep that banner even if the server can't tell.
+  try { store.update = (await get('/update')).update || (routeMissing ? store.update : null); } catch { /* an older server: update.needed below */ }
+  renderUpdateBanner();
+}
+let routeMissing = false;
+on('update.needed', () => {
+  routeMissing = true;
+  if (store.update) return;
+  store.update = { running: store.version || null, onDisk: null };
+  renderUpdateBanner();
 });
+setInterval(checkUpdate, 60000);
+
+// An existing model the studio hasn't looked at in Fabric yet (added before it could, or back with its data source):
+// find the reports and data agents built on it once, in the background.
+const linksAsked = new Set();
+function ensureModelLinks() {
+  const sm = store.project?.semanticModel;
+  if (!sm || sm.origin !== 'existing' || sm.linked?.at || linksAsked.has(sm.id) || !store.user?.signedIn) return;
+  linksAsked.add(sm.id);
+  setTimeout(() => {
+    const cur = store.project?.semanticModel;
+    if (cur?.id !== sm.id || cur.linked?.at) return;
+    post('/jobs/model-links', { id: sm.id }).then((j) => app.watchJob(j.id)).catch(() => {});
+  }, 1500);
+}
 
 $('#healthBtn').addEventListener('click', () => showHealth(true));
 
@@ -455,6 +532,7 @@ on('project.updated', async () => {
   }
   renderHeader(); updateMap(); refreshSuggestions();
   loadPrompts();
+  ensureModelLinks();
   // The Data page keeps in-progress forms, so it only re-renders when the data source itself changes.
   const dk = dataKey(store.project);
   const dataChanged = dk !== dataSourceKey;
@@ -473,7 +551,8 @@ on('auth', (e) => { store.user = e.user; renderAll(); loadReadiness(true); });
 async function refresh() {
   try {
     const b = await get('/bootstrap');
-    Object.assign(store, { version: b.version, build: b.build || null, user: b.user, settings: b.settings, provider: b.provider, providers: b.providers, project: b.project, naming: b.naming || null, catalog: b.catalog, chats: b.chats, approvals: b.approvals, preset: b.preset, platform: b.platform, realtime: b.realtime || null, planning: b.planning || null, readiness: b.readiness || store.readiness || null });
+    updateKnown = Object.prototype.hasOwnProperty.call(b, 'update');
+    Object.assign(store, { version: b.version, build: b.build || null, update: b.update || (routeMissing ? store.update : null), user: b.user, settings: b.settings, provider: b.provider, providers: b.providers, project: b.project, naming: b.naming || null, catalog: b.catalog, chats: b.chats, approvals: b.approvals, preset: b.preset, platform: b.platform, realtime: b.realtime || null, planning: b.planning || null, readiness: b.readiness || store.readiness || null });
     readinessKey = [b.project?.workspace?.id, b.project?.modelSource?.itemId, Boolean(b.project?.realtime)].join('|');
     presetSource = b.project?.source?.id || null;
     dataSourceKey = dataKey(b.project);
@@ -494,6 +573,10 @@ async function refresh() {
   renderDock();
   refreshHeader();
   loadPrompts();
+  renderUpdateBanner();
+  // A server from before the update check doesn't say whether it is up to date: ask it (a missing route shows the banner).
+  if (!updateKnown) checkUpdate();
+  ensureModelLinks();
 }
 
 Object.assign(app, {

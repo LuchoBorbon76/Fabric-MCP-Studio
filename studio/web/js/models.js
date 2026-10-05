@@ -12,9 +12,17 @@ export const projectModels = () => store.project?.semanticModels || [];
 
 async function switchTo(id) {
   const m = projectModels().find((x) => x.id === id);
-  await post('/models/active', { id });
+  const r = await post('/models/active', { id });
+  if (r.linksJob) app.watchJob(r.linksJob);
   toast(`Working on ${m?.name || 'the semantic model'}`, 'ok');
   await app.refresh();
+}
+
+/** Look in Fabric for the reports and data agents built on a model (shown on the map; never changed). */
+async function findDependents(id) {
+  const j = await post('/jobs/model-links', { id });
+  app.watchJob(j.id);
+  toast('Looking in Fabric for the reports and data agents built on the model…', 'ok');
 }
 
 /**
@@ -69,13 +77,23 @@ export function modelsDialog() {
       const use = h('button', { class: 'btn pri', 'data-busy': 'Switching…' }, 'Use this model');
       use.addEventListener('click', busy(use, async () => { await switchTo(m.id); close(); }));
       const art = arts.find((a) => a.key === `model:${m.id}`);
-      const built = [m.reports.length ? plural(m.reports.length, 'report') : null, m.dataAgent ? 'data agent' : null, m.orgApp ? 'org app' : null, m.plan ? `plan ${m.plan.planYear}` : null].filter(Boolean);
+      const ours = m.reports.filter((r) => !r.existing).length;
+      const theirs = m.reports.length - ours;
+      const built = [ours ? plural(ours, 'report') : null, m.dataAgent ? 'data agent' : null, m.orgApp ? 'org app' : null, m.plan ? `plan ${m.plan.planYear}` : null].filter(Boolean);
+      const found = [theirs ? plural(theirs, 'report') : null, (m.existingAgents || []).length ? plural(m.existingAgents.length, 'data agent') : null].filter(Boolean);
+      const look = h('button', { class: 'btn ghost tiny', 'data-busy': 'Looking…', title: 'Look in Fabric for the reports and data agents built on this model, and the data it reads. They show on the map; the studio never changes them.' }, m.linkedAt ? '↻ Look again' : 'Look in Fabric');
+      look.addEventListener('click', busy(look, () => findDependents(m.id)));
+      const foundTitle = [...m.reports.filter((r) => r.existing).map((r) => `Report: ${r.name}`), ...(m.existingAgents || []).map((a) => `Data agent: ${a.name}`), ...(m.reads || []).map((x) => `Reads: ${x.name} (${x.type})`)].join('\n');
       t.append(h('tr', { class: m.active ? 'sel' : '' },
         h('td', {},
           h('div', { class: 'row', style: { gap: '6px' } }, h('a', { href: m.url, target: '_blank', rel: 'noopener', title: 'Open in Fabric' }, h('b', {}, m.name)), m.active ? h('span', { class: 'pill ok' }, 'Active') : null),
           h('div', { class: 'tiny muted' }, `${m.origin === 'existing' ? 'Existing model' : 'Built by the studio'}${m.storage ? ` · ${m.storage}` : ''}${m.inProjectWorkspace ? '' : ` · ${m.workspaceName || 'another workspace'}`}`)),
         h('td', { class: 'small' }, m.tables === null ? h('span', { class: 'tiny muted' }, 'Not read yet') : `${plural(m.tables, 'table')} · ${plural(m.measures, 'measure')}${m.relationships !== null ? ` · ${plural(m.relationships, 'relationship')}` : ''}`),
-        h('td', { class: 'small' }, built.length ? built.join(' · ') : h('span', { class: 'tiny muted' }, '–')),
+        h('td', { class: 'small' },
+          built.length ? h('div', {}, built.join(' · ')) : null,
+          found.length ? h('div', { class: 'tiny muted', title: foundTitle }, `Already in Fabric: ${found.join(' · ')}`) : null,
+          !built.length && !found.length ? h('div', { class: 'tiny muted' }, m.linkedAt ? 'Nothing yet' : '–') : null,
+          look),
         h('td', { class: 'act' }, h('div', { class: 'row', style: { justifyContent: 'flex-end', gap: '6px', flexWrap: 'nowrap' } },
           m.active ? null : use,
           art ? removeButton([art], { compact: true, label: m.origin === 'existing' ? 'Stop using' : 'Delete' }) : null))));
@@ -112,7 +130,8 @@ export function addExistingDialog() {
       btn.addEventListener('click', busy(btn, async () => {
         const r = m.inProject ? await post('/models/active', { id: m.id }) : await post('/models/existing', { workspaceId: wsSel.value, id: m.id });
         dlg.close();
-        toast(`Working on ${m.name}`, 'ok');
+        if (r.linksJob) app.watchJob(r.linksJob);
+        toast(`Working on ${m.name}${r.linksJob ? ' – looking in Fabric for what is built on it' : ''}`, 'ok');
         if (r.warning) toast(r.warning, 'err');
         await app.refresh();
       }));

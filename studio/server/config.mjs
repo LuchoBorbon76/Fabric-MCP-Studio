@@ -1,5 +1,5 @@
 // Paths, settings and small shared helpers.
-import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID, createHash } from 'node:crypto';
@@ -43,6 +43,31 @@ function gitBuild() {
 export const RELEASES = releaseHistory();
 export const VERSION = RELEASES.version;
 export const BUILD = gitBuild();
+
+// The server's code is read once, at start; the pages are read from disk on every request. After an update (git pull,
+// a copy from another computer) the pages are new and the server is old until it restarts. Copies can keep their
+// original times, so any change to the files counts – not only newer ones – and so does another version.
+const serverFiles = (dir, out = new Map()) => {
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, e.name);
+    if (e.isDirectory()) serverFiles(p, out);
+    else if (/\.(mjs|js|json|md)$/i.test(e.name)) out.set(p, statSync(p).mtimeMs);
+  }
+  return out;
+};
+const codeAt = () => { try { const m = serverFiles(join(STUDIO_ROOT, 'server')); m.set('releases', statSync(join(STUDIO_ROOT, 'releases.json')).mtimeMs); return m; } catch { return null; } };
+const STARTED_CODE = codeAt();
+let updateCheck = { at: 0, value: null };
+
+/** A newer version on disk than the one running: { running, onDisk } (checked at most every 15 seconds), else null. */
+export function pendingUpdate() {
+  if (Date.now() - updateCheck.at < 15000) return updateCheck.value;
+  const now = codeAt();
+  const onDisk = releaseHistory().version;
+  const changed = onDisk !== VERSION || Boolean(STARTED_CODE && now && (now.size !== STARTED_CODE.size || [...now].some(([p, t]) => STARTED_CODE.get(p) !== t)));
+  updateCheck = { at: Date.now(), value: changed ? { running: VERSION, onDisk } : null };
+  return updateCheck.value;
+}
 
 for (const d of [DATA_DIR, COPILOT_HOME]) if (!existsSync(d)) mkdirSync(d, { recursive: true });
 

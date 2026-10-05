@@ -52,6 +52,8 @@
     { "date": "2026-10-05", "type": "improvement", "commit": "bbccdd1", "title": "Semantic models pop-up: double-click Semantic model on the map to switch the active model, add an existing model or start a new one" },
     { "date": "2026-10-05", "type": "fix", "commit": "dd1862e", "title": "Each data source keeps its own items: choosing another source shows its own items on the map (or greys them out), the previous one keeps everything and you can switch back; another workspace starts everything over" },
     { "date": "2026-10-05", "type": "fix", "commit": "6fc54f8", "title": "Double-click works on the map: Data source lists the data in the workspace and the project's sources; the workspace name lists the workspaces on the capacity" },
-    { "date": "2026-10-05", "type": "improvement", "title": "Check and fix a semantic model's data: finds keys that repeat on the one side of a relationship and removes exact copies in a warehouse (with a backup), then reloads the model" }
+    { "date": "2026-10-05", "type": "improvement", "commit": "3a9ae36", "title": "Check and fix a semantic model's data: finds keys that repeat on the one side of a relationship and removes exact copies in a warehouse (with a backup), then reloads the model" },
+    { "date": "2026-10-05", "type": "fix", "title": "After an update the studio says a newer version is installed and restarts itself with Restart now, instead of failing with \"Not found\" (for example the data source list); Fabric system databases are no longer listed as data sources" },
+    { "date": "2026-10-05", "type": "improvement", "title": "An existing semantic model brings what is built on it to the map: its Power BI reports, the data agents that answer from it and the lakehouse or warehouse it reads (in place when the project has no data). They are shown as existing items and never changed" }
   ]
 }
