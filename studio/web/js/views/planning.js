@@ -322,9 +322,9 @@ function planItemCard(s) {
       `${model} was created again since the plan was made. Select Check the plan to recreate the plan on the current model.`)) : null,
     it ? h('div', { class: 'banner warn mt' }, h('div', {},
       h('b', {}, 'Plan says "Can\'t access the semantic model"? '),
-      `The plan reads ${model} as ${it.connected ? `the account saved in "${it.connectionName}"` : 'the account saved in the connection you pick when it opens'}, and that account isn't Contributor or higher in ${wsName}. Fix it either way:`,
+      `The plan reads ${model} as ${it.connected ? `the account saved in "${it.connectionName}"` : 'the account saved in the connection you pick when it opens'}. Fabric needs that account to be Member or Admin in ${wsName} – otherwise the plan says it can't access the model, or "DMTS Connection Owner Missing" – and it can't be a guest (B2B) account. Fix it either way:`,
       h('ul', { class: 'pre', style: { margin: '6px 0 0' } },
-        h('li', {}, 'Give that account access below (Who can plan › Give Contributor access) – it is often your own account, not the one the studio uses.'),
+        h('li', {}, 'Give that account Member access below (Who can plan) – it is often your own account, not the one the studio uses.'),
         h('li', {}, 'Or sign the connection in again with an account that can open the model: ', h('a', { href: 'https://app.fabric.microsoft.com/groups/me/gateways', target: '_blank', rel: 'noopener' }, 'Manage connections and gateways ↗'), ` › "${it.connectionName || 'the connection'}" › Edit credentials – or in the plan, Manage Connections › Create Connection.`),
         h('li', {}, 'The sign-in window for a connection often signs in with your Windows or browser account on its own, even when Fabric shows another one: choose ', h('b', {}, 'Use another account'), ' (or use an InPrivate window with only that account).')))) : null,
     pl ? plannersBox(wsName) : null,
@@ -333,11 +333,14 @@ function planItemCard(s) {
   return card;
 }
 
-/** Who can plan: the workspace's people and roles, and giving someone Contributor access. */
+/** Who can plan: the workspace's people and roles, and giving someone access. */
 function plannersBox(wsName) {
   const box = h('div', { class: 'mt' }, h('div', { class: 'row muted small' }, h('span', { class: 'spin' }), 'Reading who has access…'));
-  const email = input({ type: 'email', placeholder: 'name@contoso.com', style: { maxWidth: '340px' } });
-  const add = h('button', { class: 'btn', 'data-busy': 'Adding…' }, 'Give Contributor access');
+  const email = input({ type: 'email', placeholder: 'name@contoso.com', style: { maxWidth: '300px' } });
+  // Planners need Contributor; the account saved in a shared connection must be Member or Admin (Fabric checks the
+  // connection's owner: "DMTS Connection Owner Missing").
+  const role = select([{ value: 'Contributor', label: 'Contributor – a planner' }, { value: 'Member', label: 'Member – the account saved in a shared connection' }], { style: { maxWidth: '330px' } });
+  const add = h('button', { class: 'btn', 'data-busy': 'Adding…' }, 'Give access');
   const draw = (r) => {
     box.replaceChildren(h('h4', { style: { margin: '0 0 6px' } }, `Who can plan (${wsName})`));
     if (!r.canList) box.append(h('p', { class: 'tiny muted' }, r.reason));
@@ -346,11 +349,11 @@ function plannersBox(wsName) {
       for (const m of r.members) t.append(h('tr', {}, h('td', {}, m.name, m.account && m.account !== m.name ? h('div', { class: 'tiny muted' }, m.account) : null), h('td', {}, m.role), h('td', {}, m.canPlan ? h('span', { class: 'pill ok' }, '✓') : h('span', { class: 'pill warn' }, 'Needs Contributor'))));
       box.append(t);
     }
-    box.append(h('div', { class: 'row mt' }, email, add), h('p', { class: 'tiny muted' }, 'Add the account saved in the shared connection, and everyone who will plan. They get Contributor in the workspace (they can then change its items).'));
+    box.append(h('div', { class: 'row mt' }, email, role, add), h('p', { class: 'tiny muted' }, 'Planners need Contributor. The account saved in a shared connection must be Member or Admin – otherwise the plan says "DMTS Connection Owner Missing" – and can\'t be a guest (B2B) account.'));
   };
   add.addEventListener('click', busy(add, async () => {
-    const r = await post('/planning/access', { email: email.value });
-    toast(`${r.added} can plan now`, 'ok');
+    const r = await post('/planning/access', { email: email.value, role: role.value });
+    toast(`${r.added} is ${role.value} in ${wsName} now`, 'ok');
     email.value = '';
     draw(r);
   }));

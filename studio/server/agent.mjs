@@ -834,12 +834,12 @@ function studioTools(chatId) {
       handler: async (a) => runAsJob('plan-item', 'Create the Fabric plan', (ctx) => PL.runPlanItem(ctx, { name: a.name, connection: a.connection || undefined })),
     }),
     studioTool('studio_planning_access', {
-      description: 'Who can open the semantic model in a Fabric plan: the project workspace\'s people and groups with their roles (planning needs Contributor or higher), plus the shared PowerBIDatasets connections and whether their saved sign-in still works. When a plan says "Can\'t access the semantic model", the account the plan reads the model as (the one saved in its connection) isn\'t Contributor or higher here. Read-only.',
+      description: 'Who can open the semantic model in a Fabric plan: the project workspace\'s people and groups with their roles (planning needs Contributor or higher), plus the shared PowerBIDatasets connections and whether their saved sign-in still works. When a plan says "Can\'t access the semantic model" or "DMTS Connection Owner Missing", the account saved in its connection isn\'t Member or Admin here (or is a guest/B2B account). Read-only.',
       parameters: obj({}),
       handler: async () => ({ access: await PL.planAccess(), connections: (await PL.planConnections()).connections }),
     }),
     studioTool('studio_add_planner', {
-      description: 'Give a person Contributor (or Member) access to the project workspace so they – or the account saved in a shared connection – can open the model in a Fabric plan. Confirm the email with the user first.',
+      description: 'Give a person access to the project workspace for planning: Contributor for planners; Member for the account saved in a shared connection (Fabric requires the connection's owner to be Member or Admin, and not a guest). Confirm the email and role with the user first.',
       parameters: obj({ email: str('The person\'s Microsoft Entra sign-in (email)'), role: { type: 'string', enum: ['Contributor', 'Member'], description: 'Default Contributor' } }, ['email']),
       handler: async (a) => PL.addPlanner({ email: a.email, role: a.role || 'Contributor' }),
     }),
