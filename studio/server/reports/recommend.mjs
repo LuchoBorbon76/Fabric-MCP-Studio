@@ -2,6 +2,8 @@
 // Grounded in the model profile (KPIs, channels, time, segments, insights), the ontology and the reports already built.
 import { standardName, purposeOf, parseName } from '../naming.mjs';
 
+const plural = (s) => (/[^aeiou]y$/i.test(s) ? `${s.slice(0, -1)}ies` : /(s|x|ch|sh)$/i.test(s) ? `${s}es` : `${s}s`);
+
 function reasonsFor(profile, focus) {
   const r = [];
   const p = profile;
@@ -22,6 +24,16 @@ function reasonsFor(profile, focus) {
     if (p.breakdown) r.push(`Ranks ${p.breakdown.label.toLowerCase()} on every KPI with data bars.`);
     if (p.hierarchy.length) r.push(`Drill path ${p.hierarchy.map((x) => x.label).join(' › ')} to find the drivers.`);
   }
+  if (focus === 'geo' && p.geo) {
+    const g = p.geo;
+    r.push(g.mode === 'points'
+      ? `Map with a bubble for each of ${g.points ?? 'the'} locations (latitude/longitude), sized by ${p.primary.label}.`
+      : `Map of ${p.primary.label} you can drill from ${g.levels.map((c) => c.label.toLowerCase()).join(' to ')}.`);
+    const top = p.insights.find((i) => i.kind === 'geo');
+    if (top) r.push(top.text);
+    if (g.levels.length) r.push(`Ranks the top ${plural(g.levels[0].label.toLowerCase())}${g.levels.length > 1 ? ` and ${plural(g.levels[g.levels.length - 1].label.toLowerCase())}` : ''} next to the map.`);
+  }
+  if (focus === 'executive' && p.geo) r.push(`Adds a map of ${p.primary.label} by ${p.geo.mode === 'points' ? 'location' : p.geo.levels.map((c) => c.label.toLowerCase()).join(' › ')}.`);
   if (partial && p.time) r.push(`Uses full years only (${p.time.fullYears.join(', ')}) so comparisons are fair.`);
   return r.slice(0, 4);
 }
@@ -49,9 +61,16 @@ export function recommendations(profile, project, { rules = null, values = [] } 
   const hasTime = Boolean(profile.time);
   const hasSegments = Boolean(profile.share || profile.breakdown);
 
-  const exec = { id: 'executive-report', kind: 'report', title: 'Executive report', audience: 'Leadership', theme: 'executive', pages: ['executive', 'drivers', 'scorecard'].filter((x) => x !== 'scorecard' || (hasTime && hasSegments)), name: nameFor('Executive', `${model} – Executive report`) };
+  const exec = { id: 'executive-report', kind: 'report', title: 'Executive report', audience: 'Leadership', theme: 'executive', pages: ['executive', ...(profile.geo ? ['geo'] : []), 'drivers', 'scorecard'].filter((x) => x !== 'scorecard' || (hasTime && hasSegments)), name: nameFor('Executive', `${model} – Executive report`) };
   exec.reasons = reasonsFor(profile, 'executive');
   out.push(exec);
+
+  // Location columns (or coordinates) in the model: a map-first report for the people who run regions.
+  if (profile.geo) {
+    const regional = { id: 'geo-report', kind: 'report', title: 'Regional report', audience: 'Regional and sales managers', theme: 'teal', pages: ['geo', ...(hasTime && hasSegments ? ['scorecard'] : ['drivers'])], name: nameFor('Regional', `${model} – Regional report`) };
+    regional.reasons = reasonsFor(profile, 'geo');
+    out.push(regional);
+  }
 
   if (rules?.rules.some((r) => r.metrics.length)) {
     const fmt = (v) => (v === null || v === undefined ? '–' : Number(v).toLocaleString('en-US', { maximumFractionDigits: 0 }));

@@ -306,8 +306,20 @@ Fabric REST API – no Power BI Desktop needed.
    scorecard (segment × year, ratio trend, ranked table) and **business rules** – the ontology dashboard: every
    ontology rule in plain English next to its live count, rule breaks by year and by segment, and where they happen.
    Rule measures the semantic model doesn't have yet are added to the report as report-level measures, so no model
-   change is needed. Layouts follow Microsoft's Power BI report design guidance:
+   change is needed. **Map** (when the model has places or coordinates) – an Azure Maps visual with bubbles sized by the
+   main measure, the top places and every place ranked (with the level above, so same-named places stay apart). Layouts follow Microsoft's Power BI report design guidance:
    1280×720, 24 px margins, header band, KPI row, hero visual, sorted bars, top-N lists.
+
+**Maps.** The profile looks for location columns in any model: by their data category (Country, State or Province,
+County, City, Postal code, Latitude, Longitude) or by their name (country, state, province, city, postal/zip,
+latitude/lat, longitude/lon/lng), hidden columns included. A column counts only when it splits the main measure (its
+values add up to the total, so filters reach the facts), and coordinates only when their values are on the globe. A name alone isn't enough for a state or county column (*Order State* is a status): its table needs a data category, another place column, a clear place word (country, city, postal code) or a geographic name.
+Places of one table become a drill path, coarse to fine, starting at the first level with more than one value (one
+country → states): *Country › State › City*. Power BI geocodes the names, and the coarser level helps it find same-named
+places. A latitude/longitude pair draws a bubble at each point instead, labelled by the place name next to it. When
+the model has geography, the Executive report gets a Map page and a **Regional report** is recommended. Maps use the
+**Azure Maps visual** (Bing-based maps are retired): a Fabric admin may have to turn on the tenant setting *Use Azure
+Maps visual*, and Power BI sends the location names to Azure Maps to place them.
 3. **Themes** – Fabric Studio, Executive Navy, Teal Modern, Slate Minimal, Accessible (color-blind safe) and Midnight.
    All formatting lives in a custom report theme, so you can switch themes later in Power BI.
 4. **Build** – creates or updates the Report item, then renders a PDF preview with Power BI export (if your tenant turns

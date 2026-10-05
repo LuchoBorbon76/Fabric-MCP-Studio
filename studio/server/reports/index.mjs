@@ -122,6 +122,15 @@ export async function runReport(ctx, { name, theme: themeId = 'studio', pages = 
       ctx.log('No plan yet (Planning tab); the Plan vs actual page was left out.');
     }
   }
+  if (pages.includes('geo')) {
+    const g = profile.geo;
+    if (!g) {
+      pages = pages.filter((x) => x !== 'geo');
+      ctx.log('No location columns (country, state, city, postal code or latitude/longitude) that split the main measure; the Map page was left out.');
+    } else {
+      ctx.log(`Map: ${g.mode === 'points' ? `${g.points ?? ''} points at ${g.lat.name}/${g.lon.name}${g.label ? ` (${g.label.label})` : ''}` : g.levels.map((c) => `${c.label} (${g.distinct?.[c.level] ?? '?'})`).join(' › ')} · Azure Maps visual – if it shows a message, a Fabric admin turns on the tenant setting "Use Azure Maps visual"`);
+    }
+  }
   const built = buildReportPages(profile, theme, { pages });
   if (!built.length) throw new Error('Select at least one page.');
   const reportName = reportNameFor(p, name);

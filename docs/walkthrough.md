@@ -123,8 +123,12 @@ Ontology is in preview; the Ontology MCP endpoint (used by agents) needs a paid 
    and a performance scorecard), each with the reasons from your data. *Build* it in one
    click, or *Customize* it in the designer.
 2. Review **What we found in your model**: headline KPIs, channels, time (with full years), share and breakdown
-   dimensions, the top-10 list and the drill path, plus a few insights from your data.
-3. Or pick **pages** (Executive summary, Performance drivers, Scorecard, Business rules) and a **theme** yourself, name the report, *Build report*.
+   dimensions, the top-10 list, the drill path and the **map** (country › state › city, or latitude/longitude), plus a
+   few insights from your data.
+3. Or pick **pages** (Executive summary, Performance drivers, Scorecard, Business rules, Map) and a **theme** yourself, name the report, *Build report*.
+   With location columns in the model, the **Map** page shows an Azure Maps visual with bubbles sized by your main
+   measure – drill down from country to state to city – next to the biggest places, and a **Regional report** is
+   recommended.
    **Your own templates**: *Upload template* (or drop files on the box) takes your organization's Power BI files –
    a template (.pbit), a report (.pbix), a zipped Power BI project, a report.json layout or a theme (.json). *Use template*
    checks the report's fields against your model (found, matched by name, missing – with the visuals that would show an

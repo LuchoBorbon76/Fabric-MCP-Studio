@@ -592,7 +592,7 @@ function studioTools(chatId) {
       },
     }),
     studioTool('studio_describe_report_options', {
-      description: 'Read what the studio found in the project semantic model for report design (main measure, KPIs, time grain and full years, share/breakdown dimensions, top-N entity, drill hierarchy, insights) plus the available report themes and page templates. Read-only.',
+      description: 'Read what the studio found in the project semantic model for report design (main measure, KPIs, time grain and full years, share/breakdown dimensions, top-N entity, drill hierarchy, geography for maps, insights) plus the available report themes and page templates. Read-only.',
       parameters: obj({ refresh: { type: 'boolean' } }),
       handler: async ({ refresh }) => {
         const pr = await R.currentProfile({ refresh });
@@ -601,6 +601,9 @@ function studioTools(chatId) {
           model: pr.model, primary: ref(pr.primary), kpis: pr.kpis.map(ref), channels: pr.channels.map(ref),
           time: pr.time && { grain: pr.time.grain, years: pr.time.years, fullYears: pr.time.fullYears, axis: pr.time.axis.map(ref) },
           share: ref(pr.share), breakdown: ref(pr.breakdown), topList: ref(pr.entity), hierarchy: pr.hierarchy.map(ref),
+          geography: pr.geo
+            ? { map: pr.geo.mode === 'points' ? `points at ${ref(pr.geo.lat)} / ${ref(pr.geo.lon)}${pr.geo.label ? ` labelled by ${ref(pr.geo.label)}` : ''}` : `drill ${pr.geo.levels.map(ref).join(' › ')}`, distinctValues: pr.geo.distinct, page: 'geo (Map) – include it when the user asks for maps or regional analysis' }
+            : 'none – no country/state/city/postal or latitude/longitude columns that split the main measure, so the Map page is not available',
           insights: pr.insights.map((i) => i.text), warnings: pr.warnings,
           businessRules: await R.currentRecommendations().then((x) => x.rules).catch(() => null),
           themes: R.reportsCatalog().themes.map((t) => `${t.id}: ${t.name} – ${t.description}`),
@@ -615,7 +618,7 @@ function studioTools(chatId) {
       parameters: obj({
         name: str('Report name'),
         theme: themeParam(),
-        pages: { type: 'array', items: { type: 'string', enum: ['executive', 'drivers', 'scorecard', 'rules'] }, description: 'Pages in order' },
+        pages: { type: 'array', items: { type: 'string', enum: ['executive', 'drivers', 'scorecard', 'rules', 'geo'] }, description: 'Pages in order (geo = Map page; only when studio_describe_report_options reports geography)' },
         audience: str('Who the report is for, e.g. Leadership, Sales managers'),
         summary: str('Two or three sentences: why these pages and this theme fit the data and audience (shown in the review)'),
       }, ['pages', 'theme']),
@@ -680,11 +683,11 @@ function studioTools(chatId) {
       handler: async (a) => runAsJob('data-agent', 'Create the Fabric data agent', (ctx) => DA.runDataAgent(ctx, { name: a.name, instructions: a.instructions, description: a.description, publish: a.publish !== false })),
     }),
     studioTool('studio_create_report', {
-      description: 'Build a professional Power BI report on the project semantic model from the studio templates and deploy it to the project workspace (an existing report with the same name is updated). Pages: executive (Executive summary), drivers (Performance drivers), scorecard (Scorecard), rules (Business rules dashboard: ontology rules with live counts; rule measures the model lacks are added to the report). Themes: studio, executive, teal, slate, accessible, midnight, plus any theme the user uploaded (see studio_describe_report_options). Call studio_describe_report_options first to recommend pages and a theme.',
+      description: 'Build a professional Power BI report on the project semantic model from the studio templates and deploy it to the project workspace (an existing report with the same name is updated). Pages: executive (Executive summary), drivers (Performance drivers), scorecard (Scorecard), rules (Business rules dashboard: ontology rules with live counts; rule measures the model lacks are added to the report), geo (Map: Azure Maps bubbles sized by the main measure – drill country › state › city, or points at latitude/longitude – with the top places; only when studio_describe_report_options reports geography). Themes: studio, executive, teal, slate, accessible, midnight, plus any theme the user uploaded (see studio_describe_report_options). Call studio_describe_report_options first to recommend pages and a theme.',
       parameters: obj({
         name: str('Report name (default: "<semantic model> report")'),
         theme: themeParam(),
-        pages: { type: 'array', items: { type: 'string', enum: ['executive', 'drivers', 'scorecard', 'rules'] }, description: 'Pages in order (default: all three)' },
+        pages: { type: 'array', items: { type: 'string', enum: ['executive', 'drivers', 'scorecard', 'rules', 'geo'] }, description: 'Pages in order (default: executive, drivers, scorecard)' },
       }),
       handler: async (a) => runAsJob('report', `Build Power BI report ${a.name || ''}`.trim(), (ctx) => R.runReport(ctx, { name: a.name, theme: a.theme, pages: a.pages?.length ? a.pages : undefined })),
     }),

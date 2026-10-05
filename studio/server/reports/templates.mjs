@@ -15,6 +15,7 @@ export const PAGE_TEMPLATES = [
   { id: 'scorecard', name: 'Scorecard', archetype: 'Operational monitor', description: 'Segment × year scorecard, margin trend by segment, and a ranked breakdown with data bars.', needs: ['kpis'] },
   { id: 'rules', name: 'Business rules', archetype: 'Operational monitor', description: 'Ontology rules in plain English with live counts, rule breaks by year, and where they happen.', needs: ['rules'] },
   { id: 'plan', name: 'Plan vs actual', archetype: 'Operational monitor', description: 'Actual, budget and forecast KPIs, the monthly trend of all three, and the variance to budget by region and category.', needs: ['plan'] },
+  { id: 'geo', name: 'Map', archetype: 'Geographic', description: 'Azure Maps bubbles sized by the main measure – drill from country to state to city, or points at latitude/longitude – with the biggest places and a ranking. Needs location columns in the model.', needs: ['geo'] },
 ];
 
 /** Page-level filter: column IN values (e.g. full years only). */
@@ -201,7 +202,53 @@ function plan(theme, profile) {
   return { displayName: 'Plan vs actual', visuals };
 }
 
-const BUILDERS = { executive, drivers, scorecard, rules, plan };
+// Map: where the main measure comes from. Places drill from the coarse level down; coordinates show one bubble each.
+// profile.geo = { mode: 'places' | 'points', levels: [column refs coarse → fine], lat, lon, label }.
+const plural = (s) => (/[^aeiou]y$/i.test(s) ? `${s.slice(0, -1)}ies` : /(s|x|ch|sh)$/i.test(s) ? `${s}es` : `${s}s`);
+function geo(theme, profile, { subtitle }) {
+  const p = profile;
+  const g = p.geo;
+  const visuals = [...header(theme, p, 'Where the numbers come from', subtitle), ...kpiRow(theme, p, TOP, 88)];
+  const y = TOP + 88 + G;
+  const h = PAGE.height - M - y;
+  const mapW = 760;
+  const coarse = g.levels[0] || null;
+  const fine = g.mode === 'points' ? g.label || g.levels[g.levels.length - 1] || null : g.levels[g.levels.length - 1] || null;
+  const tips = p.kpis.filter((k) => k.name !== p.primary.name).slice(0, 2);
+  const where = g.mode === 'points' ? (g.label?.label || 'location') : g.levels.map((c) => c.label).join(' › ');
+  visuals.push({
+    key: 'map', pos: { x: M, y, w: mapW, h },
+    visual: V_.map(theme, {
+      locations: g.mode === 'points' ? (g.label ? [g.label] : []) : g.levels,
+      lat: g.mode === 'points' ? g.lat : null, lon: g.mode === 'points' ? g.lon : null,
+      size: p.primary, tooltips: tips,
+      title: `${p.primary.label} by ${where.toLowerCase()}${g.mode === 'places' && g.levels.length > 1 ? ' (drill down for detail)' : ''}`,
+    }),
+  });
+  const rx = M + mapW + G;
+  const rw = W - mapW - G;
+  const half = (h - G) / 2;
+  const same = (a, b) => Boolean(a && b && a.table === b.table && a.name === b.name);
+  const showTable = fine && !same(fine, coarse);
+  if (coarse) {
+    visuals.push({ key: 'geo-bars', pos: { x: rx, y, w: rw, h: showTable ? half : h }, visual: V_.bars(theme, { measures: [p.primary], category: coarse, title: `${p.primary.label} by ${coarse.label.toLowerCase()}` }), filterConfig: topNFilter(coarse, p.primary, 10) });
+  }
+  if (showTable) {
+    // The place one level up tells same-named places apart (Springfield, Illinois and Springfield, Missouri). A top-N
+    // filter ranks names, not places, so with the parent the table lists every place, highest first.
+    const parent = g.mode === 'places' && g.levels.length > 1 ? g.levels[g.levels.length - 2] : null;
+    const second = p.kpis.find((k) => k.percent) || tips[0];
+    const name = plural(fine.label.toLowerCase());
+    visuals.push({
+      key: 'geo-top', pos: { x: rx, y: coarse ? y + half + G : y, w: rw, h: coarse ? half : h },
+      visual: V_.table(theme, { columns: [fine, ...(parent ? [parent] : [])], measures: [p.primary, ...(second ? [second] : [])], title: parent ? `${name.charAt(0).toUpperCase()}${name.slice(1)} by ${p.primary.label.toLowerCase()}, highest first` : `Top 10 ${name} by ${p.primary.label.toLowerCase()}`, bars: true }),
+      filterConfig: parent ? notBlankFilter(fine) : topNFilter(fine, p.primary, 10),
+    });
+  }
+  return { displayName: 'Map', visuals };
+}
+
+const BUILDERS = { executive, drivers, scorecard, rules, plan, geo };
 
 /**
  * Report plan for a model profile: { pages: [{ name, displayName, visuals, filterConfig }] } ready for reportFiles().
@@ -211,7 +258,7 @@ export function buildReportPages(profile, theme, { pages = ['executive', 'driver
   const period = periodText(profile);
   const sub = subtitle || [profile.model.name, period].filter(Boolean).join(' · ');
   const pageFilter = profile.time && profile.time.fullYears.length && profile.time.fullYears.length < profile.time.years.length ? inFilter(profile.time.year, profile.time.fullYears) : null;
-  return pages.filter((id) => BUILDERS[id] && (id !== 'plan' || profile.plan)).map((id) => {
+  return pages.filter((id) => BUILDERS[id] && (id !== 'plan' || profile.plan) && (id !== 'geo' || profile.geo)).map((id) => {
     const page = BUILDERS[id](theme, profile, { subtitle: sub });
     // The plan page shows the plan year only; the other pages compare full years.
     const filter = id === 'plan' ? inFilter(profile.plan.year, [profile.plan.planYear]) : pageFilter;

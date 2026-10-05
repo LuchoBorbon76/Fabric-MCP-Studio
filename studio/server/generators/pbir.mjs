@@ -7,6 +7,8 @@ import { themeJson } from '../reports/themes.mjs';
 const S = 'https://developer.microsoft.com/json-schemas/fabric/item/report/definition';
 const V = { report: '3.1.0', page: '2.0.0', visual: '2.0.0', pages: '1.0.0', version: '1.0.0' };
 export const PAGE = { width: 1280, height: 720, margin: 24, gutter: 16, header: 72 };
+// Query roles of the Azure Maps visual for coordinates.
+export const MAP_ROLES = { latitude: 'Y', longitude: 'X' };
 
 // ---------------- expressions ----------------
 const lit = (v) => ({ expr: { Literal: { Value: v } } });
@@ -193,6 +195,33 @@ export const V_ = {
         },
       },
       visualContainerObjects: frame(theme, { title, alt: title }),
+    };
+  },
+
+  /**
+   * Azure Maps visual: bubbles sized by a measure at places (Location: country › state › city, drill down from the
+   * first) or at coordinates (Latitude and Longitude, labelled by a place name). Power BI geocodes place names, so the
+   * coarse level helps it find the fine ones.
+   */
+  map(theme, { locations = [], lat, lon, size, tooltips = [], title }) {
+    const queryState = {};
+    if (locations.length) queryState.Category = { projections: locations.map((c, i) => projection(c, i === 0 ? { active: true } : {})) };
+    if (lat && lon) {
+      queryState[MAP_ROLES.latitude] = { projections: [projection(lat)] };
+      queryState[MAP_ROLES.longitude] = { projections: [projection(lon)] };
+    }
+    if (size) queryState.Size = { projections: [projection(size)] };
+    if (tooltips.length) queryState.Tooltips = { projections: tooltips.map((m) => projection(m)) };
+    return {
+      visualType: 'azureMap',
+      query: { queryState },
+      objects: {
+        mapControls: [props({ defaultStyle: text(theme.dark ? 'grayscale_dark' : 'grayscale_light'), autoZoom: bool(true), worldWrap: bool(false), showStylePicker: bool(true), showNavigationControls: bool(true), showSelectionControl: bool(false) })],
+        bubbleLayer: [props({ show: bool(true) })],
+        categoryLabels: [props({ show: bool(false) })],
+      },
+      visualContainerObjects: frame(theme, { title, alt: title }),
+      drillFilterOtherVisuals: true,
     };
   },
 

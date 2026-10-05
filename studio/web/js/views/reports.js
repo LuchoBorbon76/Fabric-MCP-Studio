@@ -284,7 +284,10 @@ function drawFindings(card, p, refresh = false) {
         h('dt', {}, 'Share by'), h('dd', {}, ref(pr.share)),
         h('dt', {}, 'Break down by'), h('dd', {}, ref(pr.breakdown)),
         h('dt', {}, 'Top 10 list'), h('dd', {}, ref(pr.entity)),
-        h('dt', {}, 'Drill path'), h('dd', {}, pr.hierarchy.length ? pr.hierarchy.map((x) => x.label).join(' › ') : h('span', { class: 'muted' }, '–'))),
+        h('dt', {}, 'Drill path'), h('dd', {}, pr.hierarchy.length ? pr.hierarchy.map((x) => x.label).join(' › ') : h('span', { class: 'muted' }, '–')),
+        h('dt', {}, 'Map'), h('dd', {}, !pr.geo ? h('span', { class: 'muted' }, 'no location columns')
+          : pr.geo.mode === 'points' ? `${(pr.geo.points || 0).toLocaleString()} points at ${pr.geo.lat.name} / ${pr.geo.lon.name}${pr.geo.label ? ` · ${pr.geo.label.label}` : ''}`
+            : pr.geo.levels.map((c) => `${c.label}${pr.geo.distinct?.[c.level] ? ` (${pr.geo.distinct[c.level].toLocaleString()})` : ''}`).join(' › '))),
       pr.insights.length ? h('div', { class: 'banner ok mt' }, h('div', {}, h('b', {}, 'Insights. '), pr.insights.map((i) => i.text).join(' '))) : null,
       pr.warnings.length ? h('div', { class: 'banner warn mt' }, pr.warnings.join(' ')) : null,
       h('p', { class: 'tiny muted' }, 'Read-only DAX against your model; your permissions and row-level security apply.')].filter(Boolean));
@@ -316,6 +319,7 @@ const LAYOUTS = {
   scorecard: [[0, 0, 100, 14, 'band'], [2, 18, 23, 12], [27, 18, 23, 12], [52, 18, 23, 12], [77, 18, 21, 12], [2, 34, 46, 32, 'table'], [50, 34, 48, 32, 'line'], [2, 70, 96, 28, 'table']],
   rules: [[0, 0, 100, 14, 'band'], [2, 18, 15, 13, 'alert'], [18.5, 18, 15, 13, 'alert'], [35, 18, 15, 13, 'alert'], [51.5, 18, 15, 13], [68, 18, 15, 13], [84.5, 18, 13.5, 13], [2, 35, 38, 63, 'text'], [42, 35, 56, 30, 'cols'], [42, 68, 56, 30, 'table']],
   plan: [[0, 0, 100, 14, 'band'], [2, 18, 18, 13], [21.5, 18, 18, 13], [41, 18, 18, 13, 'alert'], [60.5, 18, 18, 13, 'alert'], [80, 18, 18, 13], [2, 35, 96, 33, 'line'], [2, 71, 54, 27, 'table'], [58, 71, 40, 27, 'bars']],
+  geo: [[0, 0, 100, 14, 'band'], [2, 18, 23, 12], [27, 18, 23, 12], [52, 18, 23, 12], [77, 18, 21, 12], [2, 34, 60, 64, 'map'], [64, 34, 34, 31, 'bars'], [64, 67, 34, 31, 'table']],
 };
 
 function layoutThumb(id, t) {

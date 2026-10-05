@@ -116,9 +116,99 @@ const looksLikeYears = (values) => {
 const col = (c, label) => ({ kind: 'column', table: c.table, name: c.name, label: label || columnLabel(c.name) });
 const meas = (m, label) => ({ kind: 'measure', table: m.table, name: m.name, label: label || m.name, formatString: m.formatString, percent: isPercent(m), displayFolder: m.displayFolder || '', description: m.description || '' });
 
+// ---------------- geography ----------------
+
+// Where a column sits on a map: its data category in the model, else the words of its name. Coarse to fine.
+const GEO_LEVELS = [
+  { level: 'continent', category: 'Continent', words: ['continent'] },
+  { level: 'country', category: 'Country', words: ['country', 'nation'] },
+  { level: 'state', category: 'StateOrProvince', words: ['state', 'province', 'prefecture', 'canton'] },
+  { level: 'county', category: 'County', words: ['county', 'district'] },
+  { level: 'city', category: 'City', words: ['city', 'town', 'municipality'] },
+  { level: 'postal', category: 'PostalCode', words: ['postal', 'zip', 'postcode', 'zipcode'] },
+];
+const GEO_ORDER = GEO_LEVELS.map((g) => g.level);
+const words = (name) => columnLabel(name).toLowerCase().split(/[\s/]+/).filter(Boolean);
+const NUMERIC = ['Double', 'Decimal', 'Number', 'Currency', 'Integer', 'Int64'];
+
+function geoLevelOf(c) {
+  const byCategory = GEO_LEVELS.find((g) => g.category.toLowerCase() === String(c.dataCategory || '').toLowerCase());
+  if (byCategory) return byCategory.level;
+  if (LANG.test(c.name)) return null;
+  const w = words(c.name);
+  if (w.some((x) => ['key', 'id', 'guid'].includes(x))) return null;
+  return GEO_LEVELS.find((g) => g.words.some((x) => w.includes(x)) && (g.level === 'postal' || !w.includes('code') || g.level === 'country'))?.level || null;
+}
+const coordOf = (c) => {
+  if (/^latitude$/i.test(c.dataCategory || '')) return 'lat';
+  if (/^longitude$/i.test(c.dataCategory || '')) return 'lon';
+  const w = words(c.name);
+  if (w.includes('latitude') || w.includes('lat')) return 'lat';
+  if (w.includes('longitude') || w.includes('lon') || w.includes('lng') || w.includes('long')) return 'lon';
+  return null;
+};
+
+/**
+ * Columns a map can use, checked against the data: levels (country, state, city…) that split the main measure, or a
+ * latitude/longitude pair with plausible values. Returns null when the model has no usable geography.
+ * { mode: 'points' | 'places', levels: [col…], lat, lon, label, distinct: { level: n } }
+ */
+async function geoInfo(meta, workspaceId, datasetId, primary) {
+  // Hidden columns count too (coordinates are often hidden); visible ones are preferred.
+  const cols = [...meta.columns, ...(meta.hiddenColumns || [])];
+  const places = [];
+  for (const c of cols) {
+    const level = geoLevelOf(c);
+    if (level && (c.dataType === 'Text' || (level === 'postal' && NUMERIC.includes(c.dataType)))) places.push({ ...c, level });
+  }
+  const coords = cols.filter((c) => NUMERIC.includes(c.dataType) && coordOf(c)).map((c) => ({ ...c, coord: coordOf(c) }));
+  if (!places.length && !coords.length) return null;
+  // One query: distinct values, and how much of the main measure each column splits (1 = filters reach the facts).
+  const all = [...places.sort((a, b) => Number(Boolean(a.hidden)) - Number(Boolean(b.hidden))), ...coords].slice(0, 30);
+  const q = all.map((c, i) => `"d${i}", COUNTROWS(VALUES(${cRef(c)})), "s${i}", SUMX(VALUES(${cRef(c)}), ${mRef(primary)})${c.coord ? `, "lo${i}", MIN(${cRef(c)}), "hi${i}", MAX(${cRef(c)})` : ''}`).join(', ');
+  const row = (await dax(workspaceId, datasetId, `EVALUATE ROW("total", ${mRef(primary)}, ${q})`))[0] || {};
+  const total = Number(row.total) || 0;
+  const stat = new Map(all.map((c, i) => [c, { distinct: Number(row[`d${i}`]) || 0, splits: total ? Math.abs(Number(row[`s${i}`]) / total - 1) < 0.01 : false, lo: Number(row[`lo${i}`]), hi: Number(row[`hi${i}`]) }]));
+  const ok = (c) => stat.get(c)?.splits && stat.get(c).distinct > 1;
+  // Best column for each level: a data category beats a name, a name beats a code, visible beats hidden.
+  const rank = (c) => (c.dataCategory && c.dataCategory !== 'Uncategorized' ? 4 : 0) + (/name/i.test(c.name) ? 2 : 0) - (/code|abbrev/i.test(c.name) ? 2 : 0) - (c.hidden ? 3 : 0);
+  const usable = places.filter((x) => all.includes(x) && ok(x)).sort((a, b) => rank(b) - rank(a));
+  // A name alone can mislead ("Order State" is a status): a table's places count when a data category, a clear place
+  // word (country, city, postal code), a second level or a geographic table name backs them up.
+  const GEO_TABLE = /(geo|address|location|place|country|city|region|territor|store|site|branch|office|customer|supplier|vendor|warehouse)/i;
+  const STRONG = new Set(['continent', 'country', 'city', 'postal']);
+  const backed = (t) => {
+    const here = usable.filter((c) => c.table === t);
+    return GEO_TABLE.test(t) || new Set(here.map((c) => c.level)).size > 1
+      || here.some((c) => (c.dataCategory && c.dataCategory !== 'Uncategorized') || STRONG.has(c.level));
+  };
+  // The levels of one table (a customer's country, state and city – not a store's country with a customer's city).
+  const tables = [...new Set(usable.map((c) => c.table))].filter(backed)
+    .map((t) => ({ t, levels: new Set(usable.filter((c) => c.table === t).map((c) => c.level)) }))
+    .sort((a, b) => b.levels.size - a.levels.size);
+  const home = tables[0]?.t;
+  const byLevel = {};
+  for (const c of usable.filter((x) => x.table === home)) if (!byLevel[c.level]) byLevel[c.level] = c;
+  // A latitude and a longitude in the same table, with values on the globe.
+  const lat = coords.find((c) => c.coord === 'lat' && ok(c) && stat.get(c).lo >= -90 && stat.get(c).hi <= 90);
+  const lon = lat && coords.find((c) => c.coord === 'lon' && c.table === lat.table && ok(c) && stat.get(c).lo >= -180 && stat.get(c).hi <= 180);
+  // Levels a map shows, coarse to fine: from the first with more than one value (one country → start at states); a
+  // postal code only when nothing finer than a state is there.
+  const present = GEO_ORDER.filter((l) => byLevel[l] && (l !== 'postal' || !byLevel.city));
+  const levels = present.filter((l) => l !== 'continent' || present.length === 1).slice(0, 3).map((l) => byLevel[l]);
+  if (!levels.length && !(lat && lon)) return null;
+  const distinct = Object.fromEntries(levels.map((c) => [c.level, stat.get(c).distinct]));
+  if (lat && lon) {
+    // The place name next to the coordinates labels each point.
+    const label = levels.filter((c) => c.table === lat.table).pop() || cols.find((c) => c.table === lat.table && c.dataType === 'Text' && /name$/i.test(c.name)) || null;
+    return { mode: 'points', levels: levels.map((c) => ({ ...col(c), level: c.level })), lat: col(lat, 'Latitude'), lon: col(lon, 'Longitude'), label: label ? col(label) : null, distinct, points: stat.get(lat).distinct };
+  }
+  return { mode: 'places', levels: levels.map((c) => ({ ...col(c), level: c.level })), lat: null, lon: null, label: null, distinct };
+}
+
 /**
  * Profile a semantic model for report design.
- * Returns { model, measures, kpis, primary, channels, time, share, breakdown, entity, hierarchy, slicers, insights, warnings }.
+ * Returns { model, measures, kpis, primary, channels, time, share, breakdown, entity, hierarchy, geo, slicers, insights, warnings }.
  */
 export async function profileModel(workspaceId, datasetId, { modelName = '' } = {}) {
   const meta = await modelMetadata(workspaceId, datasetId);
@@ -232,6 +322,17 @@ export async function profileModel(workspaceId, datasetId, { modelName = '' } = 
   }
 
   const slicers = [time?.year, share ? col(share) : null].filter(Boolean);
+  // Geography for maps: places (country, state, city…) or coordinates that split the main measure.
+  let geo = null;
+  try { geo = await geoInfo(meta, workspaceId, datasetId, primary); } catch (e) { warnings.push(`Geography couldn't be read (${String(e.message).split('\n')[0].slice(0, 120)}); maps were left out.`); }
+  if (geo?.levels.length) {
+    const top = geo.levels[0];
+    try {
+      const rows = await dax(workspaceId, datasetId, `EVALUATE TOPN(1, SUMMARIZECOLUMNS(${cRef(top)}, "v", ${mRef(primary)}), [v], DESC)`);
+      const total = Number((await dax(workspaceId, datasetId, `EVALUATE ROW("t", ${mRef(primary)})`))[0]?.t) || 0;
+      if (rows[0] && total) insights.push({ kind: 'geo', text: `${rows[0][top.name]} is the biggest ${top.label.toLowerCase()} with ${Math.round((Number(rows[0].v) / total) * 100)}% of ${primary.name}.` });
+    } catch { /* no insight */ }
+  }
   // Tables a date filter reaches (facts with an active relationship to the date table): rule counts on them trend by year.
   const dateLinked = date ? [...new Set(meta.relationships.filter((r) => r.active && r.toTable === date.table).map((r) => r.fromTable))] : [];
   return {
@@ -247,6 +348,7 @@ export async function profileModel(workspaceId, datasetId, { modelName = '' } = 
     breakdown: breakdown ? col(breakdown) : null,
     entity: entity ? col(entity) : null,
     hierarchy: hierarchy.map((c) => col(c)),
+    geo,
     slicers,
     insights,
     warnings,

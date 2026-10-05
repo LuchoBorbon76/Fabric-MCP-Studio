@@ -307,6 +307,7 @@ img.rpreview{height:auto}
 .recsw{display:flex;gap:3px;flex:0 0 auto}
 .recsw i{width:12px;height:22px;border-radius:3px;display:block}
 .lthumb .lt.alert{border-left:2px solid #DC2626}
+.lthumb .lt.map{background-image:radial-gradient(circle at 28% 38%,var(--acc) 0 7%,transparent 8%),radial-gradient(circle at 62% 30%,var(--acc) 0 4%,transparent 5%),radial-gradient(circle at 48% 64%,var(--acc) 0 10%,transparent 11%),radial-gradient(circle at 78% 58%,var(--acc) 0 5%,transparent 6%),repeating-linear-gradient(135deg,rgba(0,0,0,.05) 0 2px,transparent 2px 9px)!important}
 .lthumb .lt.text{background-image:repeating-linear-gradient(180deg,transparent 0 9%,rgba(0,0,0,.12) 9% 11%,transparent 11% 16%)!important;background-size:80% 100%;background-position:10% 0;background-repeat:no-repeat}
 .rrow.app{background:linear-gradient(135deg,color-mix(in srgb,var(--brand) 9%,var(--panel)),var(--panel));border-color:color-mix(in srgb,var(--brand) 40%,var(--line))}
 
