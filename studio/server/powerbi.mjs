@@ -38,6 +38,26 @@ async function pbi(method, path, body, { raw = false } = {}) {
   throw new PowerBIError(`${method} ${path} failed after retries`, 0);
 }
 
+/**
+ * Whether the sign-in saved in a shareable cloud connection still works (null when it can't be checked).
+ * Fabric connections are Power BI gateway data sources on the tenant's cloud gateway.
+ */
+export async function connectionSignInOk(gatewayId, connectionId) {
+  if (!gatewayId || !connectionId) return null;
+  try { await pbi('GET', `/gateways/${gatewayId}/datasources/${connectionId}/status`); return true; }
+  catch (e) { return e.status === 404 || e.status === 403 ? null : false; }
+}
+
+/** Give a person a role in a workspace by email (Power BI groups API), or raise it when they already have one. */
+export async function setWorkspaceUser(workspaceId, email, role = 'Contributor') {
+  const body = { emailAddress: email, groupUserAccessRight: role };
+  try { await pbi('POST', `/groups/${workspaceId}/users`, body); return { added: true }; }
+  catch (e) {
+    if (e.status === 400 || e.status === 409) { await pbi('PUT', `/groups/${workspaceId}/users`, body); return { added: false, updated: true }; }
+    throw e;
+  }
+}
+
 /** Run one DAX query and return the rows with the brackets removed from column names. */
 export async function dax(workspaceId, datasetId, query) {
   const r = await pbi('POST', `/groups/${workspaceId}/datasets/${datasetId}/executeQueries`, { queries: [{ query }], serializerSettings: { includeNulls: true } });

@@ -264,6 +264,9 @@ route('GET', '/api/planning/summary', () => PL.planSummary());
 route('POST', '/api/jobs/planning', (_, b) => startJob('planning', 'Build the budget and forecast', (ctx) => PL.runPlan(ctx, PL.planOptions(b))));
 route('POST', '/api/jobs/plan-item', (_, b) => startJob('plan-item', b.connection ? 'Change the Fabric plan connection' : 'Create the Fabric plan', (ctx) => PL.runPlanItem(ctx, { name: b.name, connection: typeof b.connection === 'string' && b.connection ? b.connection : undefined })));
 route('GET', '/api/planning/connections', () => PL.planConnections());
+// Who can open the model in a plan (workspace roles), and giving a planner Contributor access.
+route('GET', '/api/planning/access', () => PL.planAccess());
+route('POST', '/api/planning/access', async (_, b) => { await assertProjectTenant(); return PL.addPlanner({ email: b.email, role: b.role || 'Contributor' }); });
 route('DELETE', '/api/planning', async (_, __, q) => { await assertProjectTenant(); return PL.removePlan({ deleteData: q.get('data') === '1', deleteItem: q.get('item') === '1' }); });
 route('DELETE', '/api/reports/:id', (p, _, q) => R.removeReport(p.id, { deleteItem: q.get('delete') === '1' }));
 route('GET', '/api/teardown/plan', (_, __, q) => P.teardownPlan({ deleteWorkspace: q.get('workspace') === '1' }));

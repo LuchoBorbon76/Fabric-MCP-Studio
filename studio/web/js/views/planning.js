@@ -285,7 +285,7 @@ function planItemCard(s) {
   const connSel = select([{ value: ASK_IN_FABRIC, label: 'Choose it in Fabric when the plan opens (recommended)' }]);
   const current = it?.connectionId || (it?.connected ? '?' : ASK_IN_FABRIC);
   get('/planning/connections').then((r) => {
-    for (const c of r.connections) connSel.append(h('option', { value: c.id, selected: c.id === current || undefined }, `Use the shared connection "${c.name}"${c.credentialType ? ` (${c.credentialType})` : ''}`));
+    for (const c of r.connections) connSel.append(h('option', { value: c.id, selected: c.id === current || undefined }, `Use the shared connection "${c.name}"${c.credentialType ? ` (${c.credentialType})` : ''}${c.signInOk === false ? ' – its sign-in has expired' : ''}`));
     if (current === '?') connSel.append(h('option', { value: '?', selected: true, disabled: true }, `Connected through "${it.connectionName}"`));
     sync();
   }).catch(() => {});
@@ -306,25 +306,55 @@ function planItemCard(s) {
   const dims = pl ? pl.dims.map((x) => x.labelText) : ['Region', 'Category'];
   const n = pl?.spec?.names || { budget: 'Budget', forecast: 'Forecast', actual: 'Actual' };
   put(card,
-    h('div', { class: 'row sp' }, h('h3', { style: { margin: 0 } }, '4 · Plan in Fabric'), it ? h('span', { class: `pill ${it.connected ? 'ok' : 'warn'}` }, it.connected ? 'Connected' : 'Connect when it opens') : pl ? h('span', { class: 'pill brand' }, 'Next') : h('span', { class: 'pill' }, 'Needs the plan')),
+    h('div', { class: 'row sp' }, h('h3', { style: { margin: 0 } }, '4 · Plan in Fabric'), it ? h('span', { class: `pill ${it.connected ? 'brand' : 'warn'}` }, it.connected ? `Shared connection` : 'Connect when it opens') : pl ? h('span', { class: 'pill brand' }, 'Next') : h('span', { class: 'pill' }, 'Needs the plan')),
     h('p', { class: 'small muted' }, 'Planning in Fabric IQ gives planners Excel-like planning sheets on the same model: adjust the budget, run what-if scenarios, comment, approve, and write the results back to a Fabric SQL database.'),
     it ? h('dl', { class: 'kv', style: { marginTop: '10px' } },
       h('dt', {}, 'Plan'), h('dd', {}, h('a', { href: it.url, target: '_blank', rel: 'noopener' }, it.name, ' ↗')),
-      h('dt', {}, 'Semantic model'), h('dd', {}, it.connected ? `${model} through the shared connection "${it.connectionName}" – read with the sign-in saved in that connection` : `${model} – Fabric asks for the connection when the plan opens`)) : null,
-    pl ? field('Semantic model connection', connSel, 'A shared connection reads the model with the sign-in saved in it, for everyone who opens the plan. If that account can\'t open the model, the plan says it can\'t access the semantic model.') : null,
+      h('dt', {}, 'Semantic model'), h('dd', {}, it.connected ? `${model} through the shared connection "${it.connectionName}" – read as the account saved in that connection` : `${model} – Fabric asks for the connection when the plan opens`)) : null,
+    pl ? field('Semantic model connection', connSel, 'A shared connection reads the model as the account saved in it, for everyone who opens the plan – that account must be able to open the model (see Who can plan).') : null,
     h('ol', { class: 'pre small', style: { marginTop: '10px' } },
       h('li', {}, it ? 'Open the plan.' : 'Create the plan here.'),
-      it?.connected ? null : h('li', {}, 'In the plan, select Semantic Model › Create Connection (or pick a connection), sign in with an account that is Contributor or higher in ', h('b', {}, wsName), ', then pick ', h('b', {}, model), ' › Connect.'),
+      it?.connected ? null : h('li', {}, 'In the plan, select Semantic Model › ', h('b', {}, 'Create Connection'), ' and sign in with an account listed under Who can plan, then pick ', h('b', {}, model), ' › Connect. Picking an existing connection works only if the account saved in it is listed there.'),
       h('li', {}, 'New Planning Sheet › Rows: ', h('b', {}, dims.join(' › ')), ' · Columns: ', h('b', {}, 'Year › Month'), ' · Values: ', h('b', {}, `${n.budget}, ${n.forecast}, ${n.actual}`), '.'),
       h('li', {}, 'Add input rows or columns to adjust the budget; set a writeback destination to keep the planners\' numbers in a SQL database.')),
     h('div', { class: 'row', style: { marginTop: '10px' } }, go, change, it ? h('a', { class: 'btn', href: it.url, target: '_blank', rel: 'noopener' }, 'Open plan ↗') : null),
     it?.semanticModelId && it.semanticModelId !== store.project.semanticModel?.id ? h('div', { class: 'banner err mt' }, h('div', {}, h('b', {}, 'The plan points to a semantic model that no longer exists. '),
       `${model} was created again since the plan was made. Select Check the plan to recreate the plan on the current model.`)) : null,
-    it?.connected ? h('div', { class: 'banner warn mt' }, h('div', {}, h('b', {}, 'Plan says "Can\'t access the semantic model"? '),
-      `The sign-in saved in "${it.connectionName}" can't open ${model} in ${wsName}. Pick "Choose it in Fabric when the plan opens" above and select Change the connection, then open the plan and connect with your own sign-in – or select Manage Semantic Model Connection in the plan and sign in again.`)) : null,
+    it ? h('div', { class: 'banner warn mt' }, h('div', {},
+      h('b', {}, 'Plan says "Can\'t access the semantic model"? '),
+      `The plan reads ${model} as ${it.connected ? `the account saved in "${it.connectionName}"` : 'the account saved in the connection you pick when it opens'}, and that account isn't Contributor or higher in ${wsName}. Fix it either way:`,
+      h('ul', { class: 'pre', style: { margin: '6px 0 0' } },
+        h('li', {}, 'Give that account access below (Who can plan › Give Contributor access) – it is often your own account, not the one the studio uses.'),
+        h('li', {}, 'Or sign the connection in again with an account that can open the model: ', h('a', { href: 'https://app.fabric.microsoft.com/groups/me/gateways', target: '_blank', rel: 'noopener' }, 'Manage connections and gateways ↗'), ` › "${it.connectionName || 'the connection'}" › Edit credentials.`)))) : null,
+    pl ? plannersBox(wsName) : null,
     h('p', { class: 'tiny muted' }, `The studio works as ${me}. Planners need Contributor or higher in ${wsName} (Viewers can look but not plan), and XMLA endpoints enabled for the tenant and set to Read Only or Read Write on the capacity (F SKU or Premium).`),
     job);
   return card;
+}
+
+/** Who can plan: the workspace's people and roles, and giving someone Contributor access. */
+function plannersBox(wsName) {
+  const box = h('div', { class: 'mt' }, h('div', { class: 'row muted small' }, h('span', { class: 'spin' }), 'Reading who has access…'));
+  const email = input({ type: 'email', placeholder: 'name@contoso.com', style: { maxWidth: '340px' } });
+  const add = h('button', { class: 'btn', 'data-busy': 'Adding…' }, 'Give Contributor access');
+  const draw = (r) => {
+    box.replaceChildren(h('h4', { style: { margin: '0 0 6px' } }, `Who can plan (${wsName})`));
+    if (!r.canList) box.append(h('p', { class: 'tiny muted' }, r.reason));
+    else {
+      const t = h('table', { class: 't' }, h('tr', {}, h('th', {}, 'Person or group'), h('th', {}, 'Role'), h('th', {}, 'Can plan')));
+      for (const m of r.members) t.append(h('tr', {}, h('td', {}, m.name, m.account && m.account !== m.name ? h('div', { class: 'tiny muted' }, m.account) : null), h('td', {}, m.role), h('td', {}, m.canPlan ? h('span', { class: 'pill ok' }, '✓') : h('span', { class: 'pill warn' }, 'Needs Contributor'))));
+      box.append(t);
+    }
+    box.append(h('div', { class: 'row mt' }, email, add), h('p', { class: 'tiny muted' }, 'Add the account saved in the shared connection, and everyone who will plan. They get Contributor in the workspace (they can then change its items).'));
+  };
+  add.addEventListener('click', busy(add, async () => {
+    const r = await post('/planning/access', { email: email.value });
+    toast(`${r.added} can plan now`, 'ok');
+    email.value = '';
+    draw(r);
+  }));
+  get('/planning/access').then(draw).catch((e) => { box.replaceChildren(h('div', { class: 'banner err' }, e.message)); });
+  return box;
 }
 
 async function startJob(path, payload, container, doneText) {

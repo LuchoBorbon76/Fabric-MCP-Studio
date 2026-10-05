@@ -351,6 +351,8 @@ const STUDIO_TOOLS_META = {
   studio_preview_plan: { write: false, title: 'Preview a budget and forecast' },
   studio_create_plan: { write: true, title: 'Build the budget and forecast' },
   studio_create_plan_item: { write: true, title: 'Create the Fabric plan' },
+  studio_planning_access: { write: false, title: 'Read who can plan' },
+  studio_add_planner: { write: true, title: 'Give a planner Contributor access' },
   studio_check_readiness: { write: false, title: 'Check what can run (capacity, role, tenant settings)' },
 };
 
@@ -830,6 +832,16 @@ function studioTools(chatId) {
       description: 'Create (or update) the Fabric plan item where planners refine the budget in planning sheets. Needs the plan built first. By default a new plan has no connection: when it opens, Fabric asks the planner to choose or create a semantic model connection and sign in with their own account (the reliable path). Pass connection="<id>" only when the user picked a shared PowerBIDatasets connection, or connection="fabric" to remove the plan\'s connection (fixes "Can\'t access the semantic model" when the saved sign-in of the connection can\'t reach the workspace).',
       parameters: obj({ name: str('Optional plan name (letters, numbers, underscores)'), connection: str('Optional: a shared semantic model connection ID, or "fabric" to let Fabric ask when the plan opens') }),
       handler: async (a) => runAsJob('plan-item', 'Create the Fabric plan', (ctx) => PL.runPlanItem(ctx, { name: a.name, connection: a.connection || undefined })),
+    }),
+    studioTool('studio_planning_access', {
+      description: 'Who can open the semantic model in a Fabric plan: the project workspace\'s people and groups with their roles (planning needs Contributor or higher), plus the shared PowerBIDatasets connections and whether their saved sign-in still works. When a plan says "Can\'t access the semantic model", the account the plan reads the model as (the one saved in its connection) isn\'t Contributor or higher here. Read-only.',
+      parameters: obj({}),
+      handler: async () => ({ access: await PL.planAccess(), connections: (await PL.planConnections()).connections }),
+    }),
+    studioTool('studio_add_planner', {
+      description: 'Give a person Contributor (or Member) access to the project workspace so they – or the account saved in a shared connection – can open the model in a Fabric plan. Confirm the email with the user first.',
+      parameters: obj({ email: str('The person\'s Microsoft Entra sign-in (email)'), role: { type: 'string', enum: ['Contributor', 'Member'], description: 'Default Contributor' } }, ['email']),
+      handler: async (a) => PL.addPlanner({ email: a.email, role: a.role || 'Contributor' }),
     }),
     studioTool('studio_check_readiness', {
       description: 'Check what can run before acting: the workspace capacity (running or paused, SKU, trial), your workspace role, the tenant settings each module needs (when you are a Fabric administrator), and data-source limits. Returns each module (workspace, data, model, ontology, reports, realtime, planning, share) as ready, limited or blocked with reasons and fixes. Call it when an action fails or before a long journey. Read-only.',

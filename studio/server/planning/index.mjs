@@ -4,7 +4,7 @@
 import * as F from '../fabric.mjs';
 import { sleep } from '../config.mjs';
 import { getProject, updateProject, setStep, recordArtifact, logActivity, fabricUrl } from '../project.mjs';
-import { dax, refreshDataset } from '../powerbi.mjs';
+import { dax, refreshDataset, connectionSignInOk, setWorkspaceUser } from '../powerbi.mjs';
 import { currentProfile, resetProfileCache } from '../reports/index.mjs';
 import { previewPlan, typesOf, monthName, RUN_RATE } from './design.mjs';
 import { applyPlanToModel, planMeasureNames, planCheckQuery } from './model.mjs';
@@ -192,7 +192,39 @@ export function reapplyPlan(files, p = getProject()) {
 export async function planConnections() {
   const p = requireModel();
   const list = (await F.listConnections().catch(() => [])).filter((c) => c.type === 'PowerBIDatasets' && c.connectivityType === 'ShareableCloud');
-  return { workspace: p.workspace.name, current: p.planning?.planItem?.connectionId || null, connections: list.map((c) => ({ id: c.id, name: c.name, credentialType: c.credentialType || null })) };
+  const signIn = await Promise.all(list.map((c) => connectionSignInOk(c.gatewayId, c.id)));
+  return { workspace: p.workspace.name, current: p.planning?.planItem?.connectionId || null, connections: list.map((c, i) => ({ id: c.id, name: c.name, credentialType: c.credentialType || null, signInOk: signIn[i] })) };
+}
+
+const PLAN_ROLES = ['Admin', 'Member', 'Contributor'];
+
+/**
+ * Who can open the model in a plan: the workspace's people and their roles. A plan reads the model as the person who
+ * opens it, or as the account saved in its shared connection – either needs Contributor or higher in the workspace.
+ */
+export async function planAccess() {
+  const p = requireModel();
+  let r;
+  try { r = await F.fabric('GET', `/workspaces/${p.workspace.id}/roleAssignments`); } catch (e) {
+    return { workspace: p.workspace.name, canList: false, members: [], reason: `Only workspace Admins and Members can see who has access (${e.message.split('\n')[0].slice(0, 120)}).` };
+  }
+  const members = (r?.value || []).map((a) => ({
+    name: a.principal?.displayName || a.principal?.id,
+    account: a.principal?.userDetails?.userPrincipalName || a.principal?.servicePrincipalDetails?.aadAppId || a.principal?.groupDetails?.email || null,
+    type: a.principal?.type, role: a.role, canPlan: PLAN_ROLES.includes(a.role),
+  })).sort((a, b) => Number(b.canPlan) - Number(a.canPlan) || String(a.name).localeCompare(String(b.name)));
+  return { workspace: p.workspace.name, canList: true, members };
+}
+
+/** Give a planner (or the account saved in a shared connection) Contributor access to the project workspace. */
+export async function addPlanner({ email, role = 'Contributor' } = {}) {
+  const p = requireModel();
+  const e = String(email || '').trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) throw Object.assign(new Error('Enter the person\'s email address (their Microsoft Entra sign-in).'), { status: 400 });
+  if (!PLAN_ROLES.includes(role) || role === 'Admin') throw Object.assign(new Error('Planners get Contributor or Member.'), { status: 400 });
+  const r = await setWorkspaceUser(p.workspace.id, e, role);
+  logActivity('planning.access', `${e} ${r.added ? 'added to' : 'given'} ${role} in ${p.workspace.name} (can plan)`, { workspaceId: p.workspace.id });
+  return { ...(await planAccess()), added: e };
 }
 
 /**
