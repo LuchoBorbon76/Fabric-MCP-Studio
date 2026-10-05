@@ -38,6 +38,12 @@ async function pbi(method, path, body, { raw = false } = {}) {
   throw new PowerBIError(`${method} ${path} failed after retries`, 0);
 }
 
+/** Reports in a workspace with the semantic model each one uses (to find reports the studio didn't build). */
+export async function workspaceReports(workspaceId) {
+  const r = await pbi('GET', `/groups/${workspaceId}/reports`);
+  return (r?.value || []).map((x) => ({ id: x.id, name: x.name, datasetId: x.datasetId || null, type: x.reportType || 'PowerBIReport' }));
+}
+
 /**
  * Whether the sign-in saved in a shareable cloud connection still works (null when it can't be checked).
  * Fabric connections are Power BI gateway data sources on the tenant's cloud gateway.

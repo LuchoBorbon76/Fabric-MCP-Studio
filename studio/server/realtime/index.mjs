@@ -395,6 +395,18 @@ export async function runRealtimeAlerts(ctx, { channel = 'teams', recipients, ru
   return { ...alerts, recipients: to.length };
 }
 
+/** Delete the Real-Time Dashboard (the live data stays). Links to it in the live ontology are taken out first. */
+export async function removeDashboard() {
+  const p = requireRealtime();
+  const d = p.realtime.dashboard;
+  if (p.realtime.ontology?.dashboardLinked && p.ontology?.id) await runLiveOntology(QUIET, { unlink: true }).catch(() => {});
+  if (d?.id) await F.deleteItem(p.workspace.id, d.id).catch((e) => { if (e.status !== 404 && !/not\s*found/i.test(e.message)) throw e; });
+  updateProject({ realtime: { ...getProject().realtime, dashboard: null } });
+  if (d) logActivity('realtime.dashboard', `Real-Time Dashboard "${d.name}" removed`, {});
+  await syncTaskFlow(QUIET);
+  return { ok: true };
+}
+
 /** Stop the alerts (deletes the Activator unless `keepItem`). */
 export async function removeAlerts({ keepItem = false } = {}) {
   const p = requireRealtime();

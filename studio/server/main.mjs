@@ -23,6 +23,7 @@ import { catalog } from './sources.mjs';
 import { getProject, updateProject, resetProject, getActivity, clearActivity, logActivity, assertProjectTenant } from './project.mjs';
 import { startJob, listJobs, getJob, cancelJob, flushRunningJobs, onJobSucceeded } from './jobs.mjs';
 import * as MF from './medallion-flow.mjs';
+import * as ARTS from './artifacts.mjs';
 import { health } from './health.mjs';
 import { presetSummary } from './presets.mjs';
 
@@ -256,6 +257,13 @@ route('POST', '/api/realtime/taskflow/sync', async () => { await assertProjectTe
 route('GET', '/api/medallion-flow', () => MF.medallionFlowState());
 route('POST', '/api/jobs/medallion-flow', () => startJob('medallion-flow', 'Apply the Medallion task flow', (ctx) => MF.runMedallionTaskFlow(ctx)));
 route('DELETE', '/api/medallion-flow', () => MF.removeMedallionTaskFlow());
+// Everything the project built, what uses what, and removing items nothing uses any more.
+route('GET', '/api/artifacts', () => ARTS.projectArtifacts());
+route('POST', '/api/jobs/remove', (_, b) => {
+  const keys = (Array.isArray(b.keys) ? b.keys : [b.key]).filter(Boolean).map(String).slice(0, 50);
+  if (!keys.length) throw Object.assign(new Error('Choose what to remove.'), { status: 400 });
+  return startJob('remove', keys.length === 1 ? `Remove ${b.name || keys[0]}` : `Remove ${keys.length} items`, (ctx) => ARTS.removeArtifacts(ctx, keys));
+});
 onJobSucceeded((j) => { if (MF.SYNC_KINDS.has(j.kind)) MF.syncMedallionTaskFlow().catch(() => {}); });
 route('GET', '/api/planning', () => PL.planningState());
 route('GET', '/api/readiness', (_, __, q) => readiness({ refresh: q.get('refresh') === '1' }));

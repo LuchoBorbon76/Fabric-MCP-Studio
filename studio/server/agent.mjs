@@ -19,6 +19,7 @@ import * as F from './fabric.mjs';
 import { presetFor, presetSummary } from './presets.mjs';
 import * as N from './naming.mjs';
 import * as MF from './medallion-flow.mjs';
+import * as ARTS from './artifacts.mjs';
 
 export const MCP_ENDPOINTS = {
   'fabric-core': 'https://api.fabric.microsoft.com/v1/mcp/core',
@@ -351,6 +352,8 @@ const STUDIO_TOOLS_META = {
   studio_preview_plan: { write: false, title: 'Preview a budget and forecast' },
   studio_create_plan: { write: true, title: 'Build the budget and forecast' },
   studio_create_plan_item: { write: true, title: 'Create the Fabric plan' },
+  studio_list_artifacts: { write: false, title: 'List the project\'s items and what uses them' },
+  studio_remove_artifacts: { write: true, title: 'Remove items' },
   studio_planning_access: { write: false, title: 'Read who can plan' },
   studio_add_planner: { write: true, title: 'Give a planner Contributor access' },
   studio_check_readiness: { write: false, title: 'Check what can run (capacity, role, tenant settings)' },
@@ -827,6 +830,16 @@ function studioTools(chatId) {
         overrides: { type: 'array', items: { type: 'object', properties: { key: { type: 'string' }, growthPct: { type: 'number' } } }, description: 'Growth per member of the first dimension' },
       }),
       handler: async (a) => runAsJob('planning', 'Build the budget and forecast', (ctx) => PL.runPlan(ctx, PL.planOptions(a))),
+    }),
+    studioTool('studio_list_artifacts', {
+      description: 'List everything the project built (data source, data prep notebook, semantic model, ontology, reports, org app, plan, Fabric plan, data agent, Teams agent, live data, dashboard, alerts, live ontology, medallion layers, task flow) with what each one uses and what uses it. An item can be removed only when nothing uses it (usedBy is empty). Read-only.',
+      parameters: obj({}),
+      handler: async () => (await ARTS.projectArtifacts()).map((a) => ({ key: a.key, type: a.type, name: a.name, removable: a.removable, usedBy: a.usedBy.map((u) => `${u.name} (${u.type})`), removes: a.removes })),
+    }),
+    studioTool('studio_remove_artifacts', {
+      description: 'Remove items from studio_list_artifacts by key – deletes them in Fabric (see each item\'s "removes"). Only items nothing uses can be removed: remove the users first, in order (e.g. org app, then reports, then the semantic model). Confirm with the user first (offer it with studio_suggest_apply).',
+      parameters: obj({ keys: { type: 'array', items: { type: 'string' }, description: 'Keys from studio_list_artifacts, users before what they use' } }, ['keys']),
+      handler: async (a) => runAsJob('remove', `Remove ${a.keys.length} item${a.keys.length === 1 ? '' : 's'}`, (ctx) => ARTS.removeArtifacts(ctx, a.keys)),
     }),
     studioTool('studio_create_plan_item', {
       description: 'Create (or check) the Fabric plan item where planners refine the budget in planning sheets. Needs the plan built first. Planners connect it to the semantic model with their own sign-in: in the plan, New Planning Sheet › Data pane › Add › the model › Connect (they need Read and Build on the model – Contributor or higher). Microsoft deprecated the shared cloud connection flow for planning, so the studio never binds one; pass connection="fabric" to recreate a plan that still uses a shared connection (fixes "DMTS connection owner missing" / "Can\'t access the semantic model"; only while it has no sheets). Tell the user not to use Manage Connections in the plan.',

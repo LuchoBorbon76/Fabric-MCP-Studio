@@ -137,6 +137,17 @@ its own. **Items that already exist keep their names**, so nothing is renamed or
 standard; a second item with the same purpose gets a number (`Curated2`). Names fit Fabric's strictest rules (letters,
 numbers and underscores, 89 characters).
 
+## Removing items
+
+Every item the project built has a **Remove** button: on the **Overview** (*Items in this project*, with what uses each
+item) and in the map's inspector for the selected part. Remove deletes the item in Fabric (for example an ontology
+with the graph and Eventhouse Fabric made for it, a plan with its values, live data with its Eventstream and
+Eventhouse) and the studio forgets it. **An item something still uses can't be removed**: its button is disabled and
+says what uses it – an org app uses its reports, reports and the data agent use the semantic model, the model and the
+ontology use the data source, and Fabric reports the studio didn't build count too. Remove those first. A data source
+the studio didn't create (a lakehouse or warehouse used in place) is only disconnected. Copilot:
+`studio_list_artifacts` and `studio_remove_artifacts`.
+
 ## Medallion task flow
 
 The **Workspace** page applies Fabric's predesigned **Medallion** task flow to what the studio already built, so the
@@ -340,6 +351,7 @@ Copilot tools: `studio_planning_status`, `studio_preview_plan`, `studio_create_p
 | `server/generators/ontology-live.mjs` | Adds or removes Eventhouse time-series bindings and dashboard links on an existing TMDL ontology |
 | `server/planning/` | Budgets and forecasts: plan design and calculation (`design.mjs`), plan values in the SQL database, warehouse or (for a lakehouse) a planning warehouse with a shortcut (`store.mjs`), the Plan table patch for the semantic model (`model.mjs`), jobs, plan item and summary (`index.mjs`) |
 | `server/readiness.mjs` | Up-front checks: capacity, workspace role, tenant settings and data-source limits per step, and the guard that stops jobs of steps that can't run |
+| `server/artifacts.mjs` | Everything the project built, what uses what (plus Fabric reports on the model), and removing items nothing uses; `web/js/artifacts.js` draws the Remove buttons |
 | `server/medallion-flow.mjs` | Fabric's Medallion task flow over the project's items (layers, mapping, create/update, automatic sync after jobs); `web/js/medallionflow.js` is the Workspace page card |
 | `server/naming.mjs` | Naming standard `[Domain]_[Object]_[Purpose]_[Environment]`: environments, object codes, the name of every item the studio creates (`web/js/naming.js` shows the same names and asks what the environment is for) |
 | `server/presets.mjs` | Sample presets (names, relationships, measures, rules) |

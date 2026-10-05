@@ -196,6 +196,12 @@ assigned; it's updated automatically as you add items. *Open in Fabric* shows it
 
 More in [fabric-demo-ask](../.github/skills/fabric-demo-ask/SKILL.md).
 
+## Remove one item
+
+**Overview › Items in this project** lists everything the project built with what uses it. **Remove** deletes an item
+in Fabric; it's disabled while something uses the item (remove the org app before its reports, the reports and data
+agent before the semantic model…). The map's inspector has the same Remove button for the selected part.
+
 ## Clean up
 
 **Settings › Clean up** deletes what the studio created (lakehouse, SQL database, mirrored database, semantic model,

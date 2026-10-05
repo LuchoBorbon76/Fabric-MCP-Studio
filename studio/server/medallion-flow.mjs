@@ -10,7 +10,7 @@ import { standardName } from './naming.mjs';
 export const taskFlowUrl = (ws) => `https://app.fabric.microsoft.com/groups/${ws}/list?experience=fabric-developer`;
 
 // Jobs after which the task flow (when it exists) is updated with the new items.
-export const SYNC_KINDS = new Set(['sample', 'mirror', 'shortcut', 'data-prep', 'semantic-model', 'ontology', 'report', 'org-app', 'data-agent', 'planning', 'plan-item']);
+export const SYNC_KINDS = new Set(['sample', 'mirror', 'shortcut', 'data-prep', 'semantic-model', 'ontology', 'report', 'org-app', 'data-agent', 'planning', 'plan-item', 'remove']);
 
 const METHOD = { files: 'loaded from files', 'sql-database': 'created as a Fabric SQL database', mirror: 'mirrored from your database', shortcuts: 'OneLake shortcuts to your Fabric data', 'in-place': 'used in place' };
 
@@ -93,7 +93,14 @@ export function medallionFlowState() {
 }
 
 /** Create or update the Medallion task flow in the project workspace. */
-export async function runMedallionTaskFlow(ctx) {
+// Creating, syncing and deleting the task flow run one at a time, so a background sync can't bring back a task flow
+// that was just removed (or overwrite a newer one).
+let queue = Promise.resolve();
+const serial = (fn) => { const run = queue.then(fn, fn); queue = run.catch(() => {}); return run; };
+
+export function runMedallionTaskFlow(ctx) { return serial(() => applyTaskFlow(ctx)); }
+
+async function applyTaskFlow(ctx) {
   await assertProjectTenant();
   const p = getProject();
   if (!p.workspace) throw new Error('Select a workspace first.');
@@ -121,19 +128,22 @@ export async function runMedallionTaskFlow(ctx) {
 }
 
 /** Keep the task flow in step with new items (quietly; only when it exists). */
-export async function syncMedallionTaskFlow() {
-  const p = getProject();
-  if (!p.workspace || !p.medallionFlow?.id) return null;
-  const s = medallionFlowState();
-  if (s.upToDate) return null;
-  const quiet = { step() {}, log() {}, progress() {} };
-  return runMedallionTaskFlow(quiet).catch(() => null);
+export function syncMedallionTaskFlow() {
+  return serial(async () => {
+    // Checked when its turn comes: the task flow may have been removed in the meantime.
+    const p = getProject();
+    if (!p.workspace || !p.medallionFlow?.id) return null;
+    if (medallionFlowState().upToDate) return null;
+    return applyTaskFlow({ step() {}, log() {}, progress() {} }).catch(() => null);
+  });
 }
 
 /** Delete the task flow (the items stay). */
-export async function removeMedallionTaskFlow() {
-  const p = getProject();
-  if (p.workspace && p.medallionFlow?.id) await TF.deleteTaskFlow(p.workspace.id, p.medallionFlow.id);
-  updateProject({ medallionFlow: null });
-  return { ok: true };
+export function removeMedallionTaskFlow() {
+  return serial(async () => {
+    const p = getProject();
+    if (p.workspace && p.medallionFlow?.id) await TF.deleteTaskFlow(p.workspace.id, p.medallionFlow.id);
+    updateProject({ medallionFlow: null });
+    return { ok: true };
+  });
 }

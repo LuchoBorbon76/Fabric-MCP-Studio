@@ -1,14 +1,13 @@
-import { store, get, on } from '../api.js';
-import { h, statusDot, fmtDate } from '../ui.js';
+import { store } from '../api.js';
+import { h, statusDot } from '../ui.js';
 import { app } from '../app.js';
 import { buildGraph, getNode, upstream, downstream, nodePrompt, icon, CAT, VIEW_LABEL } from '../lineage.js';
 import { askCard } from '../prompts.js';
 import { namingCard } from '../naming.js';
+import { itemsTable, nodeRemoveActions } from '../artifacts.js';
 
 // Overview: the solution map above shows every part; this page explains the selected one (or the suggested next
-// step) and keeps the setup checks and the items the studio created in one place.
-let artifacts = null;
-on('studio.reset', () => { artifacts = null; });
+// step) and keeps the setup checks and the items the project has (with Remove) in one place.
 
 export function renderHome(el) {
   const g = buildGraph();
@@ -77,6 +76,8 @@ function inspector(g, n) {
     acts.append(h('button', { class: `btn ${n.done || n.state === 'off' ? '' : 'pri'}`, onclick: () => app.go(n.view) }, n.done ? `Open ${VIEW_LABEL[n.view]}` : `Set up in ${VIEW_LABEL[n.view]}`, ' ›'));
     if (n.state !== 'off') acts.append(h('button', { class: 'btn ai', onclick: () => app.ask(nodePrompt(n.id), { view: n.view }) }, n.done ? '✦ Ask Copilot about it' : '✦ Let Copilot do it'));
     if (n.url) acts.append(h('a', { class: 'btn ghost', href: n.url, target: '_blank', rel: 'noopener' }, 'Open in Fabric ↗'));
+    // Remove what this part built – disabled while something else uses it.
+    if (n.done || isWs) acts.append(nodeRemoveActions(n.id));
   }
 
   const why = n.reason && (n.flag === 'blocked' || n.flag === 'limited')
@@ -113,16 +114,6 @@ function checksSection() {
 }
 
 function createdSection() {
-  const body = h('div');
-  const draw = (items) => {
-    body.replaceChildren();
-    if (!items) { body.append(h('div', { class: 'muted small' }, 'Loading…')); return; }
-    if (!items.length) { body.append(h('div', { class: 'muted small' }, 'Nothing yet. Items you create appear here with links to Fabric.')); return; }
-    const t = h('table', { class: 't' }, h('tr', {}, h('th', {}, 'Item'), h('th', {}, 'Type'), h('th', {}, 'Created')));
-    for (const x of items.slice(0, 7)) t.append(h('tr', {}, h('td', {}, x.url ? h('a', { href: x.url, target: '_blank', rel: 'noopener' }, x.name) : x.name), h('td', { class: 'muted' }, x.type), h('td', { class: 'muted' }, fmtDate(x.at))));
-    body.append(t);
-  };
-  draw(artifacts);
-  get('/activity').then((a) => { artifacts = a.artifacts || []; if (body.isConnected) draw(artifacts); }).catch(() => {});
-  return h('section', {}, h('div', { class: 'row sp' }, h('h3', {}, 'Created by the studio'), h('button', { class: 'btn ghost', onclick: () => app.go('activity') }, 'Activity ›')), body);
+  // Everything the project built, what uses each item, and Remove (disabled while something uses it).
+  return h('section', {}, h('div', { class: 'row sp' }, h('h3', {}, 'Items in this project'), h('button', { class: 'btn ghost', onclick: () => app.go('activity') }, 'Activity ›')), itemsTable());
 }

@@ -158,7 +158,7 @@ function describe(id, s) {
     case 'planitem': {
       const pi = pl?.planItem;
       if (!pi) return { done: false, avail: Boolean(pl), needs: 'Needs the budget', title: 'Not created', sub: 'Planning sheets' };
-      return { done: true, title: pi.name, sub: pi.connected ? 'Connected to the model' : 'Not connected yet', url: pi.url, facts: [['Connection', pi.connectionName || 'Not connected'], ['Created', when(pi.createdAt)]] };
+      return { done: true, title: pi.name, sub: pi.connected ? 'Deprecated shared connection' : 'Planners connect with their sign-in', url: pi.url, facts: [['Connection', pi.connectionName ? `${pi.connectionName} (deprecated for planning)` : 'Each planner\'s own sign-in (planning sheet › Data › Add)'], ['Created', when(pi.createdAt)]] };
     }
     case 'answers':
       if (!sm) return { done: false, avail: false, needs: 'Needs the semantic model', title: 'Not available', sub: 'Fabric IQ' };
