@@ -10,6 +10,7 @@ import { startJob, waitForJob } from './jobs.mjs';
 import * as P from './pipelines.mjs';
 import * as R from './reports/index.mjs';
 import * as APPS from './reports/apps.mjs';
+import * as TPL from './reports/library.mjs';
 import * as RT from './realtime/index.mjs';
 import * as PL from './planning/index.mjs';
 import * as DP from './dataprep.mjs';
@@ -327,6 +328,9 @@ const STUDIO_TOOLS_META = {
   studio_describe_report_options: { write: false, title: 'Read report options (model profile, themes, pages)' },
   studio_propose_report: { write: false, title: 'Suggest a Power BI report' },
   studio_create_report: { write: true, title: 'Create Power BI report' },
+  studio_list_report_templates: { write: false, title: 'Read your uploaded report templates' },
+  studio_check_report_template: { write: false, title: 'Check a report template against the model' },
+  studio_create_report_from_template: { write: true, title: 'Create Power BI report from your template' },
   studio_create_org_app: { write: true, title: 'Create org app' },
   studio_data_agent_status: { write: false, title: 'Read the Fabric data agent' },
   studio_propose_data_agent: { write: false, title: 'Suggest a Fabric data agent' },
@@ -406,6 +410,8 @@ function projectSummary() {
 
 const obj = (properties, required = []) => ({ type: 'object', properties, required, additionalProperties: false });
 const str = (description) => ({ type: 'string', description });
+// Built-in and uploaded themes (read when the chat starts, so new uploads show up in the next chat).
+const themeParam = () => ({ type: 'string', enum: R.reportsCatalog().themes.map((t) => t.id), description: 'Theme id (built-in or one the user uploaded)' });
 
 // Same design fields for suggesting and for creating a semantic model.
 const MODEL_DESIGN = {
@@ -571,6 +577,7 @@ function studioTools(chatId) {
           insights: pr.insights.map((i) => i.text), warnings: pr.warnings,
           businessRules: await R.currentRecommendations().then((x) => x.rules).catch(() => null),
           themes: R.reportsCatalog().themes.map((t) => `${t.id}: ${t.name} – ${t.description}`),
+          yourTemplates: TPL.describeTemplates(),
           pages: R.reportsCatalog().pages.map((x) => `${x.id}: ${x.name} – ${x.description}`),
           reports: (getProject().reports || []).map((x) => ({ id: x.id, name: x.name, theme: x.theme, pages: x.pages, url: x.url })),
         };
@@ -580,7 +587,7 @@ function studioTools(chatId) {
       description: 'Suggest a Power BI report for the user to review. Nothing changes in Fabric: the studio shows an "Apply suggestions" button that reviews and builds it in one click. Use this whenever you recommend a report, instead of asking the user to type a confirmation. Call studio_describe_report_options first and ground the summary in its insights.',
       parameters: obj({
         name: str('Report name'),
-        theme: { type: 'string', enum: ['studio', 'executive', 'teal', 'slate', 'accessible', 'midnight'] },
+        theme: themeParam(),
         pages: { type: 'array', items: { type: 'string', enum: ['executive', 'drivers', 'scorecard', 'rules'] }, description: 'Pages in order' },
         audience: str('Who the report is for, e.g. Leadership, Sales managers'),
         summary: str('Two or three sentences: why these pages and this theme fit the data and audience (shown in the review)'),
@@ -599,7 +606,7 @@ function studioTools(chatId) {
       description: 'Create or update a Fabric org app that bundles the studio\'s Power BI reports (overview page, Reports and Business rules sections, theme colors). People get the app without workspace access once the user adds an audience and publishes it in Fabric. Default: all reports the studio built.',
       parameters: obj({
         name: str('App name (default: "<semantic model> app")'),
-        theme: { type: 'string', enum: ['studio', 'executive', 'teal', 'slate', 'accessible', 'midnight'] },
+        theme: themeParam(),
         reportIds: { type: 'array', items: { type: 'string' }, description: 'Report IDs to include (default: all studio reports)' },
         title: str('Overview page title'),
         body: str('Overview page text: what the app is for, in two or three sentences'),
@@ -646,13 +653,28 @@ function studioTools(chatId) {
       handler: async (a) => runAsJob('data-agent', 'Create the Fabric data agent', (ctx) => DA.runDataAgent(ctx, { name: a.name, instructions: a.instructions, description: a.description, publish: a.publish !== false })),
     }),
     studioTool('studio_create_report', {
-      description: 'Build a professional Power BI report on the project semantic model from the studio templates and deploy it to the project workspace (an existing report with the same name is updated). Pages: executive (Executive summary), drivers (Performance drivers), scorecard (Scorecard), rules (Business rules dashboard: ontology rules with live counts; rule measures the model lacks are added to the report). Themes: studio, executive, teal, slate, accessible, midnight. Call studio_describe_report_options first to recommend pages and a theme.',
+      description: 'Build a professional Power BI report on the project semantic model from the studio templates and deploy it to the project workspace (an existing report with the same name is updated). Pages: executive (Executive summary), drivers (Performance drivers), scorecard (Scorecard), rules (Business rules dashboard: ontology rules with live counts; rule measures the model lacks are added to the report). Themes: studio, executive, teal, slate, accessible, midnight, plus any theme the user uploaded (see studio_describe_report_options). Call studio_describe_report_options first to recommend pages and a theme.',
       parameters: obj({
         name: str('Report name (default: "<semantic model> report")'),
-        theme: { type: 'string', enum: ['studio', 'executive', 'teal', 'slate', 'accessible', 'midnight'] },
+        theme: themeParam(),
         pages: { type: 'array', items: { type: 'string', enum: ['executive', 'drivers', 'scorecard', 'rules'] }, description: 'Pages in order (default: all three)' },
       }),
       handler: async (a) => runAsJob('report', `Build Power BI report ${a.name || ''}`.trim(), (ctx) => R.runReport(ctx, { name: a.name, theme: a.theme, pages: a.pages?.length ? a.pages : undefined })),
+    }),
+    studioTool('studio_list_report_templates', {
+      description: 'List the report templates and themes the user uploaded in Reports & apps (Power BI templates .pbit, reports .pbix, zipped Power BI projects, report layouts, Power BI theme .json files): pages, visuals, tables each report template uses, notes. Uploaded themes can be used as the theme of studio_create_report / studio_propose_report. Read-only.',
+      parameters: obj({}),
+      handler: async () => ({ templates: TPL.describeTemplates(), howToUpload: 'Reports & apps › Design a Power BI report › Your own templates › Upload template.' }),
+    }),
+    studioTool('studio_check_report_template', {
+      description: 'Check an uploaded report template against the project semantic model before building it: which fields exist, which the studio matches by name (e.g. another table or spelling), which are missing, and how many visuals would show an error. Read-only.',
+      parameters: obj({ id: str('Template id from studio_list_report_templates') }, ['id']),
+      handler: async ({ id }) => TPL.checkTemplate(id),
+    }),
+    studioTool('studio_create_report_from_template', {
+      description: 'Build a Power BI report from one of the user\'s uploaded report templates on the project semantic model and deploy it (an existing report with the same name is updated). Fields are matched to the model by name; fields the model lacks are listed and their visuals show an error until the user picks other fields in Power BI. Call studio_check_report_template first and tell the user what will be missing.',
+      parameters: obj({ id: str('Template id from studio_list_report_templates'), name: str('Report name (default: from the template name, following the naming standard)') }, ['id']),
+      handler: async (a) => runAsJob('report-template', `Build Power BI report from template ${TPL.getTemplate(a.id)?.name || ''}`.trim(), (ctx) => TPL.runTemplateReport(ctx, { id: a.id, name: a.name })),
     }),
     studioTool('studio_deploy_ontology', {
       description: 'Create or update a Fabric IQ ontology bound to the model source: entity types from tables, relationships, and business rules written in plain English (one sentence, no colons). Then the ontology MCP endpoint becomes available.',

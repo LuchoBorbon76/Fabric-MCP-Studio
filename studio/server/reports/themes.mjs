@@ -38,7 +38,47 @@ export const THEMES = [
   },
 ];
 
-export const themeById = (id) => THEMES.find((t) => t.id === id) || THEMES[0];
+// Themes uploaded by the user (Power BI theme .json files); kept in step with the template library.
+const uploaded = [];
+export function setUploadedThemes(list) { uploaded.splice(0, uploaded.length, ...list); }
+/** Built-in themes followed by the user's uploaded themes. */
+export const allThemes = () => [...THEMES, ...uploaded];
+export const themeById = (id) => allThemes().find((t) => t.id === id) || THEMES[0];
+
+const HEX = /^#([0-9a-f]{3}|[0-9a-f]{6})([0-9a-f]{2})?$/i;
+const hex = (v) => {
+  if (typeof v !== 'string' || !HEX.test(v.trim())) return null;
+  const s = v.trim().slice(1, 7);
+  return `#${(s.length === 3 ? s.split('').map((c) => c + c).join('') : s).toUpperCase()}`;
+};
+const luminance = (c) => {
+  const n = parseInt(c.slice(1), 16);
+  const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((x) => { const v = x / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
+  return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
+};
+const isDark = (c) => luminance(c) < 0.25;
+const styleColor = (json, visual, prop) => hex(json?.visualStyles?.[visual]?.['*']?.[prop]?.[0]?.color?.solid?.color);
+
+/**
+ * A studio theme made from a Power BI theme file: its colors drive the generated pages, and the file itself is used
+ * as the report's custom theme (so its text classes and visual styles apply too).
+ */
+export function themeFromPowerBi(json, { id, name }) {
+  const colors = (Array.isArray(json.dataColors) ? json.dataColors : []).map(hex).filter(Boolean);
+  const dataColors = colors.length ? colors : THEMES[0].dataColors;
+  const card = hex(json.background) || styleColor(json, '*', 'background') || '#FFFFFF';
+  const dark = isDark(card);
+  const page = styleColor(json, 'page', 'background') || (dark ? card : '#F3F6FA');
+  const accent = hex(json.tableAccent) || dataColors[0];
+  const header = hex(json.tableAccent) || dataColors[0];
+  return {
+    id, name, description: 'Your Power BI theme (uploaded).', uploaded: true,
+    header, headerText: isDark(header) ? '#FFFFFF' : '#111827', accent, page, card,
+    border: dark ? '#1E2A44' : '#E3E8EF', ink: hex(json.foreground) || (dark ? '#E2E8F0' : '#1F2937'),
+    muted: dark ? '#94A3B8' : '#64748B', grid: dark ? '#1E293B' : '#EEF2F7', dark: isDark(page) || undefined,
+    dataColors, json,
+  };
+}
 
 const solid = (color) => ({ solid: { color } });
 

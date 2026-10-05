@@ -24,6 +24,15 @@ on('project.updated', invalidate);
 on('studio.reset', invalidate);
 
 const usedByText = (list) => list.map((u) => u.name).join(', ');
+// Item names have no spaces: let them wrap after underscores and dots instead of mid-word.
+const breakable = (name) => String(name).split(/(?<=[_.])/).flatMap((part, i) => (i ? [h('wbr'), part] : [part]));
+function usedByCell(list) {
+  if (!list.length) return h('span', { class: 'tiny muted' }, '–');
+  const shown = list.slice(0, 3);
+  return h('div', { class: 'usedby muted', title: list.length > 3 ? usedByText(list) : undefined },
+    shown.map((u) => h('div', {}, breakable(u.name))),
+    list.length > 3 ? h('div', { class: 'tiny' }, `and ${list.length - 3} more`) : null);
+}
 
 /**
  * A Remove button for one artifact or a group (all reports): disabled, with what uses it, when something does.
@@ -91,14 +100,16 @@ export function itemsTable() {
   const body = h('div', { class: 'muted small' }, 'Loading…');
   loadArtifacts({ fresh: true }).then((list) => {
     if (!list.length) { body.replaceChildren(h('div', { class: 'muted small' }, 'Nothing yet. Items you create appear here with links to Fabric.')); return; }
-    const t = h('table', { class: 't items' }, h('tr', {}, h('th', {}, 'Item'), h('th', {}, 'Used by'), h('th', {}, '')));
+    const t = h('table', { class: 't items' },
+      h('colgroup', {}, h('col', { class: 'c-item' }), h('col', { class: 'c-used' }), h('col', { class: 'c-act' })),
+      h('tr', {}, h('th', {}, 'Item'), h('th', {}, 'Used by'), h('th', { 'aria-label': 'Actions' })));
     for (const a of list) {
       t.append(h('tr', {},
-        h('td', {}, a.url ? h('a', { href: a.url, target: '_blank', rel: 'noopener' }, a.name) : h('span', {}, a.name), h('div', { class: 'tiny muted' }, a.type)),
-        h('td', { class: 'small' }, a.usedBy.length ? h('span', { class: 'muted' }, usedByText(a.usedBy)) : h('span', { class: 'tiny muted' }, '–')),
-        h('td', { class: 'num' }, removeButton([a], { compact: true }))));
+        h('td', {}, a.url ? h('a', { href: a.url, target: '_blank', rel: 'noopener' }, breakable(a.name)) : h('span', {}, breakable(a.name)), h('div', { class: 'tiny muted' }, a.type)),
+        h('td', { class: 'small' }, usedByCell(a.usedBy)),
+        h('td', { class: 'act' }, removeButton([a], { compact: true }))));
     }
-    body.className = 'scroll';
+    body.className = 'scroll items-scroll';
     body.replaceChildren(t);
   }).catch((e) => { body.replaceChildren(h('div', { class: 'banner err' }, e.message)); });
   return body;

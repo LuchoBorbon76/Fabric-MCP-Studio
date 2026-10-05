@@ -10,7 +10,7 @@ import { standardName } from './naming.mjs';
 export const taskFlowUrl = (ws) => `https://app.fabric.microsoft.com/groups/${ws}/list?experience=fabric-developer`;
 
 // Jobs after which the task flow (when it exists) is updated with the new items.
-export const SYNC_KINDS = new Set(['sample', 'mirror', 'shortcut', 'data-prep', 'semantic-model', 'ontology', 'report', 'org-app', 'data-agent', 'planning', 'plan-item', 'remove']);
+export const SYNC_KINDS = new Set(['sample', 'mirror', 'shortcut', 'data-prep', 'semantic-model', 'ontology', 'report', 'report-template', 'org-app', 'data-agent', 'planning', 'plan-item', 'remove']);
 
 const METHOD = { files: 'loaded from files', 'sql-database': 'created as a Fabric SQL database', mirror: 'mirrored from your database', shortcuts: 'OneLake shortcuts to your Fabric data', 'in-place': 'used in place' };
 

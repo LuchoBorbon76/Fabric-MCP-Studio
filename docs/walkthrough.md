@@ -100,6 +100,11 @@ Ontology is in preview; the Ontology MCP endpoint (used by agents) needs a paid 
 2. Review **What we found in your model**: headline KPIs, channels, time (with full years), share and breakdown
    dimensions, the top-10 list and the drill path, plus a few insights from your data.
 3. Or pick **pages** (Executive summary, Performance drivers, Scorecard, Business rules) and a **theme** yourself, name the report, *Build report*.
+   **Your own templates**: *Upload template* (or drop files on the box) takes your organization's Power BI files –
+   a template (.pbit), a report (.pbix), a zipped Power BI project, a report.json layout or a theme (.json). *Use template*
+   checks the report's fields against your model (found, matched by name, missing – with the visuals that would show an
+   error) and builds it on your semantic model with its own look, filters and bookmarks. Uploaded themes appear in the
+   **Theme** list with a *Yours* tag.
 4. *Open in Power BI*, or expand **Preview** to see the rendered pages.
 5. **Org app for your organization** › *Create app*: one app with an overview page and your reports in sections. Then
    *Publish in Fabric*: add an audience (who can see it) and publish – people don't need access to the workspace.

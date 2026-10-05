@@ -76,7 +76,7 @@ const NEXT = ['source', 'model', 'ontology', 'reports', 'events', 'dashboard', '
 
 const JOB_NODES = {
   sample: ['source', 'data'], mirror: ['source', 'data'], shortcut: ['source', 'data'], 'semantic-model': ['model'], ontology: ['ontology'],
-  report: ['reports'], 'org-app': ['orgapp'], realtime: ['events', 'eventstream', 'eventhouse'], 'realtime-dashboard': ['dashboard'],
+  report: ['reports'], 'report-template': ['reports'], 'org-app': ['orgapp'], realtime: ['events', 'eventstream', 'eventhouse'], 'realtime-dashboard': ['dashboard'],
   'realtime-ontology': ['ontology'], 'realtime-alerts': ['alerts'], planning: ['planning'], 'plan-item': ['planitem'], 'teams-agent': ['agent'],
   medallion: ['eventhouse'], 'medallion-remove': ['eventhouse'], 'data-prep': ['data'], 'data-agent': ['answers'],
 };

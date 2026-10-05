@@ -100,6 +100,12 @@ when it expires.
 | The Business rules page is missing | No ontology rules or rule measures were found | Deploy the ontology (**Ontology** page), or add measures in a *Business rules* display folder of your model |
 | Creating the org app fails | Org apps need a Fabric capacity workspace and Contributor or higher | Check the workspace role; the app shares only reports in the same workspace |
 | People can't see the org app | The app has no audience yet | Open it in Fabric, add an audience (people or groups) and publish |
+| A template upload says the file *isn't a ZIP package* | The file is damaged or isn't really a .pbit/.pbix/.zip (for example a OneDrive placeholder that hasn't downloaded) | Open it in Power BI Desktop and save it again, or make the file available offline first |
+| *The file is larger than 300 MB* | A .pbix with a large data model | In Power BI Desktop: *File › Export › Power BI template* – the .pbit has the report without the data |
+| *No Power BI report found in the ZIP* | The ZIP doesn't contain a report folder | Zip the project's `.Report` folder (it has `definition.pbir` and `report.json` or `definition/`), or zip a .pbit/.pbix |
+| Visuals of a report built from your template show an error | The template uses fields your semantic model doesn't have (listed in *Use template* and in the job log) | Pick other fields for those visuals in Power BI, or add the measures/columns to the model and **Rebuild** |
+| Visuals that use the automatic date hierarchy show an error | Direct Lake models don't have Power BI's *Auto date/time* tables | Use your date table's columns (Year, Month…) in those visuals |
+| A custom visual from your template doesn't load | Private (organizational) custom visuals may need the tenant setting *Allow visuals created using the Power BI SDK* | Ask a Power BI admin, or use the AppSource version of the visual |
 
 ## Real-time
 

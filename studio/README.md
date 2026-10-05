@@ -218,6 +218,23 @@ Fabric REST API – no Power BI Desktop needed.
 4. **Build** – creates or updates the Report item, then renders a PDF preview with Power BI export (if your tenant turns
    export off, open the report in Power BI instead). Partial years are filtered out so comparisons use full years.
 
+**Your own templates** – *Upload template* in the designer adds your files to a template library (kept in
+`data/report-templates`):
+
+| File | What the studio does |
+| --- | --- |
+| Power BI template `.pbit` | Takes the report (pages, visuals, filters, bookmarks, images, theme, private custom visuals) and leaves the template's data model out. |
+| Power BI report `.pbix` | Same as `.pbit`; the data model inside the file is never unpacked. For a very large `.pbix` (over 300 MB) save it as a template first (*File › Export › Power BI template*). |
+| Power BI project `.zip` | Zip the project's `.Report` folder (PBIR `definition/` or PBIR-Legacy `report.json`), or the whole project; a zipped `.pbit`/`.pbix` works too. |
+| Report layout `report.json` | A PBIR-Legacy layout on its own (images and custom themes it refers to aren't included). |
+| Power BI theme `.json` | Joins the **Theme** list; reports the studio designs use the file as their theme. |
+
+**Use template** checks the report against your semantic model first – fields that exist, fields matched by name (another
+table or spelling, e.g. `FactSales[amount]` → `Sales[Amount]`), and fields the model lacks with the visuals that would
+show an error – then builds a Report item bound to your model (report-level measures keep working: their DAX is
+rewritten to your model's names, and a measures table your model doesn't have moves to the table they use), named with the naming standard
+(`<Domain>_RPT_<Template>_<Env>`). **Rebuild** reruns it from the template. Copilot: `studio_list_report_templates`,
+`studio_check_report_template`, `studio_create_report_from_template`.
 Copilot can recommend pages and a theme for your audience (`studio_describe_report_options`) and suggest the report
 (`studio_propose_report`); **Apply suggestions** reviews and builds it in one click. The page also shows
 **Recommended for your data** – ready-made report recommendations with the reasons from your model.

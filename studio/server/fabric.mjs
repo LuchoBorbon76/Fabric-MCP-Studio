@@ -149,7 +149,7 @@ export function toParts(files) {
   return {
     parts: Object.entries(files).map(([path, content]) => ({
       path,
-      payload: Buffer.from(typeof content === 'string' ? content : JSON.stringify(content, null, 2), 'utf8').toString('base64'),
+      payload: (Buffer.isBuffer(content) ? content : Buffer.from(typeof content === 'string' ? content : JSON.stringify(content, null, 2), 'utf8')).toString('base64'),
       payloadType: 'InlineBase64',
     })),
   };

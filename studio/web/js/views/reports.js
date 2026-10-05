@@ -1,4 +1,4 @@
-import { store, get, post, del, on } from '../api.js';
+import { store, get, post, del, on, upload } from '../api.js';
 import { h, toast, busy, field, input, fmtDate, confirmDialog, modal } from '../ui.js';
 import { app, copilotSlot } from '../app.js';
 import { askCard } from '../prompts.js';
@@ -214,8 +214,9 @@ function reportsCard(p, reports) {
     const toggle = h('button', { class: 'btn' }, '▸ Preview');
     let open = false;
     toggle.addEventListener('click', () => { open = !open; toggle.textContent = open ? '▾ Hide preview' : '▸ Preview'; if (open) showPreview(); else preview.innerHTML = ''; });
-    const rebuild = h('button', { class: 'btn', 'data-busy': 'Starting…', title: 'Rebuild with the current model and the same pages and theme' }, '↻ Rebuild');
+    const rebuild = h('button', { class: 'btn', 'data-busy': 'Starting…', title: r.template ? `Rebuild from the template ${r.template.name} with the current model` : 'Rebuild with the current model and the same pages and theme' }, '↻ Rebuild');
     rebuild.addEventListener('click', busy(rebuild, async () => {
+      if (r.template) { await startJob('/jobs/report-template', { id: r.template.id, name: r.name }, list, 'Report deployed'); return; }
       const ids = pageIds(r.pages);
       await startBuild({ name: r.name, theme: r.theme, pages: ids.length ? ids : undefined }, list);
     }));
@@ -228,7 +229,7 @@ function reportsCard(p, reports) {
     list.append(h('div', { class: 'rrow' },
       h('div', { class: 'row sp' },
         h('div', {},
-          h('div', { class: 'row' }, h('b', {}, r.name), h('span', { class: 'pill ok' }, 'Deployed'), theme ? h('span', { class: 'pill' }, theme.name) : null),
+          h('div', { class: 'row' }, h('b', {}, r.name), h('span', { class: 'pill ok' }, 'Deployed'), theme ? h('span', { class: 'pill' }, theme.name) : null, r.template ? h('span', { class: 'pill', title: 'Built from your template' }, `Template: ${r.template.name}`) : null),
           h('div', { class: 'tiny muted' }, `${r.pages.join(' · ')} · built ${fmtDate(r.builtAt)}`)),
         h('div', { class: 'row' },
           h('a', { class: 'btn pri', href: r.url, target: '_blank', rel: 'noopener' }, 'Open in Power BI ↗'),
@@ -284,7 +285,7 @@ function themeSwatch(t, selected, onPick) {
       h('div', { class: 'tsband', style: { background: t.header } }, h('span', { style: { background: t.headerText } })),
       h('div', { class: 'tscards' }, [0, 1, 2].map((i) => h('i', { style: { background: t.card, borderLeftColor: t.dataColors[i] } }))),
       h('div', { class: 'tsbars', style: { background: t.card } }, t.dataColors.slice(0, 5).map((c, i) => h('b', { style: { background: c, height: `${30 + ((i * 37) % 60)}%` } })))),
-    h('div', { class: 'tsname' }, t.name));
+    h('div', { class: 'tsname' }, t.name, t.uploaded ? h('span', { class: 'tsyours', title: 'Your uploaded theme' }, 'Yours') : null));
   const pick = () => onPick(t.id);
   sw.addEventListener('click', pick);
   sw.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
@@ -353,6 +354,7 @@ function drawDesigner(card, p) {
     }));
     body.append(
       h('h3', {}, 'Pages'), pagesBox,
+      templatesSection(p, job, () => drawDesigner(card, p)),
       h('h3', { class: 'mt' }, 'Theme'), themesBox,
       h('div', { class: 'formgrid mt' }, field('Report name', name)),
       h('div', { class: 'row mt' }, build,
@@ -364,4 +366,126 @@ function drawDesigner(card, p) {
 
 async function startBuild(payload, container) {
   await startJob('/jobs/report', payload, container, 'Report deployed');
+}
+
+// ---------------- your own templates ----------------
+const SOURCE_LABEL = { pbit: 'Power BI template', pbix: 'Power BI report', zip: 'Power BI project', json: 'Report layout' };
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+/** Upload, list and use the user's own Power BI templates and themes. */
+function templatesSection(p, job, redraw) {
+  const list = h('div', { class: 'tpls' }, h('div', { class: 'row muted small' }, h('span', { class: 'spin' }), 'Loading your templates…'));
+  const fileIn = h('input', { type: 'file', accept: '.pbit,.pbix,.zip,.json', multiple: true, style: { display: 'none' }, 'aria-label': 'Template files' });
+  const btn = h('button', { class: 'btn', 'data-busy': 'Reading…', title: 'Power BI template (.pbit), report (.pbix), zipped Power BI project (.zip), report layout or theme (.json)' }, '⤒ Upload template');
+  const send = busy(btn, async (files) => {
+    try {
+      for (const f of files) {
+        const t = await upload(`/report-templates/upload?name=${encodeURIComponent(f.name)}`, f);
+        toast(t.kind === 'theme' ? `Theme "${t.name}" added – it's in the Theme list` : `Template "${t.name}" added – ${plural(t.pages.length, 'page')}, ${plural(t.visuals, 'visual')}`, 'ok');
+      }
+    } finally { catalog = null; redraw(); }
+  });
+  btn.addEventListener('click', () => fileIn.click());
+  fileIn.addEventListener('change', () => { const files = [...fileIn.files]; fileIn.value = ''; if (files.length) send(files); });
+  const box = h('div', { class: 'tdrop mt' },
+    h('div', { class: 'row sp', style: { alignItems: 'flex-start' } },
+      h('div', { style: { minWidth: 0 } }, h('h3', { style: { margin: 0 } }, 'Your own templates'),
+        h('div', { class: 'tiny muted' }, 'Use your organization\'s Power BI templates instead of the pages above: .pbit, .pbix, a zipped Power BI project, report.json, or a theme (.json). Drop files here or upload.')),
+      h('div', { class: 'row', style: { flexShrink: 0 } }, btn, fileIn)),
+    list);
+  box.addEventListener('dragover', (e) => { if ([...(e.dataTransfer?.types || [])].includes('Files')) { e.preventDefault(); box.classList.add('over'); } });
+  box.addEventListener('dragleave', (e) => { if (!box.contains(e.relatedTarget)) box.classList.remove('over'); });
+  box.addEventListener('drop', (e) => { e.preventDefault(); box.classList.remove('over'); const files = [...(e.dataTransfer?.files || [])]; if (files.length) send(files); });
+  get('/report-templates').then(({ templates }) => {
+    list.innerHTML = '';
+    if (!templates.length) { list.append(h('div', { class: 'tiny muted' }, 'No templates yet. Reports keep their pages, visuals, filters, bookmarks, images and look; the studio binds them to your semantic model and matches the fields.')); return; }
+    for (const t of templates) list.append(templateRow(t, p, job, redraw));
+  }).catch((e) => { list.innerHTML = ''; list.append(h('div', { class: 'banner err' }, e.message)); });
+  return box;
+}
+
+function templateRow(t, p, job, redraw) {
+  const remove = h('button', { class: 'btn ghost danger-text', title: 'Remove from your templates (reports built from it stay)' }, 'Remove');
+  remove.addEventListener('click', async () => {
+    if (!(await confirmDialog('Remove template', `Remove "${t.name}" from your templates? Reports built from it stay in the workspace.`, 'Remove', true))) return;
+    try {
+      await del(`/report-templates/${t.id}`);
+      if (t.kind === 'theme' && design.theme === t.themeId) design.theme = 'studio';
+      catalog = null;
+      toast(`Removed ${t.name}`, 'ok');
+      redraw();
+    } catch (e) { toast(e.message, 'err'); }
+  });
+  if (t.kind === 'theme') {
+    return h('div', { class: 'tplrow' },
+      h('div', { class: 'tplmain' },
+        h('div', { class: 'row' }, h('b', {}, t.name), h('span', { class: 'pill' }, 'Theme')),
+        h('div', { class: 'row', style: { gap: '8px' } }, h('div', { class: 'recsw' }, (t.colors || []).map((c) => h('i', { style: { background: c } }))), h('span', { class: 'tiny muted' }, t.fileName))),
+      h('div', { class: 'row tplact' }, h('button', { class: 'btn', disabled: design.theme === t.themeId || undefined, onclick: () => { design.theme = t.themeId; redraw(); } }, design.theme === t.themeId ? 'Selected' : 'Use theme'), remove));
+  }
+  const built = (p.reports || []).find((r) => r.template?.id === t.id);
+  const use = h('button', { class: 'btn pri', title: 'Check the fields against your semantic model, then build the report' }, built ? 'Use again' : 'Use template');
+  use.addEventListener('click', () => useTemplate(t, p, job));
+  const tables = t.tables.length ? ` · ${plural(t.tables.length, 'table')}: ${t.tables.slice(0, 4).join(', ')}${t.tables.length > 4 ? '…' : ''}` : '';
+  return h('div', { class: 'tplrow' },
+    h('div', { class: 'tplmain' },
+      h('div', { class: 'row' }, h('b', {}, t.name), h('span', { class: 'pill' }, SOURCE_LABEL[t.source] || t.source), built ? h('span', { class: 'pill ok' }, 'Built') : null),
+      h('div', { class: 'tiny muted' }, `${plural(t.pages.length, 'page')}: ${t.pages.slice(0, 4).join(' · ')}${t.pages.length > 4 ? ' …' : ''}`),
+      h('div', { class: 'tiny muted' }, `${plural(t.visuals, 'visual')}${tables}${t.images ? ` · ${plural(t.images, 'image')}` : ''}${t.customVisuals.length ? ` · ${plural(t.customVisuals.length, 'custom visual')}` : ''}`)),
+    h('div', { class: 'row tplact' }, use, remove));
+}
+
+/** Check the template against the model, then build it (named with the naming standard). */
+function useTemplate(t, p, job) {
+  const existing = (p.reports || []).find((r) => r.template?.id === t.id);
+  const name = input({ value: existing?.name || standardName('Report', t.name) });
+  const result = h('div', { class: 'row muted small' }, h('span', { class: 'spin' }), `Checking the fields against ${p.semanticModel.name}…`);
+  let checked = null;
+  const m = modal({
+    title: `Use template ${t.name}`,
+    body: h('div', { class: 'col' },
+      h('p', { class: 'small', style: { margin: 0 } }, `${plural(t.pages.length, 'page')} (${t.pages.join(', ')}) · ${plural(t.visuals, 'visual')} · ${SOURCE_LABEL[t.source] || t.source}, ${t.format}. The report is bound to ${p.semanticModel.name}; its look, filters and bookmarks stay as they are.`),
+      result,
+      ...(t.notes || []).map((n) => h('div', { class: 'tiny muted' }, n)),
+      field('Report name', name, 'Following your naming standard. A report with the same name is updated.')),
+    actions: [
+      { label: 'Cancel' },
+      {
+        label: existing ? 'Rebuild report' : 'Build report', class: 'pri',
+        onClick: async () => {
+          if (!checked) { toast('Wait for the field check to finish.', 'err'); return false; }
+          try { await startJob('/jobs/report-template', { id: t.id, name: name.value.trim() }, job, 'Report deployed'); } catch (e) { toast(e.message, 'err'); return false; }
+          job.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          return true;
+        },
+      },
+    ],
+  });
+  get(`/report-templates/${t.id}/check`).then((c) => {
+    checked = c;
+    result.replaceWith(checkView(c));
+  }).catch((e) => {
+    checked = { failed: true };
+    result.replaceWith(h('div', { class: 'banner warn' }, `Couldn't check the fields (${e.message}). You can still build it; visuals whose fields aren't in the model show an error.`));
+  });
+  return m;
+}
+
+function checkView(c) {
+  const kind = !c.missing.length ? 'ok' : c.coverage < 50 ? 'err' : 'warn';
+  const head = !c.missing.length
+    ? `Every field is in ${c.model}${c.mapped.length ? ` (${plural(c.mapped.length, 'field')} matched by name)` : ''}.`
+    : `${c.coverage}% of the fields are in ${c.model}. ${c.visualsAffected} of ${plural(c.visuals, 'visual')} use${c.visualsAffected === 1 ? 's' : ''} fields the model doesn't have – they show an error until you pick other fields in Power BI${c.pagesAffected.length ? ` (${c.pagesAffected.join(', ')})` : ''}.`;
+  const lines = (items) => h('ul', { class: 'pre small tplfields' }, items.map((x) => h('li', {}, x)));
+  return h('div', { class: 'col', style: { gap: '8px' } },
+    h('div', { class: `banner ${kind}` }, h('div', {}, head)),
+    h('div', { class: 'chips' },
+      c.found ? h('span', { class: 'pill ok' }, `${c.found} found as they are`) : null,
+      c.mapped.length ? h('span', { class: 'pill brand' }, `${c.mapped.length} matched by name`) : null,
+      c.missing.length ? h('span', { class: 'pill err' }, `${c.missing.length} not in the model`) : null,
+      c.unchecked.length ? h('span', { class: 'pill' }, `${c.unchecked.length} hierarchies not checked`) : null),
+    c.tables.length ? h('div', { class: 'tiny muted' }, `Tables: ${c.tables.map((x) => `${x.from} → ${x.to}`).join(' · ')}`) : null,
+    c.mapped.length ? h('details', {}, h('summary', { class: 'small' }, `Matched by name (${c.mapped.length})`), lines(c.mapped.map((x) => `${x.from} → ${x.to}`))) : null,
+    c.missing.length ? h('details', { open: c.missing.length <= 8 || undefined }, h('summary', { class: 'small' }, `Not in your model (${c.missing.length})`), lines(c.missing.map((x) => `${x.field} (${x.via ? `used by the report measure ${x.via}` : x.kind})`))) : null,
+    c.unchecked.length ? h('div', { class: 'tiny muted' }, `Hierarchies aren't checked: ${c.unchecked.map((x) => x.field).join(', ')}.`) : null);
 }

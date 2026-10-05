@@ -562,3 +562,22 @@ svg.ledges{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;
 .iremove .tiny{line-height:1.3}
 table.t.items td{vertical-align:top}
 table.t.items td.num{white-space:nowrap}
+/* Items in this project: fits its column (long item names wrap) – no horizontal scrollbar */
+.scroll.items-scroll{overflow-x:hidden}
+table.t.items{table-layout:fixed}
+table.t.items th,table.t.items td{padding:7px 8px;overflow-wrap:anywhere}
+table.t.items .usedby{display:flex;flex-direction:column;gap:2px}
+table.t.items col.c-item{width:52%}
+table.t.items col.c-act{width:84px}
+table.t.items td.act{text-align:right;white-space:nowrap}
+table.t.items td.act .btn{padding:4px 9px}
+/* Your own report templates */
+.tdrop{border:1px dashed var(--line);border-radius:12px;padding:12px;transition:border-color .15s,background .15s}
+.tdrop.over{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 6%,transparent)}
+.tpls{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.tplrow{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--panel)}
+.tplmain{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1 1 220px}
+.tplmain .tiny{overflow-wrap:anywhere}
+.tplact{flex:0 0 auto}
+.tsname .tsyours{margin-left:6px;font-size:10px;font-weight:700;color:var(--brand);text-transform:uppercase;letter-spacing:.3px}
+.tplfields{max-height:180px;overflow:auto;margin:6px 0 0}

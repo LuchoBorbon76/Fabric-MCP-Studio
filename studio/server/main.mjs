@@ -12,6 +12,7 @@ import * as A from './agent.mjs';
 import * as P from './pipelines.mjs';
 import * as R from './reports/index.mjs';
 import * as APPS from './reports/apps.mjs';
+import * as TPL from './reports/library.mjs';
 import * as RT from './realtime/index.mjs';
 import * as PL from './planning/index.mjs';
 import * as DP from './dataprep.mjs';
@@ -102,6 +103,14 @@ async function body(req) {
   try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw Object.assign(new Error('Invalid JSON'), { status: 400 }); }
 }
 
+async function rawBody(req, max) {
+  const tooLarge = () => Object.assign(new Error(`The file is larger than ${Math.round(max / 1048576)} MB. For a large .pbix, save it as a Power BI template in Power BI Desktop (File › Export › Power BI template): the template leaves the data out.`), { status: 413 });
+  if (Number(req.headers['content-length']) > max) throw tooLarge();
+  const chunks = [];
+  let size = 0;
+  for await (const c of req) { size += c.length; if (size > max) throw tooLarge(); chunks.push(c); }
+  return Buffer.concat(chunks);
+}
 function serveStatic(req, res, pathname) {
   let p = pathname === '/' ? '/index.html' : pathname;
   const file = normalize(join(WEB_ROOT, decodeURIComponent(p)));
@@ -232,6 +241,10 @@ route('POST', '/api/jobs/ontology', (_, b) => startJob('ontology', `Deploy ontol
 route('POST', '/api/jobs/teams-agent', (_, b) => startJob('teams-agent', b.dryRun ? 'Validate Teams agent package' : 'Install Teams agent', (ctx) => P.runTeamsAgent(ctx, b)));
 route('POST', '/api/jobs/report', (_, b) => startJob('report', `Build Power BI report ${b.name || ''}`.trim(), (ctx) => R.runReport(ctx, { name: b.name, theme: b.theme, pages: Array.isArray(b.pages) ? b.pages : undefined, proposalId: b.proposalId })));
 route('GET', '/api/reports/catalog', () => R.reportsCatalog());
+route('GET', '/api/report-templates', () => ({ templates: TPL.listTemplates(), accept: TPL.ACCEPT }));
+route('GET', '/api/report-templates/:id/check', (p) => TPL.checkTemplate(p.id));
+route('DELETE', '/api/report-templates/:id', (p) => TPL.removeTemplate(p.id));
+route('POST', '/api/jobs/report-template', (_, b) => startJob('report-template', `Build Power BI report from template ${TPL.getTemplate(b.id)?.name || ''}`.trim(), (ctx) => TPL.runTemplateReport(ctx, { id: b.id, name: b.name })));
 route('GET', '/api/reports/profile', (_, __, q) => R.currentProfile({ refresh: q.get('refresh') === '1' }));
 route('GET', '/api/reports/recommendations', (_, __, q) => R.currentRecommendations({ refresh: q.get('refresh') === '1' }));
 route('POST', '/api/jobs/org-app', (_, b) => startJob('org-app', `Create org app ${b.name || ''}`.trim(), (ctx) => APPS.runOrgApp(ctx, { name: b.name, theme: b.theme, reportIds: Array.isArray(b.reportIds) ? b.reportIds : undefined, title: b.title, body: b.body })));
@@ -327,7 +340,12 @@ const server = createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
       return res.end(bytes);
     }
-    if (pathname.startsWith('/api/')) {
+    // Template uploads are raw bytes (a .pbix can be large), not JSON.
+    if (pathname === '/api/report-templates/upload' && req.method === 'POST') {
+      if (req.headers['x-studio-token'] !== TOKEN) return send(res, 401, { error: 'Unauthorized' });
+      const bytes = await rawBody(req, TPL.MAX_UPLOAD);
+      return send(res, 200, TPL.importTemplate(String(url.searchParams.get('name') || ''), bytes));
+    }    if (pathname.startsWith('/api/')) {
       if (req.headers['x-studio-token'] !== TOKEN) return send(res, 401, { error: 'Unauthorized' });
       const r = routes.find((x) => x.method === req.method && x.rx.test(pathname));
       if (!r) return send(res, 404, { error: 'Not found' });

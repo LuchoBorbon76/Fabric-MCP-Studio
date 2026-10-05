@@ -287,8 +287,9 @@ export function topNFilter(category, measure, n) {
  */
 export function reportFiles(report) {
   const theme = report.theme;
-  const themeName = `FabricStudio-${theme.id}.json`;
-  const themeFile = { ...themeJson(theme), name: themeName };
+  const themeName = `FabricStudio-${theme.id.replace(/[^A-Za-z0-9_-]/g, '-')}.json`;
+  // An uploaded Power BI theme is used as it is (its own text classes and visual styles).
+  const themeFile = { ...(theme.json || themeJson(theme)), name: themeName };
   const files = {
     'definition.pbir': { $schema: 'https://developer.microsoft.com/json-schemas/fabric/item/report/definitionProperties/2.0.0/schema.json', version: '4.0', datasetReference: { byConnection: { connectionString: `semanticmodelid=${report.semanticModelId}` } } },
     'definition/version.json': { $schema: `${S}/versionMetadata/${V.version}/schema.json`, version: '2.0.0' },

@@ -1,11 +1,11 @@
 // API client, server-sent events and a tiny reactive store.
 const TOKEN = document.querySelector('meta[name="studio-token"]').content;
 
-export async function api(path, { method = 'GET', body } = {}) {
+export async function api(path, { method = 'GET', body, raw } = {}) {
   const res = await fetch(`/api${path}`, {
     method,
-    headers: { 'x-studio-token': TOKEN, ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    headers: { 'x-studio-token': TOKEN, ...(raw ? { 'Content-Type': 'application/octet-stream' } : body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
+    body: raw || (body !== undefined ? JSON.stringify(body) : undefined),
   });
   const text = await res.text();
   let data = null;
@@ -32,6 +32,8 @@ export const post = (p, body = {}) => api(p, { method: 'POST', body });
 export const put = (p, body = {}) => api(p, { method: 'PUT', body });
 export const patch = (p, body = {}) => api(p, { method: 'PATCH', body });
 export const del = (p) => api(p, { method: 'DELETE' });
+/** Send a file's bytes as they are (for uploads). */
+export const upload = (p, file) => api(p, { method: 'POST', raw: file });
 
 // ---- store ----
 const listeners = new Map();
