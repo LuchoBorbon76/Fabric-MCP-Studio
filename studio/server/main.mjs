@@ -1,6 +1,6 @@
 // Fabric MCP Studio - local web server (127.0.0.1 only). No framework: node:http + SSE + static files.
 import { createServer } from 'node:http';
-import { readFileSync, existsSync, statSync, rmSync, openSync } from 'node:fs';
+import { readFileSync, existsSync, statSync, rmSync, openSync, writeFileSync } from 'node:fs';
 import { join, extname, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
@@ -355,7 +355,7 @@ route('POST', '/api/shutdown', () => {
 
 // Restart with the code on disk (after an update): a new copy takes over this port once this one has stopped. Its
 // output goes to data\studio.log. Running jobs would be cut off, so they have to finish first.
-route('POST', '/api/restart', () => {
+route('POST', '/api/restart', async () => {
   const running = listJobs().filter((j) => j.status === 'running');
   if (running.length) throw Object.assign(new Error(`"${running[0].title}"${running.length > 1 ? ` and ${running.length - 1} more` : ''} ${running.length > 1 ? 'are' : 'is'} still running. Wait for ${running.length > 1 ? 'them' : 'it'} to finish (or stop ${running.length > 1 ? 'them' : 'it'}), then restart.`), { status: 409, code: 'JOBS_RUNNING' });
   const keep = [];
@@ -363,15 +363,47 @@ route('POST', '/api/restart', () => {
     if (['--port', '--restart-of'].includes(args[i])) { i++; continue; }
     if (args[i] !== '--no-open') keep.push(args[i]);
   }
-  let out = 'ignore';
-  try { out = openSync(join(DATA_DIR, 'studio.log'), 'a'); } catch { /* read-only data folder */ }
-  const child = spawn(process.execPath, [fileURLToPath(import.meta.url), ...keep, '--no-open', '--port', String(PORT), '--restart-of', String(process.pid)], { cwd: STUDIO_ROOT, env: process.env, detached: true, stdio: ['ignore', out, out], windowsHide: true });
-  child.unref();
+  const serverArgs = [fileURLToPath(import.meta.url), ...keep, '--no-open', '--port', String(PORT), '--restart-of', String(process.pid)];
+  if (process.platform === 'win32') await startHidden(serverArgs);
+  else {
+    let out = 'ignore';
+    try { out = openSync(join(DATA_DIR, 'studio.log'), 'a'); } catch { /* read-only data folder */ }
+    spawn(process.execPath, serverArgs, { cwd: STUDIO_ROOT, env: process.env, detached: true, stdio: ['ignore', out, out] }).unref();
+  }
   logActivity('studio.restart', `Restarting Fabric MCP Studio${pendingUpdate() ? ` to update from ${VERSION} to ${pendingUpdate().onDisk}` : ''}`, {});
   RT.stopLiveEvents();
   setTimeout(async () => { await A.stopAgent(); process.exit(0); }, 300);
   return { ok: true };
 });
+
+/**
+ * Windows: start the new copy in a hidden console, like the desktop shortcut does. A detached process has no console
+ * at all, and then every console program it runs (the Azure CLI, the Copilot runtime's tools) opens a window of its
+ * own. A small launcher in the data folder runs it; PowerShell starts that launcher hidden. PowerShell itself must not
+ * be detached (it then can't start a hidden window); what it starts outlives this process. Waits until it has.
+ */
+function startHidden(serverArgs) {
+  const q = (s) => `"${String(s).replace(/"/g, '')}"`;
+  const pct = (s) => s.replace(/%/g, '%%');
+  const launcher = join(DATA_DIR, 'restart-studio.cmd');
+  writeFileSync(launcher, [
+    '@echo off',
+    `cd /d ${pct(q(STUDIO_ROOT))}`,
+    `${pct(q(process.execPath))} ${serverArgs.map((a) => pct(q(a))).join(' ')} >> ${pct(q(join(DATA_DIR, 'studio.log')))} 2>&1`,
+    '',
+  ].join('\r\n'));
+  const ps = `Start-Process -FilePath '${launcher.replace(/'/g, "''")}' -WindowStyle Hidden`;
+  return new Promise((resolve, reject) => {
+    const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', ps], { cwd: STUDIO_ROOT, env: process.env, stdio: 'ignore', windowsHide: true });
+    const timer = setTimeout(resolve, 20000);
+    child.on('error', (e) => { clearTimeout(timer); reject(Object.assign(new Error(`The studio couldn't restart itself (${e.message}). Shut it down and start it again.`), { status: 500 })); });
+    child.on('exit', (code) => {
+      clearTimeout(timer);
+      if (code === 0) resolve();
+      else reject(Object.assign(new Error(`The studio couldn't restart itself (PowerShell exited with ${code}). Shut it down and start it again.`), { status: 500 }));
+    });
+  });
+}
 
 // ---------------- server ----------------
 

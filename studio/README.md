@@ -53,7 +53,7 @@ The desktop icon starts the studio in the background, with no console window (`S
 Script Host). Stop it with **Shut down** in the app header; server output goes to `studio/data/studio.log`.
 After an update (git pull, files copied from another computer) the pages are new but the running server isn't: the
 studio shows **A newer version is installed – Restart now** at the top, and *Restart now* starts the new version on the
-same port and reloads the page (running jobs have to finish first). A studio from before this version is restarted once
+same port in the background (hidden, like the desktop icon) and reloads the page (running jobs have to finish first). A studio from before this version is restarted once
 by hand: Shut down, then start it again.
 `Start-Studio.cmd` runs it in a console window instead (`create-shortcut.ps1 -ShowConsole` makes the icon do the same,
 and it is used automatically when Windows Script Host is turned off).

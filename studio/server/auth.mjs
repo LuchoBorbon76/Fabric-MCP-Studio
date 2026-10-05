@@ -1,6 +1,6 @@
 // Microsoft Entra ID tokens for Fabric, OneLake, SQL endpoints, Azure Resource Manager and Azure OpenAI.
 // Default: reuse the customer's Azure CLI sign-in (`az login`). Fallback: interactive browser sign-in.
-import { AzureCliCredential, InteractiveBrowserCredential } from '@azure/identity';
+import { InteractiveBrowserCredential } from '@azure/identity';
 import { runAz } from './azcli.mjs';
 import { getSettings } from './config.mjs';
 
@@ -20,9 +20,27 @@ let activeMode = null;            // 'azure-cli' | 'browser'
 let identity = null;              // { name, upn, oid, tenantId }
 let cliAccount = null;            // { tenant, subscription } resolved from `az account list`
 
+/**
+ * The Azure CLI sign-in as a credential. The Azure SDK's AzureCliCredential starts `az` without hiding it, so on
+ * Windows every token opens a console window when the studio has none of its own; runAz always runs it hidden.
+ */
+function cliCredentialFor(opts = {}) {
+  return {
+    async getToken(scope) {
+      const args = ['account', 'get-access-token', '--scope', scope];
+      if (opts.subscription) args.push('--subscription', opts.subscription);
+      else if (opts.tenantId) args.push('--tenant', opts.tenantId);
+      const r = await runAz(args);
+      if (!r?.accessToken) throw new Error('The Azure CLI returned no access token. Run az login.');
+      const expires = Number(r.expires_on) ? Number(r.expires_on) * 1000 : Date.parse(r.expiresOn);
+      return { token: r.accessToken, expiresOnTimestamp: Number.isFinite(expires) ? expires : Date.now() + 30 * 60 * 1000 };
+    },
+  };
+}
+
 async function cliCred() {
   const tenant = String(getSettings().azure.tenantId || '').trim();
-  if (!tenant) return new AzureCliCredential();
+  if (!tenant) return cliCredentialFor();
   // `az account get-access-token --tenant` uses the default account's user, which fails when the Azure CLI is
   // signed in to several accounts. Prefer an account (subscription or tenant-level entry) in the requested tenant.
   if (cliAccount?.tenant !== tenant) {
@@ -35,7 +53,7 @@ async function cliCred() {
     } catch { /* fall back to --tenant */ }
     cliAccount = { tenant, subscription };
   }
-  return new AzureCliCredential(cliAccount.subscription ? { subscription: cliAccount.subscription } : { tenantId: tenant });
+  return cliCredentialFor(cliAccount.subscription ? { subscription: cliAccount.subscription } : { tenantId: tenant });
 }
 
 export function currentIdentity() {
@@ -50,10 +68,18 @@ function getBrowserCred() {
   return browserCred;
 }
 
+// Requests for the same token at the same time share one Azure CLI call.
+const pending = new Map();
+
 export async function getToken(scope = SCOPES.fabric, { interactive = false } = {}) {
   const hit = cache.get(scope);
   if (hit && hit.expiresOn - Date.now() > 5 * 60 * 1000) return hit.token;
+  const key = `${scope}|${interactive}`;
+  if (!pending.has(key)) pending.set(key, fetchToken(scope, { interactive }).finally(() => pending.delete(key)));
+  return pending.get(key);
+}
 
+async function fetchToken(scope, { interactive }) {
   const mode = getSettings().azure.authMode;
   let tok = null;
   let lastErr = null;
@@ -80,6 +106,7 @@ export function tokenExpiresOn(scope = SCOPES.fabric) {
 
 export async function signIn(mode = 'browser') {
   cache.clear();
+  pending.clear();
   identity = null;
   cliAccount = null;
   if (mode === 'azure-cli') {
@@ -95,6 +122,7 @@ export async function signIn(mode = 'browser') {
 
 export function signOut() {
   cache.clear();
+  pending.clear();
   identity = null;
   cliAccount = null;
   browserCred = null;
