@@ -175,6 +175,21 @@ own reports, data agent, org app and Copilot suggestions, and gets them back whe
 Copilot: `studio_list_semantic_models` (with a workspace, also the models you could add) and
 `studio_use_semantic_model` (switch, or add an existing model).
 
+### Check a model's data (repeated keys)
+
+A model can fail with *"Column … in Table … contains a duplicate value … not allowed for columns on the one side of a
+many-to-one relationship"* when a dimension table has the same key more than once – every query that uses the
+relationship then fails (reports, recommendations, Copilot answers). The Reports & apps page shows the error with
+**🩺 Check and fix the data**; the model bar and the Overview have **🩺 Check data** too.
+
+The check reads the model's definition to find the table and column each relationship key comes from, then counts rows,
+distinct keys and empty keys there (read-only, about a minute). For each relationship it shows the extra rows, examples,
+and whether they are **exact copies**. Exact copies in a **Fabric warehouse** can be removed in one click: the studio
+keeps a backup copy of each table (`<table>_backup_<time>`), removes the copies in one transaction (nothing changes if a
+step fails), reloads the model and checks again. Rows that differ, or copies in a lakehouse, mirrored or SQL database,
+have to be fixed where the data is loaded – the check says which. Copilot: `studio_check_semantic_model` and
+`studio_fix_model_duplicates`.
+
 ## Task flows
 
 The **Workspace** page organizes the workspace with a Fabric **task flow** – the boxes above the workspace's item list –

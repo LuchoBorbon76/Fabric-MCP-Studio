@@ -5,7 +5,7 @@ import { buildGraph, getNode, upstream, downstream, nodePrompt, icon, CAT, VIEW_
 import { askCard } from '../prompts.js';
 import { namingCard } from '../naming.js';
 import { itemsTable, nodeRemoveActions } from '../artifacts.js';
-import { modelsDialog } from '../models.js';
+import { modelsDialog, modelCheckDialog } from '../models.js';
 import { sourcesDialog } from '../sources.js';
 import { workspacesDialog } from '../workspaces.js';
 
@@ -79,6 +79,7 @@ function inspector(g, n) {
     acts.append(h('button', { class: `btn ${n.done || n.state === 'off' ? '' : 'pri'}`, onclick: () => app.go(n.view) }, n.done ? `Open ${VIEW_LABEL[n.view]}` : `Set up in ${VIEW_LABEL[n.view]}`, ' ›'));
     if (n.state !== 'off') acts.append(h('button', { class: 'btn ai', onclick: () => app.ask(nodePrompt(n.id), { view: n.view }) }, n.done ? '✦ Ask Copilot about it' : '✦ Let Copilot do it'));
     if (n.id === 'model' && store.project?.workspace) acts.append(h('button', { class: 'btn', title: 'Or double-click Semantic model on the map', onclick: () => modelsDialog() }, (store.project.semanticModels || []).length > 1 ? `⇄ Switch model (${store.project.semanticModels.length})` : '⇄ Switch or add a model'));
+    if (n.id === 'model' && store.project?.semanticModel) acts.append(h('button', { class: 'btn', title: 'Check that every relationship key is unique in the data the model reads', onclick: () => modelCheckDialog() }, '🩺 Check data'));
     if (n.id === 'source' && store.project?.workspace) acts.append(h('button', { class: 'btn', title: 'Or double-click Data source on the map', onclick: () => sourcesDialog() }, (store.project.sources || []).length > 1 ? `⇄ Switch data source (${store.project.sources.length})` : '⇄ Data in this workspace'));
     if (isWs) acts.append(h('button', { class: 'btn', title: 'Or double-click the workspace name on the map', onclick: () => workspacesDialog() }, '⇄ Workspaces on the capacity'));
     if (n.url) acts.append(h('a', { class: 'btn ghost', href: n.url, target: '_blank', rel: 'noopener' }, 'Open in Fabric ↗'));

@@ -25,6 +25,7 @@ import { getProject, updateProject, resetProject, getActivity, clearActivity, lo
 import { startJob, listJobs, getJob, cancelJob, flushRunningJobs, onJobSucceeded } from './jobs.mjs';
 import * as WTF from './workspace-taskflow.mjs';
 import * as MODELS from './models.mjs';
+import * as MC from './modelcheck.mjs';
 import * as ARTS from './artifacts.mjs';
 import { health } from './health.mjs';
 import { presetSummary } from './presets.mjs';
@@ -287,6 +288,9 @@ route('GET', '/api/models/available', (_, __, q) => MODELS.availableModels(q.get
 route('POST', '/api/models/active', async (_, b) => { const s = await MODELS.useModel(String(b.id || '')); WTF.syncTaskFlow().catch(() => {}); return s; });
 route('POST', '/api/models/existing', async (_, b) => { const s = await MODELS.addExistingModel({ workspaceId: b.workspaceId ? String(b.workspaceId) : undefined, id: String(b.id || '') }); WTF.syncTaskFlow().catch(() => {}); return s; });
 route('POST', '/api/models/refresh', (_, b) => MODELS.refreshModelInfo(b.id ? String(b.id) : undefined));
+// Check a model's relationships against the data it reads, and remove exact duplicate rows in a warehouse.
+route('GET', '/api/models/check', (_, __, q) => MC.checkModel({ id: q.get('id') || undefined, fresh: q.get('fresh') === '1' }));
+route('POST', '/api/jobs/model-fix', (_, b) => startJob('model-fix', 'Remove duplicate rows the semantic model can\'t use', (ctx) => MC.runFixDuplicates(ctx, { id: b.id ? String(b.id) : undefined, tables: Array.isArray(b.tables) ? b.tables.map(String) : undefined })));
 // Everything the project built, what uses what, and removing items nothing uses any more.
 route('GET', '/api/artifacts', () => ARTS.projectArtifacts());
 route('POST', '/api/jobs/remove', (_, b) => {

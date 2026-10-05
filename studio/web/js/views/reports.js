@@ -3,7 +3,7 @@ import { h, toast, busy, field, input, fmtDate, confirmDialog, modal } from '../
 import { app, copilotSlot } from '../app.js';
 import { askCard } from '../prompts.js';
 import { standardName, purposeOf, parseName } from '../naming.js';
-import { modelBar } from '../models.js';
+import { modelBar, modelErrorBanner } from '../models.js';
 
 const TOKEN = document.querySelector('meta[name="studio-token"]').content;
 let catalog = null;
@@ -56,7 +56,7 @@ function drawRecommendations(card, p, designer) {
     grid.innerHTML = '';
     for (const rec of r.recommendations) grid.append(recCard(rec, p, designer));
     grid.append(realtimeRecCard(p));
-  }).catch((e) => { grid.innerHTML = ''; grid.append(h('div', { class: 'banner err' }, e.message)); });
+  }).catch((e) => { grid.innerHTML = ''; grid.append(modelErrorBanner(e)); });
 }
 
 function recCard(rec, p, designer) {
@@ -277,7 +277,7 @@ function drawFindings(card, p, refresh = false) {
       pr.insights.length ? h('div', { class: 'banner ok mt' }, h('div', {}, h('b', {}, 'Insights. '), pr.insights.map((i) => i.text).join(' '))) : null,
       pr.warnings.length ? h('div', { class: 'banner warn mt' }, pr.warnings.join(' ')) : null,
       h('p', { class: 'tiny muted' }, 'Read-only DAX against your model; your permissions and row-level security apply.')].filter(Boolean));
-  }).catch((e) => { body.innerHTML = ''; body.append(h('div', { class: 'banner err' }, e.message)); });
+  }).catch((e) => { body.innerHTML = ''; body.append(modelErrorBanner(e)); });
 }
 
 // ---------------- designer ----------------

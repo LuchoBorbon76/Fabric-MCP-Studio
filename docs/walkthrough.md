@@ -90,6 +90,10 @@ from any workspace you can read (Direct Lake, Import or DirectQuery). The active
 agent, the org app and Copilot use – switch it with *Use this model* in the pop-up or the **Semantic model** bar at the top of Reports
 & apps, Planning and Ask & share. The studio never changes or deletes a model you added.
 
+If a model you add fails with a *duplicate value … one side of a relationship* error, select **🩺 Check and fix the data**:
+the studio finds the table with repeated keys and, when they are exact copies in a warehouse, removes them (with a
+backup) and reloads the model.
+
 > Ask Copilot: *Use the Sales model from the Finance workspace and build an executive report on it.*
 
 ## 4. Ontology

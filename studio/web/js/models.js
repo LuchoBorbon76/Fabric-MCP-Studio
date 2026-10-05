@@ -42,6 +42,7 @@ export function modelBar({ note = '' } = {}) {
     note ? h('span', { class: 'tiny muted mbnote' }, note) : null,
     h('span', { style: { flex: 1 } }),
     models.length > 1 ? h('span', { class: 'tiny muted' }, `${models.length} models in the project`) : null,
+    h('button', { class: 'btn ghost', title: 'Check that every relationship key is unique in the data the model reads (and fix exact copies)', onclick: () => modelCheckDialog() }, '🩺 Check data'),
     h('button', { class: 'btn ghost', onclick: () => modelsDialog() }, models.length > 1 ? 'Manage models' : 'Add a model'));
 }
 
@@ -140,4 +141,109 @@ export function addExistingDialog() {
     wsSel.value = cur || wss[0]?.id || '';
   }).catch((e) => { status.textContent = `Workspaces couldn't be listed: ${e.message}`; });
   load();
+}
+
+// ---------------- model check: why a model can't answer, and fixing exact duplicate rows ----------------
+
+const isDataError = (e) => e?.code === 'MODEL_DUPLICATE_KEYS' || /duplicate value|one side of a many-to-one|primary key of a table/i.test(String(e?.message || e || ''));
+
+/**
+ * An error from the semantic model, as a banner: when the model's data breaks a relationship, with a button that
+ * checks the tables and fixes exact copies; otherwise just the message.
+ */
+export function modelErrorBanner(e) {
+  if (!isDataError(e)) return h('div', { class: 'banner err' }, e?.message || String(e));
+  return h('div', { class: 'banner err' },
+    h('div', { style: { flex: 1 } }, e.message),
+    h('div', { class: 'row', style: { flexShrink: 0 } },
+      h('button', { class: 'btn pri', onclick: () => modelCheckDialog() }, '🩺 Check and fix the data'),
+      h('button', { class: 'btn ai', onclick: () => app.ask('My semantic model fails with a duplicate value / relationship error. Check it with studio_check_semantic_model, explain what is wrong in plain words, and suggest the fix.') }, '✦ Ask Copilot')));
+}
+
+const num = (n) => (n === null || n === undefined ? '–' : fmtNum(n));
+
+/** Check the active model's relationship keys against its data; fix exact duplicate rows in a warehouse. */
+export function modelCheckDialog() {
+  const p = store.project || {};
+  const sm = p.semanticModel;
+  let dlg = null;
+  const body = h('div', { class: 'col' });
+  const status = h('div', { class: 'row muted small' }, h('span', { class: 'spin' }), ` Reading the tables ${sm?.name || 'the model'} is built on and checking every relationship key… (about a minute)`);
+  const job = h('div');
+  body.append(h('p', { class: 'small muted', style: { margin: 0 } }, 'Every relationship needs one row per key on its "one" side (for example one row per date in the date table). The studio reads the data the model is built on – your model isn\'t changed.'), status, job);
+  const draw = (r) => {
+    status.replaceChildren();
+    const rows = r.keys.map((k) => h('tr', {},
+      h('td', {}, h('div', { class: 'small' }, k.rel), h('div', { class: 'tiny muted' }, k.sourceTable ? `Data: ${k.sourceTable}${k.source?.itemName ? ` in ${k.source.itemName}` : ''}` : '')),
+      h('td', { class: 'num small' }, num(k.rows)),
+      h('td', { class: 'num small' }, num(k.keys)),
+      h('td', {},
+        k.status === 'ok' ? h('span', { class: 'pill ok' }, 'Unique')
+          : k.status === 'duplicates' ? h('span', { class: 'pill err' }, `${num(k.extraRows)} extra rows`)
+            : k.status === 'warn' ? h('span', { class: 'pill warn' }, 'Empty keys') : h('span', { class: 'pill' }, 'Not checked'),
+        k.reason ? h('div', { class: 'tiny muted', style: { marginTop: '4px' } }, k.reason) : null,
+        k.sample?.length ? h('div', { class: 'tiny muted' }, `For example ${k.sample.slice(0, 3).map((x) => `${x.value} (${x.rows} rows)`).join(', ')}`) : null)));
+    const t = h('table', { class: 't stable' }, h('tr', {}, h('th', {}, 'Relationship'), h('th', { class: 'num' }, 'Rows'), h('th', { class: 'num' }, 'Keys'), h('th', {}, 'Result')), ...rows);
+    const fixes = r.keys.filter((k) => k.fix === 'dedupe');
+    const where = (k) => `${k.sourceTable}${k.source?.itemName ? ` (${k.source.itemType === 'Warehouse' ? 'warehouse' : k.source.itemType || 'source'} ${k.source.itemName})` : ''}`;
+    const unchecked = r.keys.filter((k) => k.status === 'unknown');
+    // An all-clear only when every relationship was checked.
+    const head = r.problems
+      ? h('div', { class: `banner ${fixes.length ? 'warn' : 'err'}` }, h('div', {},
+        h('b', {}, `${r.problems} relationship${r.problems === 1 ? '' : 's'} can't work: `),
+        `the key repeats in ${[...new Set(r.keys.filter((k) => k.status === 'duplicates').map(where))].join(', ')}. `,
+        fixes.length ? 'The extra rows are exact copies, so removing them changes no number.' : 'Fix the data where it is loaded, then refresh the model.',
+        unchecked.length ? ` ${unchecked.length} other relationship${unchecked.length === 1 ? '' : 's'} couldn't be checked.` : ''))
+      : !r.keys.length || unchecked.length
+        ? h('div', { class: 'banner warn' }, h('div', {},
+          h('b', {}, r.keys.length ? `${unchecked.length} of ${r.keys.length} relationships couldn't be checked. ` : 'The relationships couldn\'t be checked. '),
+          [...r.notes, ...unchecked.map((k) => k.reason)].filter(Boolean).slice(0, 3).join(' ')))
+        : h('div', { class: 'banner ok' }, `Every relationship key in ${r.model.name} is unique in its data.`);
+    const actions = h('div', { class: 'row mt' });
+    if (fixes.length) {
+      const fix = h('button', { class: 'btn pri', 'data-busy': 'Starting…' }, `Remove ${num(fixes.reduce((a, k) => a + k.extraRows, 0))} duplicate rows`);
+      fix.addEventListener('click', busy(fix, async () => {
+        const ok = await confirmFix(r, fixes);
+        if (!ok) return;
+        const j = await post('/jobs/model-fix', { id: r.model.id, tables: fixes.map((k) => k.fixKey) });
+        app.watchJob(j.id);
+        const render = (x) => job.replaceChildren(h('div', { class: 'mt' }, app.jobCard(x)));
+        render(j);
+        const off = on('job', (ev) => {
+          if (ev.job.id !== j.id) return;
+          render(ev.job);
+          if (ev.job.status === 'running') return;
+          off();
+          if (ev.job.status === 'succeeded') { toast('Duplicate rows removed – the model reloaded', 'ok'); fire('model.fixed'); app.refresh(); }
+        });
+      }));
+      actions.append(fix);
+    }
+    const again = h('button', { class: 'btn', 'data-busy': 'Checking…' }, '↻ Check again');
+    again.addEventListener('click', busy(again, async () => { draw(await get(`/models/check?id=${encodeURIComponent(r.model.id)}&fresh=1`)); }));
+    actions.append(again, h('button', { class: 'btn ai', onclick: () => { dlg?.close(); app.ask(`My semantic model ${r.model.name} has duplicate keys: ${r.keys.filter((k) => k.status === 'duplicates').map((k) => `${k.sourceTable} (${k.reason})`).join('; ')}. Explain what happened and how to prevent it where the data is loaded.`); } }, '✦ Ask Copilot'));
+    body.replaceChildren(head, h('div', { class: 'scroll' }, t), actions, job,
+      fixes.length ? h('p', { class: 'tiny muted', style: { margin: 0 } }, 'Removing them keeps a backup copy of each table in its warehouse (<table>_backup_<time>), works in one transaction per warehouse – all or nothing – and reloads the model. Drop the backup once the numbers look right.') : null);
+  };
+  dlg = modal({ title: `Check ${sm?.name || 'the semantic model'}`, className: 'wide', body, actions: [{ label: 'Close' }] });
+  get('/models/check').then(draw).catch((e) => { status.replaceChildren(h('div', { class: 'banner err' }, e.message)); });
+  return dlg;
+}
+
+/** Ask before changing the warehouse: what is removed and where, and that a backup is kept. */
+function confirmFix(r, fixes) {
+  const warehouses = [...new Set(fixes.map((k) => k.source?.itemName).filter(Boolean))];
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (v) => { if (!done) { done = true; resolve(v); } };
+    modal({
+      title: 'Remove duplicate rows?',
+      body: h('div', { class: 'col' },
+        h('p', { style: { margin: 0 } }, `This changes data in the warehouse${warehouses.length === 1 ? '' : 's'} `, h('b', {}, warehouses.join(', ')), ':'),
+        h('ul', { class: 'pre small', style: { margin: 0 } }, fixes.map((k) => h('li', {}, `${k.sourceTable}${warehouses.length > 1 ? ` in ${k.source.itemName}` : ''}: ${num(k.rows)} → ${num(k.distinctRows)} rows (${num(k.extraRows)} exact copies removed)`))),
+        h('p', { class: 'small muted', style: { margin: 0 } }, 'A backup copy of each table is kept first, the change runs in one transaction per warehouse (nothing changes there if a step fails), then the model reloads. Anything else that loads these tables (pipelines, notebooks) may add the copies again – fix it there too.')),
+      actions: [{ label: 'Cancel', onClick: () => finish(false) }, { label: 'Remove duplicates', class: 'pri', onClick: () => finish(true) }],
+      onClose: () => finish(false),
+    });
+  });
 }

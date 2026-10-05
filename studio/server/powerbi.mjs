@@ -28,9 +28,13 @@ async function pbi(method, path, body, { raw = false } = {}) {
     let json = null;
     try { json = text ? JSON.parse(text) : null; } catch { json = text; }
     if (!res.ok) {
-      const msg = json?.error?.['pbi.error']?.details?.[0]?.detail?.value || json?.error?.message || json?.message || text || res.statusText;
+      // <oii>…</oii> marks names in engine messages; show them plainly.
+      const msg = String(json?.error?.['pbi.error']?.details?.[0]?.detail?.value || json?.error?.message || json?.message || text || res.statusText).replace(/<\/?oii>/g, '');
       // A paused or overloaded capacity can't open the model: say so instead of the engine message.
       if (/Failed to open the MSOLAP connection/i.test(msg)) throw new PowerBIError('The semantic model can\'t be queried right now. Check that the workspace\'s Fabric capacity is running (a paused capacity can\'t answer queries), then try again.', res.status, json);
+      // A key that repeats on the "one" side of a relationship breaks every query that uses it.
+      const dup = msg.match(/Column '([^']+)' in Table '([^']+)' contains a duplicate value '([^']*)'/i);
+      if (dup) throw Object.assign(new PowerBIError(`The semantic model can't answer: ${dup[2]}[${dup[1]}] has repeated values (for example ${dup[3]}), but it is the "one" side of a relationship. Select "Check and fix the data" to find the tables with repeated keys and remove exact copies.`, res.status, json), { code: 'MODEL_DUPLICATE_KEYS', table: dup[2], column: dup[1] });
       throw new PowerBIError(`${method} ${path} failed (${res.status}): ${msg}`, res.status, json);
     }
     return json;
@@ -68,7 +72,12 @@ export async function setWorkspaceUser(workspaceId, email, role = 'Contributor')
 export async function dax(workspaceId, datasetId, query) {
   const r = await pbi('POST', `/groups/${workspaceId}/datasets/${datasetId}/executeQueries`, { queries: [{ query }], serializerSettings: { includeNulls: true } });
   const t = r?.results?.[0];
-  if (t?.error) throw new PowerBIError(t.error.message || 'DAX query failed', 400, t.error);
+  if (t?.error) {
+    const msg = String(t.error.message || t.error.code || 'DAX query failed').replace(/<\/?oii>/g, '');
+    const dup = msg.match(/Column '([^']+)' in Table '([^']+)' contains a duplicate value '([^']*)'/i);
+    if (dup) throw Object.assign(new PowerBIError(`The semantic model can't answer: ${dup[2]}[${dup[1]}] has repeated values (for example ${dup[3]}), but it is the "one" side of a relationship. Select "Check and fix the data" to find the tables with repeated keys and remove exact copies.`, 400, t.error), { code: 'MODEL_DUPLICATE_KEYS', table: dup[2], column: dup[1] });
+    throw new PowerBIError(msg, 400, t.error);
+  }
   return (t?.tables?.[0]?.rows || []).map((row) => Object.fromEntries(Object.entries(row).map(([k, v]) => [k.replace(/^.*\[(.*)\]$/, '$1'), v])));
 }
 

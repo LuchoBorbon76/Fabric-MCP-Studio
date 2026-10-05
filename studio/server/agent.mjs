@@ -21,6 +21,7 @@ import { presetFor, presetSummary } from './presets.mjs';
 import * as N from './naming.mjs';
 import * as WTF from './workspace-taskflow.mjs';
 import * as MODELS from './models.mjs';
+import * as MC from './modelcheck.mjs';
 import * as ARTS from './artifacts.mjs';
 
 export const MCP_ENDPOINTS = {
@@ -356,6 +357,8 @@ const STUDIO_TOOLS_META = {
   studio_task_flow_status: { write: false, title: 'Read the workspace task flow and where each item goes' },
   studio_apply_task_flow: { write: true, title: 'Apply a task flow and assign the items to its tasks' },
   studio_list_semantic_models: { write: false, title: 'List the project\'s semantic models' },
+  studio_check_semantic_model: { write: false, title: 'Check the semantic model\'s data (relationship keys)' },
+  studio_fix_model_duplicates: { write: true, title: 'Remove duplicate rows from warehouse tables' },
   studio_use_semantic_model: { write: false, title: 'Switch the active semantic model or add an existing one' },
   studio_planning_status: { write: false, title: 'Read the plan (budget, forecast, variance)' },
   studio_preview_plan: { write: false, title: 'Preview a budget and forecast' },
@@ -886,6 +889,16 @@ function studioTools(chatId) {
         WTF.syncTaskFlow().catch(() => {});
         return { ok: true, active: s.models.find((m) => m.active)?.name, models: s.models.length, warning: s.warning || undefined };
       },
+    }),
+    studioTool('studio_check_semantic_model', {
+      description: 'Find why a semantic model can\'t answer (for example "contains a duplicate value … not allowed for columns on the one side of a many-to-one relationship"): reads the tables the model is built on and checks that every relationship key on the "one" side is unique – repeated keys, how many extra rows, whether they are exact copies, the source table and item, and whether the studio can fix it. Read-only; about a minute. Use it whenever the model profile or a DAX query fails with a relationship or duplicate-value error.',
+      parameters: obj({ id: str('Semantic model id (default: the active model)') }),
+      handler: async ({ id }) => MC.checkModel({ id }),
+    }),
+    studioTool('studio_fix_model_duplicates', {
+      description: 'Remove exact duplicate rows from Fabric warehouse tables a semantic model reads (only tables studio_check_semantic_model reported with fix "dedupe"): keeps a backup copy of each table (<table>_backup_<time>), works in one transaction (all or nothing), then reloads the model and checks again. Only call it after the user agreed to change their warehouse data. Rows that differ are never removed.',
+      parameters: obj({ id: str('Semantic model id (default: the active model)'), tables: { type: 'array', items: { type: 'string' }, description: 'fixKey values from studio_check_semantic_model (or schema.table names) to fix (default: every fixable table)' } }),
+      handler: async (a) => runAsJob('model-fix', 'Remove duplicate rows the semantic model can\'t use', (ctx) => MC.runFixDuplicates(ctx, { id: a.id, tables: a.tables })),
     }),
     studioTool('studio_planning_status', {
       description: 'Read the budget and forecast: plan year, base year, growth, forecast cut-off, planned dimensions, the Plan table measures, the Fabric plan item, and plan vs actual for the plan year (overall and by the first dimension) through the semantic model. Read-only.',
