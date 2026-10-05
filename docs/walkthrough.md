@@ -77,10 +77,11 @@ Then improve it with Copilot (Power BI Authoring MCP):
 - *Add Spanish translations*
 - *Create a row-level security role*
 
-**Several models, new or existing.** The **Semantic models** card at the top lists every model in the project.
+**Several models, new or existing.** **Double-click Semantic model** on the map (or select *⇄ Switch or add a model*)
+to open the **Semantic models** pop-up with every model in the project.
 *+ New model from my data* designs another model next to the ones you have; *+ Add an existing model* brings a model
 from any workspace you can read (Direct Lake, Import or DirectQuery). The active model is the one reports, the data
-agent, the org app and Copilot use – switch it with *Use this model* or the **Semantic model** bar at the top of Reports
+agent, the org app and Copilot use – switch it with *Use this model* in the pop-up or the **Semantic model** bar at the top of Reports
 & apps, Planning and Ask & share. The studio never changes or deletes a model you added.
 
 > Ask Copilot: *Use the Sales model from the Finance workspace and build an executive report on it.*

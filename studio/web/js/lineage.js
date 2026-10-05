@@ -47,7 +47,7 @@ const COLS = ['Sources', 'OneLake', 'Semantic layer', 'Insights & AI', 'Apps & s
 const DEFS = [
   { id: 'source', c: 0, r: 0, view: 'data', module: 'data', cat: 'source', type: 'Data source', desc: 'Sample data, your own databases (mirrored to OneLake) or Fabric data you already have.' },
   { id: 'data', c: 1, r: 0, view: 'data', module: 'data', cat: 'onelake', type: 'OneLake data', desc: 'The tables in OneLake that the semantic model, ontology and plan are built on.' },
-  { id: 'model', c: 2, r: 0, view: 'model', module: 'model', cat: 'model', type: 'Semantic model', icon: 'model', desc: 'Direct Lake model with relationships and business measures: one version of every number.' },
+  { id: 'model', c: 2, r: 0, view: 'model', module: 'model', cat: 'model', type: 'Semantic model', icon: 'model', desc: 'Direct Lake models with relationships and business measures, or existing models: one version of every number. Double-click to switch models or add one.' },
   { id: 'ontology', c: 2, r: 2, view: 'ontology', module: 'ontology', cat: 'ontology', type: 'Ontology', icon: 'ontology', desc: 'Business entities, relationships and plain-English rules in Fabric IQ.' },
   { id: 'reports', c: 3, r: 0, view: 'reports', module: 'reports', cat: 'reports', type: 'Power BI reports', icon: 'reports', desc: 'Professional reports built from templates and themes on your model\'s measures.' },
   { id: 'planning', c: 3, r: 1, view: 'planning', module: 'planning', cat: 'planning', type: 'Budget & forecast', icon: 'planning', desc: 'A budget and rolling forecast from your actuals, with variance measures in the model.' },

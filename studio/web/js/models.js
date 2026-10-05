@@ -1,7 +1,7 @@
 // Semantic models in the project: a switcher shown on every page that works on "the" model (Semantic model, Reports &
 // apps, Planning, Ask & share), the list of models with what is built on each, and adding an existing model from any
 // workspace. One model is active; switching changes nothing in Fabric.
-import { store, get, post } from './api.js';
+import { store, get, post, on, fire } from './api.js';
 import { h, toast, busy, modal, select, input, fmtNum } from './ui.js';
 import { app } from './app.js';
 import { removeButton, loadArtifacts } from './artifacts.js';
@@ -42,43 +42,55 @@ export function modelBar({ note = '' } = {}) {
     note ? h('span', { class: 'tiny muted mbnote' }, note) : null,
     h('span', { style: { flex: 1 } }),
     models.length > 1 ? h('span', { class: 'tiny muted' }, `${models.length} models in the project`) : null,
-    h('button', { class: 'btn ghost', onclick: () => { const here = document.querySelector('#view-model.on .models'); if (here) here.scrollIntoView({ behavior: 'smooth' }); else app.go('model'); } }, models.length > 1 ? 'Manage models' : '+ Add a model'));
+    h('button', { class: 'btn ghost', onclick: () => modelsDialog() }, models.length > 1 ? 'Manage models' : 'Add a model'));
 }
 
-/** Every model in the project (Semantic model page): switch, open, add an existing one, start a new one, remove. */
-export function modelsCard({ onNew } = {}) {
-  const card = h('div', { class: 'card models', style: { marginBottom: '14px' } });
-  const body = h('div', { class: 'muted small' }, h('span', { class: 'spin' }), ' Reading the project\'s models…');
-  const add = h('button', { class: 'btn' }, '+ Add an existing model');
-  add.addEventListener('click', () => addExistingDialog());
+/** Every model in the project, in a pop-up: switch, open, add an existing one, start a new one, remove. */
+export function modelsDialog() {
   const p = store.project || {};
-  card.append(
-    h('div', { class: 'row sp' },
-      h('div', {}, h('h2', {}, 'Semantic models'), h('p', { class: 'lead' }, 'Build new models from your data, or bring existing ones from any workspace you can read. Reports, the data agent, the org app and Copilot\'s answers work on the active model – switch any time; nothing changes in Fabric.')),
-      h('div', { class: 'row' }, p.modelSource && onNew ? h('button', { class: 'btn pri', onclick: () => onNew() }, '+ New model from my data') : null, add)),
-    body);
-  Promise.all([get('/models'), loadArtifacts().catch(() => [])]).then(([s, arts]) => {
-    if (!s.models.length) { body.replaceChildren(h('div', { class: 'muted small' }, p.modelSource ? 'No semantic model yet. Design one from your data below, or add an existing model.' : 'No semantic model yet. Add an existing model, or connect data (Data page) to design a new one.')); return; }
+  const body = h('div', { class: 'col' });
+  let dlg = null;
+  let offProject = () => {};
+  const close = () => dlg?.close();
+  const startNew = () => { close(); fire('model.new'); app.go('model'); setTimeout(() => document.querySelector('#view-model.on .designer')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120); };
+  const add = h('button', { class: 'btn' }, '+ Add an existing model');
+  add.addEventListener('click', () => { close(); addExistingDialog(); });
+  const list = h('div', { class: 'muted small' }, h('span', { class: 'spin' }), ' Reading the project\'s models…');
+  const draw = () => Promise.all([get('/models'), loadArtifacts().catch(() => [])]).then(([s, arts]) => {
+    const proj = store.project || {};
+    if (!s.models.length) {
+      list.className = 'muted small';
+      list.replaceChildren(proj.modelSource ? 'No semantic model yet. Design one from your data, or add an existing model.' : 'No semantic model yet. Add an existing model, or connect data (Data page) to design a new one.');
+      return;
+    }
     const t = h('table', { class: 't mtable' }, h('tr', {}, h('th', {}, 'Model'), h('th', {}, 'Contents'), h('th', {}, 'Built on it'), h('th', { 'aria-label': 'Actions' })));
     for (const m of s.models) {
       const use = h('button', { class: 'btn pri', 'data-busy': 'Switching…' }, 'Use this model');
-      use.addEventListener('click', busy(use, () => switchTo(m.id)));
+      use.addEventListener('click', busy(use, async () => { await switchTo(m.id); close(); }));
       const art = arts.find((a) => a.key === `model:${m.id}`);
       const built = [m.reports.length ? plural(m.reports.length, 'report') : null, m.dataAgent ? 'data agent' : null, m.orgApp ? 'org app' : null, m.plan ? `plan ${m.plan.planYear}` : null].filter(Boolean);
       t.append(h('tr', { class: m.active ? 'sel' : '' },
         h('td', {},
-          h('div', { class: 'row', style: { gap: '6px' } }, h('a', { href: m.url, target: '_blank', rel: 'noopener' }, h('b', {}, m.name)), m.active ? h('span', { class: 'pill ok' }, 'Active') : null),
+          h('div', { class: 'row', style: { gap: '6px' } }, h('a', { href: m.url, target: '_blank', rel: 'noopener', title: 'Open in Fabric' }, h('b', {}, m.name)), m.active ? h('span', { class: 'pill ok' }, 'Active') : null),
           h('div', { class: 'tiny muted' }, `${m.origin === 'existing' ? 'Existing model' : 'Built by the studio'}${m.storage ? ` · ${m.storage}` : ''}${m.inProjectWorkspace ? '' : ` · ${m.workspaceName || 'another workspace'}`}`)),
         h('td', { class: 'small' }, m.tables === null ? h('span', { class: 'tiny muted' }, 'Not read yet') : `${plural(m.tables, 'table')} · ${plural(m.measures, 'measure')}${m.relationships !== null ? ` · ${plural(m.relationships, 'relationship')}` : ''}`),
         h('td', { class: 'small' }, built.length ? built.join(' · ') : h('span', { class: 'tiny muted' }, '–')),
-        h('td', { class: 'act' }, h('div', { class: 'row', style: { justifyContent: 'flex-end', gap: '6px' } },
+        h('td', { class: 'act' }, h('div', { class: 'row', style: { justifyContent: 'flex-end', gap: '6px', flexWrap: 'nowrap' } },
           m.active ? null : use,
           art ? removeButton([art], { compact: true, label: m.origin === 'existing' ? 'Stop using' : 'Delete' }) : null))));
     }
-    body.className = 'scroll';
-    body.replaceChildren(t);
-  }).catch((e) => body.replaceChildren(h('div', { class: 'banner err' }, e.message)));
-  return card;
+    list.className = 'scroll';
+    list.replaceChildren(t);
+  }).catch((e) => list.replaceChildren(h('div', { class: 'banner err' }, e.message)));
+  body.append(
+    h('p', { class: 'small muted', style: { margin: 0 } }, 'Reports, the data agent, the org app and Copilot\'s answers work on the active model – switch any time; nothing changes in Fabric. Build new models from your data, or bring existing ones from any workspace you can read.'),
+    list,
+    p.workspace ? h('div', { class: 'row' }, p.modelSource ? h('button', { class: 'btn pri', onclick: startNew }, '+ New model from my data') : null, add) : h('div', { class: 'banner warn' }, 'Select a workspace first.'));
+  dlg = modal({ title: 'Semantic models', className: 'wide models', body, actions: [{ label: 'Close' }], onClose: () => offProject() });
+  // Removing or adding a model updates the project: show the new list while the pop-up is open.
+  offProject = on('project.updated', () => { if (dlg) draw(); });
+  draw();
+  return dlg;
 }
 
 /** Pick a workspace, then an existing semantic model in it, and add it to the project (it becomes the active model). */

@@ -154,12 +154,14 @@ the studio didn't create (a lakehouse or warehouse used in place) is only discon
 ## Semantic models: several per project, new or existing
 
 A project can hold **several semantic models**: the ones the studio designs from your data (Direct Lake) and
-**existing models from any workspace you can read** – Direct Lake, Import or DirectQuery. The **Semantic model** page
-lists them with what is built on each (reports, data agent, org app, plan); **+ New model from my data** designs another
-model next to the ones you have, and **+ Add an existing model** picks a workspace and one of its models (default models
-of lakehouses and warehouses are marked). One model is **active**: reports and recommendations, the model profile, the
-data agent, the org app, suggested questions and Copilot's answers use it. Switch with the **Semantic model** bar at the
-top of Reports & apps, Planning and Ask & share (or *Use this model*) – nothing changes in Fabric. Each model keeps its
+**existing models from any workspace you can read** – Direct Lake, Import or DirectQuery. **Double-click Semantic model**
+on the map (or *⇄ Switch or add a model* on the Semantic model page, *Manage models* in the model bar, or the Overview
+inspector) to open the **Semantic models** pop-up: every model with what is built on it (reports, data agent, org app,
+plan), *Use this model*, Delete / Stop using, **+ New model from my data** (designs another model next to the ones you
+have) and **+ Add an existing model** (pick a workspace and one of its models; default models of lakehouses and
+warehouses are marked). One model is **active**: reports and recommendations, the model profile, the
+data agent, the org app, suggested questions and Copilot's answers use it. Switch with the pop-up or the **Semantic
+model** bar at the top of Reports & apps, Planning and Ask & share – nothing changes in Fabric. Each model keeps its
 own reports, data agent, org app and Copilot suggestions, and gets them back when it's active again.
 
 - The studio **never regenerates or deletes a model you added**: Remove only stops using it, clean up leaves it, and a

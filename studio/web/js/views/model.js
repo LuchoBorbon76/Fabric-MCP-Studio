@@ -3,7 +3,7 @@ import { h, toast, busy, field, input, fmtNum, modal } from '../ui.js';
 import { app, copilotSlot } from '../app.js';
 import { askCard } from '../prompts.js';
 import { standardName, parseName, purposeOf } from '../naming.js';
-import { modelsCard } from '../models.js';
+import { modelsDialog, addExistingDialog } from '../models.js';
 
 let schema = null;
 let schemaKey = null;
@@ -12,18 +12,24 @@ const names = {};
 let nameDraft = null;     // typed model name, kept when the designer re-renders
 let newModel = false;     // the designer builds another model instead of updating the active one
 on('studio.reset', () => { schema = null; schemaKey = null; include.clear(); for (const k of Object.keys(names)) delete names[k]; nameDraft = null; newModel = false; });
+// "+ New model from my data" in the Semantic models pop-up: the designer builds another model.
+on('model.new', () => { newModel = true; nameDraft = null; });
 
 const STORAGE = { DirectLake: 'Direct Lake', Import: 'Import', DirectQuery: 'DirectQuery', Dual: 'Dual', Mixed: 'Mixed' };
 
 export function renderModel(el) {
   const p = store.project || {};
   const sm = p.semanticModel;
-  const designer = h('div', { class: 'card' });
-  const startNew = () => { newModel = true; nameDraft = null; drawDesigner(designer, store.project || {}); designer.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
-  el.append(modelsCard({ onNew: startNew }));
+  const designer = h('div', { class: 'card designer' });
   if (sm) el.append(modelCard(p), askCard({ title: `Ask ${sm.name}`, lead: 'Questions built from your measures, dimensions and years – answered through Fabric IQ with the DAX shown.', only: ['numbers', 'compare', 'sample'] }));
+  else if (p.workspace) {
+    // No model yet: an existing model is one click away (the designer below builds a new one).
+    el.append(h('div', { class: 'banner', style: { marginBottom: '14px' } },
+      h('div', { style: { flex: 1 } }, h('b', {}, 'Already have a semantic model? '), 'Use an existing model from any workspace you can read – reports, the data agent and Copilot work on it right away.'),
+      h('button', { class: 'btn pri', onclick: () => addExistingDialog() }, '+ Add an existing model')));
+  }
   if (!p.modelSource) {
-    el.append(h('div', { class: 'banner warn' }, h('div', {}, h('b', {}, 'Connect data to design a new model. '), sm ? 'The studio designs Direct Lake models from the data source you choose in the Data page; the models above keep working.' : 'The studio designs Direct Lake models from the data source you choose in the Data page – or add an existing semantic model above.'), h('button', { class: 'btn pri', onclick: () => app.go('data') }, 'Go to Data')));
+    el.append(h('div', { class: 'banner warn' }, h('div', {}, h('b', {}, 'Connect data to design a new model. '), sm ? 'The studio designs Direct Lake models from the data source you choose in the Data page; your models keep working.' : 'The studio designs Direct Lake models from the data source you choose in the Data page.'), h('button', { class: 'btn pri', onclick: () => app.go('data') }, 'Go to Data')));
     return;
   }
   el.append(designer);
@@ -67,10 +73,13 @@ function modelCard(p) {
     : `Direct Lake${sm.sourceItemId && sm.sourceItemId === p.modelSource?.itemId ? ` on ${p.modelSource.itemName}` : ''}`;
   const reread = theirs ? h('button', { class: 'btn', 'data-busy': 'Reading…', title: 'Read the tables, measures and relationships again after the model changed in Fabric' }, '↻ Read again') : null;
   reread?.addEventListener('click', busy(reread, async () => { await post('/models/refresh', { id: sm.id }); toast(`${sm.name} read again`, 'ok'); await app.refresh(); }));
+  const count = (p.semanticModels || []).length;
+  const switcher = h('button', { class: 'btn', title: 'Switch to another semantic model, add an existing one or start a new one (or double-click Semantic model on the map)', onclick: () => modelsDialog() }, count > 1 ? `⇄ Models (${count})` : '⇄ Switch or add a model');
   return h('div', { class: 'card', style: { marginBottom: '14px' } },
     h('div', { class: 'row sp' },
       h('div', {}, h('div', { class: 'row' }, h('h2', {}, sm.name), h('span', { class: `pill ${theirs ? 'brand' : 'ok'}` }, theirs ? 'Existing model' : 'Deployed'), h('span', { class: 'pill ok' }, 'Active')), h('div', { class: 'muted small' }, `${how} · ${counts}`)),
       h('div', { class: 'row' },
+        switcher,
         reread,
         h('a', { class: 'btn', href: `https://app.fabric.microsoft.com/groups/${ws}/datasets/${sm.id}/details`, target: '_blank', rel: 'noopener' }, 'Open in Fabric ↗'),
         h('a', { class: 'btn', href: `https://app.powerbi.com/groups/${ws}/modeling/${sm.id}/modelView`, target: '_blank', rel: 'noopener' }, 'Edit data model ↗'),

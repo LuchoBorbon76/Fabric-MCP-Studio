@@ -5,6 +5,7 @@ import { app } from './app.js';
 import { loadPrompts, topPrompts } from './prompts.js';
 import { ensureDisclaimer, showDisclaimer, showWhatsNew } from './about.js';
 import { mountMap, getNode } from './lineage.js';
+import { modelsDialog } from './models.js';
 import { chatElement, ask as chatAsk, refreshHeader, refreshSuggestions, setPanelMode, scrollChatToEnd, focusChat } from './chat.js';
 import { renderHome } from './views/home.js';
 import { renderCopilot } from './views/copilot.js';
@@ -164,6 +165,8 @@ const map = mountMap($('#map'), {
     const g = map.graph();
     const n = g && getNode(g, id);
     if (!n) return;
+    // A double-click on Semantic model opens the models pop-up: switch the active model, add an existing one or start a new one.
+    if (id === 'model' && how === 'open' && store.project?.workspace) { modelsDialog(); return; }
     // On the overview a click shows the part's details; elsewhere (or a double-click) opens its page.
     if (current === 'home' && how === 'click') { app.selectNode(id); return; }
     go(n.view);
