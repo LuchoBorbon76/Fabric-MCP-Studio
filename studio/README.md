@@ -298,18 +298,15 @@ Copilot tools: `studio_medallion_status`, `studio_apply_medallion` and `studio_r
    Plan table; *Remove…* takes it out again.
 3. **Plan vs actual report** – a Power BI page with actual, budget, variance and forecast KPIs, the monthly trend of
    all three, and the variance by region and category (also a page template in Reports & apps).
-4. **Plan in Fabric** – creates the Fabric plan item for planning sheets. By default it has no connection: when the plan
-   opens, Fabric asks the planner to choose or create a semantic model connection and sign in with their own account
-   (Contributor or higher in the workspace). You can also bind it to a shared Power BI semantic model connection – it
-   then reads the model with the sign-in saved in that connection, for everyone. Fabric keeps a plan's model and
-   connection once it exists, so *Change the connection* – and *Check the plan* when the plan points to a model that was
-   recreated – deletes and recreates the plan, only while it has no sheets. Planners add rows like
+4. **Plan in Fabric** – creates the Fabric plan item for planning sheets. Planners connect it to the semantic model
+   with their own sign-in: *New Planning Sheet* › *Data* › *Add* › the model › *Connect* (they need Read and Build on
+   the model – Contributor or higher in the workspace). The studio doesn't bind a shared cloud connection: Microsoft
+   deprecated that flow for planning (it reads the model as the connection's saved account and fails with *DMTS
+   connection owner missing*), and a plan that still uses one gets *Recreate without a connection*. *Check the plan*
+   recreates a plan that points to a model that was recreated – only while it has no sheets. Planners add rows like
    *Region › Category*, columns *Year › Month* and values *Budget, Forecast, Actual*, adjust the numbers, comment,
-   approve and write back to a SQL database.
-   **Who can plan** lists the workspace's people and roles and gives someone access in one step (Contributor for planners, Member for the account saved in a shared connection): a plan
-   reads the model as the account saved in its connection, so when a plan says *Can't access the semantic model*, that
-   account (often your own, not the one the studio uses) must be Member or Admin, and not a guest – or sign the connection in again (Manage
-   connections and gateways › Edit credentials). The connection list also says when a connection's sign-in has expired.
+   approve and write back to a SQL database. **Who can plan** lists the workspace's people and roles and gives a planner
+   Contributor (or Member) access in one step.
 
 Planning needs a date table with year and month number columns related to your facts. It works on lakehouses,
 warehouses and Fabric SQL databases. A **mirrored database** is a read-only copy (only Fabric mirroring writes to it)

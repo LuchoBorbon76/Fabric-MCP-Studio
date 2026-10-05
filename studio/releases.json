@@ -41,6 +41,7 @@
     { "date": "2026-10-04", "type": "improvement", "commit": "2c94f9e", "title": "GitHub Copilot only in developer mode; Azure AI Foundry / Azure OpenAI is the default AI provider" },
     { "date": "2026-10-05", "type": "fix", "commit": "f6b85ec", "title": "Fabric plan: Who can plan shows the workspace roles and gives Contributor access; the plan card says which account a plan reads the model as and how to fix it" },
     { "date": "2026-10-05", "type": "fix", "commit": "01ac583", "title": "Plan help: the connection sign-in window may pick your Windows account on its own – choose Use another account" },
-    { "date": "2026-10-05", "type": "fix", "title": "Who can plan gives Member access to the account saved in a shared connection (Fabric: DMTS Connection Owner Missing)" }
+    { "date": "2026-10-05", "type": "fix", "commit": "ea91800", "title": "Who can plan gives Member access to the account saved in a shared connection (Fabric: DMTS Connection Owner Missing)" },
+    { "date": "2026-10-05", "type": "fix", "title": "Fabric plans connect to the model with the planner's own sign-in (Data › Add › Connect); no deprecated shared connection, and Recreate without a connection for old plans" }
   ]
 }

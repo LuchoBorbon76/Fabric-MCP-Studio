@@ -281,52 +281,39 @@ function planItemCard(s) {
   const model = store.project.semanticModel?.name || 'your model';
   const me = store.user?.upn || store.user?.name || 'the account the studio uses';
 
-  // Which connection the plan reads the model with: none (Fabric asks when the plan opens) or a shared connection.
-  const connSel = select([{ value: ASK_IN_FABRIC, label: 'Choose it in Fabric when the plan opens (recommended)' }]);
-  const current = it?.connectionId || (it?.connected ? '?' : ASK_IN_FABRIC);
-  get('/planning/connections').then((r) => {
-    for (const c of r.connections) connSel.append(h('option', { value: c.id, selected: c.id === current || undefined }, `Use the shared connection "${c.name}"${c.credentialType ? ` (${c.credentialType})` : ''}${c.signInOk === false ? ' – its sign-in has expired' : ''}`));
-    if (current === '?') connSel.append(h('option', { value: '?', selected: true, disabled: true }, `Connected through "${it.connectionName}"`));
-    sync();
-  }).catch(() => {});
-  connSel.value = current === '?' ? ASK_IN_FABRIC : current;
-
+  // Planners connect the plan to the model with their own sign-in (planning sheet › Data › Add). Microsoft deprecated the
+  // shared cloud connection flow for planning, so the studio doesn't bind one; a plan that still uses one is recreated.
   const go = h('button', { class: 'btn pri', 'data-busy': 'Starting…', disabled: !pl || undefined, title: pl ? (it ? 'Checks the plan in Fabric and recreates it when it points to a model that no longer exists (only while it has no sheets)' : '') : 'Build the plan first' }, it ? '↻ Check the plan' : 'Create the Fabric plan');
-  go.addEventListener('click', busy(go, async () => { await startJob('/jobs/plan-item', it ? {} : { connection: connSel.value }, job, 'Fabric plan ready'); }));
-  const change = h('button', { class: 'btn', 'data-busy': 'Updating…' }, 'Change the connection');
-  change.addEventListener('click', busy(change, async () => {
-    const ok = await confirmDialog('Change the plan\'s connection', `Fabric keeps a plan's semantic model connection once the plan exists, so the studio deletes "${it.name}" and creates it again ${connSel.value === ASK_IN_FABRIC ? 'without a connection – Fabric asks for one when you open it' : 'with the connection you picked'}. This only works while the plan has no sheets; otherwise change it in the plan (Manage Semantic Model Connection).`, 'Recreate the plan');
+  go.addEventListener('click', busy(go, async () => { await startJob('/jobs/plan-item', it ? {} : { connection: ASK_IN_FABRIC }, job, 'Fabric plan ready'); }));
+  const recreate = h('button', { class: 'btn', 'data-busy': 'Recreating…', hidden: !it?.connected || undefined }, 'Recreate without a connection');
+  recreate.addEventListener('click', busy(recreate, async () => {
+    const ok = await confirmDialog('Recreate the plan without a connection', `"${it.name}" uses the shared cloud connection "${it.connectionName}" – a flow Microsoft deprecated for planning. Fabric keeps a plan's connection once it exists, so the studio deletes the plan and creates it again without one; planners then connect ${model} with their own sign-in. This only works while the plan has no sheets.`, 'Recreate the plan');
     if (!ok) return;
-    await startJob('/jobs/plan-item', { connection: connSel.value }, job, connSel.value === ASK_IN_FABRIC ? 'Plan recreated – connect it when it opens' : 'Plan recreated with the new connection');
+    await startJob('/jobs/plan-item', { connection: ASK_IN_FABRIC }, job, 'Plan recreated – connect the model in a planning sheet');
   }));
-  const sync = () => { change.hidden = !it || connSel.value === current || connSel.value === '?'; };
-  connSel.addEventListener('change', sync);
-  sync();
 
   const dims = pl ? pl.dims.map((x) => x.labelText) : ['Region', 'Category'];
   const n = pl?.spec?.names || { budget: 'Budget', forecast: 'Forecast', actual: 'Actual' };
   put(card,
-    h('div', { class: 'row sp' }, h('h3', { style: { margin: 0 } }, '4 · Plan in Fabric'), it ? h('span', { class: `pill ${it.connected ? 'brand' : 'warn'}` }, it.connected ? `Shared connection` : 'Connect when it opens') : pl ? h('span', { class: 'pill brand' }, 'Next') : h('span', { class: 'pill' }, 'Needs the plan')),
+    h('div', { class: 'row sp' }, h('h3', { style: { margin: 0 } }, '4 · Plan in Fabric'), it ? h('span', { class: `pill ${it.connected ? 'warn' : 'ok'}` }, it.connected ? 'Uses a deprecated connection' : 'Ready') : pl ? h('span', { class: 'pill brand' }, 'Next') : h('span', { class: 'pill' }, 'Needs the plan')),
     h('p', { class: 'small muted' }, 'Planning in Fabric IQ gives planners Excel-like planning sheets on the same model: adjust the budget, run what-if scenarios, comment, approve, and write the results back to a Fabric SQL database.'),
     it ? h('dl', { class: 'kv', style: { marginTop: '10px' } },
       h('dt', {}, 'Plan'), h('dd', {}, h('a', { href: it.url, target: '_blank', rel: 'noopener' }, it.name, ' ↗')),
-      h('dt', {}, 'Semantic model'), h('dd', {}, it.connected ? `${model} through the shared connection "${it.connectionName}" – read as the account saved in that connection` : `${model} – Fabric asks for the connection when the plan opens`)) : null,
-    pl ? field('Semantic model connection', connSel, 'A shared connection reads the model as the account saved in it, for everyone who opens the plan – that account must be able to open the model (see Who can plan).') : null,
+      h('dt', {}, 'Semantic model'), h('dd', {}, it.connected ? `${model} through the shared connection "${it.connectionName}" (deprecated for planning)` : `${model} – each planner connects it with their own sign-in`)) : null,
     h('ol', { class: 'pre small', style: { marginTop: '10px' } },
-      h('li', {}, it ? 'Open the plan.' : 'Create the plan here.'),
-      it?.connected ? null : h('li', {}, 'In the plan, select Semantic Model › ', h('b', {}, 'Create Connection'), ' and sign in with an account listed under Who can plan, then pick ', h('b', {}, model), ' › Connect. Picking an existing connection works only if the account saved in it is listed there.'),
-      h('li', {}, 'New Planning Sheet › Rows: ', h('b', {}, dims.join(' › ')), ' · Columns: ', h('b', {}, 'Year › Month'), ' · Values: ', h('b', {}, `${n.budget}, ${n.forecast}, ${n.actual}`), '.'),
-      h('li', {}, 'Add input rows or columns to adjust the budget; set a writeback destination to keep the planners\' numbers in a SQL database.')),
-    h('div', { class: 'row', style: { marginTop: '10px' } }, go, change, it ? h('a', { class: 'btn', href: it.url, target: '_blank', rel: 'noopener' }, 'Open plan ↗') : null),
+      h('li', {}, it ? 'Open the plan.' : 'Create the plan here, then open it.'),
+      h('li', {}, 'Select ', h('b', {}, 'New Planning Sheet'), ' (Planning), give it a name and select Create.'),
+      h('li', {}, 'In the sheet\'s ', h('b', {}, 'Data'), ' pane select ', h('b', {}, 'Add'), ', pick ', h('b', {}, model), ', select Add, then ', h('b', {}, 'Connect'), '. It uses your own sign-in – don\'t use Manage Connections or a shared connection.'),
+      h('li', {}, 'Rows: ', h('b', {}, dims.join(' › ')), ' · Columns: ', h('b', {}, 'Year › Month'), ' · Values: ', h('b', {}, `${n.budget}, ${n.forecast}, ${n.actual}`), '.'),
+      h('li', {}, 'Add input rows or columns to adjust the budget; to collaborate and keep the planners\' numbers, set up the plan\'s database connection.')),
+    h('div', { class: 'row', style: { marginTop: '10px' } }, go, recreate, it ? h('a', { class: 'btn', href: it.url, target: '_blank', rel: 'noopener' }, 'Open plan ↗') : null),
     it?.semanticModelId && it.semanticModelId !== store.project.semanticModel?.id ? h('div', { class: 'banner err mt' }, h('div', {}, h('b', {}, 'The plan points to a semantic model that no longer exists. '),
       `${model} was created again since the plan was made. Select Check the plan to recreate the plan on the current model.`)) : null,
     it ? h('div', { class: 'banner warn mt' }, h('div', {},
-      h('b', {}, 'Plan says "Can\'t access the semantic model"? '),
-      `The plan reads ${model} as ${it.connected ? `the account saved in "${it.connectionName}"` : 'the account saved in the connection you pick when it opens'}. Fabric needs that account to be Member or Admin in ${wsName} – otherwise the plan says it can't access the model, or "DMTS Connection Owner Missing" – and it can't be a guest (B2B) account. Fix it either way:`,
-      h('ul', { class: 'pre', style: { margin: '6px 0 0' } },
-        h('li', {}, 'Give that account Member access below (Who can plan) – it is often your own account, not the one the studio uses.'),
-        h('li', {}, 'Or sign the connection in again with an account that can open the model: ', h('a', { href: 'https://app.fabric.microsoft.com/groups/me/gateways', target: '_blank', rel: 'noopener' }, 'Manage connections and gateways ↗'), ` › "${it.connectionName || 'the connection'}" › Edit credentials – or in the plan, Manage Connections › Create Connection.`),
-        h('li', {}, 'The sign-in window for a connection often signs in with your Windows or browser account on its own, even when Fabric shows another one: choose ', h('b', {}, 'Use another account'), ' (or use an InPrivate window with only that account).')))) : null,
+      h('b', {}, 'The plan asks for a shared cloud connection, or says "DMTS connection owner missing" or "Can\'t access the semantic model"? '),
+      'That is the old connection-based flow, which Microsoft deprecated for planning. ',
+      it.connected ? 'Select Recreate without a connection above, then ' : 'Close the Manage Connections dialog and ',
+      'connect the model in a planning sheet (Data › Add › Connect) with your own sign-in. You need Read and Build on the model – Contributor or higher in ', h('b', {}, wsName), ' gives both (see Who can plan).')) : null,
     pl ? plannersBox(wsName) : null,
     h('p', { class: 'tiny muted' }, `The studio works as ${me}. Planners need Contributor or higher in ${wsName} (Viewers can look but not plan), and XMLA endpoints enabled for the tenant and set to Read Only or Read Write on the capacity (F SKU or Premium).`),
     job);
@@ -337,9 +324,8 @@ function planItemCard(s) {
 function plannersBox(wsName) {
   const box = h('div', { class: 'mt' }, h('div', { class: 'row muted small' }, h('span', { class: 'spin' }), 'Reading who has access…'));
   const email = input({ type: 'email', placeholder: 'name@contoso.com', style: { maxWidth: '300px' } });
-  // Planners need Contributor; the account saved in a shared connection must be Member or Admin (Fabric checks the
-  // connection's owner: "DMTS Connection Owner Missing").
-  const role = select([{ value: 'Contributor', label: 'Contributor – a planner' }, { value: 'Member', label: 'Member – the account saved in a shared connection' }], { style: { maxWidth: '330px' } });
+  // Planners connect with their own sign-in and need Read and Build on the model: Contributor or higher gives both.
+  const role = select([{ value: 'Contributor', label: 'Contributor – can plan' }, { value: 'Member', label: 'Member – can plan and share' }], { style: { maxWidth: '300px' } });
   const add = h('button', { class: 'btn', 'data-busy': 'Adding…' }, 'Give access');
   const draw = (r) => {
     box.replaceChildren(h('h4', { style: { margin: '0 0 6px' } }, `Who can plan (${wsName})`));
@@ -349,7 +335,7 @@ function plannersBox(wsName) {
       for (const m of r.members) t.append(h('tr', {}, h('td', {}, m.name, m.account && m.account !== m.name ? h('div', { class: 'tiny muted' }, m.account) : null), h('td', {}, m.role), h('td', {}, m.canPlan ? h('span', { class: 'pill ok' }, '✓') : h('span', { class: 'pill warn' }, 'Needs Contributor'))));
       box.append(t);
     }
-    box.append(h('div', { class: 'row mt' }, email, role, add), h('p', { class: 'tiny muted' }, 'Planners need Contributor. The account saved in a shared connection must be Member or Admin – otherwise the plan says "DMTS Connection Owner Missing" – and can\'t be a guest (B2B) account.'));
+    box.append(h('div', { class: 'row mt' }, email, role, add), h('p', { class: 'tiny muted' }, 'Each planner connects the model with their own sign-in, so they need Read and Build on it: Contributor or higher in the workspace gives both. Guest (B2B) accounts can\'t connect.'));
   };
   add.addEventListener('click', busy(add, async () => {
     const r = await post('/planning/access', { email: email.value, role: role.value });

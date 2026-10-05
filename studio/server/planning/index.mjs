@@ -230,12 +230,13 @@ export async function addPlanner({ email, role = 'Contributor' } = {}) {
 /**
  * Create (or check) the Fabric plan item.
  * Fabric keeps a plan's semantic model and connection once the plan exists – later definition updates don't change
- * them. So a plan that points to a model that no longer exists, or that should use another connection, is recreated
+ * them. So a plan that points to a model that no longer exists, or that still uses a shared connection, is recreated
  * (only while it has no sheets, so no planner's work is lost).
- * connection: undefined keeps what the plan uses (a new plan gets no connection: when it opens, Fabric asks the
- * planner to choose or create one and sign in with their own account); 'fabric' recreates the plan without a
- * connection; a connection ID recreates it bound to that shared connection. A shared connection reads the model with
- * the sign-in saved in it, so the studio never picks one on its own: that sign-in may not reach this workspace.
+ * Plans connect to the semantic model with the planner's own sign-in: in a planning sheet, Data › Add › the model ›
+ * Connect. Microsoft deprecated the shared cloud connection flow for planning (it reads the model as the connection's
+ * saved account and fails with SM_CONN_0001/0003 when that check fails), so the studio never binds one any more.
+ * connection: undefined keeps the plan as it is; 'fabric' (or a connection ID, from older callers) recreates a plan that
+ * uses a shared connection without one.
  */
 export async function runPlanItem(ctx, { name, connection } = {}) {
   const p = requireModel();
@@ -244,8 +245,9 @@ export async function runPlanItem(ctx, { name, connection } = {}) {
   const itemName = F.itemName('Plan', itemNameFor('Plan', { name, current: p.planning.planItem?.name, purpose: 'Budget' }), 'Plan');
   ctx.step('Check the plan and the semantic model connections');
   const conns = (await F.listConnections().catch(() => [])).filter((c) => c.type === 'PowerBIDatasets' && c.connectivityType === 'ShareableCloud');
-  if (connection && connection !== 'fabric' && !conns.some((c) => c.id === connection)) {
-    throw new Error('That semantic model connection was not found (or you can\'t use it). Pick another one, or let Fabric ask when the plan opens.');
+  if (connection && connection !== 'fabric') {
+    ctx.log('Shared cloud connections are deprecated for planning: the plan connects with the planner\'s own sign-in instead');
+    connection = 'fabric';
   }
   ctx.progress(25);
 
@@ -269,7 +271,7 @@ export async function runPlanItem(ctx, { name, connection } = {}) {
     const why = stale ? `it points to "${ref.semanticModelName}" (${ref.semanticModelWorkspaceName}), which is not the project's model any more` : 'Fabric keeps a plan\'s connection once the plan exists';
     const sheets = existing?.sheets?.length || 0;
     if (sheets) {
-      throw new Error(`The plan "${item.displayName}" has ${sheets} sheet${sheets === 1 ? '' : 's'}, so the studio won't recreate it (${why}). Open the plan and select Manage Semantic Model Connection to point it at ${p.semanticModel.name}.`);
+      throw new Error(`The plan "${item.displayName}" has ${sheets} sheet${sheets === 1 ? '' : 's'}, so the studio won't recreate it (${why}). In the plan, open a planning sheet and use Data › Add to connect ${p.semanticModel.name} with your own sign-in.`);
     }
     ctx.log(`Recreating the plan: ${why}. It has no sheets yet, so nothing is lost.`);
     await F.deleteItem(ws.id, item.id).catch((e) => { if (e.status !== 404) throw e; });
@@ -299,15 +301,15 @@ export async function runPlanItem(ctx, { name, connection } = {}) {
     if (finalName !== itemName) ctx.log(`Fabric hasn't released "${itemName}" yet, so the plan is called "${finalName}"`);
     recordArtifact({ type: 'Plan', id: item.id, name: finalName, workspaceId: ws.id, url: planItemUrl(ws.id, item.id) });
     boundModel = conn ? p.semanticModel.id : null;
-    ctx.log(conn ? `Connected to ${p.semanticModel.name} through "${conn.name}" – the plan reads the model with the sign-in saved in that connection` : `No connection yet: when the plan opens, choose or create one and sign in with an account that can open ${p.semanticModel.name}`);
+    ctx.log(`Planners connect it to ${p.semanticModel.name} with their own sign-in: New Planning Sheet › Data › Add › ${p.semanticModel.name} › Connect (no shared connection)`);
     ctx.log('Fabric keeps the plan\'s settings in a shared SQL database in the workspace (__fabric_plan_sys)');
   } else {
-    ctx.log(conn ? `The plan reads ${p.semanticModel.name} through "${conn.name}"` : 'The plan has no connection yet – Fabric asks for one when it opens');
+    ctx.log(conn ? `The plan still uses the shared connection "${conn.name}", which Microsoft deprecated for planning – select Recreate without a connection` : `Planners connect it to ${p.semanticModel.name} with their own sign-in (planning sheet › Data › Add)`);
   }
   ctx.progress(90);
   const planItem = { id: item.id, name: finalName, url: planItemUrl(ws.id, item.id), semanticModelId: boundModel, connected: Boolean(conn), connectionId: conn?.id || null, connectionName: conn?.name || null, createdAt: item.id === p.planning.planItem?.id ? p.planning.planItem.createdAt : new Date().toISOString() };
   updateProject({ planning: { ...getProject().planning, planItem } });
-  logActivity('planning.item', `Plan item "${finalName}" ${conn ? `connected to ${p.semanticModel.name} through "${conn.name}"` : 'ready – Fabric asks for the connection when it opens'}`, {});
+  logActivity('planning.item', `Plan item "${finalName}" ${conn ? `still uses the deprecated shared connection "${conn.name}"` : `ready – planners connect ${p.semanticModel.name} with their own sign-in`}`, {});
   return planItem;
 }
 

@@ -829,17 +829,17 @@ function studioTools(chatId) {
       handler: async (a) => runAsJob('planning', 'Build the budget and forecast', (ctx) => PL.runPlan(ctx, PL.planOptions(a))),
     }),
     studioTool('studio_create_plan_item', {
-      description: 'Create (or update) the Fabric plan item where planners refine the budget in planning sheets. Needs the plan built first. By default a new plan has no connection: when it opens, Fabric asks the planner to choose or create a semantic model connection and sign in with their own account (the reliable path). Pass connection="<id>" only when the user picked a shared PowerBIDatasets connection, or connection="fabric" to remove the plan\'s connection (fixes "Can\'t access the semantic model" when the saved sign-in of the connection can\'t reach the workspace).',
-      parameters: obj({ name: str('Optional plan name (letters, numbers, underscores)'), connection: str('Optional: a shared semantic model connection ID, or "fabric" to let Fabric ask when the plan opens') }),
+      description: 'Create (or check) the Fabric plan item where planners refine the budget in planning sheets. Needs the plan built first. Planners connect it to the semantic model with their own sign-in: in the plan, New Planning Sheet › Data pane › Add › the model › Connect (they need Read and Build on the model – Contributor or higher). Microsoft deprecated the shared cloud connection flow for planning, so the studio never binds one; pass connection="fabric" to recreate a plan that still uses a shared connection (fixes "DMTS connection owner missing" / "Can\'t access the semantic model"; only while it has no sheets). Tell the user not to use Manage Connections in the plan.',
+      parameters: obj({ name: str('Optional plan name (letters, numbers, underscores)'), connection: { type: 'string', enum: ['fabric'], description: 'Optional: "fabric" recreates a plan that uses a (deprecated) shared connection without one' } }),
       handler: async (a) => runAsJob('plan-item', 'Create the Fabric plan', (ctx) => PL.runPlanItem(ctx, { name: a.name, connection: a.connection || undefined })),
     }),
     studioTool('studio_planning_access', {
-      description: 'Who can open the semantic model in a Fabric plan: the project workspace\'s people and groups with their roles (planning needs Contributor or higher), plus the shared PowerBIDatasets connections and whether their saved sign-in still works. When a plan says "Can\'t access the semantic model" or "DMTS Connection Owner Missing", the account saved in its connection isn\'t Member or Admin here (or is a guest/B2B account). Read-only.',
+      description: 'Who can connect the semantic model in a Fabric plan: the project workspace\'s people and groups with their roles. Planners connect with their own sign-in and need Read and Build on the model – Contributor or higher gives both (errors SM_CONN_1003 / SM_CONN_0005 otherwise). Read-only.',
       parameters: obj({}),
-      handler: async () => ({ access: await PL.planAccess(), connections: (await PL.planConnections()).connections }),
+      handler: async () => ({ access: await PL.planAccess() }),
     }),
     studioTool('studio_add_planner', {
-      description: 'Give a person access to the project workspace for planning: Contributor for planners; Member for the account saved in a shared connection (Fabric requires the connection\'s owner to be Member or Admin, and not a guest). Confirm the email and role with the user first.',
+      description: 'Give a person access to the project workspace so they can plan: Contributor (default) or Member. Planners connect the model with their own sign-in and need Read and Build on it. Confirm the email and role with the user first.',
       parameters: obj({ email: str('The person\'s Microsoft Entra sign-in (email)'), role: { type: 'string', enum: ['Contributor', 'Member'], description: 'Default Contributor' } }, ['email']),
       handler: async (a) => PL.addPlanner({ email: a.email, role: a.role || 'Contributor' }),
     }),

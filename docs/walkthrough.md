@@ -140,9 +140,9 @@ Ontology is in preview; the Ontology MCP endpoint (used by agents) needs a paid 
    forecast rows go to `planning.PlanValues`, and the semantic model gets a Plan table with budget, forecast and variance
    measures. *Plan vs actual* then shows actual, budget to date, variance and forecast through the model.
 3. **Plan vs actual report** › *Build report*: one Power BI page with KPIs, the monthly trend and the variance by region.
-4. **Plan in Fabric** › *Create the Fabric plan*, then *Open plan*: select *Semantic Model* › *Create Connection*, sign
-   in with an account that is Contributor or higher in the workspace and pick the model; then New Planning Sheet with
-   rows *Region › Category*, columns *Year › Month* and values *Budget, Forecast, Actual*.
+4. **Plan in Fabric** › *Create the Fabric plan*, then *Open plan*: *New Planning Sheet* (Planning) › in the *Data* pane
+   *Add* › pick the model › *Add* › *Connect* – it uses your own sign-in (Contributor or higher in the workspace; no
+   shared connection). Then rows *Region › Category*, columns *Year › Month* and values *Budget, Forecast, Actual*.
 
 > Ask Copilot: *Are we on plan?* Copilot reads the Plan measures through the model and explains where actual is ahead
 > of or behind budget, and what the forecast says for the year.
