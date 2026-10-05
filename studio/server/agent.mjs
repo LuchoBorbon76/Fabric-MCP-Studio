@@ -5,7 +5,7 @@ import { existsSync, readFileSync, mkdirSync } from 'node:fs';
 import { COPILOT_HOME, DATA_DIR, REPO_ROOT, STUDIO_ROOT, getSettings, envApiKey, newId, truncate, readJson, writeJson, isDeveloper } from './config.mjs';
 import { getToken, tokenExpiresOn, SCOPES, whoAmI } from './auth.mjs';
 import { emit } from './events.mjs';
-import { getProject, updateProject, logActivity, assertProjectTenant, projectModels } from './project.mjs';
+import { getProject, updateProject, logActivity, assertProjectTenant, projectModels, sourceContexts } from './project.mjs';
 import { startJob, waitForJob } from './jobs.mjs';
 import * as P from './pipelines.mjs';
 import * as R from './reports/index.mjs';
@@ -320,6 +320,8 @@ const STUDIO_TOOLS_META = {
   studio_list_items: { write: false, title: 'List Fabric items' },
   studio_use_item_in_place: { write: false, title: 'Use existing item' },
   studio_create_shortcuts: { write: true, title: 'Create OneLake shortcuts' },
+  studio_list_data_sources: { write: false, title: 'List the data sources of the workspace' },
+  studio_switch_data_source: { write: false, title: 'Switch to another data source' },
   studio_describe_data: { write: false, title: 'Describe data source' },
   studio_query_data: { write: false, title: 'Query data (read-only)' },
   studio_data_prep_status: { write: false, title: 'Read the data prep notebook results' },
@@ -381,6 +383,8 @@ function projectSummary() {
   const nm = N.namingState(p);
   return {
     workspace: p.workspace, lakehouse: p.lakehouse, source: p.source, modelSource: p.modelSource,
+    // The workspace's data sources; everything below belongs to the active one. Switch with studio_switch_data_source.
+    dataSources: sourceContexts(p).map((s) => ({ key: s.key, label: s.label, active: s.active, models: s.models.length, reports: s.reports })),
     semanticModel: p.semanticModel, ontology: p.ontology, steps: p.steps,
     // Every semantic model in the project; the active one is semanticModel above (reports, data agent, org app and
     // suggestions use it). Switch with studio_use_semantic_model.
@@ -512,6 +516,16 @@ function studioTools(chatId) {
         tables: { type: 'array', items: obj({ schema: str('Schema (default dbo)'), name: str('Table name') }, ['name']) },
       }, ['sourceWorkspaceId', 'sourceItemId', 'sourceItemType', 'tables']),
       handler: async (a) => runAsJob('shortcut', 'Create OneLake shortcuts', (ctx) => P.runShortcuts(ctx, a)),
+    }),
+    studioTool('studio_list_data_sources', {
+      description: 'List the data sources used in the project workspace and what was built from each (semantic models, reports, ontology, plan, live data). One is active; the others keep their items. Loading or connecting a new data source starts a separate set of items for it. Read-only.',
+      parameters: obj({}),
+      handler: async () => P.sourcesState(),
+    }),
+    studioTool('studio_switch_data_source', {
+      description: 'Make another data source of the workspace the active one (key from studio_list_data_sources): its semantic models, reports, ontology, plan and live data come back; the current one keeps its items. Nothing changes in Fabric. Use it to go back to a source instead of loading it again.',
+      parameters: obj({ key: str('Data source key from studio_list_data_sources') }, ['key']),
+      handler: async ({ key }) => P.switchSource(key),
     }),
     studioTool('studio_describe_data', {
       description: 'Describe the model source: tables (schema, row counts), columns (types, keys) and relationships (foreign keys or inferred). Use before designing a semantic model or ontology.',

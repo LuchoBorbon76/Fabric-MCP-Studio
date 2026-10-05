@@ -170,11 +170,11 @@ function cleanupSummary(plan) {
   const n = plan.items.length;
   const restorable = plan.items.some((i) => i.recoverable);
   return h('div', {},
-    h('p', {}, `This deletes ${n} item${n === 1 ? '' : 's'} the studio created in `, h('b', {}, ws), '. Your own data sources and the other items in the workspace aren\'t touched.'),
+    h('p', {}, `This deletes ${n} item${n === 1 ? '' : 's'} the studio created in `, h('b', {}, ws), `${plan.sources > 1 ? ` for all ${plan.sources} data sources of the workspace` : ''}. Your own data sources and the other items in the workspace aren't touched.`),
     h('div', { class: 'tclist' }, h('table', { class: 't' },
       h('thead', {}, h('tr', {}, h('th', {}, 'Item'), h('th', {}, 'Name'), h('th', {}, 'After deleting'))),
       h('tbody', {}, plan.items.map((i) => h('tr', {},
-        h('td', {}, i.label), h('td', {}, i.name),
+        h('td', {}, i.label, i.source ? h('div', { class: 'tiny muted' }, i.source) : null), h('td', {}, i.name),
         h('td', {}, i.recoverable ? h('span', { class: 'pill ok', title: 'Can be restored from the workspace recycle bin' }, 'Recycle bin') : h('span', { class: 'pill err' }, 'Gone for good'))))))),
     plan.ontologyCompanions ? muted('The ontology\'s graph and Eventhouse companion items are deleted with it.') : null,
     (plan.taskFlows || (plan.taskFlow ? [plan.taskFlow] : [])).length ? muted(`The workspace task flow${(plan.taskFlows || [plan.taskFlow]).length === 1 ? '' : 's'} ${(plan.taskFlows || [plan.taskFlow]).map((x) => `"${x.name}"`).join(' and ')} ${(plan.taskFlows || [plan.taskFlow]).length === 1 ? 'is' : 'are'} removed too (your other task flows stay).`) : null,

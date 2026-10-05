@@ -138,6 +138,48 @@ export function numberedName(name, n) {
   return x ? `${x.domain}_${x.code}_${x.purpose}${n}_${x.environment}` : `${name}_${n}`;
 }
 
+/** The purpose a data source gives its items: "Contoso Retail (sample)" -> ContosoRetail, a database -> its name. */
+export function sourcePurpose(src) {
+  if (!src) return '';
+  if (src.kind === 'sample') return pascal(String(src.label || src.id || '').replace(/\(.*\)/g, ' ')).slice(0, 24);
+  if (src.method === 'mirror') return pascal(src.database).slice(0, 24);
+  return String(purposeOf(src.itemName || src.label, src.itemType) || '').slice(0, 24);
+}
+
+/**
+ * The purpose for an item every data source can have once (Eventhouse "Live", plan "Budget"…). With one data source
+ * in the workspace it is the purpose as it is; when the workspace has others, the source's name goes first
+ * (ContosoRetailLive), so each source keeps its own items. `src` is the source being set up when it isn't active yet.
+ */
+export function scopedPurpose(purpose, p = getProject(), src = p.source) {
+  const others = (p.sources || []).some((e) => e.state && e.key !== p.sourceKey);
+  if (!others) return purpose;
+  const sp = sourcePurpose(src);
+  return sp && !pascal(purpose).toLowerCase().startsWith(sp.toLowerCase()) ? `${sp}${pascal(purpose)}` : purpose;
+}
+
+/**
+ * A name of this type that no other data source of the workspace uses: their items are never updated from this
+ * source (Retail_SM_Sales_DEMO -> Retail_SM_Sales2_DEMO when another source has Retail_SM_Sales_DEMO).
+ */
+export function freeAcrossSources(type, name, p = getProject()) {
+  const taken = new Set();
+  for (const e of p.sources || []) {
+    if (!e.state || e.key === p.sourceKey) continue;
+    const st = e.state;
+    const names = {
+      SemanticModel: (st.semanticModels || []).filter((m) => m.origin !== 'existing').map((m) => m.name),
+      Report: (st.reports || []).map((r) => r.name),
+      Ontology: [st.ontology?.name],
+      Lakehouse: [st.lakehouse?.name, st.modelSource?.itemType === 'Lakehouse' ? st.modelSource.itemName : null],
+    }[type] || [];
+    for (const n of names) if (n) taken.add(n.toLowerCase());
+  }
+  if (!taken.has(String(name).toLowerCase())) return name;
+  for (let n = 2; n < 100; n++) { const x = numberedName(name, n); if (!taken.has(x.toLowerCase())) return x; }
+  return name;
+}
+
 /** Use these defaults until the user chooses (sample data, or a workspace that already follows the standard). */
 export function suggestNaming({ domain, environment }) {
   const p = getProject();

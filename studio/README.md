@@ -213,6 +213,29 @@ events also have their own Event medallion flow on the Real-time page.)
 Schema discovery reads tables, keys and foreign keys (from the source when reachable, or from the Fabric SQL
 analytics endpoint) and infers relationships from naming conventions when no foreign keys exist.
 
+### Several data sources in one workspace
+
+Each data source keeps its own items: its OneLake data, semantic models, reports, ontology, plan, data agent, org app,
+Microsoft 365 agent and live data. Loading or connecting a **different** source makes it the active one – it starts with
+nothing built, so the map greys out what it doesn't have yet – and the previous source keeps everything it built.
+Double-click **Data source** on the map (or use the bar on the Data page, or *Use it again* on a sample) to switch back:
+its items return to the map and every page, and nothing changes in Fabric. Use it to work on two projects in parallel
+in one workspace, or to come back to earlier work without loading the data again.
+
+- Items each source can have once (Eventhouse, Real-Time Dashboard, alerts, medallion layers, Fabric plan, planning
+  warehouse, shortcut lakehouse) get the source's name in their purpose when the workspace has more than one source
+  (`Sales_EH_ContosoRetailLive_DEV`), and semantic models and reports never take a name another source uses
+  (`Sales_SM_Sales2_DEV`) – so one source never updates another's items.
+- A job still running on the current source blocks a switch until it finishes.
+- The workspace task flow organizes the items of every source; **Clean up resources** deletes the studio's items of
+  every source.
+- Choosing another **workspace** starts everything over (sources, models, reports, live data, plans, task flow and the
+  naming); the items stay in the old workspace in Fabric.
+- Projects saved by older versions: models built on an earlier studio source (the AdventureWorks SQL database or a
+  studio lakehouse) move back to that source, with their reports, data agent, org app, ontology and plan.
+
+Copilot: `studio_list_data_sources` and `studio_switch_data_source`.
+
 ### Data prep notebook (lakehouse sources)
 
 When the data source is a lakehouse (the Contoso Retail sample, a lakehouse used in place, or OneLake shortcuts), tick

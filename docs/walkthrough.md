@@ -30,7 +30,8 @@ item it creates is then named `[Domain]_[Object]_[Purpose]_[Environment]` – `S
 their names.
 
 **Workspace** page (the frame around the Fabric parts of the map) › *Create new* (purpose + capacity; the name follows
-the standard) or *Use existing*.
+the standard) or *Use existing*. Choosing another workspace later starts the project over there (the studio asks first;
+the items stay in the old workspace).
 
 > Ask Copilot: *Ask me what this environment is for, then create a workspace on one of my capacities.*
 
@@ -56,6 +57,10 @@ names, logged data fixes, keys and relationships, measures with DAX, curated tab
 (`<Domain>_LH_Curated_<Env>`) and charts (bar, pie, trend, Pareto, heatmap, distribution, box plot, treemap,
 correlation, model diagram). The card shows the results and charts; *Use … as the data source* builds the model on the
 curated tables.
+
+**Another data source in the same workspace.** Load or connect a different source at any time: it becomes the active
+one and starts with nothing built (the map greys out the parts it doesn't have yet), while the previous source keeps its
+model, reports and the rest. Double-click **Data source** on the map to switch between them – nothing changes in Fabric.
 
 > Ask Copilot: *Describe my data source: tables, row counts, keys and relationships. Then suggest a star schema.*
 

@@ -6,7 +6,7 @@ import * as F from '../fabric.mjs';
 import { withPool } from '../sql.mjs';
 import { sleep } from '../config.mjs';
 import { recordArtifact, updateProject, getProject } from '../project.mjs';
-import { standardName } from '../naming.mjs';
+import { standardName, scopedPurpose } from '../naming.mjs';
 
 export const PLAN_SCHEMA = 'planning';
 export const PLAN_TABLE = 'PlanValues';
@@ -64,7 +64,7 @@ export async function preparePlanStore(ctx, target) {
   if (target.kind !== 'Lakehouse') return target;
   const ws = target.workspaceId;
   let wh = target.warehouse?.id ? await F.getItem(ws, target.warehouse.id).catch(() => null) : null;
-  const name = wh?.displayName || target.warehouse?.name || standardName('Warehouse', 'Planning');
+  const name = wh?.displayName || target.warehouse?.name || standardName('Warehouse', scopedPurpose('Planning'));
   wh ||= await F.findItem(ws, 'Warehouse', name);
   let created = false;
   if (!wh) {

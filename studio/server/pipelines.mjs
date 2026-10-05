@@ -4,7 +4,8 @@ import { join, basename, extname } from 'node:path';
 import { spawn } from 'node:child_process';
 import { REPO_ROOT, sleep, stableUuid, newId } from './config.mjs';
 import * as F from './fabric.mjs';
-import { getProject, updateProject, setStep, recordArtifact, logActivity, assertProjectTenant, projectModels, modelContext } from './project.mjs';
+import { getProject, updateProject, setStep, recordArtifact, logActivity, assertProjectTenant, projectModels, modelContext, sourceKeyOf, activateSource, contextViews, sourceContexts, blankSourcesPatch, dropEmptySource } from './project.mjs';
+import { listJobs } from './jobs.mjs';
 import { discoverSqlServer, testSqlServer, readOnlyQuery, withPool } from './sql.mjs';
 import { discoverPostgres, testPostgres } from './pg.mjs';
 import { sourceType } from './sources.mjs';
@@ -14,11 +15,11 @@ import { isPlanTable, reapplyPlan } from './planning/index.mjs';
 import { RETAIL, ADVENTUREWORKS, presetFor } from './presets.mjs';
 import { AWDW, getKit, loadAdventureWorksDW, salesTotalsMatch } from './samples/adventureworks-dw.mjs';
 import { resetProfileCache } from './reports/index.mjs';
-import { stopSimulator } from './realtime/simulator.mjs';
+import { stopSimulator, forgetEndpoint } from './realtime/simulator.mjs';
 import { deleteTaskFlow } from './taskflow.mjs';
 import * as WTF from './workspace-taskflow.mjs';
 import { clearDataPrepFiles } from './dataprep.mjs';
-import { standardName, standardize, itemNameFor, purposeOf, parseName, namingOf, setNaming, suggestNaming, pascal } from './naming.mjs';
+import { standardName, standardize, itemNameFor, purposeOf, parseName, namingOf, setNaming, suggestNaming, pascal, scopedPurpose, freeAcrossSources } from './naming.mjs';
 
 // ---------------- workspace ----------------
 
@@ -49,8 +50,15 @@ export async function selectWorkspace({ workspaceId, name, capacityId, descripti
   if (!ws.capacityId) throw new Error('This workspace is not on a Fabric capacity. Pick a capacity so the studio can create Fabric items.');
   const prev = getProject().workspace;
   const workspace = { id: ws.id, name: ws.displayName, capacityId: ws.capacityId, created: created || (prev?.id === ws.id && prev.created) };
-  // Naming guessed for the previous workspace (from its name or a sample) doesn't carry over; a confirmed one does.
-  const reset = prev?.id !== ws.id ? { lakehouse: null, sqlDatabase: null, modelSource: null, semanticModel: null, ontology: null, source: null, dataPrep: null, dataPrepItems: [], dataAgent: null, dataAgentProposal: null, taskFlow: null, semanticModels: [], planStore: null, ...(getProject().naming?.inferred ? { naming: null } : {}) } : {};
+  // Another workspace starts everything over: data sources, models, reports, live data, plans, the task flow and the
+  // naming (unless it was chosen with this workspace). The items stay in the old workspace in Fabric.
+  let reset = {};
+  if (prev && prev.id !== ws.id) {
+    leaveSource('workspace changed');
+    clearDataPrepFiles();
+    reset = { ...blankSourcesPatch(), steps: {}, ...(domain || environment || intent || created ? {} : { naming: null }) };
+    logActivity('workspace.reset', `Started over in ${ws.displayName}: everything the studio built in ${prev.name} stays there`, { from: prev.id, to: ws.id });
+  } else if (!prev && getProject().naming?.inferred) reset = { naming: null };
   updateProject({ workspace, ...reset });
   // A workspace that already follows the standard tells the domain and environment until the user chooses.
   const parsed = parseName(ws.displayName);
@@ -65,6 +73,89 @@ function requireWorkspace() {
   const ws = getProject().workspace;
   if (!ws) throw new Error('Select or create a workspace first (Workspace tab).');
   return ws;
+}
+
+// ---------------- data sources: each one keeps its own items ----------------
+
+// Jobs that don't write to the project's data source.
+const SOURCE_NEUTRAL_JOBS = new Set(['github-login']);
+
+/** Another job still writing to the current data source would land in the wrong one after a switch. */
+function assertNoOtherJobs(selfId) {
+  const busy = listJobs().filter((j) => j.status === 'running' && j.id !== selfId && !SOURCE_NEUTRAL_JOBS.has(j.kind));
+  if (busy.length) throw Object.assign(new Error(`"${busy[0].title}" is still running on the current data source. Wait for it to finish (or cancel it), then switch data sources.`), { status: 409 });
+}
+
+/** What leaving a data source (or the workspace) stops: the event simulator and what was read from the old data. */
+function leaveSource(reason) {
+  stopSimulator(reason);
+  forgetEndpoint();
+  discoveryCache = { key: null, at: 0, data: null };
+  resetProfileCache();
+}
+
+/**
+ * Before a data source is loaded: make it the active one. Items built from it before come back; a source used for the
+ * first time starts with none (the map greys out what it doesn't have yet), and the previous source keeps its items.
+ */
+function beginSource(draft, ctx) {
+  const p = getProject();
+  const key = sourceKeyOf(draft);
+  if (!key || key === p.sourceKey) return null;
+  assertNoOtherJobs(ctx?.jobId);
+  const before = p.source?.label || null;
+  const r = activateSource(key, { label: draft.label });
+  if (r.adopted) return r;
+  leaveSource('data source switched');
+  const say = r.restored
+    ? `Switched to ${draft.label}: the items built from it before are back`
+    : `${draft.label} is a new data source in this workspace and gets its own items${before ? `; ${before} keeps everything built from it (switch back from Data source on the map)` : ''}`;
+  ctx?.log?.(say);
+  logActivity('source.switch', say, { key, from: r.previous || null });
+  return r;
+}
+
+/** The data sources used in the workspace and what was built from each. */
+export function sourcesState() {
+  const p = getProject();
+  return { active: p.sourceKey || null, sources: sourceContexts(p) };
+}
+
+/** Work on another data source of the workspace (nothing changes in Fabric). One switch at a time. */
+let switching = Promise.resolve();
+export function switchSource(key) {
+  const run = switching.then(() => doSwitchSource(key));
+  switching = run.catch(() => {});
+  return run;
+}
+
+async function doSwitchSource(key) {
+  await assertProjectTenant();
+  const p = getProject();
+  if (!p.workspace) throw new Error('Select a workspace first.');
+  if (!key || key === p.sourceKey) return sourcesState();
+  const entry = (p.sources || []).find((e) => e.key === key && e.state);
+  if (!entry) throw Object.assign(new Error('That data source isn\'t one of this workspace\'s. Connect it on the Data page.'), { status: 404 });
+  assertNoOtherJobs();
+  const r = activateSource(key);
+  leaveSource('data source switched');
+  // A source restored from an older project knows its item but not its SQL endpoint yet: look it up once.
+  const ms = getProject().modelSource;
+  if (ms?.itemId && !ms.server && ms.itemType) {
+    try {
+      const ep = await endpointFor(ms.workspaceId || p.workspace.id, ms.itemId, ms.itemType);
+      const fixed = { ...ms, itemName: ep.itemName || ms.itemName, server: ep.server, endpointId: ep.endpointId, database: ep.database };
+      // Written to this source even if another one became active in the meantime (a job started from Copilot).
+      const cur = getProject();
+      if (cur.sourceKey === key) updateProject({ modelSource: fixed });
+      else updateProject({ sources: (cur.sources || []).map((e) => (e.key === key && e.state ? { ...e, state: { ...e.state, modelSource: fixed } } : e)) });
+    } catch (e) {
+      logActivity('source.endpoint', `The SQL endpoint of ${ms.itemName} couldn't be read (${e.message.split('\n')[0].slice(0, 160)}) – its existing items work; reconnect it on the Data page to build new ones`, { key });
+    }
+  }
+  const now = getProject();
+  logActivity('source.switch', `Working on ${now.source?.label || entry.label || 'another data source'}${r.previous && r.previous !== 'none' ? ' (the previous data source keeps its items)' : ''}`, { key, from: r.previous || null });
+  return sourcesState();
 }
 
 /**
@@ -106,9 +197,13 @@ function setModelSource(ms, label) {
 
 export async function runSampleRetail(ctx) {
   const ws = requireWorkspace();
+  const draft = { kind: 'sample', id: 'retail', label: 'Contoso Retail (sample)', method: 'files' };
+  beginSource(draft, ctx);
   suggestNaming(RETAIL.naming);
   ctx.step('Create the project lakehouse');
-  const lh = await ensureProjectLakehouse(ctx.log, { purpose: RETAIL.naming.lakehouse, legacy: [RETAIL.lakehouseName] });
+  // The retail source's own lakehouse is reused whatever it was named with (the purpose gets the source's name only
+  // while the workspace has other sources).
+  const lh = await ensureProjectLakehouse(ctx.log, { purpose: scopedPurpose(RETAIL.naming.lakehouse, getProject(), draft), legacy: [RETAIL.lakehouseName], reuseAny: true });
   ctx.progress(20);
 
   const folder = join(REPO_ROOT, 'data', 'retail', 'parquet');
@@ -180,6 +275,7 @@ export async function runMirror(ctx, { typeId, connectionId, connectionName, ser
   const st = sourceType(typeId);
   if (!st?.mirrorType) throw new Error(`${typeId} can't be mirrored.`);
   if (!connectionId) throw new Error('A Fabric connection is required. Create one in the Data page or pick an existing connection.');
+  beginSource({ kind: 'database', type: typeId, method: 'mirror', connectionId, server: server || null, port: port || null, database, label: sourceLabel || `${st.name} · ${database}` }, ctx);
   const mirrorType = (st.mirrorTypeByVersion && st.mirrorTypeByVersion[sqlVersionMajor]) || st.mirrorType;
   const itemName = F.itemName('MirroredDatabase', itemNameFor('MirroredDatabase', { name, current: getProject().source?.method === 'mirror' && getProject().source?.database === database ? getProject().modelSource?.itemName : undefined, purpose: pascal(database) }), 'Mirror');
 
@@ -247,16 +343,21 @@ export async function useInPlace({ workspaceId, itemId, itemType, typeId }) {
   await assertProjectTenant();
   requireWorkspace();
   const ep = await endpointFor(workspaceId, itemId, itemType);
-  updateProject({ scenario: 'byod', source: { kind: 'fabric', type: typeId || itemType, itemType, itemName: ep.itemName, label: `${ITEM_LABEL[itemType] || itemType} · ${ep.itemName}`, method: 'in-place', itemId, workspaceId } });
+  const source = { kind: 'fabric', type: typeId || itemType, itemType, itemName: ep.itemName, label: `${ITEM_LABEL[itemType] || itemType} · ${ep.itemName}`, method: 'in-place', itemId, workspaceId };
+  beginSource(source);
+  updateProject({ scenario: 'byod', source });
   setModelSource({ itemType, itemId, itemName: ep.itemName, workspaceId, server: ep.server, endpointId: ep.endpointId, database: ep.database }, `Using ${ep.itemName} in place`);
   return getProject().modelSource;
 }
 
 export async function runShortcuts(ctx, { sourceWorkspaceId, sourceItemId, sourceItemType, tables = [], typeId }) {
   requireWorkspace();
+  const src = await F.getItem(sourceWorkspaceId, sourceItemId);
+  const source = { kind: 'fabric', type: typeId || sourceItemType, itemType: sourceItemType, itemName: src.displayName, label: `${ITEM_LABEL[sourceItemType] || sourceItemType} · ${src.displayName} (shortcuts)`, method: 'shortcut', itemId: sourceItemId, workspaceId: sourceWorkspaceId, tables: tables.map((t) => t.name) };
+  beginSource(source, ctx);
   const ws = getProject().workspace;
   ctx.step('Prepare the project lakehouse');
-  const lh = await ensureProjectLakehouse(ctx.log, { purpose: 'Raw', reuseAny: true });
+  const lh = await ensureProjectLakehouse(ctx.log, { purpose: scopedPurpose('Raw', getProject(), source), reuseAny: true });
   ctx.progress(25);
   ctx.step(`Create ${tables.length} OneLake shortcuts`);
   for (const [i, t] of tables.entries()) {
@@ -269,8 +370,7 @@ export async function runShortcuts(ctx, { sourceWorkspaceId, sourceItemId, sourc
   ctx.step('Refresh the SQL analytics endpoint');
   await sleep(5000);
   await F.refreshSqlEndpoint(ws.id, lh.sqlEndpointId);
-  const src = await F.getItem(sourceWorkspaceId, sourceItemId);
-  updateProject({ scenario: 'byod', source: { kind: 'fabric', type: typeId || sourceItemType, itemType: sourceItemType, itemName: src.displayName, label: `${ITEM_LABEL[sourceItemType] || sourceItemType} · ${src.displayName} (shortcuts)`, method: 'shortcut', itemId: sourceItemId, workspaceId: sourceWorkspaceId, tables: tables.map((t) => t.name) } });
+  updateProject({ scenario: 'byod', source });
   setModelSource({ itemType: 'Lakehouse', itemId: lh.id, itemName: lh.name, workspaceId: ws.id, server: lh.sqlEndpointServer, endpointId: lh.sqlEndpointId, database: lh.name }, `${tables.length} tables shortcut into ${lh.name}`);
   return { lakehouseId: lh.id, shortcuts: tables.length };
 }
@@ -378,7 +478,9 @@ export async function runSemanticModel(ctx, { name, include, names, relationship
 export function modelNameFor(p, preset, name) {
   const ours = (p.semanticModels || []).filter((x) => x.origin !== 'existing').map((x) => x.name);
   const current = p.semanticModel?.origin !== 'existing' ? p.semanticModel?.name : undefined;
-  return F.itemName('SemanticModel', itemNameFor('SemanticModel', { name, current, known: ours, purpose: preset?.naming?.model || purposeOf(p.modelSource?.itemName, p.modelSource?.itemType) || 'Main' }));
+  const picked = F.itemName('SemanticModel', itemNameFor('SemanticModel', { name, current, known: ours, purpose: preset?.naming?.model || purposeOf(p.modelSource?.itemName, p.modelSource?.itemType) || 'Main' }));
+  // A model another data source of the workspace built is never updated from this one.
+  return ours.some((n) => n.toLowerCase() === picked.toLowerCase()) ? picked : freeAcrossSources('SemanticModel', picked, p);
 }
 
 /**
@@ -449,7 +551,9 @@ export async function runOntology(ctx, { name, include, entityNames, rules, desc
   const exclude = new Set((preset?.ontology?.exclude || []).map((x) => x.toLowerCase()));
   const inc = include?.length ? include : preset?.ontology?.include || schema.tables.filter((t) => !exclude.has(t.name.toLowerCase()) && !isPlanTable(t)).map((t) => `${t.schema}.${t.name}`);
   const plan = buildPlan(schema, { include: inc, names: preset?.names, descriptions: preset?.descriptions });
-  const ontName = F.itemName('Ontology', itemNameFor('Ontology', { name, current: p.ontology?.name, purpose: preset?.naming?.model || purposeOf(p.semanticModel?.name, 'SemanticModel') || purposeOf(p.modelSource.itemName, p.modelSource.itemType) }), 'Ontology');
+  const picked = F.itemName('Ontology', itemNameFor('Ontology', { name, current: p.ontology?.name, purpose: preset?.naming?.model || purposeOf(p.semanticModel?.name, 'SemanticModel') || purposeOf(p.modelSource.itemName, p.modelSource.itemType) }), 'Ontology');
+  // An ontology another data source of the workspace built is never updated from this one.
+  const ontName = p.ontology?.name && picked.toLowerCase() === p.ontology.name.toLowerCase() ? picked : freeAcrossSources('Ontology', picked, p);
   const presetRules = preset?.ontology?.rules || [];
   const ruleSet = rules?.length
     ? rules.map((r) => {
@@ -536,6 +640,7 @@ export function runTeamsAgent(ctx, { includeOntology = false, publish = false, d
 
 export async function runSampleAdventureWorks(ctx) {
   const ws = requireWorkspace();
+  beginSource({ kind: 'sample', id: 'adventureworks-dw', label: 'AdventureWorksDW2022 (Fabric SQL database)', method: 'sql-database' }, ctx);
   suggestNaming(ADVENTUREWORKS.naming);
   ctx.step('Get the AdventureWorksDW install kit from Microsoft');
   const kit = await getKit(ctx.log, { signal: ctx.signal });
@@ -616,8 +721,23 @@ async function waitForReplica(ctx, workspaceId, ep, expected, { from, to, verify
 // for good.
 const RECOVERABLE = new Set(['Lakehouse', 'SQLDatabase', 'MirroredDatabase', 'Warehouse', 'Ontology', 'KQLDashboard', 'Eventstream']);
 
-/** What "Clean up resources" deletes, in delete order: only items the studio created or mirrored. */
+/** What "Clean up resources" deletes, in delete order: only items the studio created or mirrored – for every data source of the workspace. */
 function teardownItems(p) {
+  const out = [];
+  const seen = new Set();
+  const views = contextViews(p);
+  for (const v of views) {
+    for (const it of contextTeardownItems(v.view)) {
+      if (seen.has(it.id)) continue;
+      seen.add(it.id);
+      out.push(views.length > 1 ? { ...it, source: v.view.source?.label || v.label || null } : it);
+    }
+  }
+  return out;
+}
+
+/** The items one data source's work created, in delete order. */
+function contextTeardownItems(p) {
   const med = p.realtime?.medallion?.items || {};
   // Every model's data agent and org app (the active model's are live, the others' are kept with their model). Models
   // the user added to the project (origin 'existing') are theirs and stay.
@@ -656,44 +776,52 @@ export function teardownPlan({ deleteWorkspace = false } = {}) {
   const workspace = { id: p.workspace.id, name: p.workspace.name, created: Boolean(p.workspace.created) };
   const items = teardownItems(p).map((i) => ({ ...i, recoverable: RECOVERABLE.has(i.type) }));
   const tf = p.taskFlow?.id ? p.taskFlow : null;
+  const views = contextViews(p).map((v) => v.view);
   return {
     workspace,
     deleteWorkspace: Boolean(deleteWorkspace && workspace.created),
     items,
+    sources: views.length,
     taskFlow: p.realtime?.medallion?.taskFlow ? { name: p.realtime.medallion.taskFlow.name } : null,
     // A task flow the studio created is deleted; in one that was already in the workspace only the studio's items are
     // taken off its tasks.
-    taskFlows: [p.realtime?.medallion?.taskFlow, tf?.mode !== 'existing' ? tf : null].filter((x) => x?.id).map((x) => ({ name: x.name })),
+    taskFlows: [...views.map((v) => v.realtime?.medallion?.taskFlow), tf?.mode !== 'existing' ? tf : null].filter((x) => x?.id).map((x) => ({ name: x.name })),
     taskFlowUnassign: tf?.mode === 'existing' ? { name: tf.name } : null,
-    keptModels: projectModels(p).filter((m) => m.origin === 'existing').map((m) => ({ name: m.name })),
-    ontologyCompanions: Boolean(p.ontology?.id),
-    liveEvents: Boolean(p.realtime),
+    keptModels: views.flatMap((v) => projectModels(v)).filter((m) => m.origin === 'existing').map((m) => ({ name: m.name })),
+    ontologyCompanions: views.some((v) => v.ontology?.id),
+    liveEvents: views.some((v) => v.realtime),
   };
 }
 
 export async function runTeardown(ctx, { deleteWorkspace = false } = {}) {
   const p = getProject();
+  const views = contextViews(p).map((v) => v.view);
   discoveryCache = { key: null, at: 0, data: null };
   resetProfileCache();
   // A lakehouse the studio doesn't delete (for example one used in place in another workspace) keeps no shortcut to
-  // the planning warehouse that goes now – in both clean-up paths.
-  const pt = p.planning?.target?.kind === 'Lakehouse' ? p.planning.target : p.planStore?.shortcut ? p.planStore : null;
-  if (p.workspace && pt?.shortcut && pt.lakehouse && pt.lakehouse.id !== p.lakehouse?.id) {
-    try { await F.fabric('DELETE', `/workspaces/${pt.lakehouse.workspaceId}/items/${pt.lakehouse.id}/shortcuts/${pt.shortcut.path}/${pt.shortcut.name}`); ctx.log(`Deleted the plan shortcut in ${pt.lakehouse.name}`); } catch (e) { if (e.status !== 404) ctx.log(`Could not delete the plan shortcut in ${pt.lakehouse.name}: ${e.message}`); }
+  // the planning warehouse that goes now – in both clean-up paths, for every data source.
+  for (const v of views) {
+    const pt = v.planning?.target?.kind === 'Lakehouse' ? v.planning.target : v.planStore?.shortcut ? v.planStore : null;
+    if (p.workspace && pt?.shortcut && pt.lakehouse && pt.lakehouse.id !== v.lakehouse?.id) {
+      try { await F.fabric('DELETE', `/workspaces/${pt.lakehouse.workspaceId}/items/${pt.lakehouse.id}/shortcuts/${pt.shortcut.path}/${pt.shortcut.name}`); ctx.log(`Deleted the plan shortcut in ${pt.lakehouse.name}`); } catch (e) { if (e.status !== 404) ctx.log(`Could not delete the plan shortcut in ${pt.lakehouse.name}: ${e.message}`); }
+    }
   }
+  // The project starts empty again; only the glossary is kept for the next project.
+  const empty = { workspace: null, ...blankSourcesPatch(), glossary: p.glossary || '', tenant: null, steps: {} };
   if (deleteWorkspace && p.workspace?.created) {
     stopSimulator('clean up');
     ctx.step(`Delete workspace ${p.workspace.name}`);
     await F.deleteWorkspace(p.workspace.id);
-    // Everything lived in that workspace; keep only the glossary for the next project.
-    updateProject({ workspace: null, lakehouse: null, sqlDatabase: null, source: null, modelSource: null, modelProposal: null, reportProposal: null, dataAgentProposal: null, dataAgent: null, semanticModel: null, ontology: null, reports: [], orgApp: null, teamsAgent: null, scenario: null, realtime: null, planning: null, taskFlow: null, semanticModels: [], planStore: null, dataPrep: null, dataPrepItems: [], tenant: null, steps: {} });
+    updateProject(empty);
     clearDataPrepFiles();
   } else if (p.workspace) {
     ctx.step('Delete items created by the studio');
     stopSimulator('clean up');
-    const tf = p.realtime?.medallion?.taskFlow;
-    if (tf?.id) {
-      try { ctx.log((await deleteTaskFlow(p.workspace.id, tf.id)) ? `Deleted task flow "${tf.name}"` : `Task flow "${tf.name}" was already deleted`); } catch (e) { ctx.log(`Could not delete task flow "${tf.name}": ${e.message}`); }
+    for (const v of views) {
+      const tf = v.realtime?.medallion?.taskFlow;
+      if (tf?.id) {
+        try { ctx.log((await deleteTaskFlow(p.workspace.id, tf.id)) ? `Deleted task flow "${tf.name}"` : `Task flow "${tf.name}" was already deleted`); } catch (e) { ctx.log(`Could not delete task flow "${tf.name}": ${e.message}`); }
+      }
     }
     const mf = p.taskFlow;
     if (mf?.id) {
@@ -705,7 +833,7 @@ export async function runTeardown(ctx, { deleteWorkspace = false } = {}) {
       if (it.type === 'Ontology') await deleteOntologyCompanions(p.workspace.id, it.id, ctx.log);
     }
     // The project starts empty again: the workspace itself stays in Fabric, but the studio no longer points to it.
-    updateProject({ workspace: null, lakehouse: null, sqlDatabase: null, source: null, modelSource: null, modelProposal: null, reportProposal: null, dataAgentProposal: null, dataAgent: null, semanticModel: null, ontology: null, reports: [], orgApp: null, teamsAgent: null, scenario: null, realtime: null, planning: null, taskFlow: null, semanticModels: [], planStore: null, dataPrep: null, dataPrepItems: [], tenant: null, steps: {} });
+    updateProject(empty);
     clearDataPrepFiles();
     ctx.log(`The project is empty again – ${p.workspace.name} stays in Fabric; choose a workspace to start a new one`);
   }
@@ -756,6 +884,8 @@ export async function removeDataSource(ctx) {
   });
   setStep('data', 'todo', '');
   ctx.log(p.source?.label ? `Disconnected ${p.source.label}` : 'Disconnected the data source');
+  // Nothing left that was built from it: it leaves the workspace's list of data sources.
+  dropEmptySource();
 }
 
 /** Uninstall the Microsoft 365 / Teams agent with the installer script (-Uninstall). */

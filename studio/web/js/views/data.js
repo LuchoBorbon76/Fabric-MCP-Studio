@@ -3,6 +3,7 @@ import { h, toast, busy, field, input, select, seg, fmtNum, fmtDate, confirmDial
 import { app, copilotSlot } from '../app.js';
 import { askCard } from '../prompts.js';
 import { standardName, pascal } from '../naming.js';
+import { sourceBar, switchSource, workspaceSources } from '../sources.js';
 
 const TOKEN = document.querySelector('meta[name="studio-token"]').content;
 let tab = 'samples';
@@ -85,6 +86,8 @@ export function renderData(el) {
   if (!p.workspace) {
     el.append(h('div', { class: 'banner warn' }, h('div', {}, h('b', {}, 'Select a workspace first. '), 'Data lands in the project workspace.'), h('button', { class: 'btn pri', onclick: () => app.go('workspace') }, 'Choose workspace')));
   }
+  const bar = sourceBar();
+  if (bar) el.append(bar);
   if (p.modelSource) el.append(currentSource(p));
   if (p.modelSource?.itemType === 'Lakehouse') el.append(dataPrepCard());
   if (p.modelSource) el.append(askCard({ title: 'Ask about your data', only: ['data'] }));
@@ -92,7 +95,7 @@ export function renderData(el) {
   const body = h('div');
   el.append(h('div', { class: 'card' },
     h('div', { class: 'row sp' },
-      h('div', {}, h('h2', {}, p.modelSource ? 'Change the data source' : 'Bring in data'), h('p', { class: 'lead' }, 'Start from scratch with sample data, mirror your own databases, or reuse data that is already in Fabric.')),
+      h('div', {}, h('h2', {}, p.modelSource ? 'Add another data source' : 'Bring in data'), h('p', { class: 'lead' }, p.modelSource ? 'Another source gets its own semantic model, reports and the rest; the current one keeps everything built from it, and you can switch back any time.' : 'Start from scratch with sample data, mirror your own databases, or reuse data that is already in Fabric.')),
       seg([{ value: 'samples', label: 'Sample data' }, { value: 'databases', label: 'Your databases' }, { value: 'fabric', label: 'Existing Fabric data' }], tab, (v) => { tab = v; draw(); })),
     body));
   const draw = () => { body.innerHTML = ''; body.append(tab === 'samples' ? samples() : tab === 'databases' ? databases() : fabricData()); };
@@ -160,7 +163,7 @@ function currentSource(p) {
 /** One-line reminder in tabs that don't match the connected source. */
 function inUseNote(p) {
   if (!p.modelSource) return null;
-  return h('div', { class: 'banner mb' }, h('div', {}, h('b', {}, 'Current data source: '), `${p.source?.kind === 'fabric' ? `${ITEM_LABEL[originItem(p).itemType] || ''} · ${originItem(p).itemName}` : p.source?.label || p.modelSource.itemName}. `, 'Choosing a source here replaces it for the semantic model and ontology.'));
+  return h('div', { class: 'banner mb' }, h('div', {}, h('b', {}, 'Current data source: '), `${p.source?.kind === 'fabric' ? `${ITEM_LABEL[originItem(p).itemType] || ''} · ${originItem(p).itemName}` : p.source?.label || p.modelSource.itemName}. `, 'A source chosen here becomes the active one with its own semantic model, reports and the rest; the current source keeps everything built from it (switch back from Data source on the map).'));
 }
 
 // ---------------- data prep notebook (lakehouse sources) ----------------
@@ -327,13 +330,22 @@ function samples() {
   const p = store.project || {};
   const [retail, aw] = store.catalog?.samples || [];
   const inUse = (id) => p.modelSource && p.source?.kind === 'sample' && p.source.id === id;
+  // A sample this workspace used before keeps its items: switch back to it instead of loading it again.
+  const kept = (id) => (inUse(id) ? null : workspaceSources().find((e) => e.key === `sample:${id}` && e.state));
+  const useAgain = (id) => {
+    const e = kept(id);
+    if (!e) return null;
+    const b = h('button', { class: 'btn pri big', 'data-busy': 'Switching…', title: 'Its lakehouse or database, semantic model, reports and the rest come back – nothing is loaded again' }, '⇄ Use it again');
+    b.addEventListener('click', busy(b, () => switchSource(e.key, e.label)));
+    return b;
+  };
   const inUseBanner = (id) => (inUse(id) ? h('div', { class: 'banner ok mt' }, h('div', {}, h('b', {}, 'In use. '), `${ITEM_LABEL[p.modelSource.itemType] || p.modelSource.itemType} ${p.modelSource.itemName} in ${p.workspace?.name || 'the project workspace'} – tables, keys and row counts are shown above.`)) : null);
   const out = h('div', {}, p.modelSource && p.source?.kind !== 'sample' ? inUseNote(p) : null);
   const grid = h('div', { class: 'grid g2' });
   out.append(grid);
 
   const rJob = h('div', { class: 'mt' });
-  const rBtn = h('button', { class: 'btn pri big', 'data-busy': 'Starting…', title: inUse(retail.id) ? 'Uploads the files and reloads the tables' : null }, inUse(retail.id) ? 'Load again' : 'Load sample');
+  const rBtn = h('button', { class: `btn ${kept(retail.id) ? '' : 'pri big'}`, 'data-busy': 'Starting…', title: inUse(retail.id) || kept(retail.id) ? 'Uploads the files and reloads the tables' : null }, inUse(retail.id) || kept(retail.id) ? 'Load again' : 'Load sample');
   rBtn.addEventListener('click', busy(rBtn, async () => {
     if (!requireWs()) return;
     const withPrep = prepOn;
@@ -351,11 +363,11 @@ function samples() {
     h('div', { class: 'row mt' }, h('span', { class: 'pill brand' }, retail.lands), h('span', { class: 'pill' }, retail.needs), h('span', { class: 'pill' }, `~${retail.minutes} min`)),
     inUseBanner(retail.id),
     inUse(retail.id) ? null : prepOption(),
-    h('div', { class: 'row mt' }, rBtn, h('button', { class: 'btn ai', onclick: () => app.ask('Load the Contoso Retail sample data into my workspace, then tell me what tables were created.') }, '✦ Ask Copilot')),
+    h('div', { class: 'row mt' }, useAgain(retail.id), rBtn, h('button', { class: 'btn ai', onclick: () => app.ask('Load the Contoso Retail sample data into my workspace, then tell me what tables were created.') }, '✦ Ask Copilot')),
     rJob));
 
   const awJob = h('div', { class: 'mt' });
-  const awBtn = h('button', { class: 'btn pri big', 'data-busy': 'Starting…', title: inUse(aw.id) ? 'Reuses the database when its data is complete and verified' : null }, inUse(aw.id) ? 'Check again' : 'Create in my workspace');
+  const awBtn = h('button', { class: `btn ${kept(aw.id) ? '' : 'pri big'}`, 'data-busy': 'Starting…', title: inUse(aw.id) || kept(aw.id) ? 'Reuses the database when its data is complete and verified' : null }, inUse(aw.id) || kept(aw.id) ? 'Check again' : 'Create in my workspace');
   awBtn.addEventListener('click', busy(awBtn, async () => {
     if (!requireWs()) return;
     const job = await post('/jobs/sample', { dataset: 'adventureworks' });
@@ -370,7 +382,7 @@ function samples() {
       h('li', {}, 'Fabric replicates the tables to OneLake automatically; the semantic model and ontology use that replica.'),
       h('li', {}, 'Uses your Microsoft Entra sign-in. No Azure subscription, passwords or connections needed.')),
     inUseBanner(aw.id),
-    h('div', { class: 'row mt' }, awBtn, h('button', { class: 'btn ai', onclick: () => app.ask('Create the AdventureWorksDW2022 sample in my workspace (studio_load_sample_data with dataset adventureworks), then describe the tables that were created.') }, '✦ Ask Copilot')),
+    h('div', { class: 'row mt' }, useAgain(aw.id), awBtn, h('button', { class: 'btn ai', onclick: () => app.ask('Create the AdventureWorksDW2022 sample in my workspace (studio_load_sample_data with dataset adventureworks), then describe the tables that were created.') }, '✦ Ask Copilot')),
     awJob));
   return out;
 }

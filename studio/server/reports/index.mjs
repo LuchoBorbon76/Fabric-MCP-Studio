@@ -12,7 +12,7 @@ import { recommendations } from './recommend.mjs';
 import { ruleSet, ruleValues } from './rules.mjs';
 import { reportFiles } from '../generators/pbir.mjs';
 import { newId } from '../config.mjs';
-import { itemNameFor, purposeOf } from '../naming.mjs';
+import { itemNameFor, purposeOf, freeAcrossSources } from '../naming.mjs';
 
 const PREVIEW_DIR = join(DATA_DIR, 'previews');
 let profileCache = { key: null, at: 0, data: null };
@@ -60,7 +60,10 @@ const PAGE_IDS = PAGE_TEMPLATES.map((x) => x.id);
 
 /** A report built before keeps its name (so it is updated, not duplicated); a new one follows the naming standard. */
 export function reportNameFor(p, name, purpose) {
-  return F.itemName('Report', itemNameFor('Report', { name, known: (p.reports || []).map((r) => r.name), purpose: purpose || purposeOf(p.semanticModel.name, 'SemanticModel') }));
+  const known = (p.reports || []).map((r) => r.name);
+  const picked = F.itemName('Report', itemNameFor('Report', { name, known, purpose: purpose || purposeOf(p.semanticModel.name, 'SemanticModel') }));
+  // A report another data source of the workspace built is never updated (and rebound) from this one.
+  return known.some((n) => n.toLowerCase() === picked.toLowerCase()) ? picked : freeAcrossSources('Report', picked, p);
 }
 
 /** Keep Copilot's suggested report design so the user can review and apply it. Nothing changes in Fabric. */

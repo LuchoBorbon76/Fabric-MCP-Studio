@@ -614,3 +614,6 @@ table.t.mtable td a:hover{text-decoration:underline}
 .tfitem .tfname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px}
 .tfmove{border:0;background:transparent;color:var(--muted);font:inherit;font-size:11px;max-width:22px;cursor:pointer;padding:0}
 .tfmove:focus{max-width:220px;color:var(--ink);background:var(--panel)}
+/* Data sources of the workspace (pop-up) */
+table.t.stable td{vertical-align:top;overflow-wrap:anywhere}
+table.t.stable td.act{white-space:nowrap;text-align:right}

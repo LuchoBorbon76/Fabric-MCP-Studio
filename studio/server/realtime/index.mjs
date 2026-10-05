@@ -16,7 +16,7 @@ import * as TF from '../taskflow.mjs';
 import { getToken } from '../auth.mjs';
 import { dax, useSingleSignOn } from '../powerbi.mjs';
 import { stableUuid } from '../config.mjs';
-import { itemNameFor, standardName, purposeOf, numberedName } from '../naming.mjs';
+import { itemNameFor, standardName, purposeOf, numberedName, scopedPurpose } from '../naming.mjs';
 
 export const dashboardUrl = (ws, id) => `https://app.fabric.microsoft.com/groups/${ws}/kustodashboards/${id}`;
 export const activatorUrl = (ws, id) => `https://app.fabric.microsoft.com/groups/${ws}/reflexes/${id}`;
@@ -91,7 +91,7 @@ export async function runRealtimeSetup(ctx, { name } = {}) {
   ctx.progress(15);
 
   const prevRt = p.realtime;
-  const ehName = F.itemName('Eventhouse', itemNameFor('Eventhouse', { name, current: prevRt?.eventhouse?.name, purpose: 'Live' }), 'Live');
+  const ehName = F.itemName('Eventhouse', itemNameFor('Eventhouse', { name, current: prevRt?.eventhouse?.name, purpose: scopedPurpose('Live') }), 'Live');
   ctx.step(`Create the Eventhouse "${ehName}"`);
   let eh = (await F.listItems(ws.id, 'Eventhouse')).find((i) => i.displayName.toLowerCase() === ehName.toLowerCase());
   if (eh) ctx.log('Using the existing Eventhouse');
@@ -249,7 +249,7 @@ export async function runRealtimeDashboard(ctx, { name, refreshSeconds = 30 } = 
   const p = requireRealtime();
   const rt = p.realtime;
   const ws = p.workspace;
-  const title = F.itemName('KQLDashboard', itemNameFor('KQLDashboard', { name, current: rt.dashboard?.name, purpose: 'Live' }));
+  const title = F.itemName('KQLDashboard', itemNameFor('KQLDashboard', { name, current: rt.dashboard?.name, purpose: scopedPurpose('Live') }));
   ctx.step('Design the dashboard');
   const dash = buildDashboard({ title, source: { clusterUri: rt.eventhouse.queryUri, databaseId: rt.database.id, databaseName: rt.database.name, workspaceId: ws.id }, scenario: rt.scenario, refreshSeconds, medallion: rt.medallion || null });
   ctx.log(`${dash.pages.length} pages · ${dash.tiles.length} tiles · auto refresh every ${refreshSeconds} seconds${rt.medallion ? ` · reads Silver ${rt.medallion.names.clean} and Gold views` : ''}`);
@@ -360,7 +360,7 @@ export async function runRealtimeAlerts(ctx, { channel = 'teams', recipients, ru
   if (rt.medallion) ctx.log(`Reads ${source} (Silver: checked and deduplicated), so a duplicate event never sends a second message`);
   ctx.progress(30);
 
-  let itemName = F.itemName('Reflex', itemNameFor('Reflex', { name, current: rt.alerts?.name, purpose: 'RuleBreaks' }), 'Alerts');
+  let itemName = F.itemName('Reflex', itemNameFor('Reflex', { name, current: rt.alerts?.name, purpose: scopedPurpose('RuleBreaks') }), 'Alerts');
   ctx.step(`${rt.alerts ? 'Update' : 'Create'} the Activator "${itemName}"`);
   const entities = alertEntities({ workspaceId: ws.id, database: rt.database, scenario: rt.scenario, rules, channel, recipients: to, minAmount: min, source });
   const definition = F.toParts({ 'ReflexEntities.json': entities });
@@ -482,7 +482,7 @@ function medallionFlow(p) {
   ];
   const edges = [['ingest', 'bronze'], ['bronze', 'toSilver'], ['toSilver', 'silver'], ['silver', 'toGold'], ['toGold', 'gold'], ['gold', 'visualize'], ['silver', 'activate'], ['silver', 'context']];
   return {
-    name: rt.medallion?.taskFlow?.name || standardName('TaskFlow', 'EventMedallion', p),
+    name: rt.medallion?.taskFlow?.name || standardName('TaskFlow', scopedPurpose('EventMedallion', p), p),
     description: `Bronze, Silver and Gold layers for ${rt.scenario.label}, built by Fabric MCP Studio on Microsoft's Real-Time Intelligence medallion pattern: events are checked, deduplicated and aggregated as they arrive, with no schedules.`,
     tasks, edges,
   };
@@ -530,7 +530,7 @@ export async function runMedallion(ctx, opts = {}) {
   ctx.step('Create the layer items: Bronze → Silver and Silver → Gold querysets');
   const qs = async (key, purpose, tabs, description) => {
     // Items made by an earlier run keep their names, so they are updated rather than duplicated.
-    const name = F.itemName('KQLQueryset', prevItems[`${key}Queryset`]?.name || standardName('KQLQueryset', purpose));
+    const name = F.itemName('KQLQueryset', prevItems[`${key}Queryset`]?.name || standardName('KQLQueryset', scopedPurpose(purpose)));
     const def = querysetDefinition({ key: `${rt.database.id}/${key}`, cluster: rt.eventhouse.queryUri, database: rt.database.name, tabs });
     const { item } = await upsertItem(ctx, ws, { type: 'KQLQueryset', name, description, definition: F.toParts({ 'RealTimeQueryset.json': def }) });
     return { id: item.id, name, tabs: tabs.map((t) => t.title) };
@@ -545,7 +545,7 @@ export async function runMedallion(ctx, opts = {}) {
   ctx.step('Publish the Gold layer as a semantic model (DirectQuery, single sign-on)');
   const schemas = {};
   for (const g of model.gold) schemas[g.name] = (await kusto(rt.eventhouse.queryUri, rt.database.name, `${kqlName(g.name)} | getschema | project name = ColumnName, type = ColumnType`, { signal: ctx.signal }));
-  const goldName = F.itemName('SemanticModel', prevItems.goldModel?.name || standardName('SemanticModel', 'LiveGold'));
+  const goldName = F.itemName('SemanticModel', prevItems.goldModel?.name || standardName('SemanticModel', scopedPurpose('LiveGold')));
   const gm = goldModelFiles({ name: goldName, cluster: rt.eventhouse.queryUri, database: rt.database.name, med: summary, schemas, scenario: rt.scenario });
   const { item: goldItem } = await upsertItem(ctx, ws, { type: 'SemanticModel', name: goldName, description: `Gold layer of the live ${rt.scenario.label}: DirectQuery over ${model.gold.map((g) => g.name).join(', ')}. Generated by Fabric MCP Studio.`, definition: F.toParts(gm.files) });
   ctx.log(`${gm.tables.length} tables (${gm.tables.map((t) => t.name).join(', ')}) · ${gm.measures.length} measures`);
@@ -590,7 +590,7 @@ export async function runMedallion(ctx, opts = {}) {
   // Silver as Delta in OneLake, in a lakehouse of its own (Spark, SQL endpoint, Direct Lake) – the Silver task's item.
   if (out.oneLake.enabled) {
     ctx.step('Silver in OneLake: a lakehouse with a shortcut to the Silver Delta table');
-    const lhName = F.itemName('Lakehouse', prevItems.silverLakehouse?.name || standardName('Lakehouse', 'Silver'));
+    const lhName = F.itemName('Lakehouse', prevItems.silverLakehouse?.name || standardName('Lakehouse', scopedPurpose('Silver')));
     const lh = await F.ensureLakehouse(ws.id, lhName, `Silver layer of the live ${rt.scenario.label}: a OneLake shortcut to ${rt.database.name}.${summary.names.silver} (Delta). Generated by Fabric MCP Studio.`);
     if (lh.created) recordArtifact({ type: 'Lakehouse', id: lh.id, name: lhName, workspaceId: ws.id });
     ctx.log(`${lh.created ? 'Created' : 'Using'} lakehouse ${lhName}`);

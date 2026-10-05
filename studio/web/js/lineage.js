@@ -45,7 +45,7 @@ const COLS = ['Sources', 'OneLake', 'Semantic layer', 'Insights & AI', 'Apps & s
 
 // Grid position (column, row) of every part. Rows 0-2: analytics; row 3: real-time.
 const DEFS = [
-  { id: 'source', c: 0, r: 0, view: 'data', module: 'data', cat: 'source', type: 'Data source', desc: 'Sample data, your own databases (mirrored to OneLake) or Fabric data you already have.' },
+  { id: 'source', c: 0, r: 0, view: 'data', module: 'data', cat: 'source', type: 'Data source', desc: 'Sample data, your own databases (mirrored to OneLake) or Fabric data you already have. Each data source keeps its own items – double-click to switch.' },
   { id: 'data', c: 1, r: 0, view: 'data', module: 'data', cat: 'onelake', type: 'OneLake data', desc: 'The tables in OneLake that the semantic model, ontology and plan are built on.' },
   { id: 'model', c: 2, r: 0, view: 'model', module: 'model', cat: 'model', type: 'Semantic model', icon: 'model', desc: 'Direct Lake models with relationships and business measures, or existing models: one version of every number. Double-click to switch models or add one.' },
   { id: 'ontology', c: 2, r: 2, view: 'ontology', module: 'ontology', cat: 'ontology', type: 'Ontology', icon: 'ontology', desc: 'Business entities, relationships and plain-English rules in Fabric IQ.' },
@@ -115,13 +115,16 @@ function describe(id, s) {
   const at = (type, itemId) => fabricItemUrl(type, ws?.id, itemId);
   switch (id) {
     case 'source': {
-      if (!src) return { done: false, avail: Boolean(ws), needs: 'Needs a workspace', icon: 'database', title: 'Not connected', sub: 'Sample, databases or Fabric data' };
+      const others = (p.sources || []).filter((e) => e.state && e.key !== p.sourceKey);
+      const more = others.length ? ` · ${others.length} more` : '';
+      const otherFacts = others.length ? [['Other data sources', `${others.map((e) => e.label || 'Data source').join(', ')} – double-click to switch`]] : [];
+      if (!src) return { done: false, avail: Boolean(ws), needs: 'Needs a workspace', icon: 'database', title: 'Not connected', sub: `Sample, databases or Fabric data${more}`, facts: otherFacts.length ? otherFacts : undefined };
       const [kind, name] = src.kind === 'database' && src.label?.includes(' · ') ? src.label.split(' · ') : [null, null];
       const title = src.kind === 'sample' ? String(src.label || '').replace(/\s*\(.*\)\s*$/, '') : src.kind === 'fabric' ? src.itemName : name || src.label;
-      const sub = src.kind === 'sample' ? `Sample · ${plural(src.tables?.length || 0, 'table')}` : src.kind === 'database' ? `${kind || 'Database'} · mirrored` : `${ITEM[src.itemType] || src.itemType} · ${src.method === 'shortcut' ? 'shortcuts' : 'in place'}`;
+      const sub = `${src.kind === 'sample' ? `Sample${src.tables?.length ? ` · ${plural(src.tables.length, 'table')}` : ''}` : src.kind === 'database' ? `${kind || 'Database'} · mirrored` : `${ITEM[src.itemType] || src.itemType} · ${src.method === 'shortcut' ? 'shortcuts' : 'in place'}`}${more}`;
       return {
         done: true, icon: src.kind === 'sample' ? 'sample' : src.kind === 'fabric' ? ITEM_ICON[src.itemType] || 'lake' : 'database', title, sub,
-        facts: [['Kind', src.kind === 'sample' ? 'Sample data' : src.kind === 'database' ? kind || 'Database' : `Fabric ${ITEM[src.itemType] || 'item'}`], ['How it reaches OneLake', { files: 'Parquet files loaded into lakehouse tables', 'sql-database': 'Loaded into a Fabric SQL database, replicated to OneLake', mirror: 'Fabric Mirroring (continuous replication)', shortcut: 'OneLake shortcuts (no copy)', 'in-place': 'Used where it is (no copy)' }[src.method] || src.method], ['Tables', src.tables?.length || '–'], src.connectionName ? ['Connection', src.connectionName] : null],
+        facts: [['Kind', src.kind === 'sample' ? 'Sample data' : src.kind === 'database' ? kind || 'Database' : `Fabric ${ITEM[src.itemType] || 'item'}`], ['How it reaches OneLake', { files: 'Parquet files loaded into lakehouse tables', 'sql-database': 'Loaded into a Fabric SQL database, replicated to OneLake', mirror: 'Fabric Mirroring (continuous replication)', shortcut: 'OneLake shortcuts (no copy)', 'in-place': 'Used where it is (no copy)' }[src.method] || src.method], ['Tables', src.tables?.length || '–'], src.connectionName ? ['Connection', src.connectionName] : null, ...otherFacts],
       };
     }
     case 'data': {

@@ -75,6 +75,10 @@ when it expires.
 | `deploy-ontology.ps1`: SQL endpoint not provisioned | New lakehouse | Wait a minute and re-run |
 | Ontology update rejected (parse error) | Spaces instead of tabs, missing `ref` in `model.tmdl`, colon in a rule statement | `deploy-ontology.ps1 -DryRun`, decode the part, fix, redeploy |
 | Numbers differ from the expected sample results | Different seed or definitions drifted from the glossary | Regenerate data with seed 42; compare measure DAX to the semantic-model skill |
+| The model and reports disappeared from the map after choosing another data source | Each data source keeps its own items; the new one starts empty | Double-click **Data source** on the map and select *Use this source* on the earlier one – its items come back |
+| *… is still running on the current data source* when switching | A job would otherwise write into the wrong source | Wait for the job (or cancel it in the job dock), then switch |
+| Everything is empty after choosing another workspace | Another workspace starts the project over | Choose the earlier workspace again only to start fresh there; its items are still in Fabric. Use **Clean up resources** before switching to delete them |
+| A second data source's Eventhouse or plan has the source's name in it (`…_EH_ContosoRetailLive_…`) | Items each source can have once are kept apart by name when the workspace has several sources | Expected – each source keeps its own |
 
 ## Microsoft 365 Copilot agent (install-teams-agent.ps1)
 

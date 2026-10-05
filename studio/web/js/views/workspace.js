@@ -1,5 +1,5 @@
 import { store, get, post, on } from '../api.js';
-import { h, toast, busy, field, input, select, seg, fmtNum } from '../ui.js';
+import { h, toast, busy, field, input, select, seg, fmtNum, confirmDialog } from '../ui.js';
 import { app, copilotSlot } from '../app.js';
 import { naming, namingCard, standardName } from '../naming.js';
 import { taskFlowCard } from '../taskflow.js';
@@ -76,6 +76,7 @@ function newForm() {
   btn.addEventListener('click', busy(btn, async () => {
     if (!nm.configured && !naming().configured) throw new Error('First choose what this environment is for (above).');
     if (!capSel.value) throw new Error('Choose a capacity.');
+    if (!(await confirmStartOver(null))) return;
     const ws = await post('/project/workspace', { name: fullName(), capacityId: capSel.value, description: desc.value });
     toast(`Workspace ${ws.name} is ready`, 'ok');
     await app.refresh();
@@ -93,6 +94,19 @@ function newForm() {
     h('p', { class: 'tiny muted' }, 'If a workspace with this name already exists and you have access, the studio uses it instead of creating a duplicate.'));
 }
 
+/**
+ * Another workspace starts everything over (data sources, models, reports, live data, plans, task flow): ask first
+ * when the project has something. targetId: the workspace chosen (null for a new one).
+ */
+async function confirmStartOver(targetId) {
+  const p = store.project || {};
+  if (!p.workspace || targetId === p.workspace.id) return true;
+  const has = (p.sources || []).length || p.semanticModel || p.realtime || (p.reports || []).length;
+  if (!has) return true;
+  const n = (p.sources || []).length;
+  return confirmDialog('Use another workspace?', `Everything the studio shows starts over in the new workspace: ${n > 1 ? `the ${n} data sources` : 'the data source'}, semantic models, reports, ontology, live data, plans, naming and the task flow. Nothing is deleted – the items stay in ${p.workspace.name} in Fabric. To delete them, use Clean up resources (Settings) before you switch.`, 'Start over in the new workspace');
+}
+
 function existingList() {
   const box = h('div', { class: 'col' });
   const search = input({ placeholder: 'Search workspaces…', value: filter });
@@ -107,6 +121,7 @@ function existingList() {
       const cap = capById.get(w.capacityId);
       const useBtn = h('button', { class: 'btn', 'data-busy': 'Selecting…' }, 'Use');
       useBtn.addEventListener('click', busy(useBtn, async () => {
+        if (!(await confirmStartOver(w.id))) return;
         const ws = await post('/project/workspace', { workspaceId: w.id });
         toast(`Using ${ws.name}`, 'ok');
         await app.refresh();

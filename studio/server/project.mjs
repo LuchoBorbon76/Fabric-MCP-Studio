@@ -39,7 +39,139 @@ const EMPTY = {
   glossary: '',
   teamsAgent: null,
   steps: {},                      // stepId -> { status, at, note }
+  sourceKey: null,                // The active data source (sourceKeyOf): everything built from it is live in the project
+  sources: [],                    // Every data source used in the workspace: [{ key, label, addedAt, savedAt, state }] – state holds what was built from an inactive source (null for the active one)
 };
+
+// ---- data sources: each source in the workspace keeps its own items; one is active at a time ----
+
+// What belongs to one data source. When another source becomes active these are kept with the source they were built
+// from and come back when it is active again; a source used for the first time starts with none of them.
+export const SOURCE_KEYS = ['scenario', 'lakehouse', 'sqlDatabase', 'source', 'modelSource', 'modelProposal', 'reportProposal', 'dataAgentProposal', 'dataAgent', 'semanticModel', 'semanticModels', 'ontology', 'reports', 'orgApp', 'realtime', 'planning', 'planStore', 'dataPrep', 'glossary', 'teamsAgent', 'steps'];
+// Steps that describe the workspace, not a data source.
+const WORKSPACE_STEPS = ['workspace'];
+
+/** A stable identity for a data source: the same source always gets the same key. */
+export function sourceKeyOf(src) {
+  if (!src) return null;
+  const low = (x) => String(x ?? '').trim().toLowerCase();
+  if (src.kind === 'sample') return `sample:${low(src.id)}`;
+  if (src.method === 'mirror') return src.server ? `mirror:${low(src.type)}:${low(src.server)}:${low(src.port)}:${low(src.database)}` : `mirror:${low(src.type)}:conn:${low(src.connectionId)}:${low(src.database)}`;
+  if (src.method === 'shortcut') return `shortcut:${low(src.workspaceId)}:${low(src.itemId)}`;
+  if (src.method === 'in-place') return `in-place:${low(src.workspaceId)}:${low(src.itemId)}`;
+  return `other:${low(src.itemId || src.label)}`;
+}
+
+const sourceSteps = (steps) => Object.fromEntries(Object.entries(steps || {}).filter(([k]) => !WORKSPACE_STEPS.includes(k)));
+const workspaceSteps = (steps) => Object.fromEntries(Object.entries(steps || {}).filter(([k]) => WORKSPACE_STEPS.includes(k)));
+
+/** What the project holds for its active data source. */
+function pickState(p) {
+  const st = Object.fromEntries(SOURCE_KEYS.map((k) => [k, structuredClone(p[k] ?? EMPTY[k])]));
+  st.steps = sourceSteps(p.steps);
+  return st;
+}
+
+/** True when a data source has anything worth keeping. */
+function hasContent(st) {
+  return Boolean(st && (st.source || st.modelSource || st.lakehouse || st.sqlDatabase || st.semanticModel || st.semanticModels?.length || st.ontology || st.reports?.length
+    || st.orgApp || st.dataAgent || st.realtime || st.planning || st.planStore || st.dataPrep || st.teamsAgent));
+}
+
+/** A label for a data source the project knows. */
+const labelOf = (st, fallback) => st?.source?.label || st?.modelSource?.itemName || fallback || 'Data source';
+
+/** Every data source in the workspace, each as a project view (the active one is the project itself). */
+export function contextViews(p = getProject()) {
+  const views = [{ key: p.sourceKey || null, active: true, view: p }];
+  for (const e of p.sources || []) {
+    if (e.key === p.sourceKey || !e.state) continue;
+    views.push({ key: e.key, active: false, label: e.label, view: { ...p, ...e.state, steps: { ...workspaceSteps(p.steps), ...(e.state.steps || {}) } } });
+  }
+  return views;
+}
+
+/** The data sources of the workspace with what was built from each (for the UI and Copilot). */
+export function sourceContexts(p = getProject()) {
+  const describe = (key, st, active, e) => {
+    const models = st.semanticModels || [];
+    return {
+      key, active, label: labelOf(st, e?.label), kind: st.source?.kind || null, method: st.source?.method || null,
+      itemType: st.source?.itemType || st.modelSource?.itemType || null, connected: Boolean(st.modelSource),
+      data: st.modelSource ? { itemType: st.modelSource.itemType, name: st.modelSource.itemName } : null,
+      models: models.map((m) => m.name), activeModel: st.semanticModel?.name || null,
+      reports: (st.reports || []).length, ontology: st.ontology?.name || null, plan: st.planning?.planYear || null,
+      realtime: Boolean(st.realtime?.eventhouse || st.realtime?.eventstream), dataAgent: Boolean(st.dataAgent), orgApp: Boolean(st.orgApp),
+      addedAt: e?.addedAt || null, savedAt: active ? null : e?.savedAt || null,
+    };
+  };
+  const list = [];
+  let active = false;
+  for (const e of p.sources || []) {
+    if (e.state) list.push(describe(e.key, e.state, false, e));
+    else if (e.key === p.sourceKey && !active) { list.push(describe(e.key, p, true, e)); active = true; }
+  }
+  if (!active && hasContent(pickState(p))) list.unshift(describe(p.sourceKey || 'none', p, true, null));
+  return list;
+}
+
+/** Everything a data source holds, empty – for a source used for the first time in the workspace. */
+function emptyState(p) {
+  const st = Object.fromEntries(SOURCE_KEYS.map((k) => [k, structuredClone(EMPTY[k])]));
+  // A glossary written for the business carries over; a sample's glossary belongs to the sample.
+  st.glossary = p.source?.kind === 'sample' ? '' : p.glossary || '';
+  return st;
+}
+
+/**
+ * Make the data source `key` the active one. What the current source built is kept with it; what `key` built before
+ * comes back (nothing, for a source used for the first time). A project without a data source yet adopts the new one
+ * with what it already has (for example an existing semantic model added first). Nothing changes in Fabric.
+ */
+export function activateSource(key, { label } = {}) {
+  const p = getProject();
+  if (!key) throw new Error('No data source to switch to.');
+  if (key === p.sourceKey) return { switched: false, key };
+  const now = new Date().toISOString();
+  const list = (p.sources || []).map((e) => ({ ...e }));
+  const target = list.find((e) => e.key === key && e.state);
+  const current = pickState(p);
+  const curKey = p.sourceKey || (target && hasContent(current) ? 'none' : null);
+  if (!curKey && !target) {
+    // Nothing to keep apart: the new source starts from what the project has.
+    if (!list.some((e) => e.key === key)) list.push({ key, label: label || 'Data source', addedAt: now, savedAt: null, state: null });
+    updateProject({ sourceKey: key, sources: list });
+    return { switched: true, key, restored: false, adopted: true };
+  }
+  if (curKey) {
+    const i = list.findIndex((e) => e.key === curKey && !e.state);
+    if (hasContent(current)) {
+      const entry = { addedAt: now, ...(i >= 0 ? list[i] : { key: curKey }), label: curKey === 'none' ? 'Without a data source' : labelOf(current, list[i]?.label), savedAt: now, state: current };
+      if (i >= 0) list[i] = entry; else list.push(entry);
+    } else if (i >= 0) list.splice(i, 1);
+  }
+  const restored = target ? target.state : emptyState(p);
+  if (target) { target.state = null; target.label = label || target.label; } else list.push({ key, label: label || 'Data source', addedAt: now, savedAt: null, state: null });
+  updateProject({
+    ...Object.fromEntries(SOURCE_KEYS.map((k) => [k, structuredClone(restored[k] ?? EMPTY[k])])),
+    steps: { ...workspaceSteps(p.steps), ...(restored.steps || {}) },
+    sourceKey: key, sources: list,
+  });
+  return { switched: true, key, restored: Boolean(target), previous: curKey };
+}
+
+/** Forget the active data source when nothing was built from it any more (after the data source was removed). */
+export function dropEmptySource() {
+  const p = getProject();
+  if (!p.sourceKey || hasContent(pickState(p))) return false;
+  updateProject({ sourceKey: null, sources: (p.sources || []).filter((e) => !(e.key === p.sourceKey && !e.state)) });
+  return true;
+}
+
+/** A patch that empties every data source of the workspace (a new workspace, or after clean up). */
+export function blankSourcesPatch() {
+  return { ...Object.fromEntries(SOURCE_KEYS.map((k) => [k, structuredClone(EMPTY[k])])), sourceKey: null, sources: [], taskFlow: null, dataPrepItems: [] };
+}
 
 let project = null;
 let activity = null;
@@ -60,7 +192,97 @@ function migrate(p) {
   delete p.medallionFlow;
   // The plan belongs to the model its Plan table was added to.
   if (p.planning && !p.planning.semanticModelId && p.semanticModel?.id) p.planning = { ...p.planning, semanticModelId: p.semanticModel.id };
+  // Projects from before data sources kept their own items: what the project has belongs to its current source –
+  // except models (and what is built on them) that recorded another source: they go back to that source.
+  if (!Array.isArray(p.sources)) p.sources = [];
+  if (!p.sourceKey && p.source) {
+    p.sourceKey = sourceKeyOf(p.source);
+    splitEarlierSources(p);
+  }
+  if (p.sourceKey && !p.sources.some((e) => e.key === p.sourceKey && !e.state)) p.sources.push({ key: p.sourceKey, label: p.source?.label || null, addedAt: p.createdAt || null, savedAt: null, state: null });
   return p;
+}
+
+/** The data source a studio item that once held the data stands for (older projects recorded only its id). */
+function earlierSource(p, itemId) {
+  const ws = p.workspace?.id || null;
+  if (p.sqlDatabase?.id === itemId) {
+    // The studio creates a SQL database only for the AdventureWorksDW2022 sample. Its SQL endpoint is found again on switching.
+    return {
+      source: { kind: 'sample', id: 'adventureworks-dw', label: 'AdventureWorksDW2022 (Fabric SQL database)', method: 'sql-database', itemId, tables: [] },
+      modelSource: { itemType: 'SQLDatabase', itemId, itemName: p.sqlDatabase.name, workspaceId: ws },
+      scenario: 'sample', sqlDatabase: p.sqlDatabase, lakehouse: null,
+    };
+  }
+  const lh = p.lakehouse?.id === itemId ? { id: itemId, name: p.lakehouse.name, server: p.lakehouse.sqlEndpointServer, endpointId: p.lakehouse.sqlEndpointId }
+    : (p.dataPrepItems || []).filter((x) => x.type === 'Lakehouse' && x.id === itemId).map((x) => ({ id: x.id, name: x.name, workspaceId: x.workspaceId }))[0];
+  if (!lh) return null;
+  return {
+    source: { kind: 'fabric', type: 'Lakehouse', itemType: 'Lakehouse', itemName: lh.name, label: `Lakehouse · ${lh.name}`, method: 'in-place', itemId, workspaceId: lh.workspaceId || ws },
+    modelSource: { itemType: 'Lakehouse', itemId, itemName: lh.name, workspaceId: lh.workspaceId || ws, ...(lh.server ? { server: lh.server, endpointId: lh.endpointId, database: lh.name } : {}) },
+    scenario: 'byod', sqlDatabase: null, lakehouse: p.lakehouse?.id === itemId ? p.lakehouse : null,
+  };
+}
+
+/**
+ * Before data sources kept their own items, choosing another source left the models built on the previous one in the
+ * project. Each studio model records the item it reads (sourceItemId): models (with their reports, data agent, org
+ * app, plan and ontology) that read another studio item go back to the data source that item stands for.
+ */
+function splitEarlierSources(p) {
+  const ms = p.modelSource;
+  if (!ms?.itemId) return;
+  const groups = new Map();
+  for (const m of p.semanticModels || []) {
+    if (m.origin === 'existing' || !m.sourceItemId || m.sourceItemId === ms.itemId) continue;
+    if (!groups.has(m.sourceItemId)) groups.set(m.sourceItemId, []);
+    groups.get(m.sourceItemId).push(m);
+  }
+  for (const [itemId, models] of groups) {
+    const e = earlierSource(p, itemId);
+    if (!e) continue;
+    const key = sourceKeyOf(e.source);
+    if (!key || key === p.sourceKey || p.sources.some((x) => x.key === key)) continue;
+    const ids = new Set(models.map((m) => m.id));
+    const ctxOf = (m) => (m.id === p.semanticModel?.id ? Object.fromEntries(MODEL_CONTEXT_KEYS.map((k) => [k, p[k] ?? null])) : m.context || {});
+    // The model that is active there, with its data agent, org app and suggestions live.
+    const lead = models.find((m) => m.id === p.semanticModel?.id) || models[0];
+    const leadCtx = ctxOf(lead);
+    const st = Object.fromEntries(SOURCE_KEYS.map((k) => [k, structuredClone(EMPTY[k])]));
+    Object.assign(st, {
+      scenario: e.scenario, source: e.source, modelSource: e.modelSource, sqlDatabase: e.sqlDatabase, lakehouse: e.lakehouse,
+      semanticModels: models.map((m) => ({ ...m, context: m.id === lead.id ? null : ctxOf(m) })),
+      semanticModel: plain(lead),
+      ...Object.fromEntries(MODEL_CONTEXT_KEYS.map((k) => [k, leadCtx[k] ?? null])),
+      reports: (p.reports || []).filter((r) => ids.has(r.semanticModelId)),
+      ontology: p.ontology?.sourceItemId === itemId ? p.ontology : null,
+      planning: ids.has(p.planning?.semanticModelId) ? p.planning : null,
+      planStore: ids.has(p.planning?.semanticModelId) ? p.planStore : null,
+      glossary: p.glossary || '',
+      steps: Object.fromEntries(Object.entries(p.steps || {}).filter(([k]) => ['model', 'reports', 'ontology', 'planning', 'apps'].includes(k))),
+    });
+    st.steps.data = { status: 'done', note: `${e.source.label} (earlier data source)`, at: p.steps?.data?.at || null };
+    // What stays with the current source.
+    const rest = (p.semanticModels || []).filter((m) => !ids.has(m.id));
+    if (ids.has(p.semanticModel?.id)) {
+      const next = rest[0] || null;
+      for (const k of MODEL_CONTEXT_KEYS) p[k] = next?.context?.[k] ?? null;
+      p.semanticModel = next ? plain(next) : null;
+      p.semanticModels = rest.map((m) => (m.id === next?.id ? { ...m, context: null } : m));
+    } else p.semanticModels = rest;
+    p.reports = (p.reports || []).filter((r) => !ids.has(r.semanticModelId));
+    if (st.ontology) p.ontology = null;
+    if (st.planning) { p.planning = null; p.planStore = null; }
+    if (st.sqlDatabase && p.sqlDatabase?.id === st.sqlDatabase.id) p.sqlDatabase = null;
+    if (st.lakehouse && p.lakehouse?.id === st.lakehouse.id) p.lakehouse = null;
+    const steps = { ...(p.steps || {}) };
+    if (!p.semanticModel) delete steps.model;
+    if (!(p.reports || []).length) delete steps.reports;
+    if (!p.ontology) delete steps.ontology;
+    if (!p.planning) delete steps.planning;
+    p.steps = steps;
+    p.sources.push({ key, label: e.source.label, addedAt: p.createdAt || null, savedAt: new Date().toISOString(), state: st });
+  }
 }
 
 // ---- semantic models: the project can hold several; one is active at a time ----
@@ -147,6 +369,19 @@ export function updateProject(patch, { silent = false } = {}) {
   const before = has(patch, 'semanticModel') && !has(patch, 'semanticModels') ? { semanticModel: p.semanticModel, ...Object.fromEntries(MODEL_CONTEXT_KEYS.map((k) => [k, p[k]])) } : null;
   Object.assign(p, patch);
   if (before) syncModels(p, before, patch);
+  // The active source's key follows its details (a loader that switched to it first finds the same key here).
+  if (patch.source && !has(patch, 'sourceKey')) {
+    const key = sourceKeyOf(patch.source);
+    if (key !== p.sourceKey) {
+      const list = (p.sources || []).map((e) => ({ ...e }));
+      const mine = list.find((e) => e.key === p.sourceKey && !e.state);
+      if (mine) mine.key = key; else list.push({ key, label: patch.source.label || null, addedAt: new Date().toISOString(), savedAt: null, state: null });
+      p.sourceKey = key;
+      p.sources = list;
+    }
+    const mine = (p.sources || []).find((e) => e.key === p.sourceKey && !e.state);
+    if (mine && patch.source.label) mine.label = patch.source.label;
+  }
   if (patch.workspace && !p.tenant) {
     const me = currentIdentity();
     if (me?.tenantId) p.tenant = { id: me.tenantId, domain: me.tenantDomain || '' };

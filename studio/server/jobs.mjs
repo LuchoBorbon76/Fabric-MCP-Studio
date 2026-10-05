@@ -72,6 +72,7 @@ export function startJob(kind, title, fn, { meta = {} } = {}) {
   const push = () => { emit('job', { job: publicJob(job) }); saveRunning(); };
 
   const ctx = {
+    jobId: job.id,
     signal: job.controller.signal,
     step(label) {
       for (const s of job.steps) if (s.status === 'running') s.status = 'done';

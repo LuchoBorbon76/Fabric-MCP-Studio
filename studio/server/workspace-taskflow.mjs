@@ -5,7 +5,7 @@
 // assignments: the tasks, connectors, layout and the items people assigned stay as they are.
 import { stableUuid } from './config.mjs';
 import * as TF from './taskflow.mjs';
-import { getProject, updateProject, logActivity, assertProjectTenant, projectModels, modelContext } from './project.mjs';
+import { getProject, updateProject, logActivity, assertProjectTenant, projectModels, modelContext, contextViews } from './project.mjs';
 import { standardName } from './naming.mjs';
 
 export const taskFlowUrl = (ws) => `https://app.fabric.microsoft.com/groups/${ws}/list?experience=fabric-developer`;
@@ -137,7 +137,7 @@ export const TEMPLATES = [
 ];
 const templateById = (id) => TEMPLATES.find((t) => t.id === id) || null;
 
-/** Everything the project built in the workspace, with its role. A task flow belongs to one workspace. */
+/** Everything the project built in the workspace, with its role – for every data source of the workspace. A task flow belongs to one workspace. */
 export function projectItems(p = getProject()) {
   const ws = p.workspace?.id;
   const out = [];
@@ -147,6 +147,11 @@ export function projectItems(p = getProject()) {
     seen.add(it.id);
     out.push({ id: it.id, type, name: it.name || it.displayName || it.itemName || it.id, role });
   };
+  for (const v of contextViews(p)) contextItems(v.view, ws, put);
+  return out.map((i) => ({ ...i, roleLabel: ROLE_LABEL[i.role] || i.role }));
+}
+
+function contextItems(p, ws, put) {
   const ms = p.modelSource;
   const prep = (p.dataPrepItems || []).filter((x) => !x.workspaceId || x.workspaceId === ws);
   const curated = new Set(prep.filter((x) => x.type === 'Lakehouse').map((x) => x.id));
@@ -177,7 +182,6 @@ export function projectItems(p = getProject()) {
     put('eventVisualize', 'KQLDashboard', rt.dashboard);
     put('alerts', 'Reflex', rt.alerts);
   }
-  return out.map((i) => ({ ...i, roleLabel: ROLE_LABEL[i.role] || i.role }));
 }
 
 // ---------------- task flows already in the workspace: which task takes which role ----------------

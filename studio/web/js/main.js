@@ -6,6 +6,7 @@ import { loadPrompts, topPrompts } from './prompts.js';
 import { ensureDisclaimer, showDisclaimer, showWhatsNew } from './about.js';
 import { mountMap, getNode } from './lineage.js';
 import { modelsDialog } from './models.js';
+import { sourcesDialog } from './sources.js';
 import { chatElement, ask as chatAsk, refreshHeader, refreshSuggestions, setPanelMode, scrollChatToEnd, focusChat } from './chat.js';
 import { renderHome } from './views/home.js';
 import { renderCopilot } from './views/copilot.js';
@@ -167,6 +168,8 @@ const map = mountMap($('#map'), {
     if (!n) return;
     // A double-click on Semantic model opens the models pop-up: switch the active model, add an existing one or start a new one.
     if (id === 'model' && how === 'open' && store.project?.workspace) { modelsDialog(); return; }
+    // A double-click on Data source opens the workspace's data sources: switch to another one, or connect a new one.
+    if (id === 'source' && how === 'open' && store.project?.workspace && (store.project.sources || []).length) { sourcesDialog(); return; }
     // On the overview a click shows the part's details; elsewhere (or a double-click) opens its page.
     if (current === 'home' && how === 'click') { app.selectNode(id); return; }
     go(n.view);
@@ -429,10 +432,22 @@ on('server.up', () => { $('#offline').hidden = true; });
 
 let presetSource;
 let dataSourceKey;
+let activeSourceKey;
 const dataKey = (p) => [p?.source?.kind, p?.source?.method, p?.source?.itemId, p?.modelSource?.itemId].join('|');
 on('project.updated', async () => {
   const sid = store.project?.source?.id || null;
   if (sid !== presetSource) { presetSource = sid; try { store.preset = await get('/preset'); } catch { /* keep */ } }
+  // Another data source (or workspace) brings its own live data and plan: read them again for the map and the pages.
+  const sk = [store.project?.workspace?.id, store.project?.sourceKey].join('|');
+  if (sk !== activeSourceKey) {
+    activeSourceKey = sk;
+    Promise.all([get('/realtime').catch(() => null), get('/planning').catch(() => null)]).then(([rt, pl]) => {
+      if (rt) store.realtime = rt;
+      if (pl) store.planning = pl;
+      updateMap();
+      if (['realtime', 'planning'].includes(current)) renderView(current);
+    });
+  }
   renderHeader(); updateMap(); refreshSuggestions();
   loadPrompts();
   // The Data page keeps in-progress forms, so it only re-renders when the data source itself changes.
@@ -457,6 +472,7 @@ async function refresh() {
     readinessKey = [b.project?.workspace?.id, b.project?.modelSource?.itemId, Boolean(b.project?.realtime)].join('|');
     presetSource = b.project?.source?.id || null;
     dataSourceKey = dataKey(b.project);
+    activeSourceKey = [b.project?.workspace?.id, b.project?.sourceKey].join('|');
     for (const j of b.jobs) {
       store.jobs.set(j.id, j);
       if (j.status === 'running') dockJobs.add(j.id);
