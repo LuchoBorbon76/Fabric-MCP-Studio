@@ -29,41 +29,64 @@ const builtText = (x) => [
   x.realtime ? 'live data' : null,
 ].filter(Boolean);
 
-/** Every data source of the workspace, in a pop-up: switch, or connect another one. */
+const ITEM_LABEL = { Lakehouse: 'Lakehouse', Warehouse: 'Warehouse', MirroredDatabase: 'Mirrored database', SQLDatabase: 'SQL database' };
+
+/** One data source the project used: what was built from it, and Use this source (or Active). */
+function contextLine(x, close) {
+  const use = h('button', { class: 'btn pri', 'data-busy': 'Switching…' }, 'Use this source');
+  use.addEventListener('click', busy(use, async () => { await switchSource(x.key, x.label); close(); }));
+  const built = builtText(x).filter((t) => t !== x.data?.name);
+  return h('div', { class: 'srcline' },
+    h('div', { style: { minWidth: 0 } },
+      h('div', { class: 'row', style: { gap: '6px' } }, h('span', { class: 'small' }, x.label), x.active ? h('span', { class: 'pill ok' }, 'Active') : null),
+      h('div', { class: 'tiny muted' }, [HOW[x.method] || (x.kind === 'sample' ? 'Sample data' : x.key === 'none' ? 'Items built without a data source' : 'Data source'), built.length ? built.join(' · ') : 'nothing built yet', x.active || !x.savedAt ? null : `last used ${fmtDate(x.savedAt)}`].filter(Boolean).join(' · '))),
+    x.active ? null : use);
+}
+
+/** The data items of the workspace and the project's data sources, in a pop-up: switch, use another item, or connect one. */
 export function sourcesDialog() {
   const p = store.project || {};
   let dlg = null;
   let off = () => {};
   const close = () => dlg?.close();
-  const list = h('div', { class: 'muted small' }, h('span', { class: 'spin' }), ' Reading the workspace\'s data sources…');
-  const draw = () => get('/sources/contexts').then((s) => {
-    if (!s.sources.length) {
+  const list = h('div', { class: 'muted small' }, h('span', { class: 'spin' }), ` Reading the data in ${p.workspace?.name || 'the workspace'}…`);
+  const draw = () => get('/sources/workspace').then((s) => {
+    if (!s.items.length && !s.others.length) {
       list.className = 'muted small';
-      list.replaceChildren('No data source yet. Load sample data, mirror a database or use Fabric data on the Data page.');
+      list.replaceChildren(`No lakehouse, warehouse or database in ${s.workspace.name} yet. Load sample data, mirror a database or use Fabric data from another workspace on the Data page.`);
       return;
     }
-    const t = h('table', { class: 't stable' }, h('tr', {}, h('th', {}, 'Data source'), h('th', {}, 'Built from it'), h('th', { 'aria-label': 'Actions' })));
-    for (const x of s.sources) {
-      const use = h('button', { class: 'btn pri', 'data-busy': 'Switching…' }, 'Use this source');
-      use.addEventListener('click', busy(use, async () => { await switchSource(x.key, x.label); close(); }));
-      const built = builtText(x);
+    const t = h('table', { class: 't stable' }, h('tr', {}, h('th', {}, 'Data in the workspace'), h('th', {}, 'Used by the project'), h('th', { 'aria-label': 'Actions' })));
+    for (const it of s.items) {
+      const active = it.sources.some((c) => c.active);
+      const useItem = h('button', { class: 'btn', 'data-busy': 'Connecting…', title: 'Use it in place as a new data source (no copy) – the current source keeps its items' }, 'Use as data source');
+      useItem.addEventListener('click', busy(useItem, async () => {
+        await post('/sources/in-place', { workspaceId: it.workspaceId, itemId: it.itemId, itemType: it.itemType });
+        toast(`${it.name} is the data source now – build its semantic model next`, 'ok');
+        await app.refresh();
+        close();
+      }));
+      t.append(h('tr', { class: active ? 'sel' : '' },
+        h('td', {}, h('b', {}, it.name), h('div', { class: 'tiny muted' }, ITEM_LABEL[it.itemType] || it.itemType)),
+        h('td', {}, it.sources.length ? it.sources.map((x) => contextLine(x, close)) : h('span', { class: 'tiny muted' }, 'Not used yet')),
+        h('td', { class: 'act' }, it.sources.length ? null : useItem)));
+    }
+    for (const x of s.others) {
       t.append(h('tr', { class: x.active ? 'sel' : '' },
-        h('td', {},
-          h('div', { class: 'row', style: { gap: '6px' } }, h('b', {}, x.label), x.active ? h('span', { class: 'pill ok' }, 'Active') : null),
-          h('div', { class: 'tiny muted' }, [x.key === 'none' ? 'Items built without a data source' : HOW[x.method] || (x.kind === 'sample' ? 'Sample data' : 'Data source'), x.active || !x.savedAt ? null : `last used ${fmtDate(x.savedAt)}`].filter(Boolean).join(' · '))),
-        h('td', { class: 'small' }, built.length ? built.join(' · ') : h('span', { class: 'tiny muted' }, x.connected ? 'Connected – nothing built yet' : 'Not connected yet')),
-        h('td', { class: 'act' }, x.active ? null : use)));
+        h('td', {}, h('b', {}, x.data?.name || x.label), h('div', { class: 'tiny muted' }, x.data ? `${ITEM_LABEL[x.data.itemType] || x.data.itemType} in another workspace` : 'Not connected yet')),
+        h('td', {}, contextLine(x, close)),
+        h('td', { class: 'act' })));
     }
     list.className = 'scroll';
     list.replaceChildren(t);
   }).catch((e) => list.replaceChildren(h('div', { class: 'banner err' }, e.message)));
   dlg = modal({
-    title: 'Data sources in this workspace', className: 'wide',
+    title: `Data sources in ${p.workspace?.name || 'the workspace'}`, className: 'wide',
     body: h('div', { class: 'col' },
-      h('p', { class: 'small muted', style: { margin: 0 } }, 'Each data source keeps its own OneLake data, semantic models, reports, ontology, plan and live data. The map shows the active one – parts not built for it yet stay grey. Switch any time; nothing changes in Fabric.'),
+      h('p', { class: 'small muted', style: { margin: 0 } }, 'The lakehouses, warehouses and databases in the workspace, and what the project built from each. Each data source keeps its own semantic models, reports, ontology, plan and live data; the map shows the active one – parts not built for it yet stay grey. Switching changes nothing in Fabric.'),
       list,
       p.workspace
-        ? h('div', { class: 'row' }, h('button', { class: 'btn', onclick: () => { close(); app.go('data'); } }, '+ Connect another data source'))
+        ? h('div', { class: 'row' }, h('button', { class: 'btn', onclick: () => { close(); app.go('data'); } }, '+ Connect another data source (sample, database, other workspace)'))
         : h('div', { class: 'banner warn' }, 'Select a workspace first.')),
     actions: [{ label: 'Close' }],
     onClose: () => off(),

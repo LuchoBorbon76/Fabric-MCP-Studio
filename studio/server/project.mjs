@@ -98,7 +98,7 @@ export function sourceContexts(p = getProject()) {
     return {
       key, active, label: labelOf(st, e?.label), kind: st.source?.kind || null, method: st.source?.method || null,
       itemType: st.source?.itemType || st.modelSource?.itemType || null, connected: Boolean(st.modelSource),
-      data: st.modelSource ? { itemType: st.modelSource.itemType, name: st.modelSource.itemName } : null,
+      data: st.modelSource ? { itemType: st.modelSource.itemType, name: st.modelSource.itemName, itemId: st.modelSource.itemId || null, workspaceId: st.modelSource.workspaceId || p.workspace?.id || null } : null,
       models: models.map((m) => m.name), activeModel: st.semanticModel?.name || null,
       reports: (st.reports || []).length, ontology: st.ontology?.name || null, plan: st.planning?.planYear || null,
       realtime: Boolean(st.realtime?.eventhouse || st.realtime?.eventstream), dataAgent: Boolean(st.dataAgent), orgApp: Boolean(st.orgApp),

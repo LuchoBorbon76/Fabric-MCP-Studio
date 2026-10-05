@@ -1,5 +1,6 @@
 import { store, get, post, on } from '../api.js';
-import { h, toast, busy, field, input, select, seg, fmtNum, confirmDialog } from '../ui.js';
+import { h, toast, busy, field, input, select, seg, fmtNum } from '../ui.js';
+import { confirmStartOver } from '../workspaces.js';
 import { app, copilotSlot } from '../app.js';
 import { naming, namingCard, standardName } from '../naming.js';
 import { taskFlowCard } from '../taskflow.js';
@@ -92,19 +93,6 @@ function newForm() {
       ? `Create a new Fabric workspace named "${fullName()}" on the most suitable capacity I have, and make it the project workspace.`
       : 'Help me create the project workspace: first ask what this environment is for and the business domain, then create it on the most suitable capacity I have.') }, '✦ Ask Copilot to do it')),
     h('p', { class: 'tiny muted' }, 'If a workspace with this name already exists and you have access, the studio uses it instead of creating a duplicate.'));
-}
-
-/**
- * Another workspace starts everything over (data sources, models, reports, live data, plans, task flow): ask first
- * when the project has something. targetId: the workspace chosen (null for a new one).
- */
-async function confirmStartOver(targetId) {
-  const p = store.project || {};
-  if (!p.workspace || targetId === p.workspace.id) return true;
-  const has = (p.sources || []).length || p.semanticModel || p.realtime || (p.reports || []).length;
-  if (!has) return true;
-  const n = (p.sources || []).length;
-  return confirmDialog('Use another workspace?', `Everything the studio shows starts over in the new workspace: ${n > 1 ? `the ${n} data sources` : 'the data source'}, semantic models, reports, ontology, live data, plans, naming and the task flow. Nothing is deleted – the items stay in ${p.workspace.name} in Fabric. To delete them, use Clean up resources (Settings) before you switch.`, 'Start over in the new workspace');
 }
 
 function existingList() {

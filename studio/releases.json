@@ -50,6 +50,7 @@
     { "date": "2026-10-05", "type": "improvement", "commit": "cc65664", "title": "Task flows: use the task flow already in your workspace or one of Fabric's predesigned flows (Medallion, Basic data analytics, Event analytics, Event medallion, Lambda, Basic machine learning models); every item goes to its box, you can move items, and the flow stays up to date" },
     { "date": "2026-10-05", "type": "improvement", "commit": "cc65664", "title": "Several semantic models per project: design new ones or add existing models from any workspace, switch the active model, and reports, data agent, org app and answers follow it" },
     { "date": "2026-10-05", "type": "improvement", "commit": "bbccdd1", "title": "Semantic models pop-up: double-click Semantic model on the map to switch the active model, add an existing model or start a new one" },
-    { "date": "2026-10-05", "type": "fix", "title": "Each data source keeps its own items: choosing another source shows its own items on the map (or greys them out), the previous one keeps everything and you can switch back; another workspace starts everything over" }
+    { "date": "2026-10-05", "type": "fix", "commit": "dd1862e", "title": "Each data source keeps its own items: choosing another source shows its own items on the map (or greys them out), the previous one keeps everything and you can switch back; another workspace starts everything over" },
+    { "date": "2026-10-05", "type": "fix", "title": "Double-click works on the map: Data source lists the data in the workspace and the project's sources; the workspace name lists the workspaces on the capacity" }
   ]
 }

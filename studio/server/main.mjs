@@ -221,6 +221,7 @@ route('POST', '/api/sources/item-tables', (_, b) => P.listTablesOfItem(b));
 route('POST', '/api/sources/in-place', (_, b) => P.useInPlace(b));
 // Data sources of the workspace: each keeps what was built from it; switching changes nothing in Fabric.
 route('GET', '/api/sources/contexts', () => P.sourcesState());
+route('GET', '/api/sources/workspace', () => P.workspaceDataSources());
 route('POST', '/api/sources/switch', (_, b) => P.switchSource(String(b.key || '')));
 route('GET', '/api/sources/current/mirroring', () => P.currentMirroringStatus());
 

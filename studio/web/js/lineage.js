@@ -45,7 +45,7 @@ const COLS = ['Sources', 'OneLake', 'Semantic layer', 'Insights & AI', 'Apps & s
 
 // Grid position (column, row) of every part. Rows 0-2: analytics; row 3: real-time.
 const DEFS = [
-  { id: 'source', c: 0, r: 0, view: 'data', module: 'data', cat: 'source', type: 'Data source', desc: 'Sample data, your own databases (mirrored to OneLake) or Fabric data you already have. Each data source keeps its own items – double-click to switch.' },
+  { id: 'source', c: 0, r: 0, view: 'data', module: 'data', cat: 'source', type: 'Data source', desc: 'Sample data, your own databases (mirrored to OneLake) or Fabric data you already have. Each data source keeps its own items – double-click to see the data in the workspace and switch.' },
   { id: 'data', c: 1, r: 0, view: 'data', module: 'data', cat: 'onelake', type: 'OneLake data', desc: 'The tables in OneLake that the semantic model, ontology and plan are built on.' },
   { id: 'model', c: 2, r: 0, view: 'model', module: 'model', cat: 'model', type: 'Semantic model', icon: 'model', desc: 'Direct Lake models with relationships and business measures, or existing models: one version of every number. Double-click to switch models or add one.' },
   { id: 'ontology', c: 2, r: 2, view: 'ontology', module: 'ontology', cat: 'ontology', type: 'Ontology', icon: 'ontology', desc: 'Business entities, relationships and plain-English rules in Fabric IQ.' },
@@ -243,7 +243,7 @@ export function buildGraph(s = store) {
   const wsMod = mods.workspace;
   const workspace = {
     id: 'workspace', view: 'workspace', module: 'workspace', cat: 'workspace', icon: 'workspace', type: 'Workspace',
-    desc: 'The Fabric workspace where everything the studio builds is created, on a Fabric capacity.',
+    desc: 'The Fabric workspace where everything the studio builds is created, on a Fabric capacity. Double-click the name to see the workspaces on the capacity.',
     done: Boolean(ws), title: ws?.name || (signedIn ? 'Choose a workspace' : 'Sign in to start'),
     sub: ws ? (ws.created ? 'Created by the studio' : 'Existing workspace') : signedIn ? 'New or existing' : 'Microsoft Entra account',
     capacity: cap?.visible ? cap : null, role: s.readiness?.role || null,
@@ -324,7 +324,7 @@ const SIZES = {
  * Mounts the map in `root`. onNode(id, 'click' | 'open') is called for a part (or 'workspace'); onTab(view) for the
  * header tabs. update({ view, selected }) redraws it from the store.
  */
-export function mountMap(root, { onNode, onTab }) {
+export function mountMap(root, { onNode, onTab, opensOnDouble }) {
   const uid = Math.random().toString(36).slice(2, 7);
   let mode = '';
   let view = 'home';
@@ -362,9 +362,17 @@ export function mountMap(root, { onNode, onTab }) {
   document.body.append(hover);
 
   const fire = (id, how) => { hideHover(); onNode?.(id, how); };
+  // A part with a double-click action waits a moment before acting on a single click: the single click selects or
+  // navigates (moving the map), which would otherwise swallow the second click of a double-click.
+  let clickTimer = null;
   for (const [id, b] of [...Object.entries(els), ['workspace', fhead]]) {
-    b.addEventListener('click', () => fire(id, 'click'));
-    b.addEventListener('dblclick', () => fire(id, 'open'));
+    b.addEventListener('click', (e) => {
+      if (e.detail > 1) return;
+      clearTimeout(clickTimer);
+      if (opensOnDouble?.(id)) clickTimer = setTimeout(() => fire(id, 'click'), 280);
+      else fire(id, 'click');
+    });
+    b.addEventListener('dblclick', () => { clearTimeout(clickTimer); fire(id, 'open'); });
     b.addEventListener('mouseenter', () => showHover(id, b));
     b.addEventListener('focus', () => showHover(id, b));
     b.addEventListener('mouseleave', hideHover);

@@ -7,6 +7,7 @@ import { ensureDisclaimer, showDisclaimer, showWhatsNew } from './about.js';
 import { mountMap, getNode } from './lineage.js';
 import { modelsDialog } from './models.js';
 import { sourcesDialog } from './sources.js';
+import { workspacesDialog } from './workspaces.js';
 import { chatElement, ask as chatAsk, refreshHeader, refreshSuggestions, setPanelMode, scrollChatToEnd, focusChat } from './chat.js';
 import { renderHome } from './views/home.js';
 import { renderCopilot } from './views/copilot.js';
@@ -162,14 +163,18 @@ export function moduleGrid(rd) {
 const mapState = { selected: null };
 const map = mountMap($('#map'), {
   onTab: (id) => go(id),
+  // On the overview every part opens its page on a double-click; elsewhere the parts with a pop-up do.
+  opensOnDouble: (id) => current === 'home' || id === 'workspace' || (['model', 'source'].includes(id) && Boolean(store.project?.workspace)),
   onNode: (id, how) => {
     const g = map.graph();
     const n = g && getNode(g, id);
     if (!n) return;
     // A double-click on Semantic model opens the models pop-up: switch the active model, add an existing one or start a new one.
     if (id === 'model' && how === 'open' && store.project?.workspace) { modelsDialog(); return; }
-    // A double-click on Data source opens the workspace's data sources: switch to another one, or connect a new one.
-    if (id === 'source' && how === 'open' && store.project?.workspace && (store.project.sources || []).length) { sourcesDialog(); return; }
+    // A double-click on Data source lists the data in the workspace and the project's data sources: switch, or use another.
+    if (id === 'source' && how === 'open' && store.project?.workspace) { sourcesDialog(); return; }
+    // A double-click on the workspace name lists the workspaces on the capacity.
+    if (id === 'workspace' && how === 'open') { workspacesDialog(); return; }
     // On the overview a click shows the part's details; elsewhere (or a double-click) opens its page.
     if (current === 'home' && how === 'click') { app.selectNode(id); return; }
     go(n.view);

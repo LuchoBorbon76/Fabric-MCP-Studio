@@ -121,6 +121,42 @@ export function sourcesState() {
   return { active: p.sourceKey || null, sources: sourceContexts(p) };
 }
 
+const DATA_ITEM_TYPES = ['Lakehouse', 'Warehouse', 'MirroredDatabase', 'SQLDatabase'];
+// Items Fabric makes for itself (dataflow staging).
+const SYSTEM_ITEM = /^(DataflowsStaging|StagingLakehouseForDataflows|StagingWarehouseForDataflows)/i;
+
+/**
+ * Every item in the project workspace that can be a data source (lakehouses, warehouses, mirrored and SQL databases),
+ * each with the project's data sources that read it and what was built from them – plus the project's sources whose
+ * data lives elsewhere (another workspace).
+ */
+export async function workspaceDataSources() {
+  await assertProjectTenant();
+  const p = getProject();
+  if (!p.workspace) throw new Error('Select a workspace first.');
+  const ws = p.workspace.id;
+  const items = (await F.listItems(ws)).filter((i) => DATA_ITEM_TYPES.includes(i.type) && !SYSTEM_ITEM.test(i.displayName || ''));
+  // Items the studio made to serve a source (the plan values warehouse, the live Silver layer) aren't data sources.
+  const helpers = new Set();
+  for (const v of contextViews(p).map((x) => x.view)) {
+    for (const w of [v.planning?.target?.warehouse, v.planStore?.warehouse]) if (w?.id) helpers.add(w.id);
+    const silver = v.realtime?.medallion?.items?.silverLakehouse;
+    if (silver?.id) helpers.add(silver.id);
+  }
+  const contexts = sourceContexts(p);
+  const byItem = new Map();
+  for (const c of contexts) {
+    if (!c.data?.itemId || (c.data.workspaceId && c.data.workspaceId !== ws)) continue;
+    if (!byItem.has(c.data.itemId)) byItem.set(c.data.itemId, []);
+    byItem.get(c.data.itemId).push(c);
+  }
+  const rows = items.filter((i) => !helpers.has(i.id)).map((i) => ({ itemId: i.id, itemType: i.type, name: i.displayName, workspaceId: ws, sources: byItem.get(i.id) || [] }));
+  const listed = new Set(rows.flatMap((r) => r.sources.map((c) => c.key)));
+  // Items with something built first, then the rest by name.
+  rows.sort((a, b) => Number(b.sources.some((c) => c.active)) - Number(a.sources.some((c) => c.active)) || b.sources.length - a.sources.length || a.name.localeCompare(b.name));
+  return { workspace: { id: ws, name: p.workspace.name }, active: p.sourceKey || null, items: rows, others: contexts.filter((c) => !listed.has(c.key)) };
+}
+
 /** Work on another data source of the workspace (nothing changes in Fabric). One switch at a time. */
 let switching = Promise.resolve();
 export function switchSource(key) {
