@@ -325,7 +325,8 @@ function planItemCard(s) {
       `The plan reads ${model} as ${it.connected ? `the account saved in "${it.connectionName}"` : 'the account saved in the connection you pick when it opens'}, and that account isn't Contributor or higher in ${wsName}. Fix it either way:`,
       h('ul', { class: 'pre', style: { margin: '6px 0 0' } },
         h('li', {}, 'Give that account access below (Who can plan › Give Contributor access) – it is often your own account, not the one the studio uses.'),
-        h('li', {}, 'Or sign the connection in again with an account that can open the model: ', h('a', { href: 'https://app.fabric.microsoft.com/groups/me/gateways', target: '_blank', rel: 'noopener' }, 'Manage connections and gateways ↗'), ` › "${it.connectionName || 'the connection'}" › Edit credentials.`)))) : null,
+        h('li', {}, 'Or sign the connection in again with an account that can open the model: ', h('a', { href: 'https://app.fabric.microsoft.com/groups/me/gateways', target: '_blank', rel: 'noopener' }, 'Manage connections and gateways ↗'), ` › "${it.connectionName || 'the connection'}" › Edit credentials – or in the plan, Manage Connections › Create Connection.`),
+        h('li', {}, 'The sign-in window for a connection often signs in with your Windows or browser account on its own, even when Fabric shows another one: choose ', h('b', {}, 'Use another account'), ' (or use an InPrivate window with only that account).')))) : null,
     pl ? plannersBox(wsName) : null,
     h('p', { class: 'tiny muted' }, `The studio works as ${me}. Planners need Contributor or higher in ${wsName} (Viewers can look but not plan), and XMLA endpoints enabled for the tenant and set to Read Only or Read Write on the capacity (F SKU or Premium).`),
     job);

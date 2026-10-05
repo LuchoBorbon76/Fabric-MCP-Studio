@@ -39,6 +39,7 @@
     { "date": "2026-10-04", "type": "improvement", "commit": "2c94f9e", "title": "Planning on lakehouses: plan values in a planning warehouse, read by the lakehouse through a OneLake shortcut" },
     { "date": "2026-10-04", "type": "improvement", "commit": "2c94f9e", "title": "Medallion task flow (Bronze, Silver, Gold) for the existing items, from Fabric's predesigned template" },
     { "date": "2026-10-04", "type": "improvement", "commit": "2c94f9e", "title": "GitHub Copilot only in developer mode; Azure AI Foundry / Azure OpenAI is the default AI provider" },
-    { "date": "2026-10-05", "type": "fix", "title": "Fabric plan: Who can plan shows the workspace roles and gives Contributor access; the plan card says which account a plan reads the model as and how to fix it" }
+    { "date": "2026-10-05", "type": "fix", "commit": "f6b85ec", "title": "Fabric plan: Who can plan shows the workspace roles and gives Contributor access; the plan card says which account a plan reads the model as and how to fix it" },
+    { "date": "2026-10-05", "type": "fix", "title": "Plan help: the connection sign-in window may pick your Windows account on its own – choose Use another account" }
   ]
 }
