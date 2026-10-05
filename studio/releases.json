@@ -44,7 +44,8 @@
     { "date": "2026-10-05", "type": "fix", "commit": "ea91800", "title": "Who can plan gives Member access to the account saved in a shared connection (Fabric: DMTS Connection Owner Missing)" },
     { "date": "2026-10-05", "type": "fix", "commit": "310bd54", "title": "Fabric plans connect to the model with the planner's own sign-in (Data › Add › Connect); no deprecated shared connection, and Recreate without a connection for old plans" },
     { "date": "2026-10-05", "type": "improvement", "commit": "69a7dc0", "title": "Remove buttons for every item, disabled while something uses it; Items in this project shows what uses what" },
-    { "date": "2026-10-05", "type": "improvement", "title": "Your own Power BI templates: upload .pbit, .pbix, zipped Power BI projects, report layouts and themes; reports are bound to your semantic model with fields matched by name" },
-    { "date": "2026-10-05", "type": "fix", "title": "Items in this project fits its column: long names wrap, no horizontal scrollbar" }
+    { "date": "2026-10-05", "type": "improvement", "commit": "22ecc90", "title": "Your own Power BI templates: upload .pbit, .pbix, zipped Power BI projects, report layouts and themes; reports are bound to your semantic model with fields matched by name" },
+    { "date": "2026-10-05", "type": "fix", "commit": "22ecc90", "title": "Items in this project fits its column: long names wrap, no horizontal scrollbar" },
+    { "date": "2026-10-05", "type": "fix", "title": "Items in this project no longer touches the Activity button" }
   ]
 }
