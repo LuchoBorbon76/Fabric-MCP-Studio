@@ -80,6 +80,8 @@ export const fmtNum = (n) => (n === null || n === undefined ? '–' : Number(n).
 export const fmtTime = (d) => new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 export const fmtDate = (d) => new Date(d).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 export const initials = (name) => String(name || '?').split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((s) => s[0].toUpperCase()).join('');
+/** An item name that wraps after its underscores and dots (FabricMCP_LH_Curated_SBX), never inside a word. */
+export const breakable = (name) => String(name ?? '').split(/(?<=[_.])/).flatMap((part, i) => (i ? [h('wbr'), part] : [part]));
 
 export function busy(btn, fn) {
   return async (...args) => {

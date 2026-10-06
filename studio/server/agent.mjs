@@ -5,7 +5,7 @@ import { existsSync, readFileSync, mkdirSync } from 'node:fs';
 import { COPILOT_HOME, DATA_DIR, REPO_ROOT, STUDIO_ROOT, getSettings, envApiKey, newId, truncate, readJson, writeJson, isDeveloper } from './config.mjs';
 import { getToken, tokenExpiresOn, SCOPES, whoAmI } from './auth.mjs';
 import { emit } from './events.mjs';
-import { getProject, updateProject, logActivity, assertProjectTenant, projectModels, sourceContexts } from './project.mjs';
+import { getProject, updateProject, logActivity, assertProjectTenant, projectModels, sourceContexts, modelFits } from './project.mjs';
 import { startJob, waitForJob } from './jobs.mjs';
 import * as P from './pipelines.mjs';
 import * as R from './reports/index.mjs';
@@ -608,7 +608,7 @@ function studioTools(chatId) {
           businessRules: await R.currentRecommendations().then((x) => x.rules).catch(() => null),
           themes: R.reportsCatalog().themes.map((t) => `${t.id}: ${t.name} – ${t.description}`),
           yourTemplates: TPL.describeTemplates(),
-          pages: R.reportsCatalog().pages.map((x) => `${x.id}: ${x.name} – ${x.description}`),
+          pages: R.reportsCatalog().pages.map((x) => `${x.id}: ${x.name} – ${x.description}${x.id === 'plan' && !modelFits(getProject()).plan ? ' (not available on this model: no plan on it – the plan lives on the model its Plan table was added to)' : ''}`),
           reports: (getProject().reports || []).map((x) => ({ id: x.id, name: x.name, theme: x.theme, pages: x.pages, url: x.url })),
         };
       },
@@ -845,6 +845,7 @@ function studioTools(chatId) {
           available: s.available, reason: s.reason, templates: s.templates.map((t) => `${t.id}: ${t.name} – ${t.description}`),
           inWorkspace: s.existing.map((f) => `${f.name} (${f.tasks} tasks, ${f.items} items${f.studio ? ', created by the studio' : ''})`), listError: s.listError,
           selected: { choice: s.choice, name: s.plan.name, kind: s.mode === 'existing' ? 'a task flow already in the workspace (only the studio\'s own assignments change)' : 'a predesigned flow the studio builds as its own canvas' },
+          ...(s.requestedNotFound ? { notice: `${s.notice} Tell the user the flow they asked for wasn't found.` } : {}),
           tasks: s.plan.tasks.map((t) => ({ task: t.name, type: t.type, items: t.items.map((i) => `${i.name} (${i.type}${i.pinned ? ', placed in Fabric' : ''})`), otherItems: t.others })),
           notAssigned: s.plan.unassigned.map((i) => `${i.name} (${i.type}): ${i.reason}`),
           applied: s.applied ? { name: s.applied.name, mode: s.applied.mode, items: s.applied.items, syncedAt: s.applied.syncedAt } : null,

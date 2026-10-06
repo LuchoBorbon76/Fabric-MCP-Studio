@@ -1,7 +1,7 @@
 // Remove buttons for everything the project built. An item something still uses can't be removed: its button is
 // disabled and says what uses it (remove those first). The list comes from GET /api/artifacts.
 import { get, post, on } from './api.js';
-import { h, toast, modal } from './ui.js';
+import { h, toast, modal, breakable } from './ui.js';
 import { app } from './app.js';
 
 let cache = null;
@@ -24,8 +24,6 @@ on('project.updated', invalidate);
 on('studio.reset', invalidate);
 
 const usedByText = (list) => list.map((u) => u.name).join(', ');
-// Item names have no spaces: let them wrap after underscores and dots instead of mid-word.
-const breakable = (name) => String(name).split(/(?<=[_.])/).flatMap((part, i) => (i ? [h('wbr'), part] : [part]));
 function usedByCell(list) {
   if (!list.length) return h('span', { class: 'tiny muted' }, '–');
   const shown = list.slice(0, 3);

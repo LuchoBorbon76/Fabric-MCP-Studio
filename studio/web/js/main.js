@@ -428,13 +428,17 @@ const JOB_WORD = { succeeded: 'done', cancelled: 'cancelled', interrupted: 'inte
 
 export function jobCard(job, { compact = false } = {}) {
   const icon = job.status === 'running' ? h('span', { class: 'spin' }) : h('span', { class: 'jicon' }, JOB_ICON[job.status] || '✗');
+  // Fabric's raw answer to a failed call stays folded away; the error above says what went wrong in words.
+  const raw = (job.logLines || []).filter((l) => l.includes('  Details from Fabric: '));
+  const lines = (job.logLines || []).filter((l) => !raw.includes(l));
   const el = h('div', { class: `job ${job.status}${compact ? ' compact' : ''}` },
     h('div', { class: 'jhead' }, icon, h('b', { title: job.title }, job.title), h('span', { class: 'tiny muted' }, job.status === 'running' ? `${job.progress}%` : JOB_WORD[job.status] || job.status)),
     h('div', { class: 'bar' }, h('i', { style: { width: `${job.status === 'running' || job.status === 'succeeded' ? job.progress : Math.max(job.progress, 100)}%` } })),
     compact ? h('div', { class: 'tiny muted jstep', title: job.steps.at(-1)?.label || '' }, job.status === 'interrupted' ? 'Stopped when the studio closed – run it again to finish.' : job.steps.at(-1)?.label || '') : h('div', { class: 'jsteps' }, job.steps.map((s) => h('div', { class: 's' }, statusDot(s.status === 'done' ? 'ok' : s.status === 'failed' ? 'error' : 'running'), s.label))),
     job.error && !compact ? h('div', { class: `banner ${job.status === 'interrupted' ? 'warn' : 'err'} mt` }, job.error) : null,
     job.error && compact && job.status !== 'interrupted' ? h('div', { class: 'tiny jerr', title: job.error }, job.error) : null,
-    !compact && job.logLines?.length ? h('details', { open: job.status === 'failed' || undefined }, h('summary', { class: 'tiny muted' }, `Log (${job.logLines.length})`), h('div', { class: 'jlog' }, job.logLines.slice(-60).join('\n'))) : null,
+    !compact && lines.length ? h('details', { open: job.status === 'failed' || undefined }, h('summary', { class: 'tiny muted' }, `Log (${lines.length})`), h('div', { class: 'jlog' }, lines.slice(-60).join('\n'))) : null,
+    !compact && raw.length ? h('details', {}, h('summary', { class: 'tiny muted' }, 'Details from Fabric'), h('div', { class: 'jlog' }, raw.map((l) => l.replace(/^.*?  Details from Fabric: /, '')).join('\n'))) : null,
     job.status === 'running' && !compact ? h('div', { class: 'row mt' }, h('button', { class: 'btn danger', onclick: () => post(`/jobs/${job.id}/cancel`) }, 'Cancel')) : null);
   return el;
 }

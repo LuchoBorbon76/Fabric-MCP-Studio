@@ -81,6 +81,9 @@ function hasContent(st) {
 /** A label for a data source the project knows. */
 const labelOf = (st, fallback) => st?.source?.label || st?.modelSource?.itemName || fallback || 'Data source';
 
+/** The key of items kept without a data source ('none', or 'none:<id>' when there is more than one such set). */
+export const isNoSource = (key) => /^none(:|$)/.test(String(key || ''));
+
 /** Every data source in the workspace, each as a project view (the active one is the project itself). */
 export function contextViews(p = getProject()) {
   const views = [{ key: p.sourceKey || null, active: true, view: p }];
@@ -136,7 +139,10 @@ export function activateSource(key, { label } = {}) {
   const list = (p.sources || []).map((e) => ({ ...e }));
   const target = list.find((e) => e.key === key && e.state);
   const current = pickState(p);
-  const curKey = p.sourceKey || (target && hasContent(current) ? 'none' : null);
+  let curKey = p.sourceKey || (target && hasContent(current) ? 'none' : null);
+  // Items built without a data source when such a set is already kept: they get a key of their own, so both stay
+  // reachable (switching, listing, clean up and name checks find each one).
+  if (!p.sourceKey && curKey && list.some((e) => e.key === curKey && e.state)) curKey = `none:${Date.now().toString(36)}`;
   if (!curKey && !target) {
     // Nothing to keep apart: the new source starts from what the project has.
     if (!list.some((e) => e.key === key)) list.push({ key, label: label || 'Data source', addedAt: now, savedAt: null, state: null });
@@ -146,7 +152,7 @@ export function activateSource(key, { label } = {}) {
   if (curKey) {
     const i = list.findIndex((e) => e.key === curKey && !e.state);
     if (hasContent(current)) {
-      const entry = { addedAt: now, ...(i >= 0 ? list[i] : { key: curKey }), label: curKey === 'none' ? 'Without a data source' : labelOf(current, list[i]?.label), savedAt: now, state: current };
+      const entry = { addedAt: now, ...(i >= 0 ? list[i] : { key: curKey }), label: isNoSource(curKey) ? 'Without a data source' : labelOf(current, list[i]?.label), savedAt: now, state: current };
       if (i >= 0) list[i] = entry; else list.push(entry);
     } else if (i >= 0) list.splice(i, 1);
   }
@@ -307,6 +313,23 @@ export function modelContext(p, modelId) {
   if (modelId && modelId === p.semanticModel?.id) return Object.fromEntries(MODEL_CONTEXT_KEYS.map((k) => [k, p[k] ?? null]));
   const m = (p.semanticModels || []).find((x) => x.id === modelId);
   return Object.fromEntries(MODEL_CONTEXT_KEYS.map((k) => [k, m?.context?.[k] ?? null]));
+}
+
+/**
+ * What of the data source applies to a semantic model (the active one by default). The plan lives on the model its
+ * Plan table was added to; the ontology's rules and the sample's glossary describe the data they were built from, so
+ * they apply to a model the studio built on that data – not to an existing model or one on another item.
+ */
+export function modelFits(p = getProject(), sm = p.semanticModel) {
+  if (!sm?.id) return { plan: null, ontology: false, preset: false };
+  const studio = sm.origin !== 'existing';
+  const onSource = studio && (!sm.sourceItemId || !p.modelSource?.itemId || sm.sourceItemId === p.modelSource.itemId);
+  const ont = p.ontology;
+  return {
+    plan: p.planning?.spec && (!p.planning.semanticModelId || p.planning.semanticModelId === sm.id) ? p.planning : null,
+    ontology: Boolean(ont) && (ont.sourceItemId && sm.sourceItemId ? studio && sm.sourceItemId === ont.sourceItemId : onSource),
+    preset: onSource,
+  };
 }
 
 /** Change what a model keeps (for the active model: the project itself). */

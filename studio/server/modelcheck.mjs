@@ -409,7 +409,7 @@ export async function runFixDuplicates(ctx, { id, tables } = {}) {
             await run(`TRUNCATE TABLE ${S}.${q(f.entity)}`);
             await run(`INSERT INTO ${S}.${q(f.entity)} SELECT * FROM ${S}.${q(work)}`);
             await run(`DROP TABLE ${S}.${q(work)}`);
-            here.push({ table: f.sourceTable, modelTable: f.table, warehouse: source.itemName, before: f.rows, after: kept, removed: f.rows - kept, backup: `${f.schema}.${backup}` });
+            here.push({ fixKey: f.fixKey, table: f.sourceTable, modelTable: f.table, warehouse: source.itemName, before: f.rows, after: kept, removed: f.rows - kept, backup: `${f.schema}.${backup}` });
           }
           await tx.commit();
         } catch (e) {
@@ -432,11 +432,16 @@ export async function runFixDuplicates(ctx, { id, tables } = {}) {
 
   ctx.step(`Reload ${check.model.name}`);
   // The model must read the fixed tables: until it reloads after the change has reached OneLake, it keeps the copies.
+  // Every model table that reads a fixed warehouse table counts – also a second one on the same table (a role-playing
+  // dimension, marked 'same-table' in the check), which would otherwise look behind for ever.
   const expected = expectedRows(check);
-  for (const f of fixes) {
-    const d = done.find((x) => x.modelTable === f.table && x.table === f.sourceTable);
-    if (d) expected[f.table] = d.after;
-    else delete expected[f.table];
+  const fixed = new Map(done.map((d) => [d.fixKey, d]));
+  const tried = new Set(fixes.map((f) => f.fixKey));
+  for (const r of check.keys) {
+    if (!r.fixKey || !tried.has(r.fixKey)) continue;
+    const d = fixed.get(r.fixKey);
+    if (d) expected[r.table] = d.after;
+    else delete expected[r.table];
   }
   try {
     await reloadUntilCurrent(ctx, { workspaceId: check.model.workspaceId, id: check.model.id, name: check.model.name }, expected, { firstWaitMs: 10000 });

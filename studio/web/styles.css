@@ -278,6 +278,8 @@ img.rpreview{height:auto}
 .ptile{border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--panel);display:flex;flex-direction:column;gap:6px;cursor:pointer;transition:border-color .15s,box-shadow .15s}
 .ptile:hover{border-color:var(--brand)}
 .ptile.on{border-color:var(--brand);box-shadow:0 0 0 1px var(--brand)}
+.ptile.off{opacity:.55;cursor:not-allowed}
+.ptile.off:hover{border-color:var(--line)}
 .lthumb{position:relative;width:100%;aspect-ratio:16/9;border-radius:8px;overflow:hidden;border:1px solid var(--line)}
 .lthumb .lt{position:absolute;border-radius:3px;box-shadow:0 0 0 1px rgba(0,0,0,.06)}
 .lthumb .lt.band{border-radius:0;box-shadow:none}
@@ -618,6 +620,7 @@ table.t.mtable td a:hover{text-decoration:underline}
 .tfmove:focus{max-width:220px;color:var(--ink);background:var(--panel)}
 /* Data sources of the workspace (pop-up) */
 table.t.stable td{vertical-align:top;overflow-wrap:anywhere}
+table.t.stable td:first-child{min-width:180px;overflow-wrap:break-word}
 table.t.stable td.act{white-space:nowrap;text-align:right}
 .srcline{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 0}
 .srcline+.srcline{border-top:1px dashed var(--line)}

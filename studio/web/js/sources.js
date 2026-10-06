@@ -2,7 +2,7 @@
 // data. One is active – the map and every page show what was built from it, and parts not built for it yet stay grey.
 // Switching changes nothing in Fabric.
 import { store, get, post, on } from './api.js';
-import { h, toast, busy, modal, fmtDate } from './ui.js';
+import { h, toast, busy, modal, fmtDate, breakable } from './ui.js';
 import { app } from './app.js';
 
 const HOW = { files: 'Loaded into a lakehouse', 'sql-database': 'Fabric SQL database', mirror: 'Mirrored', shortcut: 'OneLake shortcuts', 'in-place': 'Used in place' };
@@ -38,8 +38,8 @@ function contextLine(x, close) {
   const built = builtText(x).filter((t) => t !== x.data?.name);
   return h('div', { class: 'srcline' },
     h('div', { style: { minWidth: 0 } },
-      h('div', { class: 'row', style: { gap: '6px' } }, h('span', { class: 'small' }, x.label), x.active ? h('span', { class: 'pill ok' }, 'Active') : null),
-      h('div', { class: 'tiny muted' }, [HOW[x.method] || (x.kind === 'sample' ? 'Sample data' : x.key === 'none' ? 'Items built without a data source' : 'Data source'), built.length ? built.join(' · ') : 'nothing built yet', x.active || !x.savedAt ? null : `last used ${fmtDate(x.savedAt)}`].filter(Boolean).join(' · '))),
+      h('div', { class: 'row', style: { gap: '6px' } }, h('span', { class: 'small' }, breakable(x.label)), x.active ? h('span', { class: 'pill ok' }, 'Active') : null),
+      h('div', { class: 'tiny muted' }, [HOW[x.method] || (x.kind === 'sample' ? 'Sample data' : x.key === 'none' || String(x.key).startsWith('none:') ? 'Items built without a data source' : 'Data source'), built.length ? built.join(' · ') : 'nothing built yet', x.active || !x.savedAt ? null : `last used ${fmtDate(x.savedAt)}`].filter(Boolean).join(' · '))),
     x.active ? null : use);
 }
 
@@ -67,13 +67,13 @@ export function sourcesDialog() {
         close();
       }));
       t.append(h('tr', { class: active ? 'sel' : '' },
-        h('td', {}, h('b', {}, it.name), h('div', { class: 'tiny muted' }, ITEM_LABEL[it.itemType] || it.itemType)),
+        h('td', {}, h('b', {}, breakable(it.name)), h('div', { class: 'tiny muted' }, ITEM_LABEL[it.itemType] || it.itemType)),
         h('td', {}, it.sources.length ? it.sources.map((x) => contextLine(x, close)) : h('span', { class: 'tiny muted' }, 'Not used yet')),
         h('td', { class: 'act' }, it.sources.length ? null : useItem)));
     }
     for (const x of s.others) {
       t.append(h('tr', { class: x.active ? 'sel' : '' },
-        h('td', {}, h('b', {}, x.data?.name || x.label), h('div', { class: 'tiny muted' }, x.data ? `${ITEM_LABEL[x.data.itemType] || x.data.itemType} in another workspace` : 'Not connected yet')),
+        h('td', {}, h('b', {}, breakable(x.data?.name || x.label)), h('div', { class: 'tiny muted' }, x.data ? `${ITEM_LABEL[x.data.itemType] || x.data.itemType} in another workspace` : 'Not connected yet')),
         h('td', {}, contextLine(x, close)),
         h('td', { class: 'act' })));
     }

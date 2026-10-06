@@ -30,6 +30,7 @@ function statePill(n) {
   if (n.state === 'running') return h('span', { class: 'pill brand' }, h('span', { class: 'spin' }), 'Working…');
   if (n.flag === 'blocked' && !n.done) return h('span', { class: 'pill err' }, 'Can\'t run right now');
   if (n.state === 'failed') return h('span', { class: 'pill err' }, 'Last run didn\'t finish');
+  if (n.done && n.warn) return h('span', { class: 'pill warn' }, 'Configured · last change didn\'t finish');
   if (n.done) return h('span', { class: `pill ${n.flag === 'blocked' ? 'warn' : 'ok'}` }, n.flag === 'blocked' ? 'Configured · changes paused' : '✓ Configured');
   if (n.flag === 'limited') return h('span', { class: 'pill warn' }, 'Ready · with limits');
   if (n.state === 'available') return h('span', { class: 'pill brand' }, 'Ready to set up');
@@ -89,7 +90,8 @@ function inspector(g, n) {
 
   const why = n.reason && (n.flag === 'blocked' || n.flag === 'limited')
     ? h('div', { class: `banner ${n.flag === 'blocked' ? 'err' : 'warn'} mt`, style: { marginBottom: 0 } }, h('div', {}, h('b', {}, n.reason.text), n.reason.fix ? h('div', { class: 'tiny muted' }, n.reason.fix) : null))
-    : n.state === 'failed' ? h('div', { class: 'banner err mt', style: { marginBottom: 0 } }, h('div', {}, h('b', {}, 'The last run didn\'t finish. '), n.error || '')) : null;
+    : n.state === 'failed' ? h('div', { class: 'banner err mt', style: { marginBottom: 0 } }, h('div', {}, h('b', {}, 'The last run didn\'t finish. '), n.error || ''))
+      : n.done && n.warn ? h('div', { class: 'banner warn mt', style: { marginBottom: 0 } }, h('div', {}, h('b', {}, `"${n.warn.title}" didn't finish – it works as it did before. `), n.warn.error, h('div', { class: 'tiny muted' }, 'Run it again from its page, or ask Copilot what went wrong.'))) : null;
 
   const insp = h('section', { class: `insp ${n.state}`, 'aria-live': 'polite' }, head, h('div', { class: 'ibody' }, h('div', { class: 'ileft' }, left), deps, acts), why);
   return tint(insp, n.cat);

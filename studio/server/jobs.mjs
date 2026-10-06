@@ -104,8 +104,10 @@ export function startJob(kind, title, fn, { meta = {} } = {}) {
     } catch (e) {
       for (const s of job.steps) if (s.status === 'running') s.status = 'failed';
       job.status = job.controller.signal.aborted ? 'cancelled' : 'failed';
-      job.error = e?.message || String(e);
+      job.error = plainError(e?.message || String(e));
       ctx.log(`ERROR: ${job.error}`);
+      // What Fabric answered, as it came: in the job's log (folded away in the job card), not in the message.
+      if (e?.body && typeof e.body === 'object') ctx.log(`Details from Fabric: ${JSON.stringify(e.body).slice(0, 4000)}`);
       logActivity('job.failed', title, { jobId: job.id, error: job.error });
     } finally {
       job.endedAt = new Date().toISOString();
@@ -114,6 +116,16 @@ export function startJob(kind, title, fn, { meta = {} } = {}) {
   })();
 
   return publicJob(job);
+}
+
+/**
+ * A failed Fabric call in words for people: "POST /workspaces/…/updateDefinition failed (400): …" becomes "Fabric
+ * didn't accept the change (400): …". The request itself isn't needed to understand what went wrong.
+ */
+export function plainError(msg) {
+  const m = String(msg ?? '').match(/^(GET|POST|PUT|PATCH|DELETE) \S+ failed \((\d{3})\): ([\s\S]*)$/);
+  if (!m) return String(msg ?? '');
+  return `Fabric ${m[1] === 'GET' ? 'couldn\'t return what the studio asked for' : 'didn\'t accept the change'} (${m[2]}): ${m[3]}`;
 }
 
 export function cancelJob(id) {

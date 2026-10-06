@@ -1,7 +1,7 @@
 // Prompt suggestions for the chat, grouped by what the project has: questions that use the actual measures,
 // dimensions and years of the semantic model (from the report profile), the reports, ontology rules, live data, the
 // plan, the data source and the data prep notebook – plus the next build step. Read-only.
-import { getProject } from './project.mjs';
+import { getProject, modelFits } from './project.mjs';
 import { presetFor } from './presets.mjs';
 import { currentProfile } from './reports/index.mjs';
 
@@ -116,8 +116,7 @@ function livePrompts(p) {
   return { id: 'live', title: 'Live data', prompts };
 }
 
-function planPrompts(p) {
-  const pl = p.planning;
+function planPrompts(pl) {
   if (!pl) return null;
   const dim = pl.dims?.[0]?.labelText;
   return { id: 'plan', title: 'Plan vs actual', prompts: [
@@ -176,12 +175,14 @@ function nextPrompts(p, preset) {
  */
 export async function promptSuggestions() {
   const p = getProject();
-  const preset = presetFor(p);
+  // The sample's questions, the ontology's rules and the plan only for the model they belong to.
+  const fit = modelFits(p);
+  const preset = fit.preset ? presetFor(p) : null;
   const ask = [];
   if (p.semanticModel) {
     const pr = await profileOrNull(p);
     ask.push(...modelPrompts(p, pr, preset));
-    for (const g of [reportPrompts(p, pr), rulePrompts(p), planPrompts(p), livePrompts(p)]) if (g) ask.push(g);
+    for (const g of [reportPrompts(p, pr), fit.ontology ? rulePrompts(p) : null, planPrompts(fit.plan), livePrompts(p)]) if (g) ask.push(g);
   } else if (p.realtime) {
     ask.push(livePrompts(p));
   }

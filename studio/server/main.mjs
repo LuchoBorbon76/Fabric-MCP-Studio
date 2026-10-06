@@ -71,13 +71,18 @@ if (flag('--check')) {
 const INSTANCE = shortHash(DATA_DIR.toLowerCase());
 const RUNTIME_FILE = join(DATA_DIR, 'runtime.json');
 
-// Started by "Restart" in the app: wait until the copy that started this one has stopped and freed its port.
+// Started by "Restart" in the app: tell the copy that started this one that it runs (it stops only then, so a copy
+// that can't start never leaves the studio down), then wait until it has stopped and freed its port.
 const restartOf = Number(opt('--restart-of', 0));
 if (restartOf) {
-  for (let i = 0; i < 100; i++) {
-    try { process.kill(restartOf, 0); } catch { break; }
+  try { writeFileSync(join(DATA_DIR, `restart-${restartOf}.ready`), String(process.pid)); } catch { /* read-only data folder */ }
+  let gone = false;
+  for (let i = 0; i < 400 && !gone; i++) {
+    try { process.kill(restartOf, 0); } catch { gone = true; break; }
     await new Promise((r) => setTimeout(r, 150));
   }
+  // Still running after a minute: it kept the port (the restart was cancelled) – never start a second copy next to it.
+  if (!gone) { console.error(`The studio that started this copy (process ${restartOf}) is still running; this copy stops.`); process.exit(1); }
 }
 
 async function runningInstanceUrl() {
@@ -364,12 +369,22 @@ route('POST', '/api/restart', async () => {
     if (args[i] !== '--no-open') keep.push(args[i]);
   }
   const serverArgs = [fileURLToPath(import.meta.url), ...keep, '--no-open', '--port', String(PORT), '--restart-of', String(process.pid)];
+  const ready = join(DATA_DIR, `restart-${process.pid}.ready`);
+  rmSync(ready, { force: true });
   if (process.platform === 'win32') await startHidden(serverArgs);
   else {
     let out = 'ignore';
     try { out = openSync(join(DATA_DIR, 'studio.log'), 'a'); } catch { /* read-only data folder */ }
     spawn(process.execPath, serverArgs, { cwd: STUDIO_ROOT, env: process.env, detached: true, stdio: ['ignore', out, out] }).unref();
   }
+  // Stop only once the new copy has loaded (its code and modules work); otherwise keep running and say why.
+  const t0 = Date.now();
+  while (!existsSync(ready) && Date.now() - t0 < 45000) await new Promise((r) => setTimeout(r, 250));
+  if (!existsSync(ready)) {
+    logActivity('studio.restart', 'The new copy of Fabric MCP Studio didn\'t start, so this one keeps running', {});
+    throw Object.assign(new Error(`The new copy of the studio didn't start within 45 seconds, so this one keeps running. See ${join(DATA_DIR, 'studio.log')}, or shut the studio down and start it again from the desktop shortcut.`), { status: 500, code: 'RESTART_FAILED' });
+  }
+  rmSync(ready, { force: true });
   logActivity('studio.restart', `Restarting Fabric MCP Studio${pendingUpdate() ? ` to update from ${VERSION} to ${pendingUpdate().onDisk}` : ''}`, {});
   RT.stopLiveEvents();
   setTimeout(async () => { await A.stopAgent(); process.exit(0); }, 300);
@@ -386,8 +401,11 @@ function startHidden(serverArgs) {
   const q = (s) => `"${String(s).replace(/"/g, '')}"`;
   const pct = (s) => s.replace(/%/g, '%%');
   const launcher = join(DATA_DIR, 'restart-studio.cmd');
+  // cmd.exe reads a batch file in the console's code page: switch it to UTF-8 first, so paths such as C:\Users\José
+  // survive. The file itself is written as UTF-8.
   writeFileSync(launcher, [
     '@echo off',
+    'chcp 65001 >nul',
     `cd /d ${pct(q(STUDIO_ROOT))}`,
     `${pct(q(process.execPath))} ${serverArgs.map((a) => pct(q(a))).join(' ')} >> ${pct(q(join(DATA_DIR, 'studio.log')))} 2>&1`,
     '',
@@ -407,7 +425,15 @@ function startHidden(serverArgs) {
 
 // ---------------- server ----------------
 
+// Only this computer's own names for the studio: a web page whose name was rebound to 127.0.0.1 (DNS rebinding) sends
+// its own name in Host and never gets the page (with the token) or the API.
+const ownHosts = () => new Set([`127.0.0.1:${PORT}`, `localhost:${PORT}`, ...(PORT === 80 ? ['127.0.0.1', 'localhost'] : [])]);
+const ownOrigin = (origin) => { try { return ownHosts().has(new URL(origin).host.toLowerCase()); } catch { return false; } };
+
 const server = createServer(async (req, res) => {
+  if (!ownHosts().has(String(req.headers.host || '').toLowerCase())) return send(res, 403, `Forbidden: open the studio at http://127.0.0.1:${PORT}/`);
+  // Changes come only from the studio's own pages (every API call needs the token as well).
+  if (!['GET', 'HEAD'].includes(req.method) && req.headers.origin && !ownOrigin(req.headers.origin)) return send(res, 403, { error: 'Forbidden' });
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const { pathname } = url;
   try {

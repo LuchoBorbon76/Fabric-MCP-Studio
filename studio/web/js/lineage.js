@@ -104,7 +104,11 @@ function describe(id, s) {
   const ms = p.modelSource;
   const sm = p.semanticModel;
   const ont = p.ontology;
-  const reports = p.reports || [];
+  // Reports on the active model (reports from before models were tracked count as its own); the rest are on the
+  // project's other models.
+  const builtReports = p.reports || [];
+  const reports = builtReports.filter((r) => !r.semanticModelId || r.semanticModelId === sm?.id);
+  const elsewhere = builtReports.length - reports.length;
   // Reports and data agents built on the model in Fabric (found by the studio, never changed by it).
   const theirReports = (sm?.linked?.reports || []).filter((r) => !reports.some((x) => x.id === r.id));
   const allReports = [...reports, ...theirReports.map((r) => ({ ...r, existing: true }))];
@@ -161,14 +165,18 @@ function describe(id, s) {
         facts: [['Entities', (ont.entities || []).slice(0, 8).join(', ') + ((ont.entities || []).length > 8 ? '…' : '')], ['Business rules', (ont.rules || []).length], ['Live properties', rt?.ontology ? `${plural(rt.ontology.entities?.length || 0, 'entity').replace('entitys', 'entities')} linked to live events` : 'Not connected']],
       };
     case 'reports': {
-      if (!allReports.length) return { done: false, avail: Boolean(sm), needs: 'Needs the semantic model', title: 'Not built', sub: 'Templates and themes' };
+      const others = elsewhere ? [['On other models', `${plural(elsewhere, 'report')} – switch the semantic model to see ${elsewhere === 1 ? 'it' : 'them'}`]] : [];
+      if (!allReports.length) return { done: false, avail: Boolean(sm), needs: 'Needs the semantic model', title: elsewhere ? 'Not built on this model' : 'Not built', sub: elsewhere ? `${plural(elsewhere, 'report')} on other models` : 'Templates and themes', facts: others.length ? others : undefined };
       const extra = allReports.length > 6 ? [['More', `${allReports.length - 6} more – Reports & apps`]] : [];
-      const sub = reports.length ? shortName(reports[0].name, sm?.name) : `Existing · ${shortName(theirReports[0].name, sm?.name)}`;
-      return { done: true, title: plural(allReports.length, 'report'), sub, url: allReports.length === 1 ? allReports[0].url : null, facts: [...allReports.slice(0, 6).map((r) => [r.existing ? 'Existing report' : 'Report', shortName(r.name, sm?.name), r.url]), ...extra] };
+      const sub = `${reports.length ? shortName(reports[0].name, sm?.name) : `Existing · ${shortName(theirReports[0].name, sm?.name)}`}${elsewhere ? ` · +${elsewhere} on other models` : ''}`;
+      return { done: true, title: plural(allReports.length, 'report'), sub, url: allReports.length === 1 ? allReports[0].url : null, facts: [...allReports.slice(0, 6).map((r) => [r.existing ? 'Existing report' : 'Report', shortName(r.name, sm?.name), r.url]), ...extra, ...others] };
     }
-    case 'orgapp':
+    case 'orgapp': {
       if (!p.orgApp) return { done: false, avail: reports.length > 0, needs: theirReports.length ? 'Needs a report built by the studio' : 'Needs a report', title: 'Not published', sub: 'Bundle your reports' };
-      return { done: true, title: p.orgApp.name, sub: plural(p.orgApp.reports?.length || 0, 'report'), url: p.orgApp.url, facts: [['Reports', p.orgApp.reports?.length || 0], ['Built', when(p.orgApp.builtAt)]] };
+      const inApp = new Set((p.orgApp.reports || []).map((r) => r.id || r));
+      const missing = reports.filter((r) => !inApp.has(r.id));
+      return { done: true, title: p.orgApp.name, sub: `${plural(p.orgApp.reports?.length || 0, 'report')}${missing.length ? ` · ${missing.length} not in it yet` : ''}`, url: p.orgApp.url, facts: [['Reports', p.orgApp.reports?.length || 0], missing.length ? ['Not in the app yet', `${missing.map((r) => shortName(r.name, sm?.name)).join(', ')} – update the app on Reports & apps`] : null, ['Built', when(p.orgApp.builtAt)]].filter(Boolean) };
+    }
     case 'planning':
       if (!pl) return { done: false, avail: Boolean(sm), needs: 'Needs the semantic model', title: 'No plan', sub: 'From your actuals' };
       return {
@@ -247,6 +255,9 @@ export function buildGraph(s = store) {
     const last = jobs.find((j) => JOB_NODES[j.kind]?.includes(d.id));
     if (job || (cleaning && n.done)) { n.state = 'running'; n.job = job || running.find((j) => j.kind === 'teardown'); }
     else if (!n.done && last && ['failed', 'interrupted'].includes(last.status)) { n.state = 'failed'; n.error = last.error || 'The last run didn\'t finish.'; n.job = last; }
+    // Configured, but the last change to it failed (for example binding live events to the ontology): the part works
+    // as it was before that change, and the map says so instead of showing it as fine.
+    else if (n.done && last && last.kind !== 'model-links' && ['failed', 'interrupted'].includes(last.status)) { n.warn = { error: last.error || 'The last change didn\'t finish.', title: last.title }; n.job = last; }
     const m = mods[d.module];
     if (m && n.state !== 'off' && (m.status === 'blocked' || m.status === 'limited')) { n.flag = m.status; n.reason = firstReason(m); }
     n.status = statusText(n);
@@ -297,6 +308,7 @@ function statusText(n) {
   if (n.state === 'running') return n.job?.kind === 'teardown' ? 'Being deleted…' : `Working… ${n.job?.steps?.at(-1)?.label || ''}`.trim();
   if (n.flag === 'blocked' && !n.done) return `Can't run right now: ${n.reason?.text || ''}`;
   if (n.state === 'failed') return 'The last run didn\'t finish';
+  if (n.state === 'done' && n.warn) return `Configured · "${n.warn.title}" didn't finish`;
   if (n.state === 'done') return n.flag === 'blocked' ? 'Configured · changes paused' : 'Configured';
   if (n.state === 'available') return 'Ready to set up';
   return n.needs || 'Not available yet';
@@ -444,6 +456,7 @@ export function mountMap(root, { onNode, onTab, opensOnDouble }) {
     if (n.state === 'failed') return h('span', { class: 'lbadge err' }, '!');
     if (n.live) return h('span', { class: 'lbadge live' }, 'Live');
     if (n.next) return h('span', { class: 'lbadge next' }, 'Next');
+    if (n.done && n.warn) return h('span', { class: 'lbadge warn', title: n.status }, '!');
     if (n.done) return h('span', { class: `lbadge ${n.flag === 'blocked' ? 'err' : 'ok'}` }, n.flag === 'blocked' ? '!' : '✓');
     if (n.flag === 'limited') return h('span', { class: 'lbadge warn' }, '!');
     return null;
@@ -605,7 +618,7 @@ export function mountMap(root, { onNode, onTab, opensOnDouble }) {
       h('div', { class: 'lhty' }, n.type),
       h('b', {}, n.title),
       n.sub && n.state !== 'off' ? h('div', { class: 'muted' }, n.sub) : null,
-      h('div', { class: `lhst ${n.state} ${n.flag || ''}` }, h('i'), n.status),
+      h('div', { class: `lhst ${n.state} ${n.flag || (n.warn ? 'limited' : '')}` }, h('i'), n.status),
       h('div', { class: 'tiny muted' }, `Select to open ${VIEW_LABEL[n.view]}`));
     const r = el.getBoundingClientRect();
     hover.classList.add('on');

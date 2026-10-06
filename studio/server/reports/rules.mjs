@@ -3,6 +3,7 @@
 // missing from the semantic model become report-level measures in the generated report.
 import { presetFor } from '../presets.mjs';
 import { dax } from '../powerbi.mjs';
+import { modelFits } from '../project.mjs';
 
 const words = (s) => String(s).replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2 && !['the', 'and', 'for', 'with', 'rule', 'rules'].includes(w));
 const humanRule = (name) => String(name).replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (c) => c.toUpperCase());
@@ -12,11 +13,15 @@ const humanRule = (name) => String(name).replace(/([a-z])([A-Z])/g, '$1 $2').rep
  * measures to add ({ table, name, dataType, expression, formatString, displayFolder, description }).
  */
 export function ruleSet(profile, project) {
-  const preset = presetFor(project);
+  // The ontology's and the sample's rules only for a model built on their data; any model's own rule measures count.
+  const fit = modelFits(project);
+  const preset = fit.preset ? presetFor(project) : null;
+  const ont = fit.ontology ? project.ontology : null;
   const statements = new Map();
   for (const r of preset?.ontology?.rules || []) statements.set(r.name, r.statement);
-  for (const r of project.ontology?.ruleDetails || []) statements.set(r.name, r.statement);
-  const names = project.ontology?.rules?.length ? project.ontology.rules : [...statements.keys()];
+  for (const r of ont?.ruleDetails || []) statements.set(r.name, r.statement);
+  // One entry per rule, whichever list (the ontology's or the sample's) names it.
+  const names = [...new Map((ont?.rules?.length ? ont.rules : [...statements.keys()]).map((n) => [String(n).toLowerCase(), n])).values()];
   const inModel = new Map(profile.measures.map((m) => [`${m.table}|${m.name}`.toLowerCase(), m]));
   const presetMeasures = new Map((preset?.measures || []).map((m) => [`${m.table}|${m.name}`.toLowerCase(), m]));
   const extensions = [];
@@ -51,7 +56,7 @@ export function ruleSet(profile, project) {
   for (const m of profile.measures.filter((x) => /rule/i.test(x.displayFolder) && !used.has(`${x.table}|${x.name}`.toLowerCase()))) {
     rules.push({ name: m.name, label: m.name, statement: m.description || '', metrics: [{ ref: m, type: m.percent ? 'ratio' : 'count', kind: 'violation' }] });
   }
-  return { rules: rules.filter((r) => r.metrics.length || r.statement), extensions, source: project.ontology?.name || (preset ? 'sample glossary' : 'semantic model') };
+  return { rules: rules.filter((r) => r.metrics.length || r.statement), extensions, source: ont?.name || (preset ? 'sample glossary' : 'semantic model') };
 }
 
 /** Current values of the rule measures (report-level ones defined inline), for recommendations and the UI. */

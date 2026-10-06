@@ -4,7 +4,7 @@ import { join, basename, extname } from 'node:path';
 import { spawn } from 'node:child_process';
 import { REPO_ROOT, sleep, stableUuid, newId } from './config.mjs';
 import * as F from './fabric.mjs';
-import { getProject, updateProject, setStep, recordArtifact, logActivity, assertProjectTenant, projectModels, modelContext, sourceKeyOf, activateSource, contextViews, sourceContexts, blankSourcesPatch, dropEmptySource } from './project.mjs';
+import { getProject, updateProject, setStep, recordArtifact, logActivity, assertProjectTenant, projectModels, modelContext, sourceKeyOf, activateSource, contextViews, sourceContexts, blankSourcesPatch, dropEmptySource, isNoSource } from './project.mjs';
 import { listJobs } from './jobs.mjs';
 import { discoverSqlServer, testSqlServer, readOnlyQuery, withPool } from './sql.mjs';
 import { discoverPostgres, testPostgres } from './pg.mjs';
@@ -191,7 +191,7 @@ async function doSwitchSource(key) {
     }
   }
   const now = getProject();
-  logActivity('source.switch', `Working on ${now.source?.label || entry.label || 'another data source'}${r.previous && r.previous !== 'none' ? ' (the previous data source keeps its items)' : ''}`, { key, from: r.previous || null });
+  logActivity('source.switch', `Working on ${now.source?.label || entry.label || 'another data source'}${r.previous && !isNoSource(r.previous) ? ' (the previous data source keeps its items)' : ''}`, { key, from: r.previous || null });
   return sourcesState();
 }
 

@@ -9,6 +9,35 @@ export class FabricError extends Error {
   constructor(message, status, body) { super(message); this.status = status; this.body = body; }
 }
 
+/**
+ * Fabric validation errors ("… Issues: [{"Code","Message","JsonPath",…}]") in plain words: one sentence per kind of
+ * issue, with what else it applies to. Other messages are returned as they are; the raw response stays in .body.
+ */
+export function plainFabricMessage(msg) {
+  const s = String(msg ?? '');
+  const m = s.match(/^([\s\S]*?)\s*Issues:\s*(\[[\s\S]*\])\s*\.?\s*$/);
+  if (!m) return s;
+  let issues;
+  try { issues = JSON.parse(m[2]); } catch { return s; }
+  if (!Array.isArray(issues) || !issues.length) return s;
+  const groups = new Map();
+  for (const i of issues) {
+    const text = String(i?.Message || i?.message || i?.Code || i?.code || '').replace(/\s+/g, ' ').trim();
+    if (!text) continue;
+    const code = i?.Code || i?.code || text;
+    if (!groups.has(code)) groups.set(code, []);
+    groups.get(code).push(text);
+  }
+  const firstSentence = (t) => (t.match(/^[\s\S]*?[.!?](?=\s|$)/) || [t])[0];
+  const parts = [...groups.values()].map((texts) => {
+    const more = texts.slice(1).map((t) => (t.match(/'([^']+)'/) || [])[1]).filter(Boolean);
+    const extra = texts.length > 1 ? ` ${texts.length - 1} more like it${more.length ? ` (${[...new Set(more)].slice(0, 8).join(', ')})` : ''}.` : '';
+    return `${firstSentence(texts[0])}${extra}`;
+  });
+  const head = m[1].replace(/\s*for artifact [0-9a-f-]{36}/i, '').replace(/[.:\s]+$/, '');
+  return `${head}: ${parts.join(' ')}`;
+}
+
 export async function fabric(method, path, body, { raw = false, signal, lroTimeoutMs = 15 * 60 * 1000, wait = true } = {}) {
   const url = path.startsWith('http') ? path : `${API}${path}`;
   for (let attempt = 1; attempt <= 6; attempt++) {
@@ -36,7 +65,7 @@ export async function fabric(method, path, body, { raw = false, signal, lroTimeo
     let json = null;
     try { json = text ? JSON.parse(text) : null; } catch { json = text; }
     if (!res.ok) {
-      const msg = json?.message || json?.error?.message || text || res.statusText;
+      const msg = plainFabricMessage(json?.message || json?.error?.message || text || res.statusText);
       throw new FabricError(`${method} ${path} failed (${res.status}): ${msg}`, res.status, json);
     }
     return raw ? { status: res.status, body: json, headers: res.headers } : json;
@@ -72,7 +101,7 @@ async function waitOperation(res, { signal, timeoutMs }) {
       return state;
     }
     if (status === 'Failed' || status === 'Cancelled') {
-      throw new FabricError(`Operation ${status}: ${state.error?.message || text}`, 0, state);
+      throw new FabricError(`Operation ${status}: ${plainFabricMessage(state.error?.message || text)}`, 0, state);
     }
     delay = Math.min(15, delay + 2);
   }

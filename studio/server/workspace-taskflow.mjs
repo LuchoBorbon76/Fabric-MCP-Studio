@@ -374,8 +374,13 @@ export async function taskFlowState({ choice, overrides, fresh = false } = {}) {
   const { list, error } = await workspaceFlows(p.workspace.id, { fresh });
   const flows = list || [];
   let sel = parseChoice(choice, p, flows);
-  // The applied flow was deleted in Fabric (or the flows couldn't be read): show Medallion instead of failing.
-  if (sel.mode === 'existing' && !flows.some((f) => f.id === sel.id)) sel = { mode: 'template', id: 'medallion' };
+  // The applied flow was deleted in Fabric (or the flows couldn't be read): show Medallion instead of failing – and
+  // say so, so the UI and Copilot don't present Medallion as the flow that was asked for.
+  let notFound = null;
+  if (sel.mode === 'existing' && !flows.some((f) => f.id === sel.id)) {
+    notFound = { id: sel.id, name: p.taskFlow?.mode === 'existing' && p.taskFlow.id === sel.id ? p.taskFlow.name : null, reason: error ? 'The workspace\'s task flows couldn\'t be read' : 'That task flow is no longer in the workspace' };
+    sel = { mode: 'template', id: 'medallion' };
+  }
   const ov = overrides || (sameChoice(p.taskFlow, sel) ? p.taskFlow.overrides : null) || {};
   const plan = await planFor(sel, p, flows, ov);
   const applied = p.taskFlow?.id ? { ...p.taskFlow, url: taskFlowUrl(p.workspace.id), exists: flows.some((f) => f.id === p.taskFlow.id) || Boolean(error) } : null;
@@ -389,6 +394,8 @@ export async function taskFlowState({ choice, overrides, fresh = false } = {}) {
     listError: error,
     choice: sel.mode === 'template' ? `template:${sel.id}` : `existing:${sel.id}`,
     mode: sel.mode,
+    requestedNotFound: Boolean(notFound),
+    notice: notFound ? `${notFound.reason}${notFound.name ? ` ("${notFound.name}")` : ''} – showing Medallion instead.` : null,
     plan: {
       name: plan.name, description: plan.description, mode: sel.mode, template: plan.template ? summary(plan.template) : null,
       tasks: plan.tasks.map(({ roles, ...t }) => ({ ...t, takes: roles.map((r) => ROLE_LABEL[r] || r), items: t.items.map((i) => ({ ...view(i), pinned: plan.pinned.has(i.id) })) })),

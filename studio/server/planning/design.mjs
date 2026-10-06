@@ -66,7 +66,9 @@ export async function planningModel(ws, sm) {
 /** Pick the most readable label column of a dimension: the most detailed text column (one value per key, if any). */
 async function labelColumn(ws, sm, dim) {
   const cols = dim.columns.slice(0, 20);
-  const row = (await dax(ws, sm, `EVALUATE ROW ( "k", COUNTROWS ( VALUES ( ${cRef(dim.table, dim.key)} ) ), ${cols.map((c, i) => `"c${i}", COUNTROWS ( VALUES ( ${cRef(dim.table, c.name)} ) )`).join(', ')} )`))[0] || {};
+  // Members without the blank row (the one the model adds for facts whose key isn't in the dimension): the plan has
+  // no row for it, so it isn't counted.
+  const row = (await dax(ws, sm, `EVALUATE ROW ( "k", DISTINCTCOUNTNOBLANK ( ${cRef(dim.table, dim.key)} ), ${cols.map((c, i) => `"c${i}", DISTINCTCOUNTNOBLANK ( ${cRef(dim.table, c.name)} )`).join(', ')} )`))[0] || {};
   const k = Number(row.k) || 0;
   const scored = cols.map((c, i) => ({ ...c, n: Number(row[`c${i}`]) || 0 })).filter((c) => c.n > 1);
   const pref = (c) => (/name$|region|territory|category|segment|country|store|channel/i.test(c.name) ? 1 : 0);

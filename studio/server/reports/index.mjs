@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { DATA_DIR } from '../config.mjs';
 import * as F from '../fabric.mjs';
 import { exportReport } from '../powerbi.mjs';
-import { getProject, updateProject, setStep, recordArtifact, assertProjectTenant, modelWorkspaceId } from '../project.mjs';
+import { getProject, updateProject, setStep, recordArtifact, assertProjectTenant, modelWorkspaceId, contextViews, modelFits } from '../project.mjs';
 import { profileModel } from './profile.mjs';
 import { allThemes, themeById } from './themes.mjs';
 import { PAGE_TEMPLATES, buildReportPages } from './templates.mjs';
@@ -58,6 +58,13 @@ export async function currentRecommendations({ refresh = false } = {}) {
 
 const PAGE_IDS = PAGE_TEMPLATES.map((x) => x.id);
 
+/** Page ids as given ("executive, geo" in one string included), and the ones the studio doesn't know. */
+function pageList(pages) {
+  const ids = (Array.isArray(pages) ? pages : pages ? [pages] : []).flatMap((x) => String(x).split(/[\s,;]+/)).map((x) => x.trim().toLowerCase()).filter(Boolean);
+  const list = [...new Set(ids)];
+  return { known: list.filter((x) => PAGE_IDS.includes(x)), unknown: list.filter((x) => !PAGE_IDS.includes(x)) };
+}
+
 /** A report built before keeps its name (so it is updated, not duplicated); a new one follows the naming standard. */
 export function reportNameFor(p, name, purpose) {
   const known = (p.reports || []).map((r) => r.name);
@@ -69,9 +76,14 @@ export function reportNameFor(p, name, purpose) {
 /** Keep Copilot's suggested report design so the user can review and apply it. Nothing changes in Fabric. */
 export async function proposeReport({ name, theme, pages, audience, summary }, { chatId = null } = {}) {
   const p = requireModel();
-  const pg = (pages || []).filter((x) => PAGE_IDS.includes(x));
+  const { known, unknown } = pageList(pages);
   const warnings = [];
-  if (pages?.length && pg.length < pages.length) warnings.push(`Unknown pages left out: ${pages.filter((x) => !PAGE_IDS.includes(x)).join(', ')}.`);
+  if (unknown.length) warnings.push(`Unknown pages left out: ${unknown.join(', ')}.`);
+  let pg = known;
+  if (pg.includes('plan') && !modelFits(p).plan) {
+    pg = pg.filter((x) => x !== 'plan');
+    warnings.push(`The Plan vs actual page was left out: ${p.planning ? 'the plan is on another semantic model' : 'there is no plan yet (Planning tab)'}.`);
+  }
   const themeIds = allThemes().map((t) => t.id);
   if (theme && !themeIds.includes(theme)) warnings.push(`Unknown theme "${theme}" – using Fabric Studio.`);
   const reportName = reportNameFor(p, name);
@@ -80,7 +92,7 @@ export async function proposeReport({ name, theme, pages, audience, summary }, {
     id: newId(), kind: 'report', chatId, createdAt: new Date().toISOString(),
     name: reportName,
     theme: themeIds.includes(theme) ? theme : 'studio',
-    pages: pg.length ? pg : PAGE_IDS,
+    pages: pg.length ? pg : PAGE_IDS.filter((x) => x !== 'plan' || modelFits(p).plan),
     audience: String(audience || '').slice(0, 120),
     summary: text.length > 1200 ? `${text.slice(0, 1200).replace(/\s+\S*$/, '')}…` : text,
     updatesExisting: (p.reports || []).some((r) => r.name.toLowerCase() === reportName.toLowerCase()),
@@ -93,6 +105,10 @@ export async function proposeReport({ name, theme, pages, audience, summary }, {
 /** Build (or rebuild) a Power BI report from templates and deploy it to the project workspace. */
 export async function runReport(ctx, { name, theme: themeId = 'studio', pages = ['executive', 'drivers', 'scorecard'], preview = true, proposalId } = {}) {
   const p = requireModel();
+  const { known, unknown } = pageList(pages);
+  if (unknown.length) throw new Error(`Unknown report page${unknown.length === 1 ? '' : 's'}: ${unknown.join(', ')}. The pages are ${PAGE_IDS.join(', ')}.`);
+  pages = known;
+  if (!pages.length) throw new Error(`Select at least one page (${PAGE_IDS.join(', ')}).`);
   const theme = themeById(themeId);
   ctx.step('Read the semantic model (measures, dimensions, time)');
   const profile = { ...(await currentProfile({ refresh: true })) };
@@ -114,12 +130,16 @@ export async function runReport(ctx, { name, theme: themeId = 'studio', pages = 
     }
   }
   if (pages.includes('plan')) {
-    if (p.planning?.spec) {
-      profile.plan = planReportSpec(p.planning);
-      ctx.log(`Plan ${p.planning.planYear}: ${Object.values(p.planning.spec.names).length} plan measures from the Plan table`);
+    const plan = modelFits(p).plan;
+    if (plan) {
+      profile.plan = planReportSpec(plan);
+      ctx.log(`Plan ${plan.planYear}: ${Object.values(plan.spec.names).length} plan measures from the Plan table`);
     } else {
       pages = pages.filter((x) => x !== 'plan');
-      ctx.log('No plan yet (Planning tab); the Plan vs actual page was left out.');
+      const owner = p.planning && (p.semanticModels || []).find((m) => m.id === p.planning.semanticModelId);
+      ctx.log(p.planning
+        ? `The plan is on ${owner?.name || 'another semantic model'}, not on ${p.semanticModel.name}; the Plan vs actual page was left out (switch to that model to build it).`
+        : 'No plan yet (Planning tab); the Plan vs actual page was left out.');
     }
   }
   if (pages.includes('geo')) {
@@ -132,7 +152,7 @@ export async function runReport(ctx, { name, theme: themeId = 'studio', pages = 
     }
   }
   const built = buildReportPages(profile, theme, { pages });
-  if (!built.length) throw new Error('Select at least one page.');
+  if (!built.length) throw new Error('None of the selected pages can be built on this model (see the log above). Select another page.');
   const reportName = reportNameFor(p, name);
   const files = reportFiles({ semanticModelId: p.semanticModel.id, theme, pages: built, extensions });
   ctx.log(`${built.length} pages · ${built.reduce((a, x) => a + x.visuals.length, 0)} visuals · ${Object.keys(files).length} definition parts`);
@@ -160,15 +180,21 @@ export async function deployReport(ctx, { reportName, files, description, entry:
   ctx.step(`Deploy report "${reportName}"`);
   const definition = F.toParts(files);
   let item = await F.findItem(ws.id, 'Report', reportName);
-  // A report the studio built on another semantic model of the project is never rebound to this one.
-  const other = item && (p.reports || []).find((r) => r.id === item.id && r.semanticModelId && r.semanticModelId !== p.semanticModel.id);
-  if (other) {
-    const owner = (p.semanticModels || []).find((m) => m.id === other.semanticModelId);
-    throw new Error(`"${reportName}" is a report on ${owner?.name || 'another semantic model'}. Choose another name for this model's report.`);
+  if (item) {
+    // Every data source of the workspace counts: a report the studio built on another semantic model (of this source
+    // or another one) is never rebound to this model, and reports found in Fabric on the project's models (built
+    // outside the studio) are never changed.
+    const views = contextViews(p);
+    for (const { active, view } of views) {
+      const r = (view.reports || []).find((x) => x.id === item.id);
+      if (!r || (active && (!r.semanticModelId || r.semanticModelId === p.semanticModel.id))) continue;
+      const owner = (view.semanticModels || []).find((m) => m.id === r.semanticModelId);
+      throw new Error(`"${reportName}" is a report on ${owner?.name || 'another semantic model'}${active ? '' : ' (another data source of this workspace)'}. Choose another name for this model's report.`);
+    }
+    const ours = views.some(({ view }) => (view.reports || []).some((x) => x.id === item.id));
+    const theirs = !ours && views.some(({ view }) => (view.semanticModels || []).some((m) => (m.linked?.reports || []).some((x) => x.id === item.id)));
+    if (theirs) throw new Error(`"${reportName}" is an existing report in ${ws.name} that the studio didn't build, and the studio never changes it. Choose another name for the new report.`);
   }
-  // Reports found in Fabric on the project's models (built outside the studio) are never changed.
-  const theirs = item && !(p.reports || []).some((r) => r.id === item.id) && (p.semanticModels || []).some((m) => (m.linked?.reports || []).some((r) => r.id === item.id));
-  if (theirs) throw new Error(`"${reportName}" is an existing report in ${ws.name} that the studio didn't build, and the studio never changes it. Choose another name for the new report.`);
   if (item) {
     await F.updateDefinition(ws.id, item.id, definition);
     ctx.log('Updated the existing report');

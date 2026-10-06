@@ -65,6 +65,7 @@ export function taskFlowCard() {
       h('button', { class: 'btn ghost', title: 'Read the workspace\'s task flows again (after changing them in Fabric)', onclick: () => { draft = { choice: draft.choice, overrides: draft.overrides }; load({ fresh: true }); } }, '↻')),
     h('p', { class: 'small muted', style: { margin: '6px 0 0' } }, what));
     if (s.listError) card.append(h('div', { class: 'banner warn mt' }, h('div', {}, h('b', {}, 'The workspace\'s task flows couldn\'t be read. '), s.listError)));
+    else if (s.requestedNotFound) card.append(h('div', { class: 'banner warn mt' }, h('div', {}, h('b', {}, 'The task flow you chose isn\'t there any more. '), s.notice)));
 
     card.append(canvas(pl), boxesTable(pl, move));
 

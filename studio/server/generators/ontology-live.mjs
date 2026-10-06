@@ -175,8 +175,13 @@ export function applyLiveOntology(input, { events = null, link = true, source = 
         const rel = `rel_${tn}`;
         const tag = (...x) => stableUuid('ont-live', events.database.id, tn, ...x);
 
+        // Declare only the columns the bindings use (the key, the time column and the live series). Any other column would
+        // be auto-projected onto the entity – and Fabric rejects one whose name matches an authored property
+        // (BackingColumnOrphanedByNameCollision), e.g. Segment or Region copied into the events.
+        const series = events.columns.filter((x) => SERIES_ROLES.includes(x.role) && x.name !== ev.name);
+        const keep = new Set([ev.name, timeCol, ...series.map((x) => x.name)].map((x) => x.toLowerCase()));
         const tl = [`table ${tn}`, `${T}lineageTag: ${tag('table')}`, ''];
-        for (const c of events.columns) {
+        for (const c of events.columns.filter((x) => keep.has(x.name.toLowerCase()))) {
           tl.push(`${T}column ${quoteName(c.name)}`, `${T}${T}dataType: ${tomType(c.type)}`);
           if (tomType(c.type) === 'dateTime') tl.push(`${T}${T}formatString: General Date`);
           tl.push(`${T}${T}lineageTag: ${tag('column', c.name)}`, `${T}${T}sourceColumn: ${c.name}`, '');
@@ -191,7 +196,7 @@ export function applyLiveOntology(input, { events = null, link = true, source = 
         const taken = new Set(e.parts.map((p) => keywordLine(p, T)).filter((k) => k.startsWith(`${T}property `)).map((k) => unq(k.slice(`${T}property `.length)).toLowerCase()));
         const props = [];
         const add = [];
-        for (const c of events.columns.filter((x) => SERIES_ROLES.includes(x.role) && x.name !== ev.name)) {
+        for (const c of series) {
           let pn = `Live${c.name.replace(/[^A-Za-z0-9_]/g, '')}`.slice(0, 26);
           while (taken.has(pn.toLowerCase())) pn = `${pn.slice(0, 25)}2`;
           taken.add(pn.toLowerCase());

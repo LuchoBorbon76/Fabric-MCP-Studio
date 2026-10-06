@@ -53,7 +53,9 @@ The desktop icon starts the studio in the background, with no console window (`S
 Script Host). Stop it with **Shut down** in the app header; server output goes to `studio/data/studio.log`.
 After an update (git pull, files copied from another computer) the pages are new but the running server isn't: the
 studio shows **A newer version is installed – Restart now** at the top, and *Restart now* starts the new version on the
-same port in the background (hidden, like the desktop icon) and reloads the page (running jobs have to finish first). A studio from before this version is restarted once
+same port in the background (hidden, like the desktop icon) and reloads the page (running jobs have to finish first).
+The running copy stops only once the new one has started, so an update that can't start leaves the studio running and
+says so; folders with accented names (for example `C:\Users\José`) work. A studio from before this version is restarted once
 by hand: Shut down, then start it again.
 `Start-Studio.cmd` runs it in a console window instead (`create-shortcut.ps1 -ShowConsole` makes the icon do the same,
 and it is used automatically when Windows Script Host is turned off).
@@ -170,7 +172,9 @@ have) and **+ Add an existing model** (pick a workspace and one of its models; d
 warehouses are marked). One model is **active**: reports and recommendations, the model profile, the
 data agent, the org app, suggested questions and Copilot's answers use it. Switch with the pop-up or the **Semantic
 model** bar at the top of Reports & apps, Planning and Ask & share – nothing changes in Fabric. Each model keeps its
-own reports, data agent, org app and Copilot suggestions, and gets them back when it's active again.
+own reports, data agent, org app and Copilot suggestions, and gets them back when it's active again. The plan (and its
+Plan vs actual page) belongs to the model its Plan table was added to, and the ontology's business rules and the
+sample's questions to the models built on that data: another model gets only its own rule measures and questions.
 
 - The studio **never regenerates or deletes a model you added**: Remove only stops using it, clean up leaves it, and a
   new model can't take its name. Changes to it go through Copilot (Power BI authoring) after you approve each one.
@@ -353,6 +357,8 @@ Copilot can recommend pages and a theme for your audience (`studio_describe_repo
 **Org app** – *Create app* bundles the studio's reports into a Fabric org app: an overview page, a *Reports* section
 and a *Business rules* section, in the report theme's colors. People get the app without access to the workspace: open
 it in Fabric, add an audience and publish it. Rebuilding updates the app in place (`studio_create_org_app` for Copilot).
+A report built after the app isn't in it until the app is updated: Reports & apps and the map say which ones, with
+*Update the app*.
 
 ## Real-time
 
@@ -367,7 +373,9 @@ ontology and alerts people when a business rule is broken.
    real keys, names and prices read from your data, and a share of them break the business rules (for AdventureWorks:
    *discount needs approval* at 30% or more, *sold below cost*). Choose events per minute, the share of rule breaks and
    when to stop (it always stops on its own). When the table has no recent data, the last hour is filled first so the
-   charts aren't empty. The endpoint key stays in memory in the studio – it is never saved or shown to Copilot.
+   charts aren't empty. The endpoint key stays in memory in the studio – it is never saved or shown to Copilot. The
+   *In the Eventhouse now* and medallion health cards query the Eventhouse every 15–20 seconds only while the
+   Real-time page is open, and stop when you leave it (no capacity use in the background).
 3. **Real-Time Dashboard** – a *Live overview* page (orders, amount, margin and rule-break KPIs, amount per minute by
    channel, mix, regions, top items, latest events) and a *Business rules* page (a count per rule, share of events
    breaking a rule, loss below cost, breaks per minute, who breaks the rules, latest breaks). It refreshes every 30
@@ -375,7 +383,9 @@ ontology and alerts people when a business rule is broken.
 4. **Live ontology** – binds the live table to the ontology. Every entity type whose key the events carry (for
    AdventureWorks: Product, Customer, Reseller, Sales territory) gets time-series properties – `LiveSalesAmount`,
    `LiveQuantity`, `LiveDiscountPct`, `LiveMargin`, `LiveRuleBreak` and more, ordered by event time and read live from
-   the Eventhouse (no copy) – plus a link to the Real-Time Dashboard. The ontology's tables are also tagged with their
+   the Eventhouse (no copy) – plus a link to the Real-Time Dashboard. The live table holds only the key, the event time
+   and those values (Fabric rejects a live column named like a property the entity already has, such as Segment or
+   Region). The ontology's tables are also tagged with their
    source item so Fabric can preview instances. Re-running replaces the earlier bindings; *Remove live properties*
    takes them off again, and re-deploying the ontology from the Ontology page keeps them.
 5. **Alerts on rule breaks** – a Fabric **Activator** queries the live table every minute and, for each business-rule
@@ -459,7 +469,7 @@ Copilot tools: `studio_planning_status`, `studio_preview_plan`, `studio_create_p
 
 | Path | Purpose |
 |---|---|
-| `server/main.mjs` | HTTP server (127.0.0.1 only, per-launch token), routes, SSE |
+| `server/main.mjs` | HTTP server (127.0.0.1 only, per-launch token, answers only `127.0.0.1`/`localhost` Host names), routes, SSE |
 | `server/agent.mjs` | Copilot SDK client, providers, MCP servers, studio tools, approvals |
 | `server/pipelines.mjs` | Workspace, sample, mirroring, shortcuts, semantic model, ontology, Teams agent, clean-up |
 | `server/fabric.mjs` | Fabric REST client (LRO, pagination, OneLake, connections, mirroring) |

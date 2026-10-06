@@ -1,6 +1,7 @@
 // Recommendations for the Reports & apps step: which reports to build, for whom, with which pages and theme, and why.
 // Grounded in the model profile (KPIs, channels, time, segments, insights), the ontology and the reports already built.
 import { standardName, purposeOf, parseName } from '../naming.mjs';
+import { modelFits } from '../project.mjs';
 
 const plural = (s) => (/[^aeiou]y$/i.test(s) ? `${s.slice(0, -1)}ies` : /(s|x|ch|sh)$/i.test(s) ? `${s}es` : `${s}s`);
 
@@ -93,8 +94,9 @@ export function recommendations(profile, project, { rules = null, values = [] } 
     out.push(ops);
   }
 
-  const pl = project.planning;
-  if (pl?.spec) {
+  // The plan's page only for the model its Plan table is in.
+  const pl = modelFits(project).plan;
+  if (pl) {
     const fmt = (v) => (v === null || v === undefined ? '–' : Number(v).toLocaleString('en-US', { maximumFractionDigits: 0 }));
     const t = pl.totals || {};
     const v = t.checked?.variance ?? t.varianceToDate;
@@ -117,11 +119,15 @@ export function recommendations(profile, project, { rules = null, values = [] } 
 
   // The org app shares what was built on this model; recommend it once there is something to share.
   const reports = own;
+  // Reports built after the app: it bundles the reports it was built with, until it is updated.
+  const inApp = new Set(project.orgApp?.reports || []);
+  const notInApp = project.orgApp ? reports.filter((r) => !inApp.has(r.id)) : [];
   const app = {
     id: 'org-app', kind: 'app', title: 'Org app for your organization', audience: 'Everyone who needs the numbers',
     theme: project.orgApp?.theme || reports[0]?.theme || 'executive', pages: [], name: project.orgApp?.name || standardName('OrgApp', purposeOf(model, 'SemanticModel'), project),
     reasons: reports.length
       ? [
+        ...(notInApp.length ? [`${notInApp.length === 1 ? `"${notInApp[0].name}" isn't` : `${notInApp.length} reports (${notInApp.slice(0, 3).map((r) => r.name).join(', ')}) aren't`} in the app yet – update the app to add ${notInApp.length === 1 ? 'it' : 'them'}.`] : []),
         `Bundles your ${reports.length} report${reports.length === 1 ? '' : 's'} (${reports.slice(0, 3).map((r) => r.name).join(', ')}) behind one overview page.`,
         'People get the app without access to the workspace; you choose the audience in Fabric.',
         'Uses your report theme colors, and updates in place when you rebuild.',
@@ -130,6 +136,7 @@ export function recommendations(profile, project, { rules = null, values = [] } 
     built: project.orgApp ? { id: project.orgApp.id, url: project.orgApp.url, builtAt: project.orgApp.builtAt } : null,
     available: reports.length > 0,
     reportCount: reports.length,
+    notInApp: notInApp.map((r) => ({ id: r.id, name: r.name })),
   };
   out.push(app);
   return out;

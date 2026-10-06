@@ -164,16 +164,23 @@ export function scopedPurpose(purpose, p = getProject(), src = p.source) {
  */
 export function freeAcrossSources(type, name, p = getProject()) {
   const taken = new Set();
+  // Only names in this workspace can collide (an existing model's reports may live in another workspace).
+  const inWs = (r) => !r.workspaceId || r.workspaceId === p.workspace?.id;
   for (const e of p.sources || []) {
     if (!e.state || e.key === p.sourceKey) continue;
     const st = e.state;
     const names = {
       SemanticModel: (st.semanticModels || []).filter((m) => m.origin !== 'existing').map((m) => m.name),
-      Report: (st.reports || []).map((r) => r.name),
+      Report: [...(st.reports || []).map((r) => r.name), ...(st.semanticModels || []).flatMap((m) => (m.linked?.reports || []).filter(inWs).map((r) => r.name))],
       Ontology: [st.ontology?.name],
       Lakehouse: [st.lakehouse?.name, st.modelSource?.itemType === 'Lakehouse' ? st.modelSource.itemName : null],
     }[type] || [];
     for (const n of names) if (n) taken.add(n.toLowerCase());
+  }
+  // Reports found in Fabric on this source's models (built outside the studio) keep their names too.
+  if (type === 'Report') {
+    const ours = new Set((p.reports || []).map((r) => r.id));
+    for (const m of p.semanticModels || []) for (const r of (m.linked?.reports || []).filter(inWs)) if (r.name && !ours.has(r.id)) taken.add(r.name.toLowerCase());
   }
   if (!taken.has(String(name).toLowerCase())) return name;
   for (let n = 2; n < 100; n++) { const x = numberedName(name, n); if (!taken.has(x.toLowerCase())) return x; }

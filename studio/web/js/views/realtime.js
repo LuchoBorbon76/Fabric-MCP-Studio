@@ -11,6 +11,24 @@ let offSim = null;
 const put = (el, ...kids) => el.append(...kids.flat().filter((x) => x !== null && x !== undefined && x !== false));
 let pollTimer = null;
 let medTimer = null;
+const stopPolling = () => { clearTimeout(pollTimer); pollTimer = null; clearTimeout(medTimer); medTimer = null; };
+on('studio.reset', stopPolling);
+
+/**
+ * Run load() now and again every `ms` while the card is on the open Real-time page and live data exists. Pages are
+ * hidden, not removed, so a card on another page stops here; it waits while the browser tab is in the background and
+ * slows down after errors. load() returns false when it failed. keep(handle) stores the timer.
+ */
+function poll(card, load, ms, keep) {
+  let errors = 0;
+  const live = () => card.isConnected && Boolean(card.closest('.view.on')) && Boolean(store.project?.realtime?.eventstream);
+  const tick = async (first = false) => {
+    if (!first && !live()) return;
+    if (first || !document.hidden) errors = (await load()) === false ? errors + 1 : 0;
+    if (live()) keep(setTimeout(tick, ms * Math.min(8, 2 ** errors)));
+  };
+  tick(true);
+}
 
 const money = (n) => (n === null || n === undefined ? '–' : Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 }));
 const ago = (iso) => {
@@ -21,8 +39,7 @@ const ago = (iso) => {
 
 export function renderRealtime(el) {
   offSim?.(); offSim = null;
-  clearInterval(pollTimer); pollTimer = null;
-  clearInterval(medTimer); medTimer = null;
+  stopPolling();
   const p = store.project || {};
   if (!p.workspace) {
     el.append(h('div', { class: 'banner warn' }, h('div', {}, h('b', {}, 'Select a workspace first. '), 'Live data goes into an Eventhouse in your workspace.'), h('button', { class: 'btn pri', onclick: () => app.go('workspace') }, 'Go to Workspace')));
@@ -256,7 +273,6 @@ function medallionCard(s) {
 
   if (med) {
     const load = async () => {
-      if (!card.isConnected) { clearInterval(medTimer); return; }
       try {
         const hl = await get('/realtime/medallion?minutes=15');
         paint(hl);
@@ -266,10 +282,10 @@ function medallionCard(s) {
           hl.reasons?.length ? h('div', { class: 'row small', style: { flexWrap: 'wrap', gap: '6px', marginTop: '10px' } }, h('span', { class: 'muted' }, 'Quarantined because:'), hl.reasons.map((r) => h('span', { class: 'pill warn' }, `${r.reason} · ${fmtNum(r.rows)}`))) : null,
           sick.length ? h('div', { class: 'banner warn', style: { marginTop: '10px' } }, `${sick.map((v) => v.name).join(', ')} ${sick.length === 1 ? 'is' : 'are'} not healthy. Select "Update layers" to rebuild.`) : null,
           h('div', { class: 'tiny muted', style: { marginTop: '6px' } }, `Newest Silver event ${hl.freshnessSeconds === null || hl.freshnessSeconds === undefined ? '–' : hl.freshnessSeconds < 120 ? `${hl.freshnessSeconds} s old` : `${Math.round(hl.freshnessSeconds / 60)} min old`} · refreshed ${new Date().toLocaleTimeString()}`));
-      } catch (e) { extra.innerHTML = ''; extra.append(h('div', { class: 'banner err', style: { marginTop: '10px' } }, e.message)); }
+        return true;
+      } catch (e) { extra.innerHTML = ''; extra.append(h('div', { class: 'banner err', style: { marginTop: '10px' } }, e.message)); return false; }
     };
-    load();
-    medTimer = setInterval(load, 20000);
+    poll(card, load, 20000, (t) => { medTimer = t; });
   }
   return card;
 }
@@ -308,8 +324,7 @@ function nowCard(s) {
   put(card, h('div', { class: 'row sp' }, h('h3', { style: { margin: 0 } }, 'In the Eventhouse now'), h('span', { class: 'tiny muted' }, 'Last 15 minutes · KQL')), body);
   if (!st) { body.append(h('p', { class: 'small muted' }, 'Numbers appear here once live data is set up and events arrive (usually within 30 seconds).')); return card; }
   body.append(h('div', { class: 'row muted' }, h('span', { class: 'spin' }), 'Querying the Eventhouse…'));
-  const load = async (first = false) => {
-    if (!first && !card.isConnected) { clearInterval(pollTimer); return; }
+  const load = async () => {
     try {
       const r = await get('/realtime/summary?minutes=15');
       body.innerHTML = '';
@@ -317,10 +332,10 @@ function nowCard(s) {
         ['Events', fmtNum(r.Events || 0)], ...(r.Orders !== undefined ? [['Orders', fmtNum(r.Orders || 0)]] : []), [label, money(r.Amount || 0)], ['Rule breaks', fmtNum(r.RuleBreaks || 0)],
       ].map(([l, v]) => h('div', {}, h('span', { class: 'tiny muted' }, l), h('b', {}, v)))),
       h('div', { class: 'tiny muted', style: { marginTop: '8px' } }, `${fmtNum(r.Total || 0)} events in total · last event ${ago(r.LastEvent)} · last ingested ${ago(r.LastIngested)}`));
-    } catch (e) { body.innerHTML = ''; body.append(h('div', { class: 'banner err' }, e.message)); }
+      return true;
+    } catch (e) { body.innerHTML = ''; body.append(h('div', { class: 'banner err' }, e.message)); return false; }
   };
-  load(true);
-  pollTimer = setInterval(load, 15000);
+  poll(card, load, 15000, (t) => { pollTimer = t; });
   return card;
 }
 

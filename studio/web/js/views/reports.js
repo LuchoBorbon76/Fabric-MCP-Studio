@@ -91,7 +91,7 @@ function appRecCard(rec) {
   build.addEventListener('click', busy(build, async () => { await startJob('/jobs/org-app', { name: rec.name, theme: rec.theme }, job, 'Org app ready – add an audience and publish it in Fabric'); }));
   return h('div', { class: `rec ${rec.built ? 'built' : ''}` },
     h('div', { class: 'row sp', style: { alignItems: 'flex-start' } },
-      h('div', {}, h('div', { class: 'row' }, h('b', {}, rec.title), rec.built ? h('span', { class: 'pill ok' }, 'Created') : h('span', { class: 'pill brand' }, rec.available ? 'Recommended' : 'Next')), h('div', { class: 'tiny muted' }, `Fabric org app · ${theme?.name || rec.theme} colors`)),
+      h('div', {}, h('div', { class: 'row' }, h('b', {}, rec.title), rec.built ? h('span', { class: `pill ${rec.notInApp?.length ? 'warn' : 'ok'}` }, rec.notInApp?.length ? 'Update needed' : 'Created') : h('span', { class: 'pill brand' }, rec.available ? 'Recommended' : 'Next')), h('div', { class: 'tiny muted' }, `Fabric org app · ${theme?.name || rec.theme} colors`)),
       theme ? h('div', { class: 'recsw', title: theme.name }, h('i', { style: { background: theme.header } }), ...theme.dataColors.slice(0, 4).map((c) => h('i', { style: { background: c } }))) : null),
     h('div', { class: 'chips' }, h('span', { class: 'pill' }, 'Overview page'), h('span', { class: 'pill' }, `${rec.reportCount} report${rec.reportCount === 1 ? '' : 's'}`), h('span', { class: 'pill' }, 'Audiences in Fabric')),
     h('ul', { class: 'pre small' }, rec.reasons.map((x) => h('li', {}, x))),
@@ -204,12 +204,18 @@ function reportsCard(p, reports) {
         h('div', { class: 'row' }, h('button', { class: 'btn', onclick: () => app.go('realtime') }, 'Real-time tab'), h('a', { class: 'btn pri', href: d.url, target: '_blank', rel: 'noopener' }, 'Open ↗')))));
   }
   if (p.orgApp) {
+    // Reports built after the app aren't in it until it is updated.
+    const inApp = new Set(p.orgApp.reports || []);
+    const missing = reports.filter((r) => !inApp.has(r.id));
+    const update = h('button', { class: 'btn', 'data-busy': 'Starting…', title: 'Add the reports built since the app was last updated' }, '↻ Update the app');
+    update.addEventListener('click', busy(update, async () => { await startJob('/jobs/org-app', { name: p.orgApp.name, theme: p.orgApp.theme }, list, 'Org app updated – publish it in Fabric to share the changes'); }));
     list.append(h('div', { class: 'rrow app' },
       h('div', { class: 'row sp' },
         h('div', {},
-          h('div', { class: 'row' }, h('span', {}, '▦'), h('b', {}, p.orgApp.name), h('span', { class: 'pill ok' }, 'Org app')),
-          h('div', { class: 'tiny muted' }, `${p.orgApp.reports.length} report${p.orgApp.reports.length === 1 ? '' : 's'} · updated ${fmtDate(p.orgApp.builtAt)} · add an audience and publish it in Fabric to share it`)),
-        h('a', { class: 'btn pri', href: p.orgApp.url, target: '_blank', rel: 'noopener' }, 'Publish in Fabric ↗'))));
+          h('div', { class: 'row' }, h('span', {}, '▦'), h('b', {}, p.orgApp.name), h('span', { class: 'pill ok' }, 'Org app'), missing.length ? h('span', { class: 'pill warn' }, `${missing.length} report${missing.length === 1 ? '' : 's'} not in the app yet`) : null),
+          h('div', { class: 'tiny muted' }, `${p.orgApp.reports.length} report${p.orgApp.reports.length === 1 ? '' : 's'} · updated ${fmtDate(p.orgApp.builtAt)} · add an audience and publish it in Fabric to share it`),
+          missing.length ? h('div', { class: 'tiny muted' }, `Not in the app yet: ${missing.map((r) => r.name).join(', ')} – update the app to add ${missing.length === 1 ? 'it' : 'them'}.`) : null),
+        h('div', { class: 'row' }, missing.length ? update : null, h('a', { class: 'btn pri', href: p.orgApp.url, target: '_blank', rel: 'noopener' }, 'Publish in Fabric ↗')))));
   }
   for (const r of reports) {
     const preview = h('div');
@@ -349,12 +355,16 @@ function drawDesigner(card, p) {
     const theme = () => cat.themes.find((t) => t.id === design.theme) || cat.themes[0];
 
     const pagesBox = h('div', { class: 'ptiles' });
+    // The Plan vs actual page needs the plan on this model (the plan lives on the model its Plan table was added to).
+    const planHere = Boolean(p.planning?.spec && (!p.planning.semanticModelId || p.planning.semanticModelId === p.semanticModel.id));
+    if (!planHere) design.pages.delete('plan');
     const drawPages = () => {
       pagesBox.innerHTML = '';
       for (const pg of cat.pages) {
+        const off = pg.id === 'plan' && !planHere;
         const on = design.pages.has(pg.id);
-        const cb = h('input', { type: 'checkbox', checked: on || undefined, 'aria-label': pg.name });
-        const tile = h('label', { class: `ptile ${on ? 'on' : ''}` }, layoutThumb(pg.id, theme()), h('div', { class: 'row', style: { gap: '6px' } }, cb, h('b', {}, pg.name)), h('div', { class: 'tiny muted' }, pg.description), h('div', { class: 'tiny' }, h('span', { class: 'pill' }, pg.archetype)));
+        const cb = h('input', { type: 'checkbox', checked: on || undefined, disabled: off || undefined, 'aria-label': pg.name });
+        const tile = h('label', { class: `ptile ${on ? 'on' : ''} ${off ? 'off' : ''}`, title: off ? (p.planning ? 'The plan is on another semantic model – switch to it to add this page' : 'Build the plan on the Planning tab first') : undefined }, layoutThumb(pg.id, theme()), h('div', { class: 'row', style: { gap: '6px' } }, cb, h('b', {}, pg.name)), h('div', { class: 'tiny muted' }, pg.description), h('div', { class: 'tiny' }, h('span', { class: 'pill' }, pg.archetype), off ? h('span', { class: 'pill' }, p.planning ? 'Plan on another model' : 'Needs a plan') : null));
         cb.addEventListener('change', () => { if (cb.checked) design.pages.add(pg.id); else design.pages.delete(pg.id); tile.classList.toggle('on', cb.checked); });
         pagesBox.append(tile);
       }
