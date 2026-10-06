@@ -675,7 +675,7 @@ function fabricData() {
           if (withPrep) startDataPrep().catch((e) => toast(e.message, 'err'));
         });
       }));
-      tablesBox.append(
+      tablesBox.append(...[
         h('div', { class: 'banner ok mt' }, h('div', {}, current ? h('b', {}, `In use${p.source?.method === 'shortcut' ? ' (OneLake shortcuts)' : ''}. `) : null, `${r.tables.length} tables in ${s.itemName} · ${r.endpoint.server}`)),
         tablePicker(s.tables, s.selected),
         isLakehouse && !inUse ? prepOption() : null,
@@ -683,7 +683,7 @@ function fabricData() {
         h('p', { class: 'tiny muted' }, inUse
           ? 'This item is your current data source. Pick another item to use it in place instead, or keep this one and continue with the semantic model.'
           : 'Use in place builds the model directly on this item (it can live in another workspace). Shortcuts reference the selected tables from the project lakehouse without copying data.'),
-        job);
+        job].filter(Boolean));
     } catch (e) { if (my === seq) { tablesBox.innerHTML = ''; tablesBox.append(h('div', { class: 'banner err mt' }, e.message)); } }
   };
   wsSel.addEventListener('change', () => { s.itemId = ''; loadItems(); });

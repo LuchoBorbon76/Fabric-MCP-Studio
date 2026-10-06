@@ -41,6 +41,9 @@ cd Fabric-MCP-Studio
 Requirements: Node.js 20.19+, a Microsoft Entra work account with Fabric access, and one AI provider.
 Details: [studio/README.md](studio/README.md) · Step-by-step: [docs/walkthrough.md](docs/walkthrough.md).
 
+**New to the app?** The [User Guide (PDF)](docs/Fabric-MCP-Studio-User-Guide.pdf) explains installing, starting and
+using it step by step with screenshots, for people without a technical background.
+
 ## Bring your own Copilot – other clients
 
 The same MCP servers and skills work in the customer's existing tools:

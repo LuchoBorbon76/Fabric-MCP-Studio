@@ -1,0 +1,95 @@
+/* Fabric MCP Studio – User Guide (print to PDF with Microsoft Edge: build-pdf.ps1) */
+@page {
+  size: Letter;
+  margin: 16mm 15mm 16mm 15mm;
+  @bottom-left { content: "Fabric MCP Studio – User Guide"; font: 8pt "Segoe UI", sans-serif; color: #7a8394; }
+  @bottom-right { content: "Page " counter(page) " of " counter(pages); font: 8pt "Segoe UI", sans-serif; color: #7a8394; }
+}
+@page cover { margin: 0; @bottom-left { content: none; } @bottom-right { content: none; } }
+
+:root { --brand: #0b5cad; --brand2: #0f7bd8; --ink: #1b2330; --muted: #5d6779; --line: #d9e0ea; --soft: #f3f7fc; --ok: #107c41; --warn: #a15c00; }
+* { box-sizing: border-box; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { margin: 0; font: 10.5pt/1.5 "Segoe UI", "Segoe UI Variable", Arial, sans-serif; color: var(--ink); counter-reset: chapter; }
+
+/* ---------- cover ---------- */
+.cover { page: cover; height: 279mm; overflow: hidden; display: flex; flex-direction: column; page-break-after: always; break-after: page; }
+.cover-band { background: linear-gradient(135deg, #062a57 0%, #0b5cad 55%, #1e9be0 100%); color: #fff; padding: 62mm 22mm 26mm; }
+.cover-band h1 { font-size: 38pt; margin: 10mm 0 2mm; letter-spacing: -.5pt; font-weight: 700; }
+.cover-sub { font-size: 20pt; margin: 0; opacity: .92; font-weight: 300; }
+.logo { display: grid; grid-template-columns: 11mm 11mm; gap: 1.6mm; width: 23.6mm; }
+.logo span { height: 11mm; display: block; }
+.logo span:nth-child(1) { background: #f25022; } .logo span:nth-child(2) { background: #7fba00; }
+.logo span:nth-child(3) { background: #00a4ef; } .logo span:nth-child(4) { background: #ffb900; }
+.cover-body { padding: 18mm 22mm; flex: 1; display: flex; flex-direction: column; }
+.cover-lead { font-size: 14pt; line-height: 1.45; color: #23324a; margin: 0 0 12mm; }
+.cover-meta { border-collapse: collapse; margin-bottom: auto; width: 100%; }
+.cover-meta td { padding: 2.2mm 0; border-bottom: 1px solid var(--line); vertical-align: top; font-size: 10.5pt; }
+.cover-meta td:first-child { width: 34mm; color: var(--muted); font-weight: 600; }
+.cover-note { font-size: 9pt; }
+
+/* ---------- pages and headings ---------- */
+.page { break-before: page; page-break-before: always; }
+.toc { break-before: auto; page-break-before: auto; }
+h2 { font-size: 19pt; color: var(--brand); margin: 0 0 4mm; padding-bottom: 2mm; border-bottom: 2.5px solid var(--brand); counter-increment: chapter; }
+h2:not(.nonum)::before { content: counter(chapter) ". "; color: #8fb6e3; }
+h2.nonum { counter-increment: none; }
+h3 { font-size: 12.5pt; color: #11335e; margin: 6mm 0 2mm; break-after: avoid; page-break-after: avoid; }
+p { margin: 0 0 3mm; }
+ul, ol { margin: 0 0 3mm; padding-left: 6mm; }
+li { margin-bottom: 1.2mm; }
+code { font: 9pt Consolas, "Cascadia Mono", monospace; background: #eef2f7; padding: .3mm 1.4mm; border-radius: 3px; color: #18365c; }
+a { color: var(--brand); text-decoration: none; }
+b { color: #0f1b2d; }
+
+/* numbered steps with round badges */
+ol.steps { list-style: none; counter-reset: step; padding-left: 0; }
+ol.steps > li { counter-increment: step; position: relative; padding-left: 9mm; margin-bottom: 2mm; break-inside: avoid; }
+ol.steps > li::before { content: counter(step); position: absolute; left: 0; top: .2mm; width: 6mm; height: 6mm; border-radius: 50%; background: var(--brand); color: #fff; font-weight: 700; font-size: 8.5pt; text-align: center; line-height: 6mm; }
+
+/* callouts */
+.tip, .note, .warn { border-radius: 6px; padding: 3mm 4mm; margin: 3.5mm 0; font-size: 9.8pt; break-inside: avoid; border: 1px solid; }
+.tip { background: #eef8f1; border-color: #bfe3cb; }
+.tip::before { content: "TIP  "; font-weight: 700; color: var(--ok); letter-spacing: .5pt; }
+.note { background: #eef5fd; border-color: #c4dbf4; }
+.note::before { content: "NOTE  "; font-weight: 700; color: var(--brand); letter-spacing: .5pt; }
+.warn { background: #fff6e8; border-color: #f2d3a2; }
+.warn::before { content: "IMPORTANT  "; font-weight: 700; color: var(--warn); letter-spacing: .5pt; }
+
+/* tables */
+table { border-collapse: collapse; width: 100%; margin: 2mm 0 4mm; font-size: 9.5pt; break-inside: auto; }
+th { background: #e9f1fb; color: #18365c; text-align: left; font-weight: 600; padding: 2mm 2.5mm; border: 1px solid var(--line); }
+td { padding: 1.8mm 2.5mm; border: 1px solid var(--line); vertical-align: top; }
+tr { break-inside: avoid; page-break-inside: avoid; }
+table.glossary td:first-child, table.quick td:first-child, table.trouble td:first-child { font-weight: 600; width: 34%; }
+table.quick td:nth-child(2) { width: 28%; }
+table.quick { font-size: 9pt; } table.quick td, table.quick th { padding: 1.2mm 2.2mm; }
+.figrow { display: flex; gap: 6mm; align-items: flex-start; } .figrow figure { flex: 1; margin-top: 2mm; }
+
+/* figures */
+figure { margin: 3mm 0 5mm; break-inside: avoid; page-break-inside: avoid; text-align: center; }
+figure img { max-width: 100%; border: 1px solid #cfd8e3; border-radius: 6px; box-shadow: 0 1.5mm 4mm rgba(16, 42, 84, .12); }
+figure img.w80 { max-width: 80%; } figure img.w70 { max-width: 70%; } figure img.w55 { max-width: 55%; } figure img.w45 { max-width: 45%; }
+figcaption { font-size: 8.8pt; color: var(--muted); margin-top: 2mm; text-align: left; }
+
+/* "assembly line" */
+.flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; margin: 4mm 0 5mm; }
+.flow div { background: var(--soft); border: 1px solid #cfe0f3; border-top: 4px solid var(--brand2); border-radius: 6px; padding: 3mm; font-size: 9.2pt; }
+.flow b { display: block; font-size: 10.5pt; color: var(--brand); margin-bottom: 1mm; }
+.flow span { color: #34445e; }
+
+/* contents */
+.toc-list { columns: 1; font-size: 11pt; padding-left: 8mm; }
+.toc-list li { margin-bottom: 1.8mm; }
+.toc-list a { color: var(--ink); }
+
+ul.checks { list-style: none; padding-left: 0; }
+ul.checks li { padding-left: 7mm; position: relative; margin-bottom: 2.4mm; }
+ul.checks li::before { content: "✓"; position: absolute; left: 0; color: var(--ok); font-weight: 700; }
+
+/* screen preview (open the HTML in a browser) */
+@media screen {
+  body { background: #e9edf3; }
+  .cover, .page, .toc { background: #fff; width: 215.9mm; margin: 8mm auto; padding: 16mm 15mm; box-shadow: 0 2mm 6mm rgba(0, 0, 0, .12); }
+  .cover { padding: 0; height: auto; min-height: 279mm; }
+}

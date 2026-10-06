@@ -3,6 +3,10 @@
 A step-by-step guide to build a governed Fabric data foundation with **Fabric MCP Studio** – or with any AI client
 connected to the same MCP servers. Allow 30–45 minutes the first time.
 
+> For people without a technical background, the [User Guide (PDF)](Fabric-MCP-Studio-User-Guide.pdf) covers the same
+> steps in plain language with screenshots, from installing the app to cleaning up. Its source is in
+> [user-guide/](user-guide/) – after changing it, run `.\docs\user-guide\build-pdf.ps1` to rebuild the PDF.
+
 ## Before you start
 
 - [ ] `Start-Studio.cmd` (Windows) or `./studio/start-studio.sh` – the app opens in your browser. On Windows,

@@ -50,7 +50,7 @@ function draw(wrap, s) {
     medallionCard(s),
     h('div', { class: 'grid g2', style: { marginTop: '14px', alignItems: 'start' } }, dashboardCard(s), nowCard(s)),
     h('div', { class: 'grid g2', style: { marginTop: '14px', alignItems: 'start' } }, ontologyCard(s), alertsCard(s)),
-    setup ? endpointCard(s) : null);
+    ...(setup ? [endpointCard(s)] : []));
 }
 
 // ---------------- setup ----------------

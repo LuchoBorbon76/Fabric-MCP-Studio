@@ -81,7 +81,7 @@ export function promptGallery({ perGroup = 4, compact = false, only = null, kind
 export function askCard({ title = 'Start asking', lead = '', only = null, kind = 'ask', perGroup = 3 } = {}) {
   const card = h('div', { class: 'card askcard', style: { marginBottom: '14px' } });
   const gallery = promptGallery({ only, kind, perGroup, onEmpty: (empty) => { card.hidden = empty; } });
-  card.append(h('div', { class: 'row sp' }, h('h2', {}, `✦ ${title}`), h('button', { class: 'btn ghost', onclick: () => app.ask() }, 'Ask your own question')),
-    lead ? h('p', { class: 'lead' }, lead) : null, gallery);
+  card.append(...[h('div', { class: 'row sp' }, h('h2', {}, `✦ ${title}`), h('button', { class: 'btn ghost', onclick: () => app.ask() }, 'Ask your own question')),
+    lead ? h('p', { class: 'lead' }, lead) : null, gallery].filter(Boolean));
   return card;
 }

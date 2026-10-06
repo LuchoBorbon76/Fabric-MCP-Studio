@@ -173,10 +173,10 @@ function actionCard(pr, { answered = false } = {}) {
   const done = (text, ok = true) => { card.dataset.applied = '1'; card.querySelectorAll('button').forEach((b) => { b.hidden = true; }); state.textContent = text; state.classList.toggle('ok', ok); };
   const apply = h('button', { class: 'btn pri', onclick: async () => { if (busyState) { toast('Copilot is still working. Stop it or wait.', 'err'); return; } done(generic ? '✓ Sent – Copilot is on it' : '✓ Applied – Copilot is on it'); await ask(pr.instruction || GO_AHEAD); } }, generic ? '✓ Yes, go ahead' : '✓ Apply');
   const change = h('button', { class: 'btn ghost', onclick: () => { inputEl.focus(); inputEl.placeholder = 'Tell Copilot what to change…'; } }, generic ? 'Something else' : 'Change something');
-  card.append(
+  card.append(...[
     h('div', { class: 'ph' }, h('span', {}, '✦'), pr.title || 'Copilot is waiting for your go-ahead'),
     pr.summary ? h('div', { class: 'small muted' }, pr.summary) : null,
-    h('div', { class: 'row' }, apply, change, state));
+    h('div', { class: 'row' }, apply, change, state)].filter(Boolean));
   if (answered) done('✓ Applied');
   return h('div', { class: 'msg bot' }, card);
 }

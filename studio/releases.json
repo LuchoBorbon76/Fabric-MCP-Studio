@@ -58,6 +58,8 @@
     { "date": "2026-10-05", "type": "fix", "commit": "8d335cb", "title": "After duplicates are removed, the model reloads until it holds the fixed data (it could keep the old rows and keep failing); the check compares the model with its data and offers Reload the model, and no longer shows \"null\"" },
     { "date": "2026-10-05", "type": "fix", "commit": "8d335cb", "title": "Reports use the real year column: a hidden year (such as CalendarYear) instead of Week Number Of Year, so trends and \"full years\" are right" },
     { "date": "2026-10-05", "type": "improvement", "commit": "504a4d7", "title": "Maps in reports: when the model has countries, states, cities, postal codes or latitude/longitude, the studio adds a Map page (Azure Maps bubbles sized by the main measure, drill down country › state › city) to the Executive report and recommends a Regional report" },
-    { "date": "2026-10-05", "type": "fix", "title": "No more command windows flashing on every click after Restart now: sign-in calls to the Azure CLI always run hidden, and the studio restarts in a hidden console like the desktop icon" }
+    { "date": "2026-10-05", "type": "fix", "commit": "30f2c26", "title": "No more command windows flashing on every click after Restart now: sign-in calls to the Azure CLI always run hidden, and the studio restarts in a hidden console like the desktop icon" },
+    { "date": "2026-10-05", "type": "improvement", "title": "User Guide (PDF) for people without a technical background: installing, starting, every step of the app with screenshots, troubleshooting and a quick reference card (docs/Fabric-MCP-Studio-User-Guide.pdf)" },
+    { "date": "2026-10-05", "type": "fix", "title": "No stray \"null\" text on the Data, Real-time and Semantic model pages and in Copilot's Apply cards" }
   ]
 }

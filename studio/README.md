@@ -62,6 +62,10 @@ and it is used automatically when Windows Script Host is turned off).
 provider (below). Optional: Azure CLI (sign-in reuse), PowerShell (Teams agent installer). The AdventureWorksDW2022 sample
 downloads Microsoft's install kit (17 MB) from github.com once.
 
+**User Guide:** [docs/Fabric-MCP-Studio-User-Guide.pdf](../docs/Fabric-MCP-Studio-User-Guide.pdf) – every step in plain
+language with screenshots, for business users. Rebuild it after changing `docs/user-guide/user-guide.html` with
+`.\docs\user-guide\build-pdf.ps1` (Microsoft Edge or Chrome, headless).
+
 ## Choose your AI (bring your own model)
 
 | Provider | What the customer needs |

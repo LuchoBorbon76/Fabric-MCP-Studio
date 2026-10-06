@@ -178,11 +178,11 @@ function drawDesigner(card, p) {
         h('div', {}, tablesTitle, h('div', { class: 'scroll' }, tbl)),
         h('div', {}, h('h3', {}, `Relationships (${s.relationships.length})`), s.relationships.length ? h('div', { class: 'scroll' }, rels) : h('div', { class: 'banner warn' }, 'No relationships found. Ask Copilot to infer them from the data, or the model is created without relationships.'),
           h('div', { class: 'banner mt' }, h('div', {}, h('b', {}, 'Measures. '), measuresNote)))));
-    footer.append(
+    footer.append(...[
       pendingProposal(p) ? proposalBanner(p.modelProposal) : null,
       h('div', { class: 'formgrid mt' }, field('Semantic model name', smName)),
       h('div', { class: 'row mt' }, create,
-        h('button', { class: 'btn ai', onclick: () => app.ask(`Design a star schema for my data. Selected tables: ${[...include].join(', ')}. Explain facts, dimensions, relationships and the business measures you recommend (grounded in my glossary if I have one). Name the model "${smName.value}". Then suggest the design with studio_propose_semantic_model so I can review and apply it – don't create it yet.`) }, '✦ Design it with Copilot')));
+        h('button', { class: 'btn ai', onclick: () => app.ask(`Design a star schema for my data. Selected tables: ${[...include].join(', ')}. Explain facts, dimensions, relationships and the business measures you recommend (grounded in my glossary if I have one). Name the model "${smName.value}". Then suggest the design with studio_propose_semantic_model so I can review and apply it – don't create it yet.`) }, '✦ Design it with Copilot'))].filter(Boolean));
   }).catch((e) => { body.innerHTML = ''; body.append(h('div', { class: 'banner err' }, e.message)); });
 }
 

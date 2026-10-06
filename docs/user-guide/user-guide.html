@@ -1,0 +1,682 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fabric MCP Studio – User Guide</title>
+<link rel="stylesheet" href="guide.css">
+</head>
+<body>
+
+<!-- ============================== COVER ============================== -->
+<section class="cover">
+  <div class="cover-band">
+    <div class="logo"><span></span><span></span><span></span><span></span></div>
+    <h1>Fabric MCP Studio</h1>
+    <p class="cover-sub">User Guide</p>
+  </div>
+  <div class="cover-body">
+    <p class="cover-lead">Build your Microsoft Fabric data, semantic models, Power BI reports and AI answers step by step –
+      by clicking buttons or by asking Copilot in plain language. No coding needed.</p>
+    <table class="cover-meta">
+      <tr><td>For</td><td>Business users, analysts and anyone who wants to use Fabric MCP Studio – no technical background required</td></tr>
+      <tr><td>App version</td><td>1.33 and later</td></tr>
+      <tr><td>Updated</td><td>October 2026</td></tr>
+    </table>
+    <div class="note cover-note">
+      <b>Sample app, provided as is.</b> Fabric MCP Studio is a sample created by Luis Fernando Borbon for demos, learning and
+      proofs of concept. It isn't an official Microsoft product, isn't supported by Microsoft Support and is provided
+      without warranty. Try it in a test workspace first.
+    </div>
+  </div>
+</section>
+
+<!-- ============================== CONTENTS ============================== -->
+<section class="toc page">
+  <h2 class="nonum">Contents</h2>
+  <ol class="toc-list">
+    <li><a href="#what">What Fabric MCP Studio does</a></li>
+    <li><a href="#words">Words you will see</a></li>
+    <li><a href="#before">Before you start – what you need</a></li>
+    <li><a href="#install">Install the app (one time)</a></li>
+    <li><a href="#start">Start, stop and update the app</a></li>
+    <li><a href="#signin">Sign in and choose your AI</a></li>
+    <li><a href="#screen">Find your way around the screen</a></li>
+    <li><a href="#copilot">Working with Copilot</a></li>
+    <li><a href="#step1">Step 1 – Name your environment</a></li>
+    <li><a href="#step2">Step 2 – Choose a workspace</a></li>
+    <li><a href="#step3">Step 3 – Connect your data</a></li>
+    <li><a href="#step4">Step 4 – Create or add a semantic model</a></li>
+    <li><a href="#step5">Step 5 – Build Power BI reports (with maps)</a></li>
+    <li><a href="#step6">Step 6 – Ask questions and share</a></li>
+    <li><a href="#optional">Optional steps – ontology, planning, real-time, task flow</a></li>
+    <li><a href="#housekeeping">Keep things tidy – remove items and clean up</a></li>
+    <li><a href="#trouble">When something doesn't work</a></li>
+    <li><a href="#safety">Safety, privacy and costs</a></li>
+    <li><a href="#quickref">Quick reference card</a></li>
+  </ol>
+  <div class="tip">
+    <b>How to read this guide.</b> Chapters 1–8 explain the app and set it up once. Chapters 9–14 walk you through
+    building a solution, in the same order the app suggests. You don't need to do every step – stop whenever you have
+    what you need. Words in <b>bold</b> are buttons, tabs or labels exactly as you see them in the app.
+  </div>
+</section>
+
+<!-- ============================== 1 ============================== -->
+<section class="page" id="what">
+  <h2>What Fabric MCP Studio does</h2>
+  <p>Fabric MCP Studio is an app that runs on your own computer and opens in your web browser. It helps you build an
+    analytics solution in <b>Microsoft Fabric</b> – your organization's data platform – without writing code.</p>
+  <p>Think of it as a guided assembly line. Each station builds on the one before:</p>
+  <div class="flow">
+    <div><b>1. Data</b><span>Bring in sample data, your databases or data already in Fabric</span></div>
+    <div><b>2. Semantic model</b><span>One trusted set of numbers: tables, relationships and business measures</span></div>
+    <div><b>3. Reports</b><span>Professional Power BI reports – even maps – built for you</span></div>
+    <div><b>4. Answers &amp; sharing</b><span>Ask questions in plain language; share in Teams and Microsoft 365 Copilot</span></div>
+  </div>
+  <p>You can do every step in two ways:</p>
+  <ul>
+    <li><b>Click the buttons.</b> Every page has clear actions such as <b>Load sample</b>, <b>Create semantic model</b> or
+      <b>Build report</b>.</li>
+    <li><b>Ask Copilot.</b> Type what you want in plain language, for example <i>"Recommend the best report for my data"</i>.
+      Copilot explains its plan and <b>asks for your approval before it changes anything</b>.</li>
+  </ul>
+  <div class="note">
+    <b>It works as you.</b> The app signs in to Microsoft Fabric with your own work account, so it can only see and change
+    what you are allowed to. Everything it builds lives in your organization's Fabric, not on your computer.
+  </div>
+</section>
+
+<!-- ============================== 2 ============================== -->
+<section class="page" id="words">
+  <h2>Words you will see</h2>
+  <p>You don't need to be an expert, but these words come up often. Keep this page handy.</p>
+  <table class="glossary">
+    <tr><th>Word</th><th>What it means in plain language</th></tr>
+    <tr><td>Microsoft Fabric</td><td>Your organization's online data platform. The app builds everything there.</td></tr>
+    <tr><td>Workspace</td><td>A folder in Fabric that holds everything for one project. You choose one, or the app creates one.</td></tr>
+    <tr><td>Capacity</td><td>The computing power your organization pays for (or a free trial). A workspace runs on a capacity. If it is <i>paused</i>, nothing can run.</td></tr>
+    <tr><td>Data source</td><td>Where your numbers come from: a sample, a company database, or a lakehouse/warehouse already in Fabric.</td></tr>
+    <tr><td>Lakehouse, warehouse, SQL database</td><td>Places in Fabric that store tables of data. You don't need to know the difference – the app handles it.</td></tr>
+    <tr><td>OneLake</td><td>Fabric's single storage for all data. Everything you connect ends up readable there.</td></tr>
+    <tr><td>Semantic model</td><td>The "single version of the truth": your tables, how they relate, and business measures such as <i>Total Sales</i>. Reports and answers are built on it.</td></tr>
+    <tr><td>Measure</td><td>A business calculation, for example Total Sales, Profit Margin % or Number of Customers.</td></tr>
+    <tr><td>Relationship</td><td>How two tables connect, for example each sale belongs to one customer.</td></tr>
+    <tr><td>Power BI report</td><td>Pages of charts, tables, cards and maps people open in Power BI.</td></tr>
+    <tr><td>Org app</td><td>A package of reports you publish to a group of people, so they don't need workspace access.</td></tr>
+    <tr><td>Ontology</td><td>Your business vocabulary for AI: things (Customer, Product), how they relate, and business rules in plain English.</td></tr>
+    <tr><td>Copilot</td><td>The AI assistant inside the app. It answers questions and builds things after you approve.</td></tr>
+    <tr><td>Data agent</td><td>A Fabric AI assistant that answers questions about your semantic model; it can be used in Microsoft 365 Copilot.</td></tr>
+    <tr><td>Task flow</td><td>A picture in Fabric of how the items in a workspace work together (raw data → curated data → model → reports).</td></tr>
+    <tr><td>Approval</td><td>A pop-up that shows exactly what Copilot wants to change. Nothing changes until you select <b>Approve</b>.</td></tr>
+  </table>
+</section>
+
+<!-- ============================== 3 ============================== -->
+<section class="page" id="before">
+  <h2>Before you start – what you need</h2>
+  <p>Check this list once. If something is missing, the right-hand column tells you who can help.</p>
+  <table>
+    <tr><th>You need</th><th>Why</th><th>Who can help</th></tr>
+    <tr><td>A Windows computer with internet access</td><td>The app runs on your computer and talks to Fabric online.</td><td>–</td></tr>
+    <tr><td>A <b>work account</b> (Microsoft Entra ID) that can use Microsoft Fabric</td><td>The app signs in as you.</td><td>Your IT department</td></tr>
+    <tr><td>Access to a <b>Fabric capacity</b> (a free trial works for most steps)</td><td>Fabric needs computing power to build things.</td><td>Your Fabric administrator, or start a trial at app.fabric.microsoft.com</td></tr>
+    <tr><td>Permission to create or edit a <b>workspace</b> (Contributor or higher)</td><td>Everything the app builds goes into one workspace.</td><td>The workspace owner or your Fabric administrator</td></tr>
+    <tr><td>Your organization's <b>AI service</b> details – usually an Azure AI Foundry / Azure OpenAI <i>endpoint</i> and <i>deployment name</i></td><td>Copilot inside the app uses the AI your organization already has.</td><td>Your IT or AI team</td></tr>
+    <tr><td><b>Node.js</b> (free) installed on your computer</td><td>The app needs it to run. Installing it takes two minutes – see the next chapter.</td><td>You, or IT if you can't install software</td></tr>
+    <tr><td>The app files (a ZIP file or a link to the GitHub repository)</td><td>That's the app itself.</td><td>The person who shared Fabric MCP Studio with you</td></tr>
+  </table>
+  <div class="tip">
+    <b>Not sure about Fabric settings?</b> Don't worry about them yet. After you sign in, the app's
+    <b>Check setup</b> button tests everything for you and says in plain words what is missing and who should fix it.
+  </div>
+  <p><b>Optional:</b> the <b>Azure CLI</b>. If your IT team installed it and you have signed in with it (<code>az login</code>),
+    the app reuses that sign-in automatically. Without it you simply sign in through your browser.</p>
+</section>
+
+<!-- ============================== 4 ============================== -->
+<section class="page" id="install">
+  <h2>Install the app (one time)</h2>
+
+  <h3>A. Install Node.js</h3>
+  <ol class="steps">
+    <li>Open your browser and go to <b>nodejs.org</b>.</li>
+    <li>Select the big download button marked <b>LTS</b> (Long Term Support). Version 20 or newer is fine.</li>
+    <li>Open the downloaded file (it ends in <code>.msi</code>).</li>
+    <li>Select <b>Next</b> on every screen, accept the license, and select <b>Install</b>. Keep all default options.
+      You can leave the "Tools for native modules" box unticked.</li>
+    <li>Select <b>Finish</b>.</li>
+  </ol>
+
+  <h3>B. Get the app files</h3>
+  <ol class="steps">
+    <li>If you received a <b>link to GitHub</b>: open it, select the green <b>Code</b> button, then <b>Download ZIP</b>.
+      If you received a <b>ZIP file</b>, use that.</li>
+    <li>In File Explorer, <b>right-click the ZIP file › Properties</b>. If you see an <b>Unblock</b> box at the bottom,
+      tick it and select <b>OK</b>. (This lets the app's start scripts run.)</li>
+    <li>Right-click the ZIP file again › <b>Extract All…</b> Choose a simple folder such as
+      <code>C:\FabricMCPStudio</code> and select <b>Extract</b>.</li>
+  </ol>
+
+  <h3>C. Create the desktop icon</h3>
+  <ol class="steps">
+    <li>Open the folder you extracted, then open the <b>scripts</b> folder.</li>
+    <li>Right-click <b>create-shortcut.ps1</b> › <b>Run with PowerShell</b>. A blue window opens.</li>
+    <li>The first time, it downloads the app's components (about 150 MB). This takes a few minutes – wait until the window
+      says the shortcut was created, then close it.</li>
+    <li>You now have a <b>Fabric MCP Studio</b> icon on your desktop.</li>
+  </ol>
+  <div class="tip">
+    <b>Alternative without the icon:</b> double-click <b>Start-Studio.cmd</b> in the main app folder. A black window opens –
+    keep it open while you use the app, and close it when you're done.
+  </div>
+  <div class="warn">
+    <b>If Windows says the script is blocked</b>, ask IT to allow it, or open the Start menu, type <b>PowerShell</b>, open it
+    and paste: <code>powershell -ExecutionPolicy Bypass -File C:\FabricMCPStudio\scripts\create-shortcut.ps1</code>
+    (change the folder if you extracted somewhere else).
+  </div>
+</section>
+
+<!-- ============================== 5 ============================== -->
+<section class="page" id="start">
+  <h2>Start, stop and update the app</h2>
+
+  <h3>Start</h3>
+  <ol class="steps">
+    <li>Double-click the <b>Fabric MCP Studio</b> icon on your desktop.</li>
+    <li>Your browser opens the app at <b>http://127.0.0.1:4870</b>. (This address means "my own computer" – nothing is
+      published on the internet.) Tip: bookmark it.</li>
+    <li>The very first time, a <b>Disclaimer</b> appears. Read it and select <b>I understand</b>.</li>
+  </ol>
+  <figure><img src="images/00-disclaimer.png" class="w55" alt="Disclaimer"><figcaption>The disclaimer appears once. You can read it again any time from the link at the bottom of every page.</figcaption></figure>
+  <div class="note"><b>Already running?</b> Double-clicking the icon again just reopens the app in your browser – it never starts a second copy.</div>
+
+  <h3>Stop</h3>
+  <p>Select <b>Shut down</b> at the top right of the app. If a job is still running, wait for it to finish first –
+    shutting down stops it.</p>
+
+  <h3>Update to a new version</h3>
+  <p>When someone gives you newer app files, replace the old folder (or let IT update it). The app notices and shows a
+    yellow banner at the top: <b>"A newer version is installed – Restart now"</b>. Select <b>Restart now</b>; the page reloads
+    by itself after a few seconds. Your project, chats and settings are kept.</p>
+  <p>Select the version number next to the app name (for example <b>v1.33.26</b>) to see <b>What's new</b>.</p>
+</section>
+
+<!-- ============================== 6 ============================== -->
+<section class="page" id="signin">
+  <h2>Sign in and choose your AI</h2>
+
+  <h3>Sign in to Microsoft Fabric</h3>
+  <ol class="steps">
+    <li>Select <b>Sign in</b> at the top right.</li>
+    <li>Choose <b>Sign in with browser</b> (recommended). A Microsoft sign-in page opens – use your <b>work account</b>.
+      If your IT team set up the Azure CLI for you, you can choose <b>Sign in with Azure CLI</b> instead.</li>
+    <li>When you're signed in, your name and initials appear at the top right. Select them any time to see the account,
+      <b>Switch account</b> or <b>Sign out</b>.</li>
+  </ol>
+  <figure><img src="images/02-header.png" alt="Header"><figcaption>The top of the app: theme, <b>Check setup</b>, your account and <b>Shut down</b>. The line under the title shows who you are, the AI in use, the workspace and the semantic model.</figcaption></figure>
+
+  <h3>Choose your AI (Copilot)</h3>
+  <p>Copilot uses the AI service your organization already licenses. You set it once.</p>
+  <ol class="steps">
+    <li>Select <b>Settings</b> (top right of the map).</li>
+    <li>In <b>AI provider</b>, select the card your IT team told you to use – most often <b>Azure AI Foundry / Azure OpenAI</b>.</li>
+    <li>Fill in the fields with the values from IT – for Azure: <b>Endpoint</b> and <b>Deployment name</b>. Keep
+      <b>Authentication</b> on <b>Microsoft Entra ID (recommended)</b>, so you don't need a key.</li>
+    <li>Select <b>Save</b>, then <b>Test</b>. A green message with a short reply means it works.</li>
+  </ol>
+
+  <h3>Decide how Copilot asks for approval</h3>
+  <p>In <b>Settings › Approvals</b> keep <b>Ask every time</b> (recommended). Every change Copilot wants to make then opens a
+    review window first. <b>Auto-approve</b> is only for demos in a test workspace; <b>Read-only</b> lets Copilot answer
+    questions but never change anything.</p>
+
+  <h3>Run the setup check</h3>
+  <p>Select <b>Check setup</b> at the top. The app tests your sign-in, capacity, AI, connections and Fabric settings.</p>
+  <div class="figrow">
+    <figure><img src="images/27-ai-provider.png" alt="AI provider settings"><figcaption>Settings › AI provider. <b>Save</b> first, then <b>Test</b>.</figcaption></figure>
+    <figure><img src="images/03-setup-check.png" alt="Setup check"><figcaption><b>Check setup</b>: green dots are fine; yellow or red lines say what is missing and how to fix it. <b>What can run</b> shows each part as <i>Ready</i> or not.</figcaption></figure>
+  </div>
+</section>
+
+<!-- ============================== 7 ============================== -->
+<section class="page" id="screen">
+  <h2>Find your way around the screen</h2>
+  <p>The app opens on the <b>solution map</b> – a picture of everything you can build, from left (data) to right
+    (sharing). The top row is analytics; the bottom row is real-time (live) data.</p>
+  <figure><img src="images/01-overview.png" class="w70" alt="Solution map"><figcaption>The solution map on the Overview page.</figcaption></figure>
+
+  <h3>Reading the map</h3>
+  <table>
+    <tr><th>What you see</th><th>What it means</th></tr>
+    <tr><td>A box with a green <b>✓</b></td><td>That part is built (configured). Its name and details are shown.</td></tr>
+    <tr><td>A box with a dashed border</td><td><b>Ready to set up</b> – you can build it now.</td></tr>
+    <tr><td>A faded grey box</td><td><b>Needs an earlier step</b> – build the parts to its left first.</td></tr>
+    <tr><td>A purple <b>NEXT</b> badge</td><td>The step the app suggests you do next.</td></tr>
+    <tr><td>A red badge</td><td><b>Can't run</b> – something is missing (for example a Fabric setting). Select the box to see why.</td></tr>
+    <tr><td>Lines between boxes</td><td>What is built from what. Moving lines mean a job is running.</td></tr>
+    <tr><td><b>6 of 16 in place</b> (top)</td><td>Your progress.</td></tr>
+  </table>
+
+  <h3>Clicking on the map</h3>
+  <ul>
+    <li><b>Click a box once</b> to see its details below the map, with buttons such as <b>Open</b>, <b>Let Copilot do it</b> and <b>Open in Fabric</b>.</li>
+    <li><b>Double-click a box</b> to go straight to its page.</li>
+    <li>Three handy double-clicks: <b>Data source</b> lists the data in your workspace; <b>Semantic model</b> lists your models;
+      the <b>workspace name</b> (at the top of the frame) lists your workspaces.</li>
+  </ul>
+
+  <h3>The four tabs</h3>
+  <p>At the top right of the map: <b>Overview</b> (the map and suggestions), <b>Copilot</b> (the full-size chat),
+    <b>Activity</b> (everything that happened) and <b>Settings</b>. On other pages the map gets smaller; <b>Hide map</b> folds it away.</p>
+
+  <h3>Jobs that take a while</h3>
+  <p>Longer tasks – loading data, building a report – run in the background. A small card at the bottom right shows the
+    progress. You can keep working meanwhile. Select the card to see the details, or open <b>Activity</b>.</p>
+</section>
+
+<!-- ============================== 8 ============================== -->
+<section class="page" id="copilot">
+  <h2>Working with Copilot</h2>
+  <p>Copilot is your assistant inside the app. It can explain your data, answer business questions with your real
+    numbers, and build things for you.</p>
+  <figure><img src="images/18-copilot.png" class="w80" alt="Copilot page"><figcaption>The Copilot page. Select a suggested question, or type your own at the bottom and press <b>Enter</b>.</figcaption></figure>
+
+  <h3>How to talk to Copilot</h3>
+  <ul>
+    <li>Write as you would to a colleague: <i>"Which product category grew the most last year?"</i></li>
+    <li>Be specific about what you want built: <i>"Build an executive report with a map, in the Executive Navy theme."</i></li>
+    <li>Ask "why" and "how": <i>"Why did sales drop in March?"</i>, <i>"How do I share this report with my team?"</i></li>
+    <li>On every page, buttons marked <b>✦</b> (for example <b>✦ Ask Copilot</b>) start a conversation about that page for you.</li>
+    <li><b>+ New</b> starts a fresh conversation; <b>History</b> brings back earlier ones.</li>
+  </ul>
+
+  <h3>Approving changes</h3>
+  <p>When Copilot wants to create or change something in Fabric, a window titled <b>"Copilot wants to make a change"</b>
+    shows exactly what it will do. Read it, then select <b>Approve</b> or <b>Decline</b>. Nothing changes until you approve.</p>
+  <p>When Copilot suggests a design (a semantic model, a report, a data agent), it shows an <b>Apply suggestions</b> or
+    <b>✓ Apply</b> button under its answer. Select it to review and build – there's no need to type "yes".</p>
+  <div class="warn"><b>AI can be wrong.</b> Always read Copilot's suggestions before you apply them, and double-check
+    important numbers in Power BI.</div>
+</section>
+
+<!-- ============================== STEP 1 ============================== -->
+<section class="page" id="step1">
+  <h2>Step 1 – Name your environment</h2>
+  <p>Before the app creates anything, tell it <b>what this environment is for</b>. It then names every item clearly, for
+    example <code>Sales_WS_Analytics_PROD</code> = the <i>Sales</i> team's <i>workspace</i> for <i>analytics</i> in
+    <i>production</i>. Anyone can tell from the name what an item is and where it belongs.</p>
+  <ol class="steps">
+    <li>Open the <b>Workspace</b> page (double-click the workspace frame on the map, or select <b>Workspace</b> from the Overview).</li>
+    <li>In <b>What is this environment for?</b>, select one card: <b>Demo or showcase</b>, <b>Proof of concept</b>,
+      <b>Development</b>, <b>Testing</b>, <b>User acceptance</b>, <b>Production</b>, <b>Training or workshop</b> or
+      <b>Personal sandbox</b>.</li>
+    <li>Type your <b>Business domain</b> – the business area, for example <i>Sales</i> or <i>Finance</i>.</li>
+    <li>Check the preview on the right (<b>Names the studio will use</b>) and select <b>Use this naming</b>.</li>
+  </ol>
+  <figure><img src="images/24-naming.png" alt="Naming"><figcaption>Choose the purpose and the business domain; the preview shows the names.</figcaption></figure>
+  <div class="note">Items that already exist keep their names. You can change the naming later with <b>Save naming</b>.</div>
+</section>
+
+<!-- ============================== STEP 2 ============================== -->
+<section class="page" id="step2">
+  <h2>Step 2 – Choose a workspace</h2>
+  <p>Everything the app builds goes into one Fabric workspace. Create a new one, or use one you already have.</p>
+
+  <h3>Create a new workspace</h3>
+  <ol class="steps">
+    <li>On the <b>Workspace</b> page, select <b>Create new</b>.</li>
+    <li><b>Workspace purpose</b>: a word such as <i>Analytics</i>. The full name is shown below it.</li>
+    <li><b>Capacity</b>: pick one from the list. Trial capacities are marked <i>(trial)</i>.</li>
+    <li>Optionally add a <b>Description</b>, then select <b>Create workspace</b>.</li>
+  </ol>
+  <div class="note">The <b>Create workspace</b> button stays grey until you finish Step 1 (naming).</div>
+
+  <h3>Use an existing workspace</h3>
+  <ol class="steps">
+    <li>Select <b>Use existing</b>, find the workspace (use the search box) and select it.</li>
+    <li>Or <b>double-click the workspace name</b> on the map to see every workspace on your capacity, then select <b>Use</b>.</li>
+  </ol>
+  <figure><img src="images/05b-workspaces.png" class="w70" alt="Workspaces on the capacity"><figcaption>Double-click the workspace name on the map to switch workspaces.</figcaption></figure>
+  <div class="warn"><b>Switching workspace starts the project over</b> in the new workspace. The app asks first, and nothing is
+    deleted – everything you built stays in the old workspace.</div>
+  <figure><img src="images/05-workspace.png" class="w80" alt="Workspace page"><figcaption>The Workspace page lists the items in your workspace. <b>Open in Fabric</b> opens it in Fabric; <b>Next: add data</b> takes you to the next step.</figcaption></figure>
+</section>
+
+<!-- ============================== STEP 3 ============================== -->
+<section class="page" id="step3">
+  <h2>Step 3 – Connect your data</h2>
+  <p>Open the <b>Data</b> page. Pick <b>one</b> of three ways to bring in data. Not sure? Start with sample data – it's the
+    fastest way to see the whole app working.</p>
+  <table>
+    <tr><th>Option</th><th>Choose it when…</th><th>Time</th></tr>
+    <tr><td><b>Sample data</b></td><td>You want to learn or demo the app. Two samples: <i>Contoso Retail</i> (a store chain) and <i>AdventureWorksDW2022</i> (a bike company).</td><td>3–8 min</td></tr>
+    <tr><td><b>Your databases</b></td><td>Your data is in Azure SQL, SQL Server or PostgreSQL. Fabric keeps a live copy (called <i>mirroring</i>).</td><td>5–15 min</td></tr>
+    <tr><td><b>Existing Fabric data</b></td><td>Your data is already in a Fabric lakehouse, warehouse, mirrored database or SQL database.</td><td>1 min</td></tr>
+  </table>
+
+  <h3>Option A – Sample data</h3>
+  <ol class="steps">
+    <li>Select the <b>Sample data</b> tab.</li>
+    <li>For Contoso Retail select <b>Load sample</b>. For AdventureWorks select <b>Create in my workspace</b>.</li>
+    <li>Optional for Contoso Retail: tick <b>Also create a data prep notebook (Python)</b> to get cleaned tables and charts.</li>
+    <li>Watch the progress card at the bottom right. When it finishes, the Data page shows your tables.</li>
+  </ol>
+  <figure><img src="images/06b-data-samples.png" alt="Sample data"><figcaption>The two samples.</figcaption></figure>
+</section>
+
+<section class="page">
+  <h3>Option B – Your databases</h3>
+  <ol class="steps">
+    <li>Select the <b>Your databases</b> tab and the type of database.</li>
+    <li>Fill in the details (server, database) – your database administrator can give them to you.</li>
+    <li>Choose an existing Fabric connection, or create a new one with the sign-in details.</li>
+    <li>Select <b>Start mirroring</b>. The page shows each table as it is copied.</li>
+  </ol>
+  <figure><img src="images/06c-data-databases.png" class="w80" alt="Your databases"><figcaption>Supported databases.</figcaption></figure>
+  <div class="note"><b>Passwords are safe.</b> Database sign-in details go straight to Microsoft Fabric to create a connection.
+    They are never shown to the AI. SQL Server on your company network needs an <i>on-premises data gateway</i> – ask IT.</div>
+
+  <h3>Option C – Existing Fabric data</h3>
+  <ol class="steps">
+    <li>Select the <b>Existing Fabric data</b> tab.</li>
+    <li>Choose the kind of item (<b>Lakehouse</b>, <b>Warehouse</b>, <b>Mirrored database</b> or <b>SQL database</b>) and the workspace.</li>
+    <li>Select the item. Its tables appear with their row counts.</li>
+    <li>Select <b>Use in place</b> – the model is built right on that data, nothing is copied.
+      (For lakehouses and warehouses you can choose <b>Create shortcuts in my project lakehouse</b> instead.)</li>
+  </ol>
+  <figure><img src="images/06d-data-fabric.png" class="w70" alt="Existing Fabric data"><figcaption>Pick an item and use it in place.</figcaption></figure>
+</section>
+
+<section class="page">
+  <h3>When your data is connected</h3>
+  <p>The top of the Data page summarizes your data: where it lives, how it reaches Fabric, and every table with its rows.
+    Select <b>✦ Explain my data</b> for a plain-language tour, or <b>Next: semantic model →</b> to continue.</p>
+  <figure><img src="images/06-data.png" alt="Data page"><figcaption>The Data page once data is connected.</figcaption></figure>
+
+  <h3>More than one data source</h3>
+  <p>You can add another data source to the same workspace at any time (<b>Add another data source</b> at the bottom of the
+    Data page). Each source keeps its own model, reports and the rest. To switch between them, <b>double-click Data source</b>
+    on the map – nothing changes in Fabric when you switch.</p>
+  <figure><img src="images/07-data-sources.png" class="w70" alt="Data sources"><figcaption>Double-click <b>Data source</b> on the map to see the data in the workspace and switch.</figcaption></figure>
+</section>
+
+<!-- ============================== STEP 4 ============================== -->
+<section class="page" id="step4">
+  <h2>Step 4 – Create or add a semantic model</h2>
+  <p>The semantic model turns tables into business numbers everyone trusts. Open the <b>Semantic model</b> page.</p>
+
+  <h3>Create a new model from your data</h3>
+  <ol class="steps">
+    <li>Review the tables (untick any you don't need) and the relationships the app found.</li>
+    <li>Check the <b>Semantic model name</b>.</li>
+    <li>Select <b>Create semantic model</b>. With the samples, the app also adds ready-made business measures.</li>
+  </ol>
+  <p>Prefer help? Select <b>✦ Design it with Copilot</b>. Copilot proposes tables, names, relationships and measures, then
+    shows <b>Apply suggestions</b> to review and create it.</p>
+
+  <h3>Use a model that already exists</h3>
+  <ol class="steps">
+    <li>Select <b>⇄ Switch or add a model</b> (or double-click <b>Semantic model</b> on the map).</li>
+    <li>Select <b>+ Add an existing model</b>, choose the workspace and the model, then <b>Add</b>.</li>
+    <li>The app reads its tables and measures, and looks in Fabric for the <b>reports and data agents already built on it</b>.
+      They appear on the map and on Reports &amp; apps as <i>Existing report</i>. The app never changes or deletes them.</li>
+  </ol>
+  <figure><img src="images/09-models-popup.png" class="w70" alt="Semantic models"><figcaption>The Semantic models window: switch the active model, add one, or build a new one.</figcaption></figure>
+  <div class="note"><b>One model is active at a time.</b> Reports, Copilot's answers, the data agent and the org app use the
+    active model. Switch any time with <b>Use this model</b> – nothing changes in Fabric.</div>
+</section>
+
+<section class="page">
+  <figure><img src="images/08-model.png" class="w80" alt="Semantic model page"><figcaption>The Semantic model page with one-click improvements: business measures, documentation, a best-practice review, translations and security.</figcaption></figure>
+
+  <h3>Improve your model with Copilot</h3>
+  <p>Select any of the <b>✦</b> buttons on the page, for example <b>✦ Add business measures from my glossary</b> or
+    <b>✦ Run a best-practice review</b>. Copilot explains each change and asks for approval.</p>
+
+  <h3>If the model shows an error – "Check data"</h3>
+  <p>Sometimes data contains duplicate rows, and the model can't answer (you'll see a message such as <i>"has repeated
+    values … one side of a relationship"</i>). Select <b>🩺 Check and fix the data</b> (or <b>🩺 Check data</b> in the model bar).</p>
+  <ul>
+    <li>The app checks every relationship against the real data and shows <b>Unique</b> or how many extra rows there are.</li>
+    <li>If the extra rows are exact copies in a warehouse, select <b>Remove … duplicate rows</b>. A backup copy is kept first.</li>
+    <li>If it says <b>Model has older rows</b>, select <b>↻ Reload the model</b>.</li>
+  </ul>
+  <figure><img src="images/10-check-data.png" class="w55" alt="Check data"><figcaption>All relationships are fine here.</figcaption></figure>
+</section>
+
+<!-- ============================== STEP 5 ============================== -->
+<section class="page" id="step5">
+  <h2>Step 5 – Build Power BI reports (with maps)</h2>
+  <p>Open <b>Reports &amp; apps</b>. The bar at the top shows which semantic model the reports are built on.</p>
+  <figure><img src="images/15-model-bar.png" alt="Model bar"><figcaption>The model bar: switch models, <b>Check data</b>, or <b>Add a model</b>.</figcaption></figure>
+
+  <h3>The fastest way – a recommended report</h3>
+  <p><b>Recommended for your data</b> suggests reports for different audiences, each with the reasons from your own data.</p>
+  <ol class="steps">
+    <li>Read the cards – for example <b>Executive report</b> (for leadership) or <b>Regional report</b> (with a map).</li>
+    <li>Select <b>Build</b>. The report is created in your workspace in a minute or two.</li>
+    <li>Or select <b>Customize</b> to change pages or theme first.</li>
+  </ol>
+  <figure><img src="images/11-reports-recommended.png" alt="Recommended reports"><figcaption>Recommended reports with their reasons. <b>Build</b> creates the report.</figcaption></figure>
+</section>
+
+<section class="page">
+  <h3>What the app found in your model</h3>
+  <p>This card shows what the reports will use: headline numbers (KPIs), time, breakdowns, top-10 lists and the <b>Map</b>
+    line – the places it found, such as <i>Country › State › City</i>.</p>
+  <figure><img src="images/12-reports-found.png" class="w55" alt="What we found"><figcaption>What we found in your model.</figcaption></figure>
+
+  <h3>Design your own report</h3>
+  <ol class="steps">
+    <li>In <b>Design a Power BI report › Pages</b>, tick the pages you want:
+      <b>Executive summary</b>, <b>Performance drivers</b>, <b>Scorecard</b>, <b>Business rules</b>, <b>Plan vs actual</b> and <b>Map</b>.</li>
+    <li>Pick a <b>Theme</b> (colors and style).</li>
+    <li>Check the <b>Report name</b> and select <b>Build report</b>.</li>
+  </ol>
+  <figure><img src="images/13-report-pages.png" class="w70" alt="Report pages"><figcaption>Page templates. The <b>Map</b> page appears when your data has locations.</figcaption></figure>
+  <figure><img src="images/14-report-themes.png" class="w55" alt="Themes"><figcaption>Themes.</figcaption></figure>
+</section>
+
+<section class="page">
+  <h3>Maps</h3>
+  <p>When your data has <b>countries, states, cities, postal codes</b> or <b>latitude/longitude</b>, the app adds a <b>Map</b> page:
+    bubbles sized by your main number, which you can drill from country to state to city, next to the top places. You
+    don't have to do anything special – the app finds the location columns by itself.</p>
+  <div class="note">Maps use Power BI's <b>Azure Maps</b> visual. If the map shows a message instead of a map, ask your Fabric
+    administrator to turn on the tenant setting <b>"Use Azure Maps visual"</b>.</div>
+
+  <h3>Use your organization's own report templates</h3>
+  <p>Under <b>Your own templates</b>, select <b>Upload template</b> (or drop files on the box). Power BI templates (.pbit),
+    reports (.pbix), zipped Power BI projects, report layouts and themes (.json) are supported. Then select
+    <b>Use template</b>: the app checks which fields match your model and builds the report with your template's look.</p>
+  <figure><img src="images/17-templates.png" class="w80" alt="Your own templates"><figcaption>Upload your own templates.</figcaption></figure>
+
+  <h3>Open and share your reports</h3>
+  <ul>
+    <li><b>Your reports</b> lists every report. Select <b>Open in Power BI ↗</b>, or <b>▸ Preview</b> to see the pages here.</li>
+    <li><b>Org app for your organization › Create app</b> bundles your reports into one app. Then select <b>Publish in Fabric</b>,
+      choose who can see it (the audience) and publish. People don't need access to your workspace.</li>
+  </ul>
+  <figure><img src="images/16-your-reports.png" alt="Your reports"><figcaption>Your reports. Reports that already existed are marked <i>Existing report</i> and are never changed by the app.</figcaption></figure>
+</section>
+
+<!-- ============================== STEP 6 ============================== -->
+<section class="page" id="step6">
+  <h2>Step 6 – Ask questions and share</h2>
+  <p>Open <b>Ask &amp; share</b>.</p>
+  <figure><img src="images/19-share.png" class="w80" alt="Ask and share"><figcaption>Ask governed questions – answers come from your semantic model, with your permissions.</figcaption></figure>
+  <h3>Ask questions about your business</h3>
+  <p>Select any suggested question, or select <b>Ask your own question</b>. Answers use your real measures and respect
+    everyone's permissions and row-level security. The questions are written for your data – your measures, categories and years.</p>
+
+  <h3>Create a Fabric data agent</h3>
+  <p>A data agent is an AI assistant in Fabric that answers questions about your model – also inside Microsoft 365 Copilot.
+    Select <b>Create data agent</b>, or <b>✦ Suggest it with Copilot</b> and then <b>✓ Apply suggestions</b> to review its
+    instructions first.</p>
+
+  <h3>Put it in Microsoft Teams and Microsoft 365 Copilot</h3>
+  <p>In <b>Microsoft 365 Copilot &amp; Teams</b>, select <b>Install for me</b> to try the agent yourself, or
+    <b>Publish to my organization</b> to submit it for your administrator's approval.</p>
+
+  <h3>Keep a record</h3>
+  <p><b>Export › Download project &amp; audit log (JSON)</b> saves what was built and every approval.</p>
+</section>
+
+<!-- ============================== OPTIONAL ============================== -->
+<section class="page" id="optional">
+  <h2>Optional steps</h2>
+  <p>These parts add more value but aren't required. Each has its own page and box on the map.</p>
+
+  <h3>Ontology – your business vocabulary for AI</h3>
+  <ol class="steps">
+    <li>Open <b>Ontology</b>. In <b>Business glossary</b>, write (or <b>Upload .md/.txt</b>) your terms and rules in plain
+      language, for example <i>"Active customer: a customer with a purchase in the last 90 days"</i>. Select <b>Save glossary</b>.</li>
+    <li>Select <b>✦ Generate rules with Copilot</b> to turn the glossary into business rules.</li>
+    <li>Review the entities and rules on the right, then select <b>Deploy ontology</b>.</li>
+  </ol>
+  <figure><img src="images/20-ontology.png" alt="Ontology"><figcaption>The Ontology page. Ontology is a Fabric preview feature; AI agents use it on paid capacities (F2 or higher).</figcaption></figure>
+</section>
+
+<section class="page">
+  <h3>Planning – budget and forecast</h3>
+  <p>Planning creates next year's budget and a rolling forecast from your actual numbers, and a <b>Plan vs actual</b> report.</p>
+  <ol class="steps">
+    <li>Open <b>Planning</b>. <b>Design the plan</b> recommends a plan year and growth – change the growth for any region and
+      select <b>↻ Apply growth targets</b> to see the effect.</li>
+    <li>Select <b>Build the plan</b> (about 4 minutes).</li>
+    <li>Select <b>Build report</b> for the Plan vs actual report, and <b>Create the Fabric plan</b> so planners can refine numbers in planning sheets.</li>
+  </ol>
+  <div class="note">Planning works on a semantic model <b>the app built</b> from your data. If your active model is one you
+    added, the page tells you – switch models or build a new one first.</div>
+  <figure><img src="images/21-planning.png" alt="Planning"><figcaption>Here the active model is an existing one, so the page explains what to do.</figcaption></figure>
+</section>
+
+<section class="page">
+  <h3>Real-time – live data</h3>
+  <p>Stream live events shaped like your data, watch them on an auto-refreshing dashboard and get alerts.</p>
+  <ol class="steps">
+    <li>Open <b>Real-time</b> and select <b>Set up live data</b> (about 2 minutes).</li>
+    <li>In <b>Live events</b>, choose how many events per minute and select <b>▶ Start events</b>. Select <b>■ Stop</b> when done.</li>
+    <li>Select <b>Build dashboard</b>, then open it to watch the numbers change every 30 seconds.</li>
+    <li>Optional: <b>Create alerts</b> (Teams or email) when a business rule breaks, <b>Connect live events</b> to the ontology,
+      or <b>Apply medallion template</b> for Bronze, Silver and Gold layers.</li>
+  </ol>
+  <figure><img src="images/22-realtime.png" alt="Real-time"><figcaption>The Real-time page before set-up.</figcaption></figure>
+</section>
+
+<section class="page">
+  <h3>Task flow – organize your workspace</h3>
+  <p>A task flow shows in Fabric how your items fit together. On the <b>Workspace</b> page, in <b>Task flow</b>, pick the
+    flow already in your workspace or one of Fabric's ready-made flows (for example <b>Medallion</b>), check where each
+    item goes, then select <b>Use …</b>. The app keeps it up to date as you add or remove items.</p>
+  <figure><img src="images/25-taskflow.png" alt="Task flow"><figcaption>Each box lists its items. Move an item with the small menu next to it.</figcaption></figure>
+</section>
+
+<!-- ============================== HOUSEKEEPING ============================== -->
+<section class="page" id="housekeeping">
+  <h2>Keep things tidy – remove items and clean up</h2>
+
+  <h3>Remove one item</h3>
+  <p>On the <b>Overview</b> page, <b>Items in this project</b> lists everything the project uses and what depends on it.
+    Select <b>Remove</b> to delete an item in Fabric. The button is disabled while something still uses the item – remove
+    that first (for example the reports before their semantic model). Before anything happens, a window tells you exactly
+    what <b>Remove</b> will do. Items the app <b>didn't create</b> – a model you added, or data you used in place – are only
+    disconnected from the project; the app never deletes them.</p>
+  <figure><img src="images/04-items.png" class="w70" alt="Items in this project"><figcaption>Items in this project.</figcaption></figure>
+
+  <h3>Clean up everything</h3>
+  <ol class="steps">
+    <li>Open <b>Settings › Clean up</b>.</li>
+    <li>Select <b>Clean up resources</b>. The app lists every item it will delete, and which ones go to the workspace's
+      recycle bin.</li>
+    <li>Type the workspace name to confirm. Tick <b>Delete the whole workspace</b> only if the app created it and you want it gone.</li>
+  </ol>
+  <p><b>Start a new project</b> only clears the app's memory on your computer – nothing is deleted in Fabric.</p>
+  <figure><img src="images/29-cleanup.png" class="w55" alt="Clean up"><figcaption>Settings › Clean up.</figcaption></figure>
+
+  <h3>See everything that happened</h3>
+  <p>The <b>Activity</b> tab lists every item created (with links), every job, and every approval or decline.</p>
+</section>
+
+<!-- ============================== TROUBLESHOOTING ============================== -->
+<section class="page" id="trouble">
+  <h2>When something doesn't work</h2>
+  <p>First select <b>Check setup</b> – it finds most problems and says how to fix them. You can also ask Copilot:
+    <i>"Why can't I build a report?"</i></p>
+  <table class="trouble">
+    <tr><th>What you see</th><th>What to do</th></tr>
+    <tr><td>The browser says the page can't be reached</td><td>The app isn't running. Double-click the desktop icon and wait a few seconds.</td></tr>
+    <tr><td>"Fabric MCP Studio isn't running" at the top of the page</td><td>Start it again from the desktop icon; the page reconnects by itself.</td></tr>
+    <tr><td><b>Sign in</b> at the top right, or "Not signed in"</td><td>Select <b>Sign in › Sign in with browser</b> and use your work account.</td></tr>
+    <tr><td>Copilot says the AI provider isn't set up</td><td><b>Settings › AI provider</b>: enter the details from IT, <b>Save</b>, then <b>Test</b>.</td></tr>
+    <tr><td>A red badge on a map box, or "Can't run"</td><td>Select the box – it says what is missing (often a Fabric setting your administrator must turn on).</td></tr>
+    <tr><td>"The capacity is paused"</td><td>Ask your Fabric administrator to resume the capacity, then select <b>Check again</b>.</td></tr>
+    <tr><td>A grey box you can't open</td><td>Build the parts to its left first – the box says what it needs.</td></tr>
+    <tr><td>"…has repeated values … one side of a relationship"</td><td>Select <b>🩺 Check and fix the data</b> (Step 4).</td></tr>
+    <tr><td>The check says <b>Model has older rows</b></td><td>Select <b>↻ Reload the model</b>; if it persists, wait a few minutes and reload again.</td></tr>
+    <tr><td>The map shows a message instead of a map</td><td>Ask your Fabric administrator to turn on <b>"Use Azure Maps visual"</b>.</td></tr>
+    <tr><td>"Preview not available" for a report</td><td>Normal when your organization turns PDF export off. Select <b>Open in Power BI</b>.</td></tr>
+    <tr><td>A yellow banner "A newer version is installed"</td><td>Select <b>Restart now</b> (wait for running jobs to finish first).</td></tr>
+    <tr><td>Something says "Not found" or "needs a restart"</td><td>The app was updated: select <b>Restart now</b>, or <b>Shut down</b> and start it again.</td></tr>
+    <tr><td>A job failed</td><td>Open the job card (bottom right) or <b>Activity</b> to read why. Fix the cause and run it again – you can also ask Copilot what went wrong.</td></tr>
+  </table>
+</section>
+
+<!-- ============================== SAFETY ============================== -->
+<section class="page" id="safety">
+  <h2>Safety, privacy and costs</h2>
+  <ul class="checks">
+    <li><b>You are in control.</b> Copilot asks before every change. Deleting anything always needs your confirmation, and
+      clean-up needs you to type the workspace name.</li>
+    <li><b>It works with your permissions.</b> The app signs in as you; Fabric security, including row-level security,
+      always applies. It can't see or change more than you can.</li>
+    <li><b>Your data stays in your organization.</b> Everything the app builds lives in your Fabric tenant. Questions you
+      ask Copilot, and data in its answers, go to the AI service your organization chose.</li>
+    <li><b>Passwords never reach the AI.</b> Database sign-in details go straight to Fabric.</li>
+    <li><b>Existing work is protected.</b> Semantic models, reports and data agents you add that already existed are never
+      changed or deleted by the app.</li>
+    <li><b>Costs.</b> Items run on your organization's Fabric capacity and may use its capacity or incur costs. Clean up what
+      you don't need (chapter 16).</li>
+    <li><b>Start in a test workspace.</b> Try new things in a <i>Personal sandbox</i> or <i>Development</i> environment before
+      production.</li>
+  </ul>
+  <div class="note"><b>Getting help.</b> Use <b>Check setup</b> and Copilot first. For questions or feedback about the app,
+    contact the author at <b>luisbor@microsoft.com</b> (best effort, no support commitment).</div>
+</section>
+
+<!-- ============================== QUICK REFERENCE ============================== -->
+<section class="page" id="quickref">
+  <h2>Quick reference card</h2>
+  <table class="quick">
+    <tr><th>I want to…</th><th>Go to</th><th>Select</th></tr>
+    <tr><td>Start the app</td><td>Desktop</td><td>Double-click <b>Fabric MCP Studio</b></td></tr>
+    <tr><td>Stop the app</td><td>Top right</td><td><b>Shut down</b></td></tr>
+    <tr><td>Sign in or switch account</td><td>Top right</td><td>Your name, or <b>Sign in</b></td></tr>
+    <tr><td>Check that everything works</td><td>Top right</td><td><b>Check setup</b></td></tr>
+    <tr><td>Set up the AI</td><td><b>Settings › AI provider</b></td><td>Fill in, <b>Save</b>, <b>Test</b></td></tr>
+    <tr><td>Name my environment</td><td><b>Workspace</b></td><td>Pick a card, type the domain, <b>Use this naming</b></td></tr>
+    <tr><td>Create or pick a workspace</td><td><b>Workspace</b></td><td><b>Create new</b> or <b>Use existing</b></td></tr>
+    <tr><td>Switch workspace</td><td>Map</td><td>Double-click the workspace name</td></tr>
+    <tr><td>Load sample data</td><td><b>Data › Sample data</b></td><td><b>Load sample</b> / <b>Create in my workspace</b></td></tr>
+    <tr><td>Use data already in Fabric</td><td><b>Data › Existing Fabric data</b></td><td>Pick the item, <b>Use in place</b></td></tr>
+    <tr><td>Mirror a company database</td><td><b>Data › Your databases</b></td><td>Fill in, <b>Start mirroring</b></td></tr>
+    <tr><td>Switch data source</td><td>Map</td><td>Double-click <b>Data source</b></td></tr>
+    <tr><td>Create a semantic model</td><td><b>Semantic model</b></td><td><b>Create semantic model</b></td></tr>
+    <tr><td>Use an existing model</td><td><b>Semantic model</b></td><td><b>⇄ Switch or add a model › + Add an existing model</b></td></tr>
+    <tr><td>Fix a model data error</td><td>Model bar</td><td><b>🩺 Check data</b></td></tr>
+    <tr><td>Build a report</td><td><b>Reports &amp; apps</b></td><td><b>Build</b> on a recommendation, or <b>Build report</b></td></tr>
+    <tr><td>Add a map</td><td><b>Reports &amp; apps › Pages</b></td><td>Tick <b>Map</b>, or build the <b>Regional report</b></td></tr>
+    <tr><td>Use our own report template</td><td><b>Reports &amp; apps</b></td><td><b>Upload template</b>, then <b>Use template</b></td></tr>
+    <tr><td>Share reports as an app</td><td><b>Reports &amp; apps</b></td><td><b>Create app</b>, then <b>Publish in Fabric</b></td></tr>
+    <tr><td>Ask a business question</td><td><b>Ask &amp; share</b> or <b>Copilot</b></td><td>A suggested question, or type your own</td></tr>
+    <tr><td>Create a data agent</td><td><b>Ask &amp; share</b></td><td><b>Create data agent</b></td></tr>
+    <tr><td>Add the agent to Teams</td><td><b>Ask &amp; share</b></td><td><b>Install for me</b></td></tr>
+    <tr><td>Remove one item</td><td><b>Overview › Items in this project</b></td><td><b>Remove</b></td></tr>
+    <tr><td>Delete everything the app built</td><td><b>Settings › Clean up</b></td><td><b>Clean up resources</b></td></tr>
+    <tr><td>See what happened</td><td><b>Activity</b></td><td>–</td></tr>
+    <tr><td>Update the app</td><td>Yellow banner</td><td><b>Restart now</b></td></tr>
+  </table>
+</section>
+
+</body>
+</html>
