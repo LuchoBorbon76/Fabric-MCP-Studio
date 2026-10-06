@@ -1,6 +1,6 @@
 // Fabric MCP Studio - local web server (127.0.0.1 only). No framework: node:http + SSE + static files.
 import { createServer } from 'node:http';
-import { readFileSync, existsSync, statSync, rmSync, openSync, writeFileSync } from 'node:fs';
+import { readFileSync, existsSync, statSync, rmSync, openSync, closeSync, writeFileSync } from 'node:fs';
 import { join, extname, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
@@ -359,7 +359,8 @@ route('POST', '/api/shutdown', () => {
 });
 
 // Restart with the code on disk (after an update): a new copy takes over this port once this one has stopped. Its
-// output goes to data\studio.log. Running jobs would be cut off, so they have to finish first.
+// output goes to data\studio.log (or studio.restart.log, see restartLog). Running jobs would be cut off, so they have
+// to finish first.
 route('POST', '/api/restart', async () => {
   const running = listJobs().filter((j) => j.status === 'running');
   if (running.length) throw Object.assign(new Error(`"${running[0].title}"${running.length > 1 ? ` and ${running.length - 1} more` : ''} ${running.length > 1 ? 'are' : 'is'} still running. Wait for ${running.length > 1 ? 'them' : 'it'} to finish (or stop ${running.length > 1 ? 'them' : 'it'}), then restart.`), { status: 409, code: 'JOBS_RUNNING' });
@@ -371,10 +372,11 @@ route('POST', '/api/restart', async () => {
   const serverArgs = [fileURLToPath(import.meta.url), ...keep, '--no-open', '--port', String(PORT), '--restart-of', String(process.pid)];
   const ready = join(DATA_DIR, `restart-${process.pid}.ready`);
   rmSync(ready, { force: true });
-  if (process.platform === 'win32') await startHidden(serverArgs);
+  const log = restartLog();
+  if (process.platform === 'win32') await startHidden(serverArgs, log);
   else {
     let out = 'ignore';
-    try { out = openSync(join(DATA_DIR, 'studio.log'), 'a'); } catch { /* read-only data folder */ }
+    try { out = openSync(log, 'a'); } catch { /* read-only data folder */ }
     spawn(process.execPath, serverArgs, { cwd: STUDIO_ROOT, env: process.env, detached: true, stdio: ['ignore', out, out] }).unref();
   }
   // Stop only once the new copy has loaded (its code and modules work); otherwise keep running and say why.
@@ -382,7 +384,7 @@ route('POST', '/api/restart', async () => {
   while (!existsSync(ready) && Date.now() - t0 < 45000) await new Promise((r) => setTimeout(r, 250));
   if (!existsSync(ready)) {
     logActivity('studio.restart', 'The new copy of Fabric MCP Studio didn\'t start, so this one keeps running', {});
-    throw Object.assign(new Error(`The new copy of the studio didn't start within 45 seconds, so this one keeps running. See ${join(DATA_DIR, 'studio.log')}, or shut the studio down and start it again from the desktop shortcut.`), { status: 500, code: 'RESTART_FAILED' });
+    throw Object.assign(new Error(`The new copy of the studio didn't start within 45 seconds, so this one keeps running. See ${log}, or shut the studio down and start it again from the desktop shortcut.`), { status: 500, code: 'RESTART_FAILED' });
   }
   rmSync(ready, { force: true });
   logActivity('studio.restart', `Restarting Fabric MCP Studio${pendingUpdate() ? ` to update from ${VERSION} to ${pendingUpdate().onDisk}` : ''}`, {});
@@ -392,12 +394,25 @@ route('POST', '/api/restart', async () => {
 });
 
 /**
+ * The log the new copy writes to. On Windows the console that runs this copy (the desktop icon's, or an earlier
+ * restart's) keeps its log locked until this copy stops – a second redirect to it fails and the new copy never starts.
+ * The new copy takes whichever of studio.log and studio.restart.log is free, so the two take turns.
+ */
+function restartLog() {
+  for (const name of ['studio.log', 'studio.restart.log']) {
+    const file = join(DATA_DIR, name);
+    try { closeSync(openSync(file, 'a')); return file; } catch { /* in use by the running copy */ }
+  }
+  return join(DATA_DIR, `studio.${process.pid}.log`);
+}
+
+/**
  * Windows: start the new copy in a hidden console, like the desktop shortcut does. A detached process has no console
  * at all, and then every console program it runs (the Azure CLI, the Copilot runtime's tools) opens a window of its
  * own. A small launcher in the data folder runs it; PowerShell starts that launcher hidden. PowerShell itself must not
  * be detached (it then can't start a hidden window); what it starts outlives this process. Waits until it has.
  */
-function startHidden(serverArgs) {
+function startHidden(serverArgs, log) {
   const q = (s) => `"${String(s).replace(/"/g, '')}"`;
   const pct = (s) => s.replace(/%/g, '%%');
   const launcher = join(DATA_DIR, 'restart-studio.cmd');
@@ -407,7 +422,7 @@ function startHidden(serverArgs) {
     '@echo off',
     'chcp 65001 >nul',
     `cd /d ${pct(q(STUDIO_ROOT))}`,
-    `${pct(q(process.execPath))} ${serverArgs.map((a) => pct(q(a))).join(' ')} >> ${pct(q(join(DATA_DIR, 'studio.log')))} 2>&1`,
+    `${pct(q(process.execPath))} ${serverArgs.map((a) => pct(q(a))).join(' ')} >> ${pct(q(log))} 2>&1`,
     '',
   ].join('\r\n'));
   const ps = `Start-Process -FilePath '${launcher.replace(/'/g, "''")}' -WindowStyle Hidden`;

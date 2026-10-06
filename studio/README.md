@@ -50,7 +50,8 @@ The first run installs dependencies (~150 MB, includes the GitHub Copilot runtim
 Options: `--port 5000`, `--no-open`, `--check` (readiness checks only), `--new-instance` (start another copy).
 
 The desktop icon starts the studio in the background, with no console window (`Start-Studio-Silent.wsf`, Windows
-Script Host). Stop it with **Shut down** in the app header; server output goes to `studio/data/studio.log`.
+Script Host). Stop it with **Shut down** in the app header; server output goes to `studio/data/studio.log` (after
+*Restart now*, to `studio.log` or `studio.restart.log` – whichever the running copy isn't writing to).
 After an update (git pull, files copied from another computer) the pages are new but the running server isn't: the
 studio shows **A newer version is installed – Restart now** at the top, and *Restart now* starts the new version on the
 same port in the background (hidden, like the desktop icon) and reloads the page (running jobs have to finish first).
@@ -500,7 +501,7 @@ Copilot tools: `studio_planning_status`, `studio_preview_plan`, `studio_create_p
 | `web/` | UI (vanilla ES modules, MSX Command Center design, 9 themes); `web/js/lineage.js` draws the solution map |
 | `assets/` | App icon (`fabric-mcp-studio.ico` / `.png`) used by the desktop shortcut |
 | `Start-Studio-Silent.wsf` | Windows launcher used by the desktop shortcut: starts the studio without a console window, reuses a running copy, reports start-up errors |
-| `data/` | Local state (git-ignored): project, activity log, chat transcripts, Copilot runtime home, `studio.log` |
+| `data/` | Local state (git-ignored): project, activity log, chat transcripts, Copilot runtime home, `studio.log` (and `studio.restart.log` after *Restart now*) |
 
 ## Troubleshooting
 
