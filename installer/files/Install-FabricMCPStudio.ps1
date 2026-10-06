@@ -343,10 +343,10 @@ function Get-RunningStudio {
     return $null
 }
 
-function Stop-RunningStudio {
+function Stop-RunningStudio([string]$Why = 'update') {
     $s = Get-RunningStudio
     if (-not $s) { return $false }
-    Write-Warn "$appName is running ($($s.Url)). It has to be closed to update it - running jobs are stopped."
+    Write-Warn "$appName is running ($($s.Url)). It has to be closed to $Why it - running jobs are stopped."
     if (-not (Confirm-Step 'Close it now?')) { Stop-Installer "Close $appName with Shut down in the app, then run the installer again." }
     try { Invoke-WebRequest -Uri "$($s.Url)api/shutdown" -Method Post -Headers @{ 'x-studio-token' = $s.Token } -ContentType 'application/json' -Body '{}' -UseBasicParsing | Out-Null } catch { }
     for ($i = 0; $i -lt 30; $i++) {
@@ -479,7 +479,7 @@ function Invoke-Uninstall {
     if (-not (Test-StudioFolder $InstallDir)) { Stop-Installer "$InstallDir doesn't contain $appName. Nothing was removed (use -InstallDir to point to the right folder)." }
     $what = if ($KeepData) { ' (your projects, chats and settings are kept)' } else { ' including your projects, chats and settings' }
     if (-not (Confirm-Step "Remove the shortcuts and $InstallDir$($what)?" $false)) { Stop-Installer 'Nothing was removed.' 0 }
-    Stop-RunningStudio | Out-Null
+    Stop-RunningStudio 'remove' | Out-Null
     foreach ($dir in @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('Programs'))) {
         $lnk = Join-Path $dir "$ShortcutName.lnk"
         if (Test-Path -LiteralPath $lnk) { Remove-Item -LiteralPath $lnk -Force; Write-Ok "Removed $lnk" }
