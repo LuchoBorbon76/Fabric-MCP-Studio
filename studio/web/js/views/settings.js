@@ -2,6 +2,7 @@ import { store, get, post, put, patch, on } from '../api.js';
 import { h, toast, busy, field, input, select, seg, confirmDialog, typedConfirmDialog, statusDot } from '../ui.js';
 import { app } from '../app.js';
 import { showDisclaimer, showWhatsNew } from '../about.js';
+import { OPENROUTER_AUTO, fillModelSelect } from '../openrouter.js';
 
 let draftProvider = null;
 
@@ -34,7 +35,7 @@ function providerCard() {
   const d = draftProvider;
   const body = h('div');
   const cards = h('div', { class: 'srcs' }, store.providers.map((p) => h('div', { class: `src ${d.id === p.id ? 'on' : ''}`, onclick: () => { d.id = p.id; d.config = p.id === cur.id ? { ...(cur.config || {}) } : {}; d.model = p.id === cur.id ? cur.model : ''; redraw(); } },
-    h('div', { class: 'h' }, h('div', { class: 'ic' }, { github: '🐙', 'azure-openai': '☁', openai: '◎', anthropic: '✳', local: '🖥' }[p.id] || '✦'), p.name),
+    h('div', { class: 'h' }, h('div', { class: 'ic' }, { github: '🐙', 'azure-openai': '☁', openai: '◎', anthropic: '✳', local: '🖥', openrouter: '🔀' }[p.id] || '✦'), p.name, p.developer ? h('span', { class: 'pill', title: 'Only in developer mode' }, 'Dev') : null),
     h('div', { class: 'meta' }, p.license))));
   const redraw = () => { card.replaceWith(providerCard()); };
 
@@ -68,6 +69,34 @@ function providerCard() {
       h('div', { class: 'formgrid' }, field('Model', model, 'Models available to your Copilot plan'), field('Reasoning effort', effort)),
       h('div', { class: 'row' }, login, tok, useTok),
       h('p', { class: 'tiny muted' }, 'Uses your GitHub Copilot seat (Free, Pro, Pro+, Business or Enterprise). Business/Enterprise admins may need to allow MCP servers and the models you pick. Tokens are kept in memory only.')));
+  } else if (d.id === 'openrouter') {
+    const saved = store.settings?.provider?.hasApiKey && cur.id === 'openrouter';
+    const key = input({ type: 'password', placeholder: saved ? '•••••••• (saved in memory)' : 'sk-or-…' });
+    const search = input({ placeholder: 'Search models – claude, gpt, gemini, free…' });
+    const model = select([{ value: d.model || OPENROUTER_AUTO, label: 'Loading OpenRouter models…' }]);
+    const info = h('div', { class: 'tiny muted' });
+    let models = [];
+    const showInfo = () => {
+      const m = models.find((x) => x.id === model.value);
+      if (!m) { info.textContent = ''; return; }
+      const free = m.price?.input === 0 && m.price?.output === 0;
+      const price = free ? 'free' : m.price?.input !== null ? `$${m.price.input} in / $${m.price.output} out per million tokens` : '';
+      const ctx = m.context ? `${m.context.toLocaleString()} tokens of context` : '';
+      info.textContent = [m.id, price, ctx, m.reasoning ? 'supports reasoning effort' : ''].filter(Boolean).join(' · ');
+    };
+    get('/openrouter/models').then((ms) => { models = ms; fillModelSelect(model, models, d.model || OPENROUTER_AUTO); showInfo(); })
+      .catch((e) => { model.innerHTML = ''; model.append(h('option', { value: d.model || OPENROUTER_AUTO }, d.model || OPENROUTER_AUTO)); info.textContent = e.message; });
+    search.addEventListener('input', () => { fillModelSelect(model, models, model.value, search.value); showInfo(); });
+    model.addEventListener('change', () => { d.model = model.value; showInfo(); });
+    const effort = select(['', 'low', 'medium', 'high'].map((x) => ({ value: x, label: x || 'default', selected: x === d.reasoningEffort })));
+    effort.addEventListener('change', () => { d.reasoningEffort = effort.value; });
+    body.append(h('div', { class: 'col mt' },
+      h('div', { class: 'formgrid' }, field('API key', key, h('span', {}, 'From ', h('a', { href: 'https://openrouter.ai/settings/keys', target: '_blank', rel: 'noopener' }, 'openrouter.ai › Keys ↗'))), field('Search', search)),
+      field('Model', model, 'Only models that can call tools – Copilot works through tools. Prices are per million tokens, input / output.'),
+      info,
+      h('div', { class: 'formgrid' }, field('Reasoning effort', effort, 'Used by models that support it')),
+      h('p', { class: 'tiny muted' }, 'Developer mode only. The key is kept in memory until the studio stops – set the OPENROUTER_API_KEY environment variable to have it every time. Prompts and data in answers go to OpenRouter and the model\'s lab under their terms.')));
+    d.read = () => { if (key.value.trim()) d.config.apiKey = key.value.trim(); d.model = model.value || d.model; };
   } else {
     const inputs = {};
     const fields = meta.fields.map((f) => {

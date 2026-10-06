@@ -79,15 +79,23 @@ language with screenshots, for business users. Rebuild it after changing `docs/u
 | **Anthropic Claude** | API key |
 | **Local model** | Any OpenAI-compatible endpoint (Ollama, LM Studio, vLLM) with tool calling |
 | **GitHub Copilot** (developer mode only) | A Copilot seat. Sign in with GitHub CLI (`gh auth login`) or paste a token in Settings |
+| **OpenRouter** (developer mode only) | An [OpenRouter](https://openrouter.ai) API key – hundreds of models from many labs through one key |
 
 The agent engine is the [GitHub Copilot SDK](https://github.com/github/copilot-sdk); with the providers above it runs
 in *bring your own key* mode, so business users need no GitHub account or license. API keys stay in memory (or
-environment variables `AZURE_OPENAI_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`).
+environment variables `AZURE_OPENAI_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`).
 
-**Developer mode** is for the people who build and test the studio: it adds **GitHub Copilot** as a provider (and the
-GitHub Copilot clients on Ask & share). Turn it on for your own computer only, with the `STUDIO_DEVELOPER=1`
+**Developer mode** is for the people who build and test the studio: it adds **GitHub Copilot** and **OpenRouter** as
+providers (and the GitHub Copilot clients on Ask & share). Turn it on for your own computer only, with the `STUDIO_DEVELOPER=1`
 environment variable or an empty file named `developer` in the studio's data folder (`studio/data/developer`), then
-restart the studio. Settings › About shows when it's on.
+restart the studio. Settings › About shows when it's on. Outside developer mode a saved GitHub Copilot or OpenRouter
+choice is kept on disk but the studio uses Azure AI Foundry / Azure OpenAI until developer mode is back.
+
+**OpenRouter**: *Settings › AI provider › OpenRouter* – paste the API key (openrouter.ai › Keys), search and pick a model
+(only models that can call tools are listed – Copilot works through tools – with their price per million tokens and
+context window; **Auto Router** lets OpenRouter choose per request), *Save*, then *Test*. The model can also be changed
+in the Copilot header. The key lives in memory until the studio stops: set `OPENROUTER_API_KEY` once
+(`setx OPENROUTER_API_KEY sk-or-…`, then restart the studio) to have it every time.
 
 ## How it works
 

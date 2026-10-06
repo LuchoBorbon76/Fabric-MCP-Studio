@@ -33,7 +33,11 @@ export const MCP_ENDPOINTS = {
 };
 
 export const PROVIDERS = [
-  { id: 'github', name: 'GitHub Copilot', license: 'GitHub Copilot Free, Pro, Pro+, Business or Enterprise', needs: 'GitHub sign-in (gh auth login) with a Copilot seat', fields: [] },
+  { id: 'github', name: 'GitHub Copilot', license: 'GitHub Copilot Free, Pro, Pro+, Business or Enterprise', needs: 'GitHub sign-in (gh auth login) with a Copilot seat', fields: [], developer: true },
+  {
+    id: 'openrouter', name: 'OpenRouter', license: 'Hundreds of models from many labs with one OpenRouter API key', developer: true,
+    needs: 'OpenRouter API key (openrouter.ai › Keys)', fields: [],
+  },
   {
     id: 'azure-openai', name: 'Azure AI Foundry / Azure OpenAI', license: 'Azure subscription with a model deployment',
     needs: 'Endpoint and deployment; Entra ID (recommended) or API key',
@@ -72,8 +76,42 @@ export const PROVIDERS = [
   },
 ];
 
-/** The providers people can choose: GitHub Copilot only in developer mode. */
-export const visibleProviders = () => (isDeveloper() ? PROVIDERS : PROVIDERS.filter((p) => p.id !== 'github'));
+/** The providers people can choose: GitHub Copilot and OpenRouter only in developer mode. */
+export const visibleProviders = () => (isDeveloper() ? PROVIDERS : PROVIDERS.filter((p) => !p.developer));
+
+// ---------------- OpenRouter ----------------
+// One OpenAI-compatible API in front of many labs' models. The list of models is public; only models that can call
+// tools are offered (Copilot works through tools). Its own "Auto Router" picks a model per request.
+const OPENROUTER_API = 'https://openrouter.ai/api/v1';
+export const OPENROUTER_AUTO = 'openrouter/auto';
+let openRouterModels = { at: 0, list: null, pending: null };
+
+/** OpenRouter's models that support tool calling (cached for an hour). */
+export async function listOpenRouterModels({ refresh = false } = {}) {
+  if (!refresh && openRouterModels.list && Date.now() - openRouterModels.at < 60 * 60 * 1000) return openRouterModels.list;
+  if (openRouterModels.pending) return openRouterModels.pending;
+  openRouterModels.pending = (async () => {
+    const r = await fetch(`${OPENROUTER_API}/models`, { signal: AbortSignal.timeout(20000) });
+    if (!r.ok) throw new Error(`OpenRouter's model list couldn't be read (${r.status}).`);
+    const perMillion = (v) => (v === undefined || v === null || v === '' ? null : Number(v) * 1e6);
+    const list = ((await r.json())?.data || [])
+      .filter((m) => (m.supported_parameters || []).includes('tools'))
+      .map((m) => ({
+        id: m.id, name: m.name || m.id, vendor: m.id.split('/')[0],
+        reasoning: (m.supported_parameters || []).some((p) => p === 'reasoning' || p === 'reasoning_effort'),
+        context: Number(m.context_length) || null,
+        maxOutput: Number(m.top_provider?.max_completion_tokens) || null,
+        price: { input: perMillion(m.pricing?.prompt), output: perMillion(m.pricing?.completion) },
+      }))
+      .sort((a, b) => Number(b.id === OPENROUTER_AUTO) - Number(a.id === OPENROUTER_AUTO)
+        || a.vendor.replace(/^~/, '').localeCompare(b.vendor.replace(/^~/, ''))
+        || Number(a.vendor.startsWith('~')) - Number(b.vendor.startsWith('~'))
+        || a.name.localeCompare(b.name));
+    openRouterModels = { at: Date.now(), list, pending: null };
+    return list;
+  })().catch((e) => { openRouterModels.pending = null; throw e; });
+  return openRouterModels.pending;
+}
 
 let client = null;
 let clientStarting = null;
@@ -166,6 +204,7 @@ async function assertCopilotSignedIn() {
 
 export async function listModels() {
   const s = getSettings().provider;
+  if (s.id === 'openrouter') return listOpenRouterModels();
   if (s.id !== 'github') {
     const m = s.config?.modelId || s.model;
     return m ? [{ id: m, name: m }] : [];
@@ -210,6 +249,24 @@ function providerConfig() {
       return { model: cfg.modelId || s.model || 'claude-sonnet-4-5', provider: { type: 'anthropic', baseUrl: cfg.baseUrl || 'https://api.anthropic.com', apiKey } };
     case 'local':
       return { model: cfg.modelId || s.model, provider: { type: 'openai', baseUrl: cfg.baseUrl || 'http://localhost:11434/v1', ...(apiKey ? { apiKey } : {}) } };
+    case 'openrouter': {
+      if (!apiKey) throw new Error('Add your OpenRouter API key in Settings › AI provider (or set OPENROUTER_API_KEY).');
+      const id = s.model || OPENROUTER_AUTO;
+      // The runtime knows models by their own name ("claude-sonnet-4.5"); OpenRouter by vendor/name. "auto" alone
+      // means GitHub's auto mode to the runtime, so OpenRouter's router keeps its full name.
+      const known = id === OPENROUTER_AUTO || !id.includes('/') ? id : id.split('/').pop().replace(/:.*$/, '');
+      const meta = openRouterModels.list?.find((m) => m.id === id);
+      return {
+        model: known,
+        ...(s.reasoningEffort && meta?.reasoning !== false ? { reasoningEffort: s.reasoningEffort } : {}),
+        provider: {
+          type: 'openai', baseUrl: OPENROUTER_API, apiKey, modelId: known, wireModel: id,
+          headers: { 'HTTP-Referer': 'https://github.com/luisbor_microsoft/Fabric-MCP-Studio', 'X-Title': 'Fabric MCP Studio' },
+          ...(meta?.context ? { maxPromptTokens: Math.floor(meta.context * 0.85) } : {}),
+          ...(meta?.maxOutput ? { maxOutputTokens: Math.min(meta.maxOutput, 32000) } : {}),
+        },
+      };
+    }
     default:
       return { model: s.model || 'auto', ...(s.reasoningEffort ? { reasoningEffort: s.reasoningEffort } : {}) };
   }
@@ -218,13 +275,27 @@ function providerConfig() {
 export function providerSummary() {
   const s = getSettings().provider;
   const meta = PROVIDERS.find((p) => p.id === s.id) || PROVIDERS[0];
-  const model = s.id === 'github' ? s.model || 'auto' : s.config?.modelId || s.config?.deployment || s.model || '';
+  const model = s.id === 'github' ? s.model || 'auto' : s.id === 'openrouter' ? s.model || OPENROUTER_AUTO : s.config?.modelId || s.config?.deployment || s.model || '';
   return { id: meta.id, name: meta.name, model };
 }
 
 /** Why chats can't start with the selected provider yet (missing endpoint, deployment or key), or null. */
 export function providerProblem() {
   try { providerConfig(); return null; } catch (e) { return e.message; }
+}
+
+/**
+ * Plain words for errors from a provider the user configured: the runtime's own messages mention its environment
+ * variables (COPILOT_PROVIDER_API_KEY…), which aren't how the studio is set up.
+ */
+export function friendlyProviderError(message) {
+  const m = String(message || '');
+  if (getSettings().provider.id !== 'openrouter' || !m) return m;
+  if (/HTTP 401|Authentication failed/i.test(m)) return 'OpenRouter didn\'t accept the API key. Paste a valid key in Settings › AI provider (openrouter.ai › Keys), Save, then Test.';
+  if (/HTTP 402|insufficient credits|payment required/i.test(m)) return 'Your OpenRouter account is out of credits. Add credits at openrouter.ai › Credits, or pick a free model (search "free").';
+  if (/HTTP 429|rate.?limit/i.test(m)) return 'OpenRouter is rate-limiting this model right now (free models have low limits). Wait a moment, or pick another model.';
+  if (/HTTP 404|No endpoints found|not a valid model/i.test(m)) return `OpenRouter can't serve "${getSettings().provider.model || OPENROUTER_AUTO}" with tools right now. Pick another model in Settings › AI provider.`;
+  return m;
 }
 
 // ---------------- MCP servers ----------------
@@ -1009,6 +1080,8 @@ function instructions() {
 // ---------------- chat sessions ----------------
 
 async function sessionConfig(chatId) {
+  // OpenRouter: each model's context and output limits come from its model list.
+  if (getSettings().provider.id === 'openrouter') await listOpenRouterModels().catch(() => null);
   const prov = providerConfig();
   return {
     ...prov,
@@ -1073,7 +1146,7 @@ function wire(chat) {
         break;
       case 'session.error': {
         chat.busy = false;
-        const message = /not created with authentication info|not authenticated/i.test(d.message || '') ? NOT_SIGNED_IN : d.message || 'The AI session reported an error.';
+        const message = /not created with authentication info|not authenticated/i.test(d.message || '') ? NOT_SIGNED_IN : friendlyProviderError(d.message) || 'The AI session reported an error.';
         chat.transcript.push({ role: 'error', content: message, at: Date.now() });
         emit('chat.error', { chatId: chat.id, message });
         persist(chat);
@@ -1179,6 +1252,7 @@ export async function deleteChat(chatId) {
 /** Quick connectivity test for the selected provider (no tools). */
 export async function testProvider() {
   const c = await getClient();
+  if (getSettings().provider.id === 'openrouter') await listOpenRouterModels().catch(() => null);
   const prov = providerConfig();
   const started = Date.now();
   const session = await c.createSession({
@@ -1190,6 +1264,8 @@ export async function testProvider() {
   try {
     const r = await session.sendAndWait({ prompt: 'Health check. Reply with exactly OK.' }, 90000);
     return { ok: true, reply: String(r?.data?.content || '').slice(0, 80), ms: Date.now() - started, ...providerSummary() };
+  } catch (e) {
+    throw Object.assign(new Error(friendlyProviderError(e.message)), { status: 400 });
   } finally {
     try { await session.disconnect(); } catch { /* ignore */ }
   }

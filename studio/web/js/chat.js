@@ -2,6 +2,7 @@
 import { api, post, put, get, store, on } from './api.js';
 import { h, $, toast, esc, SERVER_LABEL } from './ui.js';
 import { md } from './md.js';
+import { OPENROUTER_AUTO, fillModelSelect } from './openrouter.js';
 import { applyModelProposal, proposalCounts } from './views/model.js';
 import { applyReportProposal, reportProposalText } from './views/reports.js';
 import { applyDataAgentProposal, dataAgentProposalText } from './views/share.js';
@@ -26,7 +27,16 @@ export function chatElement({ suggestions, onClose }) {
 
   titleEl = h('span', {}, 'Copilot');
   providerEl = h('span', { class: 'provider', title: 'AI provider – change it in Settings' }, '…');
-  modelSel = h('select', { class: 'mini', title: 'Model', onchange: async () => { try { await put('/providers', { id: 'github', model: modelSel.value }); toast(`Model set to ${modelSel.value} for new chats`); } catch (e) { toast(e.message, 'err'); } } });
+  modelSel = h('select', { class: 'mini', title: 'Model', onchange: async () => {
+    const p = store.provider || {};
+    try {
+      // Keep the provider and its reasoning effort; only the model changes.
+      const r = await put('/providers', { id: p.id || 'github', model: modelSel.value, reasoningEffort: store.settings?.provider?.reasoningEffort || '' });
+      store.provider = r.current;
+      if (store.settings) store.settings.provider = r.settings;
+      toast(`Model set to ${modelSel.value} for new chats`);
+    } catch (e) { toast(e.message, 'err'); }
+  } });
   histSel = h('select', { class: 'mini', title: 'Recent chats', onchange: () => { if (histSel.value) loadChat(histSel.value); } });
   closeBtn = h('button', { class: 'mini', title: 'Hide Copilot', onclick: () => onCloseFn() }, '✕');
 
@@ -65,13 +75,16 @@ function autosize() { inputEl.style.height = 'auto'; inputEl.style.height = `${M
 export async function refreshHeader() {
   if (!root) return;
   const p = store.provider || {};
-  providerEl.textContent = `${p.name || 'AI'}${p.id !== 'github' && p.model ? ` · ${p.model}` : ''}`;
-  modelSel.hidden = p.id !== 'github';
-  if (p.id === 'github' && !modelSel.options.length) {
+  const picker = p.id === 'github' || p.id === 'openrouter';
+  providerEl.textContent = `${p.name || 'AI'}${!picker && p.model ? ` · ${p.model}` : ''}`;
+  modelSel.hidden = !picker;
+  if (picker && (!modelSel.options.length || modelSel.dataset.provider !== p.id)) {
     try {
       const models = await get('/copilot/models');
       modelSel.innerHTML = '';
-      for (const m of models) modelSel.append(h('option', { value: m.id, selected: m.id === (p.model || 'auto') || undefined }, m.id === 'auto' ? 'auto (best available)' : m.name));
+      modelSel.dataset.provider = p.id;
+      if (p.id === 'openrouter') fillModelSelect(modelSel, models, p.model || OPENROUTER_AUTO);
+      else for (const m of models) modelSel.append(h('option', { value: m.id, selected: m.id === (p.model || 'auto') || undefined }, m.id === 'auto' ? 'auto (best available)' : m.name));
     } catch { modelSel.hidden = true; }
   }
   try {
@@ -272,7 +285,7 @@ function wireEvents() {
   on('chat.idle', (e) => { if (mine(e)) { endStream(); finishTurn(); setBusy(false); refreshHeader(); } });
   on('chat.error', (e) => { if (mine(e)) { endStream(); flushProposal(); turnText = ''; addMsg('err', e.message); setBusy(false); } });
   on('chat.title', (e) => { if (mine(e)) titleEl.textContent = e.title; });
-  on('provider', () => { modelSel.innerHTML = ''; refreshHeader(); });
+  on('provider', (e) => { if (e?.provider) store.provider = e.provider; modelSel.innerHTML = ''; refreshHeader(); });
   on('project.updated', () => { if (msgsEl) msgsEl.querySelectorAll('.pcard[data-proposal]').forEach(syncProposalCard); });
 }
 

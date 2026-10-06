@@ -115,16 +115,19 @@ export const DEFAULT_SETTINGS = {
 };
 
 let settingsCache = null;
-// Outside developer mode a saved GitHub Copilot provider is replaced in memory only: what was saved stays on disk until
-// the user picks another provider, so turning developer mode back on restores it.
+// Providers for developer mode only (the people who build the studio). Outside developer mode a saved one is replaced
+// in memory only: what was saved stays on disk until the user picks another provider, so turning developer mode back
+// on restores it.
+export const DEVELOPER_PROVIDERS = new Set(['github', 'openrouter']);
 let providerSwap = null; // { replacement, saved }
 
 export function getSettings() {
   if (!settingsCache) {
     const saved = readJson(SETTINGS_FILE, {});
     settingsCache = deepMerge(structuredClone(DEFAULT_SETTINGS), saved);
-    // Outside developer mode GitHub Copilot isn't offered: start with Azure AI Foundry / Azure OpenAI (Entra sign-in).
-    if (settingsCache.provider?.id === 'github' && !isDeveloper()) {
+    // Outside developer mode GitHub Copilot and OpenRouter aren't offered: start with Azure AI Foundry / Azure OpenAI
+    // (Entra sign-in).
+    if (DEVELOPER_PROVIDERS.has(settingsCache.provider?.id) && !isDeveloper()) {
       const replacement = { id: 'azure-openai', model: '', reasoningEffort: '', config: { authMode: 'entra' } };
       providerSwap = { replacement, saved: settingsCache.provider };
       settingsCache.provider = replacement;
@@ -170,6 +173,7 @@ export function envApiKey(providerId) {
     openai: process.env.OPENAI_API_KEY,
     anthropic: process.env.ANTHROPIC_API_KEY,
     local: process.env.LOCAL_LLM_API_KEY,
+    openrouter: process.env.OPENROUTER_API_KEY,
   }[providerId] || '';
 }
 
