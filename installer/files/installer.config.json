@@ -1,0 +1,8 @@
+{
+  "appName": "Fabric MCP Studio",
+  "repoUrl": "",
+  "branch": "main",
+  "installDir": "%LOCALAPPDATA%\\FabricMCPStudio",
+  "shortcutName": "Fabric MCP Studio",
+  "minNodeVersion": "20.19.0"
+}

@@ -38,6 +38,13 @@ cd Fabric-MCP-Studio
 .\scripts\create-shortcut.ps1 # optional: "Fabric MCP Studio" desktop icon, runs in the background (-StartMenu adds it to the Start menu)
 ```
 
+**Share it as an installer (Windows):** `.\installer\build-installer.ps1` builds `dist\Fabric-MCP-Studio-Installer.zip`.
+Whoever extracts it and double-clicks *Install Fabric MCP Studio.cmd* gets a prerequisites check (installed, missing or
+too old), the missing tools (Git, Node.js LTS; optionally Azure CLI and GitHub CLI – via winget, it asks first), the app
+cloned from this repository (a private repository asks them to sign in to GitHub – they need read access), its packages
+and the desktop shortcut. Running it again updates the app and keeps their data; *Check prerequisites.cmd* and
+*Uninstall Fabric MCP Studio.cmd* are in the zip too. Details: `installer/README.txt`.
+
 Requirements: Node.js 20.19+, a Microsoft Entra work account with Fabric access, and one AI provider.
 Details: [studio/README.md](studio/README.md) · Step-by-step: [docs/walkthrough.md](docs/walkthrough.md).
 
@@ -78,6 +85,7 @@ Single source of truth: [config/mcp-servers.json](config/mcp-servers.json). Arch
 ```text
 Start-Studio.cmd       Double-click to run Fabric MCP Studio (Windows)
 studio/                Fabric MCP Studio: Node.js server (Copilot SDK + Fabric APIs) and web UI
+installer/             Shareable Windows installer (build-installer.ps1 -> dist/Fabric-MCP-Studio-Installer.zip)
 .github/skills/        Agent Skills used by VS Code, Copilot CLI and Claude Code
 AGENTS.md              Routing rules, modeling conventions, ontology TMDL rules, safety
 agents/                Microsoft 365 Copilot declarative agent (Fabric IQ + Ontology MCP)
@@ -101,6 +109,7 @@ scripts/               setup, prereq-check, deploy-fabric, deploy-ontology, rese
 | `deploy-ontology.ps1` | Deploy `ontology/<domain>` TMDL as a Fabric Ontology item |
 | `install-teams-agent.ps1` | Install/publish/uninstall the Microsoft 365 Copilot agent in any tenant |
 | `create-shortcut.ps1` | Desktop (and optional Start menu) shortcut that starts Fabric MCP Studio without a console window; `-ShowConsole` for a minimized console, `-Remove` to delete it |
+| `../installer/build-installer.ps1` | Build the shareable installer zip (repository from `origin`, or `-RepoUrl`; `-Branch`, `-OutDir`) |
 | `reset.ps1` | Delete what the scripts created |
 
 All scripts run on Windows PowerShell 5.1 and PowerShell 7.

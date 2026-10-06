@@ -41,6 +41,7 @@ Everything runs on the customer's computer, signs in to Fabric as the customer, 
 
 | OS | Command |
 |---|---|
+| Windows (others) | Share the installer zip (`installer\build-installer.ps1` builds it): it checks and installs the prerequisites, downloads the app from the repository, installs it and creates the desktop icon – see `installer/README.txt` |
 | Windows | Run `.\scripts\create-shortcut.ps1` once for a **Fabric MCP Studio** desktop icon (`-StartMenu` adds it to the Start menu), or double-click `Start-Studio.cmd` (repository root or this folder) |
 | macOS / Linux | `./studio/start-studio.sh` |
 | Any | `cd studio && npm install && npm start` |

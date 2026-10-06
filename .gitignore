@@ -22,6 +22,9 @@ __pycache__/
 .venv/
 node_modules/
 
+# Installer zip built by installer/build-installer.ps1
+dist/
+
 # OS / editor
 .DS_Store
 Thumbs.db
