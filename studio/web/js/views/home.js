@@ -77,7 +77,7 @@ function inspector(g, n) {
   if (!signedIn) {
     acts.append(h('button', { class: 'btn pri', onclick: () => document.getElementById('userChip').click() }, 'Sign in to Microsoft Fabric'));
   } else {
-    acts.append(h('button', { class: `btn ${n.done || n.state === 'off' ? '' : 'pri'}`, onclick: () => app.go(n.view) }, n.done ? `Open ${VIEW_LABEL[n.view]}` : `Set up in ${VIEW_LABEL[n.view]}`, ' ›'));
+    acts.append(h('button', { class: `btn ${n.done || n.state === 'off' ? '' : 'pri'}`, onclick: () => (app.openPart ? app.openPart(n.id, n.view) : app.go(n.view)) }, n.done ? `Open ${VIEW_LABEL[n.view]}` : `Set up in ${VIEW_LABEL[n.view]}`, ' ›'));
     if (n.state !== 'off') acts.append(h('button', { class: 'btn ai', onclick: () => app.ask(nodePrompt(n.id), { view: n.view }) }, n.done ? '✦ Ask Copilot about it' : '✦ Let Copilot do it'));
     if (n.id === 'model' && store.project?.workspace) acts.append(h('button', { class: 'btn', title: 'Or double-click Semantic model on the map', onclick: () => modelsDialog() }, (store.project.semanticModels || []).length > 1 ? `⇄ Switch model (${store.project.semanticModels.length})` : '⇄ Switch or add a model'));
     if (n.id === 'model' && store.project?.semanticModel) acts.append(h('button', { class: 'btn', title: 'Check that every relationship key is unique in the data the model reads', onclick: () => modelCheckDialog() }, '🩺 Check data'));

@@ -256,8 +256,20 @@ const map = mountMap($('#map'), {
     // On the overview a click shows the part's details; elsewhere (or a double-click) opens its page.
     if (current === 'home' && how === 'click') { app.selectNode(id); return; }
     go(n.view);
+    // Parts that share a page with others open at their own section (the org app is on Reports & apps).
+    if (SECTION_OF[id]) showSection(SECTION_OF[id]);
   },
 });
+const SECTION_OF = { orgapp: ['orgapp', 'orgapp-rec'] };
+/** Scroll to a part's section on its page and flash it (recommendations load after the page, so look a few times). */
+function showSection(anchors, tries = 12) {
+  const el = anchors.map((a) => document.querySelector(`.view.on [data-anchor="${a}"]`)).find(Boolean);
+  if (!el) { if (tries > 0) setTimeout(() => showSection(anchors, tries - 1), 300); return; }
+  setTimeout(() => {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.remove('flashx'); void el.offsetWidth; el.classList.add('flashx');
+  }, 250);
+}
 function updateMap() { map.update({ view: current, selected: mapState.selected }); }
 
 // ---------------- navigation ----------------
@@ -609,6 +621,8 @@ async function refresh() {
 
 Object.assign(app, {
   go, ask: askCopilot, placeChat, refresh, refreshAll, rerender: () => renderView(current), jobCard, watchJob: (id) => { dockJobs.add(id); renderDock(); }, loadReadiness, moduleGrid, showHealth,
+  // Open a map part's page at its own section (the org app shares Reports & apps with the reports).
+  openPart: (id, view) => { go(view); if (SECTION_OF[id]) showSection(SECTION_OF[id]); },
   selectedNode: () => mapState.selected,
   selectNode: (id) => {
     mapState.selected = id;

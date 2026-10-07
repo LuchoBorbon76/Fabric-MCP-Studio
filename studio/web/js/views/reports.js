@@ -89,7 +89,7 @@ function appRecCard(rec) {
   const job = h('div');
   const build = h('button', { class: 'btn pri', 'data-busy': 'Starting…', disabled: !rec.available || undefined, title: rec.available ? 'Create or update the org app with all your reports' : 'Build a report first' }, rec.built ? '↻ Update app' : 'Create app');
   build.addEventListener('click', busy(build, async () => { await startJob('/jobs/org-app', { name: rec.name, theme: rec.theme }, job, 'Org app ready – add an audience and publish it in Fabric'); }));
-  return h('div', { class: `rec ${rec.built ? 'built' : ''}` },
+  return h('div', { class: `rec ${rec.built ? 'built' : ''}`, 'data-anchor': 'orgapp-rec' },
     h('div', { class: 'row sp', style: { alignItems: 'flex-start' } },
       h('div', {}, h('div', { class: 'row' }, h('b', {}, rec.title), rec.built ? h('span', { class: `pill ${rec.notInApp?.length ? 'warn' : 'ok'}` }, rec.notInApp?.length ? 'Update needed' : 'Created') : h('span', { class: 'pill brand' }, rec.available ? 'Recommended' : 'Next')), h('div', { class: 'tiny muted' }, `Fabric org app · ${theme?.name || rec.theme} colors`)),
       theme ? h('div', { class: 'recsw', title: theme.name }, h('i', { style: { background: theme.header } }), ...theme.dataColors.slice(0, 4).map((c) => h('i', { style: { background: c } }))) : null),
@@ -209,13 +209,25 @@ function reportsCard(p, reports) {
     const missing = reports.filter((r) => !inApp.has(r.id));
     const update = h('button', { class: 'btn', 'data-busy': 'Starting…', title: 'Add the reports built since the app was last updated' }, '↻ Update the app');
     update.addEventListener('click', busy(update, async () => { await startJob('/jobs/org-app', { name: p.orgApp.name, theme: p.orgApp.theme }, list, 'Org app updated – publish it in Fabric to share the changes'); }));
-    list.append(h('div', { class: 'rrow app' },
+    list.append(h('div', { class: 'rrow app', 'data-anchor': 'orgapp' },
       h('div', { class: 'row sp' },
         h('div', {},
           h('div', { class: 'row' }, h('span', {}, '▦'), h('b', {}, p.orgApp.name), h('span', { class: 'pill ok' }, 'Org app'), missing.length ? h('span', { class: 'pill warn' }, `${missing.length} report${missing.length === 1 ? '' : 's'} not in the app yet`) : null),
           h('div', { class: 'tiny muted' }, `${p.orgApp.reports.length} report${p.orgApp.reports.length === 1 ? '' : 's'} · updated ${fmtDate(p.orgApp.builtAt)} · add an audience and publish it in Fabric to share it`),
           missing.length ? h('div', { class: 'tiny muted' }, `Not in the app yet: ${missing.map((r) => r.name).join(', ')} – update the app to add ${missing.length === 1 ? 'it' : 'them'}.`) : null),
         h('div', { class: 'row' }, missing.length ? update : null, h('a', { class: 'btn pri', href: p.orgApp.url, target: '_blank', rel: 'noopener' }, 'Publish in Fabric ↗')))));
+  } else {
+    // No app yet: offer it right here, next to the reports it would bundle (the existing reports can't go in it).
+    const create = h('button', { class: 'btn pri', 'data-busy': 'Starting…', disabled: !reports.length || undefined, title: reports.length ? 'Bundle the studio\'s reports on this model into one Fabric org app' : 'Only reports built by the studio can go in the app' }, 'Create app');
+    create.addEventListener('click', busy(create, async () => { await startJob('/jobs/org-app', { theme: reports[0]?.theme || undefined }, list, 'Org app ready – add an audience and publish it in Fabric'); }));
+    list.append(h('div', { class: 'rrow app', 'data-anchor': 'orgapp' },
+      h('div', { class: 'row sp' },
+        h('div', {},
+          h('div', { class: 'row' }, h('span', {}, '▦'), h('b', {}, 'Org app'), h('span', { class: 'pill' }, 'Not created yet')),
+          h('div', { class: 'tiny muted' }, reports.length
+            ? `Bundles ${reports.length === 1 ? reports[0].name : `your ${reports.length} reports (${reports.map((r) => r.name).join(', ')})`} behind one overview page – people get it without access to the workspace.`
+            : 'Build a report on this model first: only reports built by the studio can go in the app (the existing reports stay as they are).')),
+        create)));
   }
   for (const r of reports) {
     const preview = h('div');

@@ -139,7 +139,9 @@ export function recommendations(profile, project, { rules = null, values = [] } 
         'People get the app without access to the workspace; you choose the audience in Fabric.',
         'Uses your report theme colors, and updates in place when you rebuild.',
       ]
-      : ['Build a report first – the app shares your reports with your organization in one place.'],
+      : [(project.semanticModel?.linked?.reports || []).some((r) => !own.some((o) => o.id === r.id))
+        ? 'Build a report here first – only reports the studio built can go in the app, and the reports already on this model weren\'t.'
+        : 'Build a report first – the app shares your reports with your organization in one place.'],
     built: project.orgApp ? { id: project.orgApp.id, url: project.orgApp.url, builtAt: project.orgApp.builtAt } : null,
     available: reports.length > 0,
     reportCount: reports.length,

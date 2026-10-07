@@ -7,6 +7,7 @@ export const app = {
   rerender: () => {},
   jobCard: () => null,
   watchJob: () => {},
+  openPart: (id, view) => app.go(view),
 };
 
 /**

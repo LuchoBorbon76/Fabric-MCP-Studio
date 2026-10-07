@@ -626,6 +626,9 @@ table.t.mtable td a:hover{text-decoration:underline}
 table.t.stable td{vertical-align:top;overflow-wrap:anywhere}
 table.t.stable td:first-child{min-width:180px;overflow-wrap:break-word}
 .warnx{color:var(--warn)}
+/* A section the map jumped to (for example the org app on Reports & apps). */
+.flashx{animation:flashx 1.8s ease}
+@keyframes flashx{0%,40%{box-shadow:0 0 0 3px var(--brand)}100%{box-shadow:0 0 0 0 transparent}}
 table.t.stable td.act{white-space:nowrap;text-align:right}
 .srcline{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 0}
 .srcline+.srcline{border-top:1px dashed var(--line)}
