@@ -118,7 +118,8 @@ when it expires.
 | Report building fails with *Forbidden* | You need Contributor or higher on the workspace and Build permission on the semantic model | Ask the workspace admin |
 | The Business rules page is missing | No ontology rules or rule measures were found | Deploy the ontology (**Ontology** page), or add measures in a *Business rules* display folder of your model |
 | Creating the org app fails | Org apps need a Fabric capacity workspace and Contributor or higher | Check the workspace role; the app shares only reports in the same workspace |
-| People can't see the org app | The app has no audience yet | Open it in Fabric, add an audience (people or groups) and publish |
+| People can't see the org app | No one is in its audience yet | Open it in Fabric, add people or groups to its audience and publish |
+| The org app shows *No items to show* | The app has no audience: org apps show only what an audience includes. Apps created by studio 1.39.51 and earlier have none | **Reports & apps › Org app › Choose reports › Update app** – the studio adds the audience with the overview and the reports |
 | A template upload says the file *isn't a ZIP package* | The file is damaged or isn't really a .pbit/.pbix/.zip (for example a OneDrive placeholder that hasn't downloaded) | Open it in Power BI Desktop and save it again, or make the file available offline first |
 | *The file is larger than 300 MB* | A .pbix with a large data model | In Power BI Desktop: *File › Export › Power BI template* – the .pbit has the report without the data |
 | *No Power BI report found in the ZIP* | The ZIP doesn't contain a report folder | Zip the project's `.Report` folder (it has `definition.pbir` and `report.json` or `definition/`), or zip a .pbit/.pbix |

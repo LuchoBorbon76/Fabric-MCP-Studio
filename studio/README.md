@@ -375,11 +375,15 @@ Copilot can recommend pages and a theme for your audience (`studio_describe_repo
 (`studio_propose_report`); **Apply suggestions** reviews and builds it in one click. The page also shows
 **Recommended for your data** – ready-made report recommendations with the reasons from your model.
 
-**Org app** – *Create app* bundles the studio's reports into a Fabric org app: an overview page, a *Reports* section
-and a *Business rules* section, in the report theme's colors. People get the app without access to the workspace: open
-it in Fabric, add an audience and publish it. Rebuilding updates the app in place (`studio_create_org_app` for Copilot).
+**Org app** – *Create app* (in *Your reports*, or on the *Org app for your organization* card) asks which reports go in
+the app – the studio's reports on the model are ticked, and reports already on the model in the workspace can be added
+(the app only links to them, they stay as they are) – then builds a Fabric org app: an overview page, a *Reports*
+section and a *Business rules* section, in the report theme's colors, with an **audience** that shows them (without one
+Fabric shows *No items to show*, even to you). People get the app without access to the workspace: open it in Fabric,
+add people to its audience and publish it. *Choose reports* changes what is in it, *Delete app* deletes the app and its
+audience (the reports stay) (`studio_create_org_app` for Copilot, which asks which reports first).
 A report built after the app isn't in it until the app is updated: Reports & apps and the map say which ones, with
-*Update the app*.
+*Update the app* (a report you left out on purpose isn't flagged).
 
 ## Real-time
 

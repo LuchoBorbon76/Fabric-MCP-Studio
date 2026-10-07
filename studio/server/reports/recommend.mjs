@@ -124,27 +124,31 @@ export function recommendations(profile, project, { rules = null, values = [] } 
     r.available = true;
   }
 
-  // The org app shares what was built on this model; recommend it once there is something to share.
+  // The org app shares what was built on this model (and, when chosen, reports already on it in the workspace).
   const reports = own;
-  // Reports built after the app: it bundles the reports it was built with, until it is updated.
+  const theirInWs = (project.semanticModel?.linked?.reports || []).filter((r) => !own.some((o) => o.id === r.id) && r.type !== 'PaginatedReport' && (!r.workspaceId || r.workspaceId === project.workspace?.id));
+  // Reports built after the app: it bundles the reports chosen for it, until it is updated. A report that was offered
+  // and left out stays out.
   const inApp = new Set(project.orgApp?.reports || []);
-  const notInApp = project.orgApp ? reports.filter((r) => !inApp.has(r.id)) : [];
+  const offered = new Set(project.orgApp?.considered || project.orgApp?.reports || []);
+  const notInApp = project.orgApp ? reports.filter((r) => !inApp.has(r.id) && !offered.has(r.id)) : [];
+  const inAppCount = project.orgApp ? (project.orgApp.reports || []).length : reports.length;
   const app = {
     id: 'org-app', kind: 'app', title: 'Org app for your organization', audience: 'Everyone who needs the numbers',
     theme: project.orgApp?.theme || reports[0]?.theme || 'executive', pages: [], name: project.orgApp?.name || standardName('OrgApp', purposeOf(model, 'SemanticModel'), project),
-    reasons: reports.length
+    reasons: reports.length || theirInWs.length
       ? [
         ...(notInApp.length ? [`${notInApp.length === 1 ? `"${notInApp[0].name}" isn't` : `${notInApp.length} reports (${notInApp.slice(0, 3).map((r) => r.name).join(', ')}) aren't`} in the app yet – update the app to add ${notInApp.length === 1 ? 'it' : 'them'}.`] : []),
-        `Bundles your ${reports.length} report${reports.length === 1 ? '' : 's'} (${reports.slice(0, 3).map((r) => r.name).join(', ')}) behind one overview page.`,
+        project.orgApp
+          ? `Bundles ${inAppCount} report${inAppCount === 1 ? '' : 's'} behind one overview page – choose which with Update app.`
+          : `You choose which reports go in it: ${[...reports, ...theirInWs].slice(0, 3).map((r) => r.name).join(', ')}${reports.length + theirInWs.length > 3 ? '…' : ''}.`,
         'People get the app without access to the workspace; you choose the audience in Fabric.',
         'Uses your report theme colors, and updates in place when you rebuild.',
       ]
-      : [(project.semanticModel?.linked?.reports || []).some((r) => !own.some((o) => o.id === r.id))
-        ? 'Build a report here first – only reports the studio built can go in the app, and the reports already on this model weren\'t.'
-        : 'Build a report first – the app shares your reports with your organization in one place.'],
+      : ['Build a report first – the app shares your reports with your organization in one place.'],
     built: project.orgApp ? { id: project.orgApp.id, url: project.orgApp.url, builtAt: project.orgApp.builtAt } : null,
-    available: reports.length > 0,
-    reportCount: reports.length,
+    available: reports.length + theirInWs.length > 0,
+    reportCount: inAppCount,
     notInApp: notInApp.map((r) => ({ id: r.id, name: r.name })),
   };
   out.push(app);

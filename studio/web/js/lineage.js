@@ -172,9 +172,11 @@ function describe(id, s) {
       return { done: true, title: plural(allReports.length, 'report'), sub, url: allReports.length === 1 ? allReports[0].url : null, facts: [...allReports.slice(0, 6).map((r) => [r.existing ? 'Existing report' : 'Report', shortName(r.name, sm?.name), r.url]), ...extra, ...others] };
     }
     case 'orgapp': {
-      if (!p.orgApp) return { done: false, avail: reports.length > 0, needs: theirReports.length ? 'Needs a report built by the studio' : 'Needs a report', title: 'Not published', sub: 'Bundle your reports' };
+      const inWs = theirReports.filter((r) => r.type !== 'PaginatedReport' && (!r.workspaceId || r.workspaceId === ws?.id));
+      if (!p.orgApp) return { done: false, avail: reports.length + inWs.length > 0, needs: 'Needs a report', title: 'Not published', sub: 'Bundle your reports' };
       const inApp = new Set((p.orgApp.reports || []).map((r) => r.id || r));
-      const missing = reports.filter((r) => !inApp.has(r.id));
+      const offered = new Set(p.orgApp.considered || p.orgApp.reports || []);
+      const missing = reports.filter((r) => !inApp.has(r.id) && !offered.has(r.id));
       return { done: true, title: p.orgApp.name, sub: `${plural(p.orgApp.reports?.length || 0, 'report')}${missing.length ? ` · ${missing.length} not in it yet` : ''}`, url: p.orgApp.url, facts: [['Reports', p.orgApp.reports?.length || 0], missing.length ? ['Not in the app yet', `${missing.map((r) => shortName(r.name, sm?.name)).join(', ')} – update the app on Reports & apps`] : null, ['Built', when(p.orgApp.builtAt)]].filter(Boolean) };
     }
     case 'planning':

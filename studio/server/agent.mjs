@@ -489,8 +489,10 @@ function projectSummary() {
     glossaryChars: (p.glossary || '').length,
     sample: preset ? { semanticModelName: presetSummary(p).semanticModelName, ontologyName: presetSummary(p).ontologyName, measures: (preset.measures || []).map((m) => `${m.table}[${m.name}]`) } : null,
     modelProposal: p.modelProposal ? { name: p.modelProposal.name, createdAt: p.modelProposal.createdAt, appliedAt: p.modelProposal.appliedAt || null } : null,
-    reports: (p.reports || []).map((r) => ({ name: r.name, theme: r.theme, pages: r.pages, url: r.url, semanticModel: projectModels(p).find((m) => m.id === r.semanticModelId)?.name || null })),
-    orgApp: p.orgApp ? { name: p.orgApp.name, reports: p.orgApp.reports.length } : null,
+    reports: (p.reports || []).map((r) => ({ id: r.id, name: r.name, theme: r.theme, pages: r.pages, url: r.url, semanticModel: projectModels(p).find((m) => m.id === r.semanticModelId)?.name || null })),
+    // Existing reports on the active model in the project workspace: they can go in the org app (it only links to them).
+    existingReportsForApp: APPS.appReportChoices(p).theirs.map((r) => ({ id: r.id, name: r.name })),
+    orgApp: p.orgApp ? { name: p.orgApp.name, reports: (p.orgApp.reports || []).map((id) => [...(p.reports || []), ...(p.semanticModel?.linked?.reports || [])].find((r) => r.id === id)?.name || id) } : null,
     dataAgent: p.dataAgent ? { name: p.dataAgent.name, semanticModel: p.dataAgent.semanticModel, published: p.dataAgent.published } : null,
     realtime: p.realtime ? {
       eventhouse: p.realtime.eventhouse?.name, table: p.realtime.table, eventstream: p.realtime.eventstream?.name, dashboard: p.realtime.dashboard?.name || null, rules: (p.realtime.scenario?.rules || []).map((r) => r.label),
@@ -718,11 +720,11 @@ function studioTools(chatId) {
       },
     }),
     studioTool('studio_create_org_app', {
-      description: 'Create or update a Fabric org app that bundles the studio\'s Power BI reports (overview page, Reports and Business rules sections, theme colors). People get the app without workspace access once the user adds an audience and publishes it in Fabric. Default: all reports the studio built.',
+      description: 'Create or update a Fabric org app that bundles Power BI reports on the active semantic model (overview page, Reports and Business rules sections, theme colors) and gives it an audience so its content shows. Before creating one, ask the user which reports to include (studio_get_project_state lists the studio\'s reports and the existing reports on the model; existing reports in the project workspace can be included – the app only links to them). Default: all reports the studio built on the model. People get the app without workspace access once the user adds people to its audience and publishes it in Fabric. To delete the app use studio_remove_artifacts with the key "orgApp".',
       parameters: obj({
         name: str('App name (default: "<semantic model> app")'),
         theme: themeParam(),
-        reportIds: { type: 'array', items: { type: 'string' }, description: 'Report IDs to include (default: all studio reports)' },
+        reportIds: { type: 'array', items: { type: 'string' }, description: 'Report IDs to include: the studio\'s reports and/or existing reports on the model in the project workspace (default: all studio reports on the model)' },
         title: str('Overview page title'),
         body: str('Overview page text: what the app is for, in two or three sentences'),
       }),

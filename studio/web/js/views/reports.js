@@ -4,6 +4,7 @@ import { app, copilotSlot } from '../app.js';
 import { askCard } from '../prompts.js';
 import { standardName, purposeOf, parseName } from '../naming.js';
 import { modelBar, modelErrorBanner } from '../models.js';
+import { loadArtifacts, confirmRemove } from '../artifacts.js';
 
 const TOKEN = document.querySelector('meta[name="studio-token"]').content;
 let catalog = null;
@@ -84,11 +85,80 @@ function recCard(rec, p, designer) {
 }
 
 // ---------------- org app ----------------
+/** The reports the app can bundle: the studio's on the active model, and existing ones on it in the workspace. */
+function appChoices(p) {
+  const own = (p.reports || []).filter((r) => !r.semanticModelId || r.semanticModelId === p.semanticModel?.id);
+  const theirs = (p.semanticModel?.linked?.reports || []).filter((r) => !own.some((o) => o.id === r.id) && r.type !== 'PaginatedReport' && (!r.workspaceId || r.workspaceId === p.workspace?.id));
+  return { own, theirs };
+}
+
+/**
+ * Ask which reports go in the org app (and its name when it's new), then create or update it. The studio's reports are
+ * ticked for a new app; an existing app keeps its reports ticked, with reports built since then ticked too.
+ */
+export function chooseAppReports({ name, theme, container }) {
+  const p = store.project || {};
+  const { own, theirs } = appChoices(p);
+  const app = p.orgApp;
+  const offered = new Set(app?.considered || app?.reports || []);
+  const ticked = new Set(app ? [...(app.reports || []), ...own.filter((r) => !offered.has(r.id)).map((r) => r.id)] : own.map((r) => r.id));
+  const boxes = [];
+  const row = (r, note) => {
+    const cb = h('input', { type: 'checkbox', checked: ticked.has(r.id) || undefined });
+    cb.value = r.id;
+    boxes.push(cb);
+    cb.addEventListener('change', sync);
+    return h('label', { class: 'row', style: { alignItems: 'flex-start', gap: '10px', padding: '6px 0', cursor: 'pointer' } }, cb,
+      h('div', {}, h('b', {}, r.name), h('div', { class: 'tiny muted' }, note)));
+  };
+  const nameBox = input({ value: app?.name || name || '', disabled: app ? true : undefined, title: app ? 'The app keeps its name' : '' });
+  const count = h('div', { class: 'tiny muted' });
+  const body = h('div', { class: 'col', style: { gap: '10px', minWidth: 'min(560px, 80vw)' } },
+    field('App name', nameBox),
+    h('div', {},
+      h('div', { class: 'small', style: { fontWeight: 600 } }, 'Reports in the app'),
+      own.length ? [h('div', { class: 'tiny muted mt' }, 'Built by the studio'), ...own.map((r) => row(r, [r.pages?.length ? r.pages.join(' · ') : null, r.builtAt ? `built ${fmtDate(r.builtAt)}` : null].filter(Boolean).join(' · ') || 'Report'))] : null,
+      theirs.length ? [h('div', { class: 'tiny muted mt' }, 'Already on this model in the workspace – the app only links to them, they stay as they are'), ...theirs.map((r) => row(r, 'Existing report'))] : null),
+    count);
+  let createBtn = null;
+  function sync() {
+    const n = boxes.filter((b) => b.checked).length;
+    count.textContent = n ? `${n} report${n === 1 ? '' : 's'} in the app, behind an overview page` : 'Choose at least one report';
+    if (createBtn) createBtn.disabled = !n;
+  }
+  const m = modal({
+    title: app ? `Reports in ${app.name}` : 'Create the org app',
+    body,
+    actions: [
+      { label: 'Cancel' },
+      { label: app ? 'Update app' : 'Create app', class: 'pri', onClick: async () => {
+        const ids = boxes.filter((b) => b.checked).map((b) => b.value);
+        if (!ids.length) { toast('Choose at least one report.', 'err'); return false; }
+        try {
+          await startJob('/jobs/org-app', { name: app ? app.name : nameBox.value.trim() || undefined, theme: app?.theme || theme, reportIds: ids }, container, app ? 'Org app updated – publish it in Fabric to share the changes' : 'Org app ready – add people to its audience and publish it in Fabric');
+        } catch (e) { toast(e.message, 'err'); return false; }
+        return true;
+      } },
+    ],
+  });
+  createBtn = [...m.el.querySelectorAll('.mf .btn')].pop();
+  sync();
+}
+
+/** Delete the org app (and its audience) after asking. */
+async function deleteApp(p) {
+  const arts = await loadArtifacts({ fresh: true }).catch(() => []);
+  const a = arts.find((x) => x.key === 'orgApp');
+  if (!a) { toast('The org app isn\'t in the project any more.', 'err'); return; }
+  if (!a.removable) { toast(`${p.orgApp.name} is used by ${a.usedBy.map((u) => u.name).join(', ')} – remove ${a.usedBy.length === 1 ? 'it' : 'them'} first.`, 'err'); return; }
+  await confirmRemove([{ ...a, removes: `Deletes ${p.orgApp.name} and its audience from ${p.workspace?.name || 'the workspace'} – the reports stay` }]);
+}
+
 function appRecCard(rec) {
   const theme = catalog.themes.find((t) => t.id === rec.theme);
   const job = h('div');
-  const build = h('button', { class: 'btn pri', 'data-busy': 'Starting…', disabled: !rec.available || undefined, title: rec.available ? 'Create or update the org app with all your reports' : 'Build a report first' }, rec.built ? '↻ Update app' : 'Create app');
-  build.addEventListener('click', busy(build, async () => { await startJob('/jobs/org-app', { name: rec.name, theme: rec.theme }, job, 'Org app ready – add an audience and publish it in Fabric'); }));
+  const build = h('button', { class: 'btn pri', 'data-busy': 'Starting…', disabled: !rec.available || undefined, title: rec.available ? 'Choose the reports for the app, then create or update it' : 'Build a report first' }, rec.built ? '↻ Update app' : 'Create app');
+  build.addEventListener('click', () => chooseAppReports({ name: rec.name, theme: rec.theme, container: job }));
   return h('div', { class: `rec ${rec.built ? 'built' : ''}`, 'data-anchor': 'orgapp-rec' },
     h('div', { class: 'row sp', style: { alignItems: 'flex-start' } },
       h('div', {}, h('div', { class: 'row' }, h('b', {}, rec.title), rec.built ? h('span', { class: `pill ${rec.notInApp?.length ? 'warn' : 'ok'}` }, rec.notInApp?.length ? 'Update needed' : 'Created') : h('span', { class: 'pill brand' }, rec.available ? 'Recommended' : 'Next')), h('div', { class: 'tiny muted' }, `Fabric org app · ${theme?.name || rec.theme} colors`)),
@@ -204,29 +274,35 @@ function reportsCard(p, reports) {
         h('div', { class: 'row' }, h('button', { class: 'btn', onclick: () => app.go('realtime') }, 'Real-time tab'), h('a', { class: 'btn pri', href: d.url, target: '_blank', rel: 'noopener' }, 'Open ↗')))));
   }
   if (p.orgApp) {
-    // Reports built after the app aren't in it until it is updated.
+    // Reports built after the app aren't in it until it is updated (a report left out when choosing stays out).
     const inApp = new Set(p.orgApp.reports || []);
-    const missing = reports.filter((r) => !inApp.has(r.id));
-    const update = h('button', { class: 'btn', 'data-busy': 'Starting…', title: 'Add the reports built since the app was last updated' }, '↻ Update the app');
-    update.addEventListener('click', busy(update, async () => { await startJob('/jobs/org-app', { name: p.orgApp.name, theme: p.orgApp.theme }, list, 'Org app updated – publish it in Fabric to share the changes'); }));
+    const offered = new Set(p.orgApp.considered || p.orgApp.reports || []);
+    const missing = reports.filter((r) => !inApp.has(r.id) && !offered.has(r.id));
+    const names = (p.orgApp.reports || []).map((id) => [...reports, ...(p.semanticModel?.linked?.reports || [])].find((r) => r.id === id)?.name).filter(Boolean);
+    const edit = h('button', { class: 'btn', title: 'Choose which reports are in the app' }, missing.length ? '↻ Update the app' : 'Choose reports');
+    edit.addEventListener('click', () => chooseAppReports({ container: list }));
+    const remove = h('button', { class: 'btn danger', title: 'Delete the org app and its audience from the workspace – the reports stay' }, 'Delete app');
+    remove.addEventListener('click', () => deleteApp(p));
     list.append(h('div', { class: 'rrow app', 'data-anchor': 'orgapp' },
       h('div', { class: 'row sp' },
         h('div', {},
           h('div', { class: 'row' }, h('span', {}, '▦'), h('b', {}, p.orgApp.name), h('span', { class: 'pill ok' }, 'Org app'), missing.length ? h('span', { class: 'pill warn' }, `${missing.length} report${missing.length === 1 ? '' : 's'} not in the app yet`) : null),
-          h('div', { class: 'tiny muted' }, `${p.orgApp.reports.length} report${p.orgApp.reports.length === 1 ? '' : 's'} · updated ${fmtDate(p.orgApp.builtAt)} · add an audience and publish it in Fabric to share it`),
+          h('div', { class: 'tiny muted' }, `${names.length ? names.join(', ') : `${p.orgApp.reports.length} report${p.orgApp.reports.length === 1 ? '' : 's'}`} · updated ${fmtDate(p.orgApp.builtAt)} · add people to its audience and publish it in Fabric to share it`),
           missing.length ? h('div', { class: 'tiny muted' }, `Not in the app yet: ${missing.map((r) => r.name).join(', ')} – update the app to add ${missing.length === 1 ? 'it' : 'them'}.`) : null),
-        h('div', { class: 'row' }, missing.length ? update : null, h('a', { class: 'btn pri', href: p.orgApp.url, target: '_blank', rel: 'noopener' }, 'Publish in Fabric ↗')))));
+        h('div', { class: 'row' }, edit, h('a', { class: 'btn pri', href: p.orgApp.url, target: '_blank', rel: 'noopener' }, 'Publish in Fabric ↗'), remove))));
   } else {
-    // No app yet: offer it right here, next to the reports it would bundle (the existing reports can't go in it).
-    const create = h('button', { class: 'btn pri', 'data-busy': 'Starting…', disabled: !reports.length || undefined, title: reports.length ? 'Bundle the studio\'s reports on this model into one Fabric org app' : 'Only reports built by the studio can go in the app' }, 'Create app');
-    create.addEventListener('click', busy(create, async () => { await startJob('/jobs/org-app', { theme: reports[0]?.theme || undefined }, list, 'Org app ready – add an audience and publish it in Fabric'); }));
+    // No app yet: offer it right here, next to the reports it would bundle.
+    const { theirs } = appChoices(p);
+    const any = reports.length + theirs.length;
+    const create = h('button', { class: 'btn pri', disabled: !any || undefined, title: any ? 'Choose the reports for the app, then create it' : 'Build a report on this model first' }, 'Create app');
+    create.addEventListener('click', () => chooseAppReports({ theme: reports[0]?.theme || undefined, container: list }));
     list.append(h('div', { class: 'rrow app', 'data-anchor': 'orgapp' },
       h('div', { class: 'row sp' },
         h('div', {},
           h('div', { class: 'row' }, h('span', {}, '▦'), h('b', {}, 'Org app'), h('span', { class: 'pill' }, 'Not created yet')),
-          h('div', { class: 'tiny muted' }, reports.length
-            ? `Bundles ${reports.length === 1 ? reports[0].name : `your ${reports.length} reports (${reports.map((r) => r.name).join(', ')})`} behind one overview page – people get it without access to the workspace.`
-            : 'Build a report on this model first: only reports built by the studio can go in the app (the existing reports stay as they are).')),
+          h('div', { class: 'tiny muted' }, any
+            ? `Bundle the reports you choose behind one overview page – people get it without access to the workspace.`
+            : 'Build a report on this model first – the app shares your reports.')),
         create)));
   }
   for (const r of reports) {

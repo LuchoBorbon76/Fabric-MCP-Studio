@@ -139,8 +139,10 @@ Ontology is in preview; the Ontology MCP endpoint (used by agents) needs a paid 
    error) and builds it on your semantic model with its own look, filters and bookmarks. Uploaded themes appear in the
    **Theme** list with a *Yours* tag.
 4. *Open in Power BI*, or expand **Preview** to see the rendered pages.
-5. **Org app for your organization** › *Create app*: one app with an overview page and your reports in sections. Then
-   *Publish in Fabric*: add an audience (who can see it) and publish – people don't need access to the workspace.
+5. **Org app for your organization** › *Create app*: choose the reports for the app, and the studio builds one app with
+   an overview page and those reports in sections. Then
+   *Publish in Fabric*: add people to its audience and publish – people don't need access to the workspace. *Choose
+   reports* changes what is in it; *Delete app* removes it (the reports stay).
 
 > Ask Copilot: *Recommend the best Power BI report for my semantic model.* Copilot explains its choice and shows
 > **Apply suggestions**, which opens a review and builds the report in one click.
