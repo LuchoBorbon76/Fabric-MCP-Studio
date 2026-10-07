@@ -230,7 +230,7 @@ function reportsCard(p, reports) {
     toggle.addEventListener('click', () => { open = !open; toggle.textContent = open ? '▾ Hide preview' : '▸ Preview'; if (open) showPreview(); else preview.innerHTML = ''; });
     const rebuild = h('button', { class: 'btn', 'data-busy': 'Starting…', title: r.template ? `Rebuild from the template ${r.template.name} with the current model` : 'Rebuild with the current model and the same pages and theme' }, '↻ Rebuild');
     // A report the studio built elsewhere (found in Fabric) is rebuilt only when its theme and pages are known.
-    const canRebuild = Boolean(r.template) || !r.adoptedAt || (Boolean(r.theme) && r.pages.length > 0 && pageIds(r.pages).length === r.pages.length);
+    const canRebuild = Boolean(r.template) || !r.adoptedAt || (Boolean(r.theme) && r.pages.length > 0);
     rebuild.addEventListener('click', busy(rebuild, async () => {
       if (r.template) { await startJob('/jobs/report-template', { id: r.template.id, name: r.name }, list, 'Report deployed'); return; }
       const ids = pageIds(r.pages);
