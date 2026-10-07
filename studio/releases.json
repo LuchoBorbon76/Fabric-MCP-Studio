@@ -91,6 +91,6 @@
     { "date": "2026-10-07", "type": "fix", "commit": "57a7513", "title": "Restart now: two restarts in a row can't leave two studios on the same data folder (each restart has its own handshake, and a late copy stops instead of taking another port)" },
     { "date": "2026-10-07", "type": "fix", "commit": "57a7513", "title": "Installer: a copy installed from the zip is updated once Git is there (it switches to Git updates, keeping studio\\data), and a studio closed for an update is started again when the update fails" },
     { "date": "2026-10-07", "type": "fix", "commit": "77dab33", "title": "Reports the studio built on an existing model (by another copy of the studio, or before the project was started over) are recognised by their description in Fabric: they are the project's again – with their theme and pages – instead of “Existing report”, so they can be rebuilt and go in the org app" },
-    { "date": "2026-10-07", "type": "fix", "title": "The org app is easy to find: Your reports has an Org app row with Create app (or what it needs first), and the Org app part of the map opens Reports & apps at it instead of the top of the page" }
+    { "date": "2026-10-07", "type": "fix", "commit": "4c5302b", "title": "The org app is easy to find: Your reports has an Org app row with Create app (or what it needs first), and the Org app part of the map opens Reports & apps at it instead of the top of the page" }
   ]
 }
