@@ -116,6 +116,23 @@ export function buildPlan(schema, options = {}) {
     const tc = r.to.columns.find((c) => c.name === r.toColumn);
     if (tc) tc.isKey = true;
   }
+  // No two active filter paths between the same tables (Power BI rejects ambiguous models): a direct relationship
+  // that duplicates a longer active path – Returns → Dates next to Returns → Sales → Dates – becomes inactive.
+  const reaches = (start, goal, skip) => {
+    const seenT = new Set([start]);
+    const queue = [start];
+    while (queue.length) {
+      const cur = queue.shift();
+      for (const x of relationships) {
+        if (x === skip || !x.active || x.from !== cur || seenT.has(x.to)) continue;
+        if (x.to === goal) return true;
+        seenT.add(x.to);
+        queue.push(x.to);
+      }
+    }
+    return false;
+  };
+  for (const r of relationships) if (r.active && reaches(r.from, r.to, r)) r.active = false;
   const facts = new Set(relationships.map((r) => r.from.key));
   for (const t of tables) t.role = facts.has(t.key) ? 'fact' : relationships.some((r) => r.to.key === t.key) ? 'dimension' : 'table';
   return { tables, relationships };

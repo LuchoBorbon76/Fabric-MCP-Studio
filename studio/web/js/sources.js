@@ -72,8 +72,10 @@ export function sourcesDialog() {
         h('td', { class: 'act' }, it.sources.length ? null : useItem)));
     }
     for (const x of s.others) {
+      const where = x.missing ? 'No longer in Fabric – switch to it to remove what was built from it'
+        : x.data ? `${ITEM_LABEL[x.data.itemType] || x.data.itemType} in another workspace` : 'Not connected yet';
       t.append(h('tr', { class: x.active ? 'sel' : '' },
-        h('td', {}, h('b', {}, breakable(x.data?.name || x.label)), h('div', { class: 'tiny muted' }, x.data ? `${ITEM_LABEL[x.data.itemType] || x.data.itemType} in another workspace` : 'Not connected yet')),
+        h('td', {}, h('b', {}, breakable(x.data?.name || x.label)), h('div', { class: `tiny ${x.missing ? 'warnx' : 'muted'}` }, where)),
         h('td', {}, contextLine(x, close)),
         h('td', { class: 'act' })));
     }

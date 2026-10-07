@@ -34,12 +34,14 @@ function providerCard() {
   if (!draftProvider || draftProvider.saved !== cur.id) draftProvider = { id: cur.id, model: cur.model, reasoningEffort: cur.reasoningEffort || '', config: { ...(cur.config || {}) }, saved: cur.id };
   const d = draftProvider;
   const body = h('div');
-  const cards = h('div', { class: 'srcs' }, store.providers.map((p) => h('div', { class: `src ${d.id === p.id ? 'on' : ''}`, onclick: () => { d.id = p.id; d.config = p.id === cur.id ? { ...(cur.config || {}) } : {}; d.model = p.id === cur.id ? cur.model : ''; redraw(); } },
+  const cards = h('div', { class: 'srcs' }, store.providers.map((p) => h('div', { class: `src ${d.id === p.id ? 'on' : ''}`, onclick: () => { d.id = p.id; d.config = p.id === cur.id ? { ...(cur.config || {}) } : {}; d.model = p.id === cur.id ? cur.model : ''; d.reasoningEffort = p.id === cur.id ? cur.reasoningEffort || '' : ''; d.read = null; redraw(); } },
     h('div', { class: 'h' }, h('div', { class: 'ic' }, { github: '🐙', 'azure-openai': '☁', openai: '◎', anthropic: '✳', local: '🖥', openrouter: '🔀' }[p.id] || '✦'), p.name, p.developer ? h('span', { class: 'pill', title: 'Only in developer mode' }, 'Dev') : null),
     h('div', { class: 'meta' }, p.license))));
   const redraw = () => { card.replaceWith(providerCard()); };
 
   const meta = store.providers.find((p) => p.id === d.id);
+  // Each provider's form sets its own reader below; a reader left from another provider's form must never run.
+  d.read = null;
   if (d.id === 'github') {
     const status = h('div', { class: 'row' }, h('span', { class: 'spin' }), 'Checking GitHub sign-in…');
     get('/copilot/status').then((s) => {

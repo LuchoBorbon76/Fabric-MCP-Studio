@@ -1,6 +1,6 @@
 // Fabric MCP Studio - local web server (127.0.0.1 only). No framework: node:http + SSE + static files.
 import { createServer } from 'node:http';
-import { readFileSync, existsSync, statSync, rmSync, openSync, closeSync, writeFileSync } from 'node:fs';
+import { readFileSync, existsSync, statSync, rmSync, openSync, closeSync, writeFileSync, readdirSync } from 'node:fs';
 import { join, extname, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
@@ -23,7 +23,7 @@ import { promptSuggestions } from './prompts.mjs';
 import { readiness, cachedReadiness, resetReadiness, assertModuleReady, assertLiveEventsAllowed } from './readiness.mjs';
 import { catalog } from './sources.mjs';
 import { getProject, updateProject, resetProject, getActivity, clearActivity, logActivity, assertProjectTenant } from './project.mjs';
-import { startJob, listJobs, getJob, cancelJob, flushRunningJobs, onJobSucceeded } from './jobs.mjs';
+import { startJob, listJobs, getJob, cancelJob, flushRunningJobs, onJobSucceeded, plainError } from './jobs.mjs';
 import * as WTF from './workspace-taskflow.mjs';
 import * as MODELS from './models.mjs';
 import * as MC from './modelcheck.mjs';
@@ -72,10 +72,12 @@ const INSTANCE = shortHash(DATA_DIR.toLowerCase());
 const RUNTIME_FILE = join(DATA_DIR, 'runtime.json');
 
 // Started by "Restart" in the app: tell the copy that started this one that it runs (it stops only then, so a copy
-// that can't start never leaves the studio down), then wait until it has stopped and freed its port.
+// that can't start never leaves the studio down), then wait until it has stopped and freed its port. The ready file
+// carries the restart attempt, so a slow copy from an earlier attempt can't stop the studio for a later one.
 const restartOf = Number(opt('--restart-of', 0));
+const restartAttempt = String(opt('--restart-token', '') || '').replace(/[^\w-]/g, '');
 if (restartOf) {
-  try { writeFileSync(join(DATA_DIR, `restart-${restartOf}.ready`), String(process.pid)); } catch { /* read-only data folder */ }
+  try { writeFileSync(join(DATA_DIR, `restart-${restartOf}${restartAttempt ? `-${restartAttempt}` : ''}.ready`), String(process.pid)); } catch { /* read-only data folder */ }
   let gone = false;
   for (let i = 0; i < 400 && !gone; i++) {
     try { process.kill(restartOf, 0); } catch { gone = true; break; }
@@ -374,11 +376,12 @@ route('POST', '/api/restart', async () => {
   if (running.length) throw Object.assign(new Error(`"${running[0].title}"${running.length > 1 ? ` and ${running.length - 1} more` : ''} ${running.length > 1 ? 'are' : 'is'} still running. Wait for ${running.length > 1 ? 'them' : 'it'} to finish (or stop ${running.length > 1 ? 'them' : 'it'}), then restart.`), { status: 409, code: 'JOBS_RUNNING' });
   const keep = [];
   for (let i = 0; i < args.length; i++) {
-    if (['--port', '--restart-of'].includes(args[i])) { i++; continue; }
+    if (['--port', '--restart-of', '--restart-token'].includes(args[i])) { i++; continue; }
     if (args[i] !== '--no-open') keep.push(args[i]);
   }
-  const serverArgs = [fileURLToPath(import.meta.url), ...keep, '--no-open', '--port', String(PORT), '--restart-of', String(process.pid)];
-  const ready = join(DATA_DIR, `restart-${process.pid}.ready`);
+  const attempt = randomBytes(6).toString('hex');
+  const serverArgs = [fileURLToPath(import.meta.url), ...keep, '--no-open', '--port', String(PORT), '--restart-of', String(process.pid), '--restart-token', attempt];
+  const ready = join(DATA_DIR, `restart-${process.pid}-${attempt}.ready`);
   rmSync(ready, { force: true });
   const log = restartLog();
   if (process.platform === 'win32') await startHidden(serverArgs, log);
@@ -506,12 +509,16 @@ const server = createServer(async (req, res) => {
   } catch (e) {
     const status = e.status || (e.code === 'AUTH_REQUIRED' ? 401 : 500);
     if (status >= 500) console.error(`[${req.method} ${pathname}]`, e.message);
-    return send(res, status, { error: e.message || String(e), code: e.code || null });
+    // Fabric's answer in plain words (as for jobs); the request line and raw JSON stay in the server log.
+    return send(res, status, { error: plainError(e.message || String(e)), code: e.code || null });
   }
 });
 
 function listen(port, attempts = 10) {
   server.once('error', (e) => {
+    // A copy started by Restart takes over the studio's own port or stops: on another port it would be a second studio
+    // on the same data folder (another restart's copy got the port first).
+    if (e.code === 'EADDRINUSE' && restartOf) { console.error(`Port ${port} is taken – another copy of the studio is already running there; this copy stops.`); process.exit(1); }
     if (e.code === 'EADDRINUSE' && attempts > 0) listen(port + 1, attempts - 1);
     else { console.error(e.message); process.exit(1); }
   });
@@ -519,6 +526,8 @@ function listen(port, attempts = 10) {
     PORT = port;
     const url = `http://127.0.0.1:${port}/`;
     try { writeJson(RUNTIME_FILE, { pid: process.pid, port, url, startedAt: new Date().toISOString() }); } catch { /* read-only data folder */ }
+    // Ready files left by restarts that timed out.
+    try { for (const f of readdirSync(DATA_DIR)) if (/^restart-\d+(-[\w-]+)?\.ready$/.test(f) && Date.now() - statSync(join(DATA_DIR, f)).mtimeMs > 5 * 60 * 1000) rmSync(join(DATA_DIR, f), { force: true }); } catch { /* ignore */ }
     console.log(`\n  Fabric MCP Studio ${VERSION}${BUILD ? ` (build ${BUILD.commit})` : ''} is running at ${url}\n  Sample app provided as is - not an official Microsoft product or supported service.\n  Press Ctrl+C to stop.\n`);
     if (!flag('--no-open')) openBrowser(url);
   });

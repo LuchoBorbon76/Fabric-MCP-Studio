@@ -218,6 +218,18 @@ export async function listModels() {
 
 // ---------------- provider ----------------
 
+/**
+ * Token limits for an OpenRouter model: prompt + answer must fit its context. The answer gets at most a quarter of it
+ * (and 32K), the prompt the rest minus a margin – a 32K model that allows 32K of output would otherwise reject almost
+ * every request. Returns 0 for what the model doesn't say.
+ */
+export function openRouterLimits(meta) {
+  const ctxTokens = Number(meta?.context) || 0;
+  const outTokens = meta?.maxOutput ? Math.max(1024, Math.min(Number(meta.maxOutput), 32000, ctxTokens ? Math.floor(ctxTokens / 4) : 32000)) : 0;
+  const promptTokens = ctxTokens ? Math.max(2048, ctxTokens - (outTokens || Math.floor(ctxTokens / 4)) - Math.max(1024, Math.floor(ctxTokens * 0.02))) : 0;
+  return { promptTokens, outTokens };
+}
+
 function providerConfig() {
   const s = getSettings().provider;
   const cfg = s.config || {};
@@ -256,14 +268,15 @@ function providerConfig() {
       // means GitHub's auto mode to the runtime, so OpenRouter's router keeps its full name.
       const known = id === OPENROUTER_AUTO || !id.includes('/') ? id : id.split('/').pop().replace(/:.*$/, '');
       const meta = openRouterModels.list?.find((m) => m.id === id);
+      const { promptTokens, outTokens } = openRouterLimits(meta);
       return {
         model: known,
         ...(s.reasoningEffort && meta?.reasoning !== false ? { reasoningEffort: s.reasoningEffort } : {}),
         provider: {
           type: 'openai', baseUrl: OPENROUTER_API, apiKey, modelId: known, wireModel: id,
           headers: { 'HTTP-Referer': 'https://github.com/luisbor_microsoft/Fabric-MCP-Studio', 'X-Title': 'Fabric MCP Studio' },
-          ...(meta?.context ? { maxPromptTokens: Math.floor(meta.context * 0.85) } : {}),
-          ...(meta?.maxOutput ? { maxOutputTokens: Math.min(meta.maxOutput, 32000) } : {}),
+          ...(promptTokens ? { maxPromptTokens: promptTokens } : {}),
+          ...(outTokens ? { maxOutputTokens: outTokens } : {}),
         },
       };
     }
@@ -295,6 +308,7 @@ export function friendlyProviderError(message) {
   if (/HTTP 402|insufficient credits|payment required/i.test(m)) return 'Your OpenRouter account is out of credits. Add credits at openrouter.ai › Credits, or pick a free model (search "free").';
   if (/HTTP 429|rate.?limit/i.test(m)) return 'OpenRouter is rate-limiting this model right now (free models have low limits). Wait a moment, or pick another model.';
   if (/HTTP 404|No endpoints found|not a valid model/i.test(m)) return `OpenRouter can't serve "${getSettings().provider.model || OPENROUTER_AUTO}" with tools right now. Pick another model in Settings › AI provider.`;
+  if (/maximum context length|context[_ ]length|too many tokens|prompt is too long/i.test(m)) return `The conversation is too long for "${getSettings().provider.model || OPENROUTER_AUTO}". Start a new chat, or pick a model with a larger context in Settings › AI provider.`;
   return m;
 }
 
@@ -1173,7 +1187,7 @@ export async function createChat() {
   const c = await getClient();
   const id = newId();
   const session = await c.createSession({ sessionId: id, ...(await sessionConfig(id)) });
-  const chat = { id, session, title: 'New chat', busy: false, tokenExp: tokenExpiresOn(SCOPES.fabric), createdAt: new Date().toISOString(), provider: providerSummary(), transcript: [] };
+  const chat = { id, session, title: 'New chat', busy: false, tokenExp: tokenExpiresOn(SCOPES.fabric), createdAt: new Date().toISOString(), provider: providerSummary(), sessionProvider: getSettings().provider.id, transcript: [] };
   chats.set(id, chat);
   wire(chat);
   persist(chat);
@@ -1182,11 +1196,14 @@ export async function createChat() {
 }
 
 async function ensureFresh(chat) {
-  // Fabric tokens in MCP headers expire after ~60 minutes: resume the session with fresh headers.
-  if (Date.now() < chat.tokenExp - 10 * 60 * 1000 && chat.ontologyId === getProject().ontology?.id) return;
+  // Fabric tokens in MCP headers expire after ~60 minutes: resume the session with fresh headers. Also when the
+  // provider changed under the chat (developer mode turned off while the studio runs drops GitHub and OpenRouter).
+  const providerId = getSettings().provider.id;
+  if (Date.now() < chat.tokenExp - 10 * 60 * 1000 && chat.ontologyId === getProject().ontology?.id && chat.sessionProvider === providerId) return;
   const c = await getClient();
   try { await chat.session.disconnect(); } catch { /* ignore */ }
   chat.session = await c.resumeSession(chat.id, await sessionConfig(chat.id));
+  chat.sessionProvider = providerId;
   chat.tokenExp = tokenExpiresOn(SCOPES.fabric);
   chat.ontologyId = getProject().ontology?.id;
   wire(chat);
@@ -1199,7 +1216,7 @@ async function getChat(id) {
   if (!saved) throw new Error('Chat not found');
   const c = await getClient();
   const session = await c.resumeSession(id, await sessionConfig(id));
-  chat = { id, session, title: saved.title, busy: false, tokenExp: tokenExpiresOn(SCOPES.fabric), createdAt: saved.createdAt, provider: saved.provider, transcript: saved.transcript || [] };
+  chat = { id, session, title: saved.title, busy: false, tokenExp: tokenExpiresOn(SCOPES.fabric), createdAt: saved.createdAt, provider: saved.provider, sessionProvider: getSettings().provider.id, transcript: saved.transcript || [] };
   chats.set(id, chat);
   wire(chat);
   return chat;

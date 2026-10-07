@@ -492,7 +492,7 @@ export function mountMap(root, { onNode, onTab, opensOnDouble }) {
     fill(fhead,
       h('span', { class: 'fic', html: icon('workspace') }),
       h('span', { class: 'fname' }, w.title),
-      w.done && w.capacity ? h('span', { class: `fchip ${w.paused ? 'err' : ''}` }, `${w.capacity.sku} · ${w.paused ? 'Paused' : 'Running'}`) : null,
+      w.done && w.capacity ? h('span', { class: `fchip ${w.paused ? 'err' : ''}`, title: w.paused ? `Paused – the studio checks every ${w.capacity.checkEverySeconds && w.capacity.checkEverySeconds !== 60 ? `${w.capacity.checkEverySeconds} seconds` : 'minute'} and lights up again by itself once it runs` : `${w.capacity.name} is running` }, `${w.capacity.sku} · ${w.paused ? 'Paused · checking' : 'Running'}`) : null,
       w.done && w.role ? h('span', { class: 'fchip' }, w.role) : null,
       w.state === 'running' ? h('span', { class: 'spin' }) : null,
       !w.done && w.next ? h('span', { class: 'fcta' }, 'Start here') : null);

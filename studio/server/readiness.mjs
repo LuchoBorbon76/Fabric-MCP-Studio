@@ -3,12 +3,17 @@
 // stop before they change anything. Everything here is read-only.
 import { getToken, SCOPES, currentIdentity } from './auth.mjs';
 import { fabric } from './fabric.mjs';
-import { getProject } from './project.mjs';
+import { getProject, logActivity } from './project.mjs';
+import { emit, clientCount } from './events.mjs';
 import { scenarioKind } from './realtime/scenarios.mjs';
 import { planStoreProblem } from './planning/store.mjs';
 
 const PBI = 'https://api.powerbi.com/v1.0/myorg';
 const TTL_MS = 2 * 60 * 1000;
+// How often a paused capacity is checked (STUDIO_CAPACITY_CHECK_SECONDS, at least 15 s) and a running one.
+const WATCH_PAUSED_MS = Math.max(15, Number(process.env.STUDIO_CAPACITY_CHECK_SECONDS) || 60) * 1000;
+const WATCH_RUNNING_MS = 5 * 60 * 1000;
+const everyText = (s) => (s === 60 ? 'minute' : s % 60 === 0 ? `${s / 60} minutes` : `${Math.round(s)} seconds`);
 export const MODULES = ['workspace', 'data', 'model', 'ontology', 'reports', 'realtime', 'planning', 'share'];
 const LABELS = { workspace: 'Workspace', data: 'Data', model: 'Semantic model', ontology: 'Ontology', reports: 'Reports & apps', realtime: 'Real-time', planning: 'Planning', share: 'Ask & share' };
 const ADMIN_PORTAL = 'https://app.fabric.microsoft.com/admin-portal/tenantSettings';
@@ -135,7 +140,7 @@ export function evaluate({ project: p, capacity: cap, role, tenant: ts, platform
   else {
     const label = `${cap.name} · ${cap.sku}${cap.region ? ` · ${cap.region}` : ''}`;
     if (cap.state !== 'Active') {
-      const r = req('error', `The workspace's capacity ${cap.name} is ${cap.state === 'Inactive' ? 'paused' : cap.state.toLowerCase()}.`, 'Resume it in the Azure portal (Microsoft Fabric capacity › Resume), then select Check setup.', AZURE_FABRIC);
+      const r = req('error', `The workspace's capacity ${cap.name} is ${cap.state === 'Inactive' ? 'paused' : cap.state.toLowerCase()}.`, `Resume it in the Azure portal (Microsoft Fabric capacity › Resume). The studio checks it every ${everyText(WATCH_PAUSED_MS / 1000)} and lights up again by itself once it runs.`, AZURE_FABRIC);
       add('ws-capacity', 'Workspace capacity', 'error', `${label} · ${cap.state === 'Inactive' ? 'Paused' : cap.state}`, r.fix, r.link);
       put(fabricMods, r);
       put(['share'], req('error', `The capacity ${cap.name} is paused – Fabric IQ and the agents can't answer.`, r.fix, r.link));
@@ -208,7 +213,7 @@ export function evaluate({ project: p, capacity: cap, role, tenant: ts, platform
     at: new Date().toISOString(),
     user,
     workspace: ws ? { id: ws.id, name: ws.name } : null,
-    capacity: cap ? { name: cap.name, sku: cap.sku, state: cap.state, region: cap.region, admin: cap.admin, trial: cap.trial, visible: cap.visible } : null,
+    capacity: cap ? { id: cap.id || null, name: cap.name, sku: cap.sku, state: cap.state, region: cap.region, admin: cap.admin, trial: cap.trial, visible: cap.visible, checkEverySeconds: cap.visible && cap.state && cap.state !== 'Active' ? Math.round(WATCH_PAUSED_MS / 1000) : null } : null,
     role: role?.role || null,
     tenantSettings: ts ? 'checked' : 'not-visible',
     checks, modules,
@@ -219,9 +224,11 @@ export function evaluate({ project: p, capacity: cap, role, tenant: ts, platform
  * Readiness for the project (cached two minutes; `refresh` forces a new check). With `allowStale`, an older result for
  * the same project is returned right away and refreshed in the background.
  */
+const keyOf = (p) => [p.workspace?.id || '', p.modelSource?.itemId || '', currentIdentity()?.oid || '', Boolean(p.realtime)].join('|');
+
 export async function readiness({ refresh = false, allowStale = false } = {}) {
   const p = getProject();
-  const key = [p.workspace?.id || '', p.modelSource?.itemId || '', currentIdentity()?.oid || '', Boolean(p.realtime)].join('|');
+  const key = keyOf(p);
   const fresh = cache.key === key && cache.data && Date.now() - cache.at < TTL_MS;
   if (!refresh && fresh) return cache.data;
   if (!refresh && allowStale && cache.key === key && cache.data) {
@@ -230,12 +237,56 @@ export async function readiness({ refresh = false, allowStale = false } = {}) {
   }
   if (cache.pending && cache.key === key) return cache.pending;
   cache.key = key;
-  cache.pending = compute().then((data) => { cache = { key, at: Date.now(), data, pending: null }; return data; }).catch((e) => { cache.pending = null; throw e; });
+  cache.pending = compute().then((data) => { cache = { key, at: Date.now(), data, pending: null }; watchCapacity(key, data); return data; }).catch((e) => { cache.pending = null; throw e; });
   return cache.pending;
 }
 
 export const cachedReadiness = () => cache.data;
 export const resetReadiness = () => { cache = { key: '', at: 0, data: null, pending: null }; };
+
+// ---------------- capacity watch ----------------
+// A paused capacity blocks most of the studio. While it is paused the studio checks it every minute (and every few
+// minutes while it runs, to notice a pause): when the state changes, readiness is checked again and pushed to the
+// pages, so the map and every tab light up again by themselves once the capacity is resumed – no reload needed.
+let watch = { timer: null, key: '', capacityId: null, state: null, errors: 0 };
+
+function watchCapacity(key, data) {
+  clearTimeout(watch.timer);
+  const cap = data?.capacity;
+  if (!cap?.visible || !cap.id) { watch = { timer: null, key: '', capacityId: null, state: null, errors: 0 }; return; }
+  const errors = watch.key === key ? watch.errors : 0;
+  const base = cap.state !== 'Active' ? WATCH_PAUSED_MS : WATCH_RUNNING_MS;
+  watch = { timer: null, key, capacityId: cap.id, state: cap.state, errors };
+  watch.timer = setTimeout(checkCapacity, base * Math.min(4, 2 ** errors));
+  watch.timer.unref?.();
+}
+
+async function checkCapacity() {
+  const w = watch;
+  // Another workspace or data source since: the next readiness check watches that one.
+  if (keyOf(getProject()) !== w.key) return;
+  let state = null;
+  // No page open: nothing to light up (a page that opens gets the next check's result).
+  if (!clientCount()) { watchCapacity(w.key, cache.key === w.key && cache.data ? cache.data : { capacity: { visible: true, id: w.capacityId, state: w.state } }); return; }
+  try {
+    const caps = (await fabric('GET', '/capacities'))?.value || [];
+    state = caps.find((c) => c.id?.toLowerCase() === String(w.capacityId).toLowerCase())?.state || null;
+    w.errors = 0;
+  } catch { w.errors = Math.min(w.errors + 1, 3); }
+  if (state && state !== w.state) {
+    const fresh = await readiness({ refresh: true }).catch(() => null);
+    if (fresh) {
+      const name = fresh.capacity?.name || 'The capacity';
+      emit('readiness', { readiness: fresh, change: { capacity: name, from: w.state, to: fresh.capacity?.state || state } });
+      logActivity('capacity.state', `${name} is ${state === 'Active' ? 'running again' : 'paused'}`, { capacityId: w.capacityId, from: w.state, to: state });
+      return;
+    }
+  }
+  watchCapacity(w.key, cache.key === w.key && cache.data ? cache.data : { capacity: { visible: true, id: w.capacityId, state: w.state } });
+}
+
+/** The capacity watch, for tests and diagnostics. */
+export const capacityWatch = () => ({ capacityId: watch.capacityId, state: watch.state, errors: watch.errors, active: Boolean(watch.timer) });
 
 // Which module a job belongs to (jobs of blocked modules stop before they change anything). Keys are job kinds and
 // the /api/jobs/<name> routes.

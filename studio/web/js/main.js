@@ -547,6 +547,29 @@ on('project.updated', async () => {
   if (rk !== readinessKey) { readinessKey = rk; loadReadiness(); }
 });
 on('provider', (e) => { store.provider = e.provider; renderHeader(); updateMap(); });
+// The server checks a paused capacity every minute (a running one every few minutes) and pushes the new readiness when
+// its state changes: the map and every tab light up again without a reload.
+on('readiness', (e) => {
+  if (!e.readiness) return;
+  store.readiness = e.readiness;
+  updateMap();
+  for (const id of MODULE_VIEWS) if (rendered.has(id)) applyReadiness(id);
+  if (current === 'home' && rendered.has('home')) renderView('home');
+  const c = e.change;
+  // Back running: the open page reads its data again (the Data page keeps its in-progress forms).
+  if (c?.to === 'Active' && current !== 'home' && current !== 'data' && rendered.has(current)) renderView(current);
+  const every = e.readiness.capacity?.checkEverySeconds;
+  if (c?.to === 'Active') toast(`${c.capacity} is running again – everything that needs it can run`, 'ok');
+  else if (c) toast(`${c.capacity} was paused – parts that need it wait until it runs again (checked every ${!every || every === 60 ? 'minute' : `${every} seconds`})`, 'err');
+});
+// Back to the tab after a while: check again (the capacity may have been resumed or paused meanwhile).
+let readinessAt = Date.now();
+on('readiness', () => { readinessAt = Date.now(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || !store.user?.signedIn || !store.project?.workspace || Date.now() - readinessAt < 2 * 60 * 1000) return;
+  readinessAt = Date.now();
+  loadReadiness();
+});
 // Streaming lights up the real-time part of the map; only re-draw it when running/stopped flips.
 on('realtime.simulator', (e) => { const was = store.realtime?.simulator?.running; store.realtime = { ...(store.realtime || {}), simulator: e.simulator }; if (was !== e.simulator.running) updateMap(); });
 on('auth', (e) => { store.user = e.user; renderAll(); loadReadiness(true); });

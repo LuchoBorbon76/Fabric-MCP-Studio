@@ -48,15 +48,22 @@ export function recommendations(profile, project, { rules = null, values = [] } 
   // Reports on the active model (reports from before models were tracked count as its own); the other models' reports
   // keep their names, so a new report here never takes over one of theirs.
   const own = (project.reports || []).filter((r) => !r.semanticModelId || r.semanticModelId === project.semanticModel?.id);
-  const theirs = new Set((project.reports || []).filter((r) => !own.includes(r)).map((r) => r.name.toLowerCase()));
+  // Names in use elsewhere: reports on the project's other models, and reports found in Fabric on this model.
+  const theirs = new Set([
+    ...(project.reports || []).filter((r) => !own.includes(r)).map((r) => r.name.toLowerCase()),
+    ...(project.semanticModel?.linked?.reports || []).filter((r) => !own.some((o) => o.id === r.id)).map((r) => r.name.toLowerCase()),
+  ]);
   const built = new Map(own.map((r) => [r.name.toLowerCase(), r]));
   // A report already built for the same purpose (or with the name older versions used) keeps its name, so rebuilding
-  // updates it; new ones follow the naming standard.
+  // updates it. New ones follow the naming standard – all with the model's name first when any plain name is taken
+  // (another model has it), so one model's reports are named alike.
+  const plain = (purpose) => standardName('Report', purpose, project);
+  const prefixed = (purpose) => standardName('Report', `${purposeOf(model, 'SemanticModel') || 'Model'}${purpose}`, project);
+  const prefixAll = ['Executive', 'Regional', 'BusinessRules', 'Scorecard', 'PlanVsActual'].some((x) => theirs.has(plain(x).toLowerCase()));
   const nameFor = (purpose, legacy) => {
     const b = own.find((r) => r.name.toLowerCase() === legacy.toLowerCase() || parseName(r.name)?.purpose.toLowerCase() === purpose.toLowerCase());
     if (b) return b.name;
-    const n = standardName('Report', purpose, project);
-    return theirs.has(n.toLowerCase()) ? standardName('Report', `${purposeOf(model, 'SemanticModel') || 'Model'}${purpose}`, project) : n;
+    return prefixAll ? prefixed(purpose) : plain(purpose);
   };
   const out = [];
   const hasTime = Boolean(profile.time);

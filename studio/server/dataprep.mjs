@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { DATA_DIR, sleep } from './config.mjs';
 import * as F from './fabric.mjs';
-import { getProject, updateProject, recordArtifact, logActivity, assertProjectTenant, fabricUrl } from './project.mjs';
+import { getProject, updateProject, recordArtifact, logActivity, assertProjectTenant, fabricUrl, otherSourcesUsing } from './project.mjs';
 import { buildDataNotebook, DATA_PREP_FOLDER } from './generators/notebook.mjs';
 import { standardName } from './naming.mjs';
 
@@ -296,15 +296,21 @@ export async function refreshDataPrep() {
   return dataPrepState();
 }
 
-/** Forget the notebook (optionally deleting the notebook and curated lakehouse – only when the studio created them). */
+/**
+ * Forget the notebook (optionally deleting the notebook and curated lakehouse – only when the studio created them). A
+ * curated lakehouse another data source of the workspace reads stays. Returns what was kept: [{ name, by }].
+ */
 export async function removeDataPrep({ deleteItems = false } = {}) {
   await assertProjectTenant();
   const dp = getProject().dataPrep;
-  if (!dp) return { ok: true };
+  if (!dp) return { ok: true, kept: [] };
+  const kept = [];
   if (deleteItems) {
     const ids = [];
     for (const it of [dp.notebook, dp.target?.same ? null : dp.target]) {
       if (!it?.id || !isTracked(it.id) || it.id === getProject().modelSource?.itemId) continue;
+      const users = otherSourcesUsing(it.id);
+      if (users.length) { kept.push({ name: it.name, by: users.map((u) => u.label) }); continue; }
       await F.deleteItem(it.workspaceId, it.id).catch((e) => { if (e.status !== 404) throw e; });
       ids.push(it.id);
     }
@@ -312,7 +318,7 @@ export async function removeDataPrep({ deleteItems = false } = {}) {
   }
   rmSync(CHART_DIR, { recursive: true, force: true });
   updateProject({ dataPrep: null });
-  return { ok: true };
+  return { ok: true, kept };
 }
 
 /** Forget charts on disk (clean up / new project). */

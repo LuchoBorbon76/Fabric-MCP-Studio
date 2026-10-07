@@ -89,13 +89,16 @@ environment variables `AZURE_OPENAI_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_K
 providers (and the GitHub Copilot clients on Ask & share). Turn it on for your own computer only, with the `STUDIO_DEVELOPER=1`
 environment variable or an empty file named `developer` in the studio's data folder (`studio/data/developer`), then
 restart the studio. Settings › About shows when it's on. Outside developer mode a saved GitHub Copilot or OpenRouter
-choice is kept on disk but the studio uses Azure AI Foundry / Azure OpenAI until developer mode is back.
+choice is kept on disk but the studio uses Azure AI Foundry / Azure OpenAI until developer mode is back – also when
+developer mode is turned off while the studio runs (open chats switch with their next message).
 
 **OpenRouter**: *Settings › AI provider › OpenRouter* – paste the API key (openrouter.ai › Keys), search and pick a model
 (only models that can call tools are listed – Copilot works through tools – with their price per million tokens and
 context window; **Auto Router** lets OpenRouter choose per request), *Save*, then *Test*. The model can also be changed
 in the Copilot header. The key lives in memory until the studio stops: set `OPENROUTER_API_KEY` once
-(`setx OPENROUTER_API_KEY sk-or-…`, then restart the studio) to have it every time.
+(`setx OPENROUTER_API_KEY sk-or-…`, then restart the studio) to have it every time. The answer gets at most a quarter
+of the model's context (and 32K tokens), the conversation the rest – a conversation that outgrows a small model says
+so (start a new chat or pick a larger model).
 
 ## How it works
 
@@ -137,7 +140,9 @@ flowchart LR
   the tenant settings each step needs (when you are a Fabric administrator) and what your data source supports. Parts
   that can't run get a red badge on the map and their page a banner with the reason and the fix, and their actions
   are disabled; parts that run with limits say so. Jobs and Copilot tools stop before changing anything when their
-  step can't run. *Check setup* and `npm run check` show the same list.
+  step can't run. *Check setup* and `npm run check` show the same list. A **paused capacity** is checked again every
+  minute (`STUDIO_CAPACITY_CHECK_SECONDS`, at least 15) and a running one every five minutes while a page is open: when
+  it is resumed (or paused) the map, the badges and every page change by themselves – no reload or *Check again*.
 
 ## Naming standard
 
@@ -310,7 +315,10 @@ Every run works the rest out from the data, so it works for any lakehouse and ca
 | Charts | KPI tiles, tables overview, model diagram, trend, top items, pie, breakdowns, Pareto, weekday × month heatmap, distribution, box plot, treemap, correlation, missing values and data fixes – each with a one-line insight, shown on the Data page |
 
 **Use the curated lakehouse as the data source** to build the semantic model, ontology and reports on the curated tables.
-Clean up deletes the notebook and the curated lakehouse.
+The model then uses what the notebook found: each table's key and role, the relationships (dates included, so the date
+table is marked), and its KPIs as measures; the notebook's own `KPIs` and `DataQuality` tables stay out of the model.
+Clean up deletes the notebook and the curated lakehouse – a curated lakehouse another data source of the workspace uses
+stays (Remove says which one).
 
 ## Reports
 

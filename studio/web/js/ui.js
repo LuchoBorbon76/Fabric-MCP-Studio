@@ -33,13 +33,16 @@ export function toast(msg, kind = '') {
 export function modal({ title, body, actions = [], className = '', onClose }) {
   const root = document.getElementById('modalRoot');
   let closed = false;
-  const close = () => { if (closed) return; closed = true; ov.remove(); onClose?.(); };
+  // Esc closes the top pop-up (approvals need an answer, so they stay).
+  const onKey = (e) => { if (e.key === 'Escape' && !className.includes('appr') && root.lastElementChild === ov) { e.stopPropagation(); close(); } };
+  const close = () => { if (closed) return; closed = true; document.removeEventListener('keydown', onKey); ov.remove(); onClose?.(); };
   const ov = h('div', { class: 'overlay', onclick: (e) => { if (e.target === ov && !className.includes('appr')) close(); } },
     h('div', { class: `modal ${className}` },
       h('div', { class: 'mh' }, h('h3', {}, title), className.includes('appr') ? null : h('button', { class: 'btn ghost', onclick: close, title: 'Close' }, '✕')),
       h('div', { class: 'mb' }, body),
       actions.length ? h('div', { class: 'mf' }, actions.map((a) => h('button', { class: `btn ${a.class || ''}`, onclick: async () => { if ((await a.onClick?.()) !== false) close(); } }, a.label))) : null));
   root.append(ov);
+  document.addEventListener('keydown', onKey);
   return { close, el: ov };
 }
 

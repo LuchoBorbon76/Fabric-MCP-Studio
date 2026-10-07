@@ -94,6 +94,24 @@ export function contextViews(p = getProject()) {
   return views;
 }
 
+/**
+ * The other data sources of the workspace that read a Fabric item (as their data, or through a model or ontology built
+ * on it): [{ key, label, what }]. Items one data source made can be another one's data (the data prep notebook's
+ * curated lakehouse used in place, for example), so they are never deleted from under it.
+ */
+export function otherSourcesUsing(itemId, p = getProject()) {
+  if (!itemId) return [];
+  const out = [];
+  for (const { active, key, label, view } of contextViews(p)) {
+    if (active) continue;
+    const what = view.modelSource?.itemId === itemId ? 'its data'
+      : (view.semanticModels || []).some((m) => m.sourceItemId === itemId) ? 'a semantic model'
+        : view.ontology?.sourceItemId === itemId ? 'its ontology' : null;
+    if (what) out.push({ key, label: label || labelOf(view), what });
+  }
+  return out;
+}
+
 /** The data sources of the workspace with what was built from each (for the UI and Copilot). */
 export function sourceContexts(p = getProject()) {
   const describe = (key, st, active, e) => {

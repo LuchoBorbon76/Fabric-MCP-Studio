@@ -125,13 +125,18 @@ export function getSettings() {
   if (!settingsCache) {
     const saved = readJson(SETTINGS_FILE, {});
     settingsCache = deepMerge(structuredClone(DEFAULT_SETTINGS), saved);
-    // Outside developer mode GitHub Copilot and OpenRouter aren't offered: start with Azure AI Foundry / Azure OpenAI
-    // (Entra sign-in).
-    if (DEVELOPER_PROVIDERS.has(settingsCache.provider?.id) && !isDeveloper()) {
-      const replacement = { id: 'azure-openai', model: '', reasoningEffort: '', config: { authMode: 'entra' } };
-      providerSwap = { replacement, saved: settingsCache.provider };
-      settingsCache.provider = replacement;
-    }
+  }
+  // Outside developer mode GitHub Copilot and OpenRouter aren't offered: Azure AI Foundry / Azure OpenAI (Entra
+  // sign-in) is used instead. Checked on every read, because developer mode can be turned on or off while the studio
+  // runs (the data\developer file or STUDIO_DEVELOPER): the saved choice comes back when developer mode does.
+  const dev = isDeveloper();
+  if (!dev && DEVELOPER_PROVIDERS.has(settingsCache.provider?.id)) {
+    const replacement = { id: 'azure-openai', model: '', reasoningEffort: '', config: { authMode: 'entra' } };
+    providerSwap = { replacement, saved: settingsCache.provider };
+    settingsCache.provider = replacement;
+  } else if (dev && providerSwap && settingsCache.provider === providerSwap.replacement) {
+    settingsCache.provider = providerSwap.saved;
+    providerSwap = null;
   }
   return settingsCache;
 }

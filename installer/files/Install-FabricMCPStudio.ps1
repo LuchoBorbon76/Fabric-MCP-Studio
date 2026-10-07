@@ -94,6 +94,9 @@ $ShortcutName = Get-Setting $ShortcutName 'shortcutName' 'Fabric MCP Studio'
 $appName = Get-Setting '' 'appName' 'Fabric MCP Studio'
 $minNode = [version](Get-Setting '' 'minNodeVersion' '20.19.0')
 $InstallDir = [IO.Path]::GetFullPath($InstallDir)
+# No trailing backslash ("C:\Apps\FMS\" from tab completion): names built from the folder (the kept-data folder on
+# uninstall) must land next to it, not inside it. A drive root keeps its backslash.
+if ($InstallDir.Length -gt 3) { $InstallDir = $InstallDir.TrimEnd('\', '/') }
 $studioDir = Join-Path $InstallDir 'studio'
 
 # ---------------------------------------------------------------- output and log
@@ -124,6 +127,10 @@ function Close-Log { if ($script:transcript) { try { Stop-Transcript | Out-Null 
 function Stop-Installer([string]$Message, [int]$Code = 1) {
     Write-Host ''
     if ($Code) { Write-Bad $Message } else { Write-Note $Message }
+    # The studio was closed for the update: start it again with the code it has, so a failed update never leaves it down.
+    if ($script:restartOnExit -and (Test-StudioFolder $InstallDir) -and (Test-Path -LiteralPath (Join-Path $studioDir 'node_modules'))) {
+        try { Start-Studio $false; Write-Note "$appName was started again." } catch { }
+    }
     if ($transcript) { Write-Host "    Log: $logFile" -ForegroundColor DarkGray }
     Close-Log
     exit $Code
@@ -405,6 +412,31 @@ function Get-CodeWithGit {
     Write-Ok "Downloaded to $InstallDir ($(Get-NativeOutput 'git' @('-C', $InstallDir, 'log', '-1', '--format=%h %s')))"
 }
 
+# A folder installed from the zip (no Git then) and Git is there now: make it a Git folder of the repository, so this
+# and later updates are a git pull. The app's files are replaced by the branch; studio\data and node_modules (git-
+# ignored) stay as they are.
+function Convert-ToGitFolder {
+    Write-Step "Updating $appName from $RepoUrl ($Branch) - switching the folder to Git updates"
+    if ((Invoke-Native 'git' @('ls-remote', '--exit-code', '--heads', $RepoUrl, $Branch) -Quiet) -ne 0) {
+        Stop-Installer "The repository or branch can't be read: $RepoUrl ($Branch). Check that your GitHub account has access to it, or use -RepoUrl / -Branch."
+    }
+    $steps = @(
+        @('-C', $InstallDir, 'init', '-q'),
+        @('-C', $InstallDir, 'remote', 'add', 'origin', $RepoUrl),
+        @('-C', $InstallDir, 'fetch', '-q', 'origin', $Branch),
+        @('-C', $InstallDir, 'checkout', '-q', '-B', $Branch, '--track', "origin/$Branch", '--force')
+    )
+    foreach ($s in $steps) {
+        if ((Invoke-Native 'git' $s) -ne 0) {
+            Remove-Item -LiteralPath (Join-Path $InstallDir '.git') -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Warn 'The folder couldn''t be switched to Git updates - updating it from the zip instead.'
+            Get-CodeAsZip
+            return
+        }
+    }
+    Write-Ok "Up to date: $(Get-NativeOutput 'git' @('-C', $InstallDir, 'log', '-1', '--format=%h %s'))"
+}
+
 # Without Git: the branch as a zip from GitHub (no updates in place; run the installer again to update).
 function Get-CodeAsZip {
     $gh = Get-GitHubRepo $RepoUrl
@@ -476,6 +508,7 @@ function Start-Studio([bool]$OpenBrowser) {
 
 function Invoke-Uninstall {
     Write-Step "Uninstalling $appName from $InstallDir"
+    if ($InstallDir.Length -le 3) { Stop-Installer "$InstallDir is a drive, not an app folder. Nothing was removed." }
     if (-not (Test-StudioFolder $InstallDir)) { Stop-Installer "$InstallDir doesn't contain $appName. Nothing was removed (use -InstallDir to point to the right folder)." }
     $what = if ($KeepData) { ' (your projects, chats and settings are kept)' } else { ' including your projects, chats and settings' }
     if (-not (Confirm-Step "Remove the shortcuts and $InstallDir$($what)?" $false)) { Stop-Installer 'Nothing was removed.' 0 }
@@ -485,8 +518,11 @@ function Invoke-Uninstall {
         if (Test-Path -LiteralPath $lnk) { Remove-Item -LiteralPath $lnk -Force; Write-Ok "Removed $lnk" }
     }
     if ($KeepData -and (Test-Path -LiteralPath (Join-Path $studioDir 'data'))) {
-        $dest = "$InstallDir-data-{0:yyyyMMdd-HHmmss}" -f (Get-Date)
+        # Next to the app folder, never inside it (it is deleted below).
+        $dest = Join-Path (Split-Path -Parent $InstallDir) ((Split-Path -Leaf $InstallDir) + '-data-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
+        if ($dest.StartsWith($InstallDir.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) { Stop-Installer "Your data can't be kept next to $InstallDir. Nothing was removed." }
         Move-Item -LiteralPath (Join-Path $studioDir 'data') -Destination $dest
+        if (-not (Test-Path -LiteralPath $dest)) { Stop-Installer "Your data couldn't be moved to $dest. Nothing else was removed." }
         Write-Ok "Your data was moved to $dest"
     }
     Remove-Item -LiteralPath $InstallDir -Recurse -Force
@@ -559,13 +595,19 @@ if (-not $SkipOptional) {
 # The app.
 $before = Get-StudioVersion
 $wasRunning = $false
+$script:restartOnExit = $false
 if (Test-StudioFolder $InstallDir) {
     Write-Step "$appName $before is installed in $InstallDir - updating it"
     $wasRunning = Stop-RunningStudio
+    $script:restartOnExit = [bool]$wasRunning
 }
-if ($useZip -or -not (Find-Tool 'git')) { Get-CodeAsZip } else { Get-CodeWithGit }
+if ($useZip -or -not (Find-Tool 'git')) { Get-CodeAsZip }
+elseif ((Test-StudioFolder $InstallDir) -and -not (Test-Path -LiteralPath (Join-Path $InstallDir '.git'))) { Convert-ToGitFolder }
+else { Get-CodeWithGit }
 if (-not (Test-StudioFolder $InstallDir)) { Stop-Installer "The download doesn't contain $appName (studio\package.json is missing). Check -RepoUrl and -Branch." }
 Install-Packages
+# From here a failure no longer needs the old copy started again (it is started below anyway).
+$script:restartOnExit = $false
 
 $lnk = $null
 if (-not $NoShortcut) { $lnk = New-Shortcuts }

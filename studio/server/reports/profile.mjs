@@ -89,7 +89,7 @@ function yearColumns(cols, hidden = []) {
 
 export function dateInfo(meta) {
   const dateTable = meta.tables.find((t) => t.dataCategory === 'Time')?.name
-    || meta.tables.find((t) => /^(dim)?(date|calendar|time)$/i.test(t.name.replace(/\s+/g, '')))?.name;
+    || meta.tables.find((t) => /^(dim)?(dates?|calendar|time)$/i.test(t.name.replace(/\s+/g, '')))?.name;
   if (!dateTable) return null;
   const cols = meta.columns.filter((c) => c.table === dateTable);
   const hidden = (meta.hiddenColumns || []).filter((c) => c.table === dateTable);

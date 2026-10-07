@@ -33,7 +33,8 @@ Only want to see what is installed? Double-click "Check prerequisites.cmd" (it c
 UPDATE
 ------
 Run "Install Fabric MCP Studio.cmd" again. It updates the app in place (git pull) and keeps your projects, chats and
-settings (studio\data). If the app is running, the installer closes it first and starts it again afterwards.
+settings (studio\data). If the app is running, the installer closes it first and starts it again afterwards (also when
+the update fails). A copy installed from the zip (without Git) switches to Git updates once Git is installed.
 Inside the app, "Restart now" appears when a newer version is on disk.
 
 

@@ -9,6 +9,10 @@
 [data-theme=gold]{--bg:#0b0904;--panel:#17130a;--ink:#f8eecb;--muted:#c2af78;--line:#42371c;--brand:#f5b100;--good:#a6d15f;--warn:#f0b429;--bad:#ff6b57;--chip:#221b0c;--shadow:0 1px 3px rgba(0,0,0,.6);--hdr1:#0a0803;--hdr2:#b3860a;--hdr3:#f5b100;--code:#0f0c05}
 [data-theme=forest]{--bg:#0b1310;--panel:#13201a;--ink:#e7f3ec;--muted:#8bab99;--line:#274035;--brand:#20a05a;--good:#67e39a;--warn:#e0a92e;--bad:#f5695f;--chip:#16241d;--shadow:0 1px 3px rgba(0,0,0,.55);--hdr1:#05130c;--hdr2:#0f7a45;--hdr3:#28b46e;--code:#0a120e}
 [data-theme=gold] .btn.pri{color:#140f00}
+/* Text on the accent color: white where it reads well (4.5:1), dark on the light accents of the dark themes and on orange. */
+:root{--on-brand:#fff}
+[data-theme=dark],[data-theme=midnight],[data-theme=plum],[data-theme=forest],[data-theme=sunset]{--on-brand:#0b1220}
+[data-theme=gold]{--on-brand:#140f00}
 
 *{box-sizing:border-box}
 html,body{height:100%}
@@ -73,7 +77,7 @@ header.top p{margin:0;opacity:.92;font-size:12.5px;padding-right:420px}
 .mt{margin-top:12px}.mb{margin-bottom:12px}
 .btn{padding:7px 13px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);cursor:pointer;font-size:12.5px;font-weight:600;display:inline-flex;align-items:center;gap:6px;text-decoration:none;white-space:nowrap}
 .btn:hover{border-color:var(--brand)}
-.btn.pri{background:var(--brand);color:#fff;border-color:var(--brand)}
+.btn.pri{background:var(--brand);color:var(--on-brand);border-color:var(--brand)}
 .btn.pri:hover{filter:brightness(1.08)}
 .btn.ghost{background:transparent;color:var(--brand)}
 .btn.danger{color:var(--bad)}.btn.danger:hover{border-color:var(--bad)}
@@ -94,7 +98,7 @@ textarea.i{resize:vertical;min-height:90px;font-family:inherit}
 .formgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--panel)}
 .seg button{border:0;background:transparent;padding:7px 14px;cursor:pointer;font-weight:600;font-size:12.5px;color:var(--muted)}
-.seg button.on{background:var(--brand);color:#fff}
+.seg button.on{background:var(--brand);color:var(--on-brand)}
 .hr{height:1px;background:var(--line);margin:14px 0}
 table.t{width:100%;border-collapse:collapse;font-size:12.5px}
 table.t th,table.t td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
@@ -132,7 +136,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .wizard{border:1px solid var(--brand);border-radius:12px;padding:16px;margin-top:14px;background:var(--panel)}
 .wsteps{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
 .wsteps span{font-size:12px;font-weight:700;padding:4px 10px;border-radius:14px;background:var(--chip);color:var(--muted)}
-.wsteps span.on{background:var(--brand);color:#fff}
+.wsteps span.on{background:var(--brand);color:var(--on-brand)}
 .wsteps span.done{background:rgba(16,124,16,.15);color:var(--good)}
 ul.pre{margin:6px 0 0;padding-left:18px;font-size:12px;color:var(--muted)}
 
@@ -183,7 +187,7 @@ ul.pre{margin:6px 0 0;padding-left:18px;font-size:12px;color:var(--muted)}
 .msg{display:flex;flex-direction:column;max-width:100%}
 .msg.user{align-items:flex-end}
 .bub{border-radius:12px;padding:10px 13px;font-size:13.5px;line-height:1.55;max-width:92%;word-wrap:break-word;overflow-wrap:anywhere}
-.msg.user .bub{background:var(--brand);color:#fff;border-bottom-right-radius:4px;white-space:pre-wrap}
+.msg.user .bub{background:var(--brand);color:var(--on-brand);border-bottom-right-radius:4px;white-space:pre-wrap}
 .msg.bot .bub{background:var(--chip);color:var(--ink);border-bottom-left-radius:4px}
 .msg.err .bub{background:rgba(197,15,31,.1);color:var(--bad)}
 .bub p{margin:0 0 8px}.bub p:last-child{margin:0}
@@ -233,7 +237,7 @@ ul.pre{margin:6px 0 0;padding-left:18px;font-size:12px;color:var(--muted)}
 .composer{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--line);align-items:flex-end;background:var(--panel)}
 .composer textarea{flex:1;resize:none;max-height:160px;min-height:40px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-size:13.5px;padding:9px 11px;font-family:inherit}
 .composer textarea:focus{outline:none;border-color:var(--brand)}
-.sendbtn{flex:0 0 auto;width:40px;height:40px;border:0;border-radius:10px;background:var(--brand);color:#fff;font-size:16px;cursor:pointer}
+.sendbtn{flex:0 0 auto;width:40px;height:40px;border:0;border-radius:10px;background:var(--brand);color:var(--on-brand);font-size:16px;cursor:pointer}
 .sendbtn.stop{background:var(--bad)}
 .sendbtn:disabled{opacity:.5;cursor:default}
 .chatfoot{font-size:11px;color:var(--muted);padding:0 14px 8px;background:var(--panel)}
@@ -386,7 +390,7 @@ input[type=range]{width:100%;accent-color:var(--brand)}
 .mtabs button{border:0;background:transparent;border-radius:8px;padding:6px 13px;font-weight:600;font-size:12.5px;color:var(--muted);cursor:pointer;display:inline-flex;gap:6px;align-items:center;white-space:nowrap}
 .mtabs button:hover{color:var(--ink)}
 .mtabs button.on{background:var(--panel);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12),0 0 0 1px var(--line)}
-.mtabs .cnt{font-size:10.5px;background:var(--brand);color:#fff;border-radius:8px;padding:0 6px}
+.mtabs .cnt{font-size:10.5px;background:var(--brand);color:var(--on-brand);border-radius:8px;padding:0 6px}
 .mapfold{border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:9px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
 .mapfold:hover{color:var(--ink);border-color:var(--brand)}
 .chev{width:7px;height:7px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg) translateY(-2px);transition:transform .2s}
@@ -621,6 +625,7 @@ table.t.mtable td a:hover{text-decoration:underline}
 /* Data sources of the workspace (pop-up) */
 table.t.stable td{vertical-align:top;overflow-wrap:anywhere}
 table.t.stable td:first-child{min-width:180px;overflow-wrap:break-word}
+.warnx{color:var(--warn)}
 table.t.stable td.act{white-space:nowrap;text-align:right}
 .srcline{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 0}
 .srcline+.srcline{border-top:1px dashed var(--line)}

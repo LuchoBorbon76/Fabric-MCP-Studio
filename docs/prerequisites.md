@@ -33,7 +33,7 @@ of the solution map that can't run); otherwise each page lists the settings to c
 | XMLA endpoint = **Read Write** on the capacity | Saving changes to existing semantic models with Power BI authoring (hosted **and** local), and the plan in Fabric planning (Read Only is enough there). Reading, DAX queries and creating models work with Read Only. Not readable through an API – check Admin portal › Capacity settings |
 
 The workspace's capacity must be **running**: a paused capacity blocks every step that reads or changes Fabric, and the
-studio says so up front.
+studio says so up front. It checks a paused capacity every minute and lights up again by itself once it is resumed.
 
 > No Fabric Copilot / Azure OpenAI tenant setting is needed: the language model runs in the customer's chosen client.
 

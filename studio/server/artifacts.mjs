@@ -2,7 +2,7 @@
 // Each artifact: { key, nodes (solution map parts), type, name, url, uses: [keys], removes (what Remove does) }.
 // "Used by" is the reverse of uses, plus Fabric reports the studio didn't build on the semantic model.
 import * as F from './fabric.mjs';
-import { getProject, updateProject, setStep, logActivity, assertProjectTenant, fabricUrl, projectModels, modelContext, updateModelContext } from './project.mjs';
+import { getProject, updateProject, setStep, logActivity, assertProjectTenant, fabricUrl, projectModels, modelContext, updateModelContext, otherSourcesUsing } from './project.mjs';
 import { workspaceReports } from './powerbi.mjs';
 import * as P from './pipelines.mjs';
 import * as R from './reports/index.mjs';
@@ -41,11 +41,14 @@ function artifactList(p = getProject()) {
 
   if (p.source || ms) {
     const created = P.dataSourceItems(p);
+    // Items the studio made for this source that another data source of the workspace reads stay.
+    const shared = created.filter((x) => otherSourcesUsing(x.id, p).length);
+    const deleted = created.filter((x) => !shared.includes(x));
     add({
       key: 'source', nodes: ['source', 'data'], type: `Data source${ms ? ` · ${LABEL[ms.itemType] || ms.itemType}` : ''}`,
       name: ms?.itemName || p.source?.label || 'Data source', url: ms ? url(ms.itemType, ms.itemId, ms.workspaceId || ws) : null,
       uses: sourceIsCurated ? ['dataPrep'] : [],
-      removes: created.length ? `Deletes ${created.map((x) => x.name).join(' and ')} and disconnects the data source` : 'Disconnects the data source – the item itself stays in Fabric',
+      removes: `${deleted.length ? `Deletes ${deleted.map((x) => x.name).join(' and ')} and disconnects the data source` : 'Disconnects the data source – the item itself stays in Fabric'}${shared.length ? ` (${shared.map((x) => x.name).join(' and ')} stay${shared.length === 1 ? 's' : ''}: another data source of the workspace reads ${shared.length === 1 ? 'it' : 'them'})` : ''}`,
     });
   }
   // Studio items that once held the data but aren't the data source any more.
@@ -56,10 +59,14 @@ function artifactList(p = getProject()) {
   if (dp) {
     // The notebook reads its source lakehouse (the raw data, even when the curated lakehouse is the data source now).
     const src = dp.source?.lakehouseId;
+    // A curated lakehouse another data source of the workspace reads stays when the notebook goes.
+    const keepTarget = dp.target && !dp.target.same ? otherSourcesUsing(dp.target.id, p) : [];
     add({
       key: 'dataPrep', nodes: ['data'], type: 'Data prep notebook', name: dp.notebook?.name || 'Data prep notebook', url: url('Notebook', dp.notebook?.id, dp.notebook?.workspaceId),
       uses: src && !(sourceIsCurated && src === ms?.itemId) ? usesItem(src).filter((k) => k !== 'dataPrep') : [],
-      removes: `Deletes the notebook${dp.target && !dp.target.same ? ` and the curated lakehouse ${dp.target.name}` : ''}`,
+      removes: !dp.target || dp.target.same ? 'Deletes the notebook'
+        : keepTarget.length ? `Deletes the notebook – the curated lakehouse ${dp.target.name} stays: ${keepTarget.map((u) => u.label).join(', ')} use${keepTarget.length === 1 ? 's' : ''} it`
+          : `Deletes the notebook and the curated lakehouse ${dp.target.name}`,
     });
   }
   // A model or ontology reads the item it was built on (older projects didn't record it: the current source). Every
@@ -158,7 +165,11 @@ async function removeOne(ctx, a, p) {
     case 'source': await P.removeDataSource(ctx); break;
     case 'lakehouse': await delItem(ctx, ws, p.lakehouse.id, p.lakehouse.name); updateProject({ lakehouse: null }); break;
     case 'sqlDatabase': await delItem(ctx, ws, p.sqlDatabase.id, p.sqlDatabase.name); updateProject({ sqlDatabase: null }); break;
-    case 'dataPrep': await DP.removeDataPrep({ deleteItems: true }); break;
+    case 'dataPrep': {
+      const r = await DP.removeDataPrep({ deleteItems: true });
+      for (const k of r.kept || []) ctx.log(`${k.name} stays – ${k.by.join(', ')} use${k.by.length === 1 ? 's' : ''} it`);
+      break;
+    }
     case 'model': {
       const id = a.key.slice('model:'.length);
       const m = (p.semanticModels || []).find((x) => x.id === id);

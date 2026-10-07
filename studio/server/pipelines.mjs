@@ -4,12 +4,12 @@ import { join, basename, extname } from 'node:path';
 import { spawn } from 'node:child_process';
 import { REPO_ROOT, sleep, stableUuid, newId } from './config.mjs';
 import * as F from './fabric.mjs';
-import { getProject, updateProject, setStep, recordArtifact, logActivity, assertProjectTenant, projectModels, modelContext, sourceKeyOf, activateSource, contextViews, sourceContexts, blankSourcesPatch, dropEmptySource, isNoSource } from './project.mjs';
+import { getProject, updateProject, setStep, recordArtifact, logActivity, assertProjectTenant, projectModels, modelContext, sourceKeyOf, activateSource, contextViews, sourceContexts, blankSourcesPatch, dropEmptySource, isNoSource, otherSourcesUsing } from './project.mjs';
 import { listJobs } from './jobs.mjs';
 import { discoverSqlServer, testSqlServer, readOnlyQuery, withPool } from './sql.mjs';
 import { discoverPostgres, testPostgres } from './pg.mjs';
 import { sourceType } from './sources.mjs';
-import { buildPlan, semanticModelFiles, ontologyFiles, defaultMeasures } from './generators/tmdl.mjs';
+import { buildPlan, semanticModelFiles, ontologyFiles, defaultMeasures, quoteName } from './generators/tmdl.mjs';
 import { applyLiveOntology, liveEventsOf, ontologySourceOf } from './generators/ontology-live.mjs';
 import { isPlanTable, reapplyPlan } from './planning/index.mjs';
 import { RETAIL, ADVENTUREWORKS, presetFor } from './presets.mjs';
@@ -155,7 +155,11 @@ export async function workspaceDataSources() {
   const listed = new Set(rows.flatMap((r) => r.sources.map((c) => c.key)));
   // Items with something built first, then the rest by name.
   rows.sort((a, b) => Number(b.sources.some((c) => c.active)) - Number(a.sources.some((c) => c.active)) || b.sources.length - a.sources.length || a.name.localeCompare(b.name));
-  return { workspace: { id: ws, name: p.workspace.name }, active: p.sourceKey || null, items: rows, others: contexts.filter((c) => !listed.has(c.key)) };
+  // A source whose data was in this workspace but isn't any more (deleted in Fabric, or by a clean up) is marked, so it
+  // isn't shown as data in another workspace.
+  const here = new Set(items.map((i) => i.id));
+  const others = contexts.filter((c) => !listed.has(c.key)).map((c) => (c.data?.itemId && (!c.data.workspaceId || c.data.workspaceId === ws) && !here.has(c.data.itemId) ? { ...c, missing: true } : c));
+  return { workspace: { id: ws, name: p.workspace.name }, active: p.sourceKey || null, items: rows, others };
 }
 
 /** Work on another data source of the workspace (nothing changes in Fabric). One switch at a time. */
@@ -444,8 +448,50 @@ export async function describeModelSource({ refresh = false } = {}) {
   const d = await discoverSqlServer({ server: ms.server, database: ms.database }, { fabricEndpoint: true });
   const preset = presetFor(getProject());
   if (preset?.relationships) d.relationships = preset.relationships;
+  else applyDataPrepHints(d, dataPrepHints(getProject()));
   d.source = ms;
   discoveryCache = { key, at: Date.now(), data: d };
+  return d;
+}
+
+/**
+ * What the data prep notebook found, when the data source is the curated lakehouse one of its runs wrote (in any data
+ * source of the workspace): table roles and keys, relationships found from the values, KPIs with DAX, and its own
+ * output tables (KPIs, DataQuality). null otherwise.
+ */
+export function dataPrepHints(p = getProject()) {
+  const id = p.modelSource?.itemId;
+  if (!id) return null;
+  for (const { view } of contextViews(p)) {
+    const dp = view.dataPrep;
+    const s = dp?.lastRun?.status === 'Completed' ? dp.lastRun.summary : null;
+    if (s && dp.target?.id === id) return { notebook: dp.notebook?.name || 'data prep notebook', at: dp.lastRun.endedAt || null, tables: s.tables || [], relationships: s.relationships || [], kpis: s.kpis || [], outputs: s.outputs || [] };
+  }
+  return null;
+}
+
+/** Use the notebook's findings in a discovered schema (keys, relationships, KPIs; its log tables are marked). */
+export function applyDataPrepHints(d, h) {
+  if (!h) return d;
+  const find = (name) => d.tables.find((t) => t.name.toLowerCase() === String(name).toLowerCase());
+  const outputs = new Set((h.outputs?.length ? h.outputs : ['KPIs', 'DataQuality']).map((x) => String(x).toLowerCase()));
+  for (const t of d.tables) if (outputs.has(t.name.toLowerCase()) || /^(curated_)?(kpis|dataquality)$/i.test(t.name)) t.notebookOutput = true;
+  for (const x of h.tables) {
+    const t = find(x.table);
+    const c = x.key && t?.columns.find((col) => col.name.toLowerCase() === String(x.key).toLowerCase());
+    if (c) c.isKey = true;
+    if (t && x.role) t.role = x.role;
+  }
+  const rels = [];
+  for (const r of h.relationships) {
+    const from = find(r.from);
+    const to = find(r.to);
+    if (!from || !to) continue;
+    rels.push({ from: { schema: from.schema, table: from.name, column: r.column }, to: { schema: to.schema, table: to.name, column: r.key }, source: 'data prep notebook' });
+  }
+  if (rels.length) d.relationships = rels;
+  d.kpis = h.kpis;
+  d.dataPrep = { notebook: h.notebook, at: h.at };
   return d;
 }
 
@@ -476,16 +522,21 @@ export async function runSemanticModel(ctx, { name, include, names, relationship
   const preset = presetFor(p);
   ctx.step('Read the source schema');
   const schema = await describeModelSource({ refresh: true });
-  // The plan values are added as the model's Plan table, not as a regular table.
-  schema.tables = schema.tables.filter((t) => !isPlanTable(t) || include?.includes(`${t.schema}.${t.name}`));
+  // The plan values are added as the model's Plan table, not as a regular table; the data prep notebook's own output
+  // tables (KPIs, DataQuality) are its log, not data – unless asked for by name.
+  schema.tables = schema.tables.filter((t) => (!isPlanTable(t) && !t.notebookOutput) || include?.includes(`${t.schema}.${t.name}`) || include?.includes(t.name));
   if (relationships?.length) schema.relationships = relationships;
-  const plan = buildPlan(schema, { include: include?.length ? include : preset?.include, names: { ...(preset?.names || {}), ...(names || {}) }, descriptions: descriptions || preset?.descriptions });
+  // Curated tables already have business names: keep them, so the notebook's KPI DAX matches the model.
+  const keepNames = schema.dataPrep ? Object.fromEntries(schema.tables.map((t) => [`${t.schema}.${t.name}`, t.name])) : {};
+  const plan = buildPlan(schema, { include: include?.length ? include : preset?.include, names: { ...keepNames, ...(preset?.names || {}), ...(names || {}) }, descriptions: descriptions || preset?.descriptions });
   if (!plan.tables.length) throw new Error('No tables found in the data source.');
-  ctx.log(`${plan.tables.length} tables, ${plan.relationships.length} relationships`);
+  ctx.log(`${plan.tables.length} tables, ${plan.relationships.length} relationships${schema.dataPrep ? ` (keys and relationships from ${schema.dataPrep.notebook})` : ''}`);
   ctx.progress(25);
 
-  const m = modelMeasures(plan, preset, measures, useDefaults);
-  const dateTable = preset?.dateTable && plan.tables.some((t) => t.name === preset.dateTable.table) ? preset.dateTable : null;
+  const kpis = !preset?.measures?.length && !measures?.length && schema.kpis?.length ? kpiMeasures(plan, schema.kpis) : [];
+  const m = kpis.length ? kpis : modelMeasures(plan, preset, measures, useDefaults);
+  if (kpis.length) ctx.log(`${kpis.length} measures from the notebook's KPIs`);
+  const dateTable = preset?.dateTable && plan.tables.some((t) => t.name === preset.dateTable.table) ? preset.dateTable : preset ? null : findDateTable(plan);
   const modelName = modelNameFor(p, preset, name);
   // A model the user added to the project (not built by the studio) is never overwritten by a generated one.
   const theirs = (p.semanticModels || []).find((x) => x.origin === 'existing' && (x.workspaceId || ws.id) === ws.id && x.name.toLowerCase() === modelName.toLowerCase());
@@ -525,6 +576,35 @@ export async function runSemanticModel(ctx, { name, include, names, relationship
   if (isNew && others.length) ctx.log(`${modelName} is now the active model; ${others.length === 1 ? `${others[0].name} stays` : `the other ${others.length} models stay`} in the project (switch on the Semantic model page)`);
   setStep('model', 'done', modelName);
   return { id: item.id, name: modelName, tables: plan.tables.map((t) => t.name), measures: m.map((x) => x.name), relationships: plan.relationships.length };
+}
+
+/**
+ * Measures from the data prep notebook's KPIs (their DAX uses the curated table names; renamed tables are followed).
+ * KPIs on tables that aren't in the model are left out.
+ */
+export function kpiMeasures(plan, kpis) {
+  const display = new Map(plan.tables.map((t) => [t.source.toLowerCase(), t.name]));
+  const rename = (expr) => String(expr).replace(/'((?:[^']|'')+)'\s*\[/g, (all, n) => { const to = display.get(n.replace(/''/g, "'").toLowerCase()); return to ? `${quoteName(to)}[` : all; });
+  const seen = new Set();
+  const out = [];
+  for (const k of kpis) {
+    const table = display.get(String(k.table).toLowerCase());
+    if (!table || !k.dax || !k.measure || seen.has(k.measure.toLowerCase())) continue;
+    seen.add(k.measure.toLowerCase());
+    out.push({ table, name: k.measure, expression: rename(k.dax), formatString: k.format || '#,0', displayFolder: 'KPIs', description: k.description || `KPI from the data prep notebook (${k.measure}).` });
+  }
+  // Every KPI must resolve: a measure that refers to another one left out would break the model.
+  const names = new Set(out.map((x) => x.name.toLowerCase()));
+  return out.filter((x) => [...x.expression.matchAll(/(?<!['\w\]])\[([^\]]+)\]/g)].every((r) => names.has(r[1].toLowerCase()) || plan.tables.some((t) => t.columns.some((c) => c.name.toLowerCase() === r[1].toLowerCase()))));
+}
+
+/** The model's date table: a dimension keyed on a date column that other tables relate to (Date, Dates, Calendar…). */
+export function findDateTable(plan) {
+  const related = new Set(plan.relationships.map((r) => r.to));
+  const candidates = plan.tables.filter((t) => related.has(t) && t.columns.some((c) => c.isKey && c.dataType === 'dateTime'));
+  const t = candidates.find((x) => /^(dim\s?)?(dates?|calendar|time)$/i.test(x.name)) || candidates[0];
+  if (!t) return null;
+  return { table: t.name, column: t.columns.find((c) => c.isKey && c.dataType === 'dateTime').name };
 }
 
 /**
@@ -928,6 +1008,9 @@ export function dataSourceItems(p = getProject()) {
 export async function removeDataSource(ctx) {
   const p = getProject();
   for (const it of dataSourceItems(p)) {
+    // Another data source of the workspace reads it (for example the same lakehouse used in place): it stays.
+    const users = otherSourcesUsing(it.id, p);
+    if (users.length) { ctx.log(`${it.name} stays – ${users.map((u) => u.label).join(', ')} use${users.length === 1 ? 's' : ''} it`); continue; }
     if (it.type === 'MirroredDatabase') { try { await F.stopMirroring(it.workspaceId, it.id); } catch { /* already stopped */ } }
     try { await F.deleteItem(it.workspaceId, it.id); ctx.log(`Deleted ${it.name}`); } catch (e) { if (e.status !== 404) throw e; ctx.log(`${it.name} was already deleted`); }
   }

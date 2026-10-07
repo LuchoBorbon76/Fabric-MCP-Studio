@@ -123,9 +123,15 @@ export function startJob(kind, title, fn, { meta = {} } = {}) {
  * didn't accept the change (400): …". The request itself isn't needed to understand what went wrong.
  */
 export function plainError(msg) {
-  const m = String(msg ?? '').match(/^(GET|POST|PUT|PATCH|DELETE) \S+ failed \((\d{3})\): ([\s\S]*)$/);
-  if (!m) return String(msg ?? '');
-  return `Fabric ${m[1] === 'GET' ? 'couldn\'t return what the studio asked for' : 'didn\'t accept the change'} (${m[2]}): ${m[3]}`;
+  const s = String(msg ?? '');
+  // A model whose data is gone (deleted lakehouse or warehouse) or can't be reached.
+  if (/A connection could not be made to the data source/i.test(s)) {
+    return 'The semantic model can\'t reach the data it reads – the lakehouse, warehouse or database behind it was deleted, moved or can\'t be reached right now (for example a paused capacity). Reconnect the data source on the Data page, or check that the item still exists in Fabric.';
+  }
+  const m = s.match(/^(GET|POST|PUT|PATCH|DELETE) (\S+) failed \((\d{3})\): ([\s\S]*)$/);
+  if (!m) return s;
+  if (/executeQueries/i.test(m[2])) return `The semantic model couldn't answer the query (${m[3]}): ${m[4]}`;
+  return `Fabric ${m[1] === 'GET' ? 'couldn\'t return what the studio asked for' : 'didn\'t accept the change'} (${m[3]}): ${m[4]}`;
 }
 
 export function cancelJob(id) {

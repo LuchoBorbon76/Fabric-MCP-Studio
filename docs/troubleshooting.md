@@ -55,7 +55,7 @@
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| Red badges on most parts of the map, *The workspace's capacity … is paused* | The Fabric capacity was paused (to save cost) | Resume it in the Azure portal (Microsoft Fabric capacity › Resume), then **Check again** |
+| Red badges on most parts of the map, *The workspace's capacity … is paused* | The Fabric capacity was paused (to save cost) | Resume it in the Azure portal (Microsoft Fabric capacity › Resume). The studio checks a paused capacity every minute and lights up again by itself (a toast says so); **Check again** checks right away |
 | *… isn't on a Fabric capacity* | The workspace runs on Pro or Premium Per User only | Workspace settings › License info › assign a Fabric capacity (F SKU, Premium or trial) |
 | *You're a Viewer in …* | Viewers can't create items | Ask a workspace admin for Contributor or higher, or use another workspace |
 | *Tenant setting "…" is off* | A Fabric administrator turned the feature off | Ask the administrator to turn it on in Admin portal › Tenant settings; the banner links there |
