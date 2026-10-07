@@ -75,7 +75,7 @@ export async function runOrgApp(ctx, { name, theme: themeId, reportIds, title, b
       existing = part ? JSON.parse(Buffer.from(part.payload, 'base64').toString('utf8')) : null;
     } catch { existing = null; }
   }
-  const describe = (r) => { const s = shortName(r.name, model); return r.pages.length === 1 && r.pages[0] === s ? s : `${s} (${r.pages.join(', ')})`; };
+  const describe = (r) => { const s = shortName(r.name, model); return !r.pages?.length || (r.pages.length === 1 && r.pages[0] === s) ? s : `${s} (${r.pages.join(', ')})`; };
   const list = reports.map(describe);
   const overviewBody = body || [
     `Reports built on the ${model || 'project'} semantic model, so every number matches its measures and your security.`,

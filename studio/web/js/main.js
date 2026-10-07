@@ -188,16 +188,17 @@ on('update.needed', () => {
 });
 setInterval(checkUpdate, 60000);
 
-// An existing model the studio hasn't looked at in Fabric yet (added before it could, or back with its data source):
-// find the reports and data agents built on it once, in the background.
+// An existing model the studio hasn't looked at in Fabric yet (added before it could, back with its data source, or
+// looked at by an older version that didn't recognise the reports the studio built): look once, in the background.
 const linksAsked = new Set();
+const linksCurrent = (sm) => Boolean(sm?.linked?.at && sm.linked.v >= 2);
 function ensureModelLinks() {
   const sm = store.project?.semanticModel;
-  if (!sm || sm.origin !== 'existing' || sm.linked?.at || linksAsked.has(sm.id) || !store.user?.signedIn) return;
+  if (!sm || sm.origin !== 'existing' || linksCurrent(sm) || linksAsked.has(sm.id) || !store.user?.signedIn) return;
   linksAsked.add(sm.id);
   setTimeout(() => {
     const cur = store.project?.semanticModel;
-    if (cur?.id !== sm.id || cur.linked?.at) return;
+    if (cur?.id !== sm.id || linksCurrent(cur)) return;
     post('/jobs/model-links', { id: sm.id }).then((j) => app.watchJob(j.id)).catch(() => {});
   }, 1500);
 }

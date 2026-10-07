@@ -229,6 +229,8 @@ function reportsCard(p, reports) {
     let open = false;
     toggle.addEventListener('click', () => { open = !open; toggle.textContent = open ? '▾ Hide preview' : '▸ Preview'; if (open) showPreview(); else preview.innerHTML = ''; });
     const rebuild = h('button', { class: 'btn', 'data-busy': 'Starting…', title: r.template ? `Rebuild from the template ${r.template.name} with the current model` : 'Rebuild with the current model and the same pages and theme' }, '↻ Rebuild');
+    // A report the studio built elsewhere (found in Fabric) is rebuilt only when its theme and pages are known.
+    const canRebuild = Boolean(r.template) || !r.adoptedAt || (Boolean(r.theme) && r.pages.length > 0 && pageIds(r.pages).length === r.pages.length);
     rebuild.addEventListener('click', busy(rebuild, async () => {
       if (r.template) { await startJob('/jobs/report-template', { id: r.template.id, name: r.name }, list, 'Report deployed'); return; }
       const ids = pageIds(r.pages);
@@ -243,11 +245,12 @@ function reportsCard(p, reports) {
     list.append(h('div', { class: 'rrow' },
       h('div', { class: 'row sp' },
         h('div', {},
-          h('div', { class: 'row' }, h('b', {}, r.name), h('span', { class: 'pill ok' }, 'Deployed'), theme ? h('span', { class: 'pill' }, theme.name) : null, r.template ? h('span', { class: 'pill', title: 'Built from your template' }, `Template: ${r.template.name}`) : null),
-          h('div', { class: 'tiny muted' }, `${r.pages.join(' · ')} · built ${fmtDate(r.builtAt)}`)),
+          h('div', { class: 'row' }, h('b', {}, r.name), h('span', { class: 'pill ok' }, 'Deployed'), theme ? h('span', { class: 'pill' }, theme.name) : null, r.template ? h('span', { class: 'pill', title: 'Built from your template' }, `Template: ${r.template.name}`) : null,
+            r.adoptedAt ? h('span', { class: 'pill', title: 'Built by Fabric MCP Studio (its description in Fabric says so) and found on this model – it is the project\'s again' }, 'Built by the studio') : null),
+          h('div', { class: 'tiny muted' }, [r.pages.length ? r.pages.join(' · ') : null, r.builtAt ? `built ${fmtDate(r.builtAt)}` : 'found in Fabric'].filter(Boolean).join(' · '))),
         h('div', { class: 'row' },
           h('a', { class: 'btn pri', href: r.url, target: '_blank', rel: 'noopener' }, 'Open in Power BI ↗'),
-          toggle, rebuild, remove)),
+          toggle, canRebuild ? rebuild : null, remove)),
       preview));
   }
   // Reports already built on the model in Fabric: the studio shows them and never changes or deletes them.

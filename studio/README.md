@@ -199,7 +199,10 @@ sample's questions to the models built on that data: another model gets only its
   time), and the lakehouse or warehouse it reads. Reports appear on the Power BI reports node and on Reports & apps
   (*Existing report*, with *Open in Power BI* only), data agents on Copilot answers, and a project without data takes
   the model's lakehouse or warehouse as its data source, in place (nothing is copied). The studio never changes,
-  rebuilds or deletes these items, clean up leaves them, and a new report can't take an existing report's name. *Look in
+  rebuilds or deletes these items, clean up leaves them, and a new report can't take an existing report's name. A report
+  **the studio built** (its description in Fabric says so – for example by another copy of the studio, or before the
+  project was started over) is the project's again instead: it shows as *Built by the studio* with its theme and pages
+  read from its definition, can be rebuilt and deleted, and goes in the org app. *Look in
   Fabric* / *↻ Look again* in the Semantic models pop-up looks again (for any model).
 - An existing model can live in another workspace; reports and data agents built on it go to the project workspace and
   point to it there. The studio reads its tables, measures, relationships and storage mode with DAX (`INFO.VIEW`), so
