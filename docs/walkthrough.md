@@ -64,8 +64,9 @@ curated tables.
 
 **Another data source in the same workspace.** Load or connect a different source at any time: it becomes the active
 one and starts with nothing built (the map greys out the parts it doesn't have yet), while the previous source keeps its
-model, reports and the rest. Double-click **Data source** on the map to see the data in the workspace and switch
-between sources – nothing changes in Fabric. Double-click the **workspace name** to see the workspaces on the capacity.
+model, reports and the rest. Double-click **Data source** on the map to see the data in the project workspace and switch
+between sources – nothing changes in Fabric; the workspace list at the top shows the data in any other workspace, to use
+an item from there in place. Double-click the **workspace name** to see the workspaces on the capacity.
 
 > Ask Copilot: *Describe my data source: tables, row counts, keys and relationships. Then suggest a star schema.*
 

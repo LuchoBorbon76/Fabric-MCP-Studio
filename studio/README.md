@@ -278,9 +278,11 @@ analytics endpoint) and infers relationships from naming conventions when no for
 Each data source keeps its own items: its OneLake data, semantic models, reports, ontology, plan, data agent, org app,
 Microsoft 365 agent and live data. Loading or connecting a **different** source makes it the active one – it starts with
 nothing built, so the map greys out what it doesn't have yet – and the previous source keeps everything it built.
-Double-click **Data source** on the map to see every lakehouse, warehouse and database in the workspace with what the
-project built from each – *Use this source* switches back (its items return to the map and every page; nothing changes
-in Fabric), *Use as data source* uses an item that isn't used yet. The bar on the Data page and *Use it again* on a
+Double-click **Data source** on the map to see every lakehouse, warehouse and database in the project workspace with what
+the project built from each – *Use this source* switches back (its items return to the map and every page; nothing changes
+in Fabric), *Use as data source* uses an item that isn't used yet. Pick another workspace in the list at the top to see
+its data and use an item from there in place; a line under the list says which workspace the active data source (and any
+other) reads, with *Show*. The bar on the Data page and *Use it again* on a
 sample switch too. Double-click the **workspace name** to see the workspaces on the Fabric capacity (or all capacities)
 and open or use one. Use it to work on two projects in parallel
 in one workspace, or to come back to earlier work without loading the data again.

@@ -261,7 +261,7 @@
   <ul>
     <li><b>Click a box once</b> to see its details below the map, with buttons such as <b>Open</b>, <b>Let Copilot do it</b> and <b>Open in Fabric</b>.</li>
     <li><b>Double-click a box</b> to go straight to its page.</li>
-    <li>Three handy double-clicks: <b>Data source</b> lists the data in your workspace; <b>Semantic model</b> lists your models;
+    <li>Three handy double-clicks: <b>Data source</b> lists the data in your workspace (or any other workspace you pick); <b>Semantic model</b> lists your models;
       the <b>workspace name</b> (at the top of the frame) lists your workspaces.</li>
   </ul>
 
@@ -391,13 +391,17 @@
   <h3>When your data is connected</h3>
   <p>The top of the Data page summarizes your data: where it lives, how it reaches Fabric, and every table with its rows.
     Select <b>✦ Explain my data</b> for a plain-language tour, or <b>Next: semantic model →</b> to continue.</p>
-  <figure><img src="images/06-data.png" alt="Data page"><figcaption>The Data page once data is connected.</figcaption></figure>
+  <figure><img src="images/06-data.png" class="w80" alt="Data page"><figcaption>The Data page once data is connected.</figcaption></figure>
 
   <h3>More than one data source</h3>
   <p>You can add another data source to the same workspace at any time (<b>Add another data source</b> at the bottom of the
     Data page). Each source keeps its own model, reports and the rest. To switch between them, <b>double-click Data source</b>
     on the map – nothing changes in Fabric when you switch.</p>
-  <figure><img src="images/07-data-sources.png" class="w70" alt="Data sources"><figcaption>Double-click <b>Data source</b> on the map to see the data in the workspace and switch.</figcaption></figure>
+  <p>The pop-up opens on your project workspace. To use data that lives in another workspace, pick that workspace in the
+    list at the top and select <b>Use as data source</b> next to the lakehouse, warehouse or database you want – nothing is
+    copied, and what you build from it goes to your project workspace. When your active data source is in another
+    workspace, a line under the list says so; select <b>Show</b> to see it.</p>
+  <figure><img src="images/07-data-sources.png" class="w45" alt="Data sources"><figcaption>Double-click <b>Data source</b> on the map to see the data in your workspace – or another one – and switch.</figcaption></figure>
 </section>
 
 <!-- ============================== STEP 4 ============================== -->

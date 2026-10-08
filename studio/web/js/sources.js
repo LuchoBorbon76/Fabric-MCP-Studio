@@ -2,7 +2,7 @@
 // data. One is active – the map and every page show what was built from it, and parts not built for it yet stay grey.
 // Switching changes nothing in Fabric.
 import { store, get, post, on } from './api.js';
-import { h, toast, busy, modal, fmtDate, breakable } from './ui.js';
+import { h, toast, busy, modal, fmtDate, breakable, select, input } from './ui.js';
 import { app } from './app.js';
 
 const HOW = { files: 'Loaded into a lakehouse', 'sql-database': 'Fabric SQL database', mirror: 'Mirrored', shortcut: 'OneLake shortcuts', 'in-place': 'Used in place' };
@@ -43,23 +43,69 @@ function contextLine(x, close) {
     x.active ? null : use);
 }
 
-/** The data items of the workspace and the project's data sources, in a pop-up: switch, use another item, or connect one. */
+/**
+ * The data items of a workspace and the project's data sources, in a pop-up: the project workspace first, any other one
+ * from the list (its data is used in place). Switch, use another item, or connect one.
+ */
 export function sourcesDialog() {
   const p = store.project || {};
+  let home = p.workspace?.id || '';
   let dlg = null;
   let off = () => {};
+  let data = null;
+  let seq = 0;
+  const names = new Map(home ? [[home.toLowerCase(), p.workspace.name]] : []);
   const close = () => dlg?.close();
-  const list = h('div', { class: 'muted small' }, h('span', { class: 'spin' }), ` Reading the data in ${p.workspace?.name || 'the workspace'}…`);
-  const draw = () => get('/sources/workspace').then((s) => {
-    if (!s.items.length && !s.others.length) {
+  const wsSel = select([{ value: home, label: home ? `${p.workspace.name} (project workspace)` : 'Loading…' }], { 'aria-label': 'Workspace' });
+  const search = input({ placeholder: 'Search data…', 'aria-label': 'Search data' });
+  const hint = h('div', { class: 'col srchint', style: { gap: '4px' } });
+  const list = h('div', { class: 'muted small' });
+  const nameOf = (id) => names.get(String(id).toLowerCase()) || 'another workspace';
+  const isHomeId = (id) => String(id).toLowerCase() === home.toLowerCase();
+  const show = (id) => {
+    if (![...wsSel.options].some((o) => o.value === id)) wsSel.append(h('option', { value: id }, nameOf(id)));
+    wsSel.value = id;
+    search.value = '';
+    load();
+  };
+
+  // Where the project's other data sources read their data: a line per workspace with Show.
+  const drawHint = () => {
+    if (!data) { hint.replaceChildren(); return; }
+    const lines = data.byWorkspace.filter((w) => w.workspaceId.toLowerCase() !== data.workspace.id.toLowerCase())
+      .sort((a, b) => Number(b.active) - Number(a.active) || Number(isHomeId(b.workspaceId)) - Number(isHomeId(a.workspaceId)))
+      .map((w) => {
+        const n = w.sources.length;
+        const ws = `${w.name || nameOf(w.workspaceId)}${isHomeId(w.workspaceId) ? ' (project workspace)' : ''}`;
+        const text = w.active
+          ? (n === 1 ? `The active data source reads data in ${ws}.` : `${n} data sources of the project read data in ${ws} – the active one too.`)
+          : `${plural(n, 'data source')} of the project read${n === 1 ? 's' : ''} data in ${ws}.`;
+        return h('div', { class: 'row small muted', style: { gap: '8px', flexWrap: 'nowrap' } },
+          h('span', { style: { minWidth: 0 } }, breakable(text)),
+          h('button', { class: 'btn ghost tiny', style: { flexShrink: 0 }, onclick: () => show(w.workspaceId) }, 'Show'));
+      });
+    hint.replaceChildren(...lines);
+  };
+
+  const draw = () => {
+    drawHint();
+    if (!data) return;
+    const s = data;
+    const q = search.value.trim().toLowerCase();
+    const match = (...texts) => !q || texts.some((t) => String(t || '').toLowerCase().includes(q));
+    const items = s.items.filter((it) => match(it.name, ITEM_LABEL[it.itemType] || it.itemType, ...it.sources.map((c) => c.label)));
+    const others = s.others.filter((x) => match(x.data?.name, x.label));
+    if (!items.length && !others.length) {
       list.className = 'muted small';
-      list.replaceChildren(`No lakehouse, warehouse or database in ${s.workspace.name} yet. Load sample data, mirror a database or use Fabric data from another workspace on the Data page.`);
+      list.replaceChildren(q ? 'No data matches.'
+        : s.workspace.project ? `No lakehouse, warehouse or database in ${s.workspace.name} yet. Load sample data or mirror a database on the Data page, or pick another workspace above to use its data in place.`
+          : `No lakehouse, warehouse or database in ${s.workspace.name} that you can read.`);
       return;
     }
-    const t = h('table', { class: 't stable' }, h('tr', {}, h('th', {}, 'Data in the workspace'), h('th', {}, 'Used by the project'), h('th', { 'aria-label': 'Actions' })));
-    for (const it of s.items) {
+    const t = h('table', { class: 't stable' }, h('tr', {}, h('th', {}, s.workspace.project ? 'Data in the project workspace' : `Data in ${s.workspace.name}`), h('th', {}, 'Used by the project'), h('th', { 'aria-label': 'Actions' })));
+    for (const it of items) {
       const active = it.sources.some((c) => c.active);
-      const useItem = h('button', { class: 'btn', 'data-busy': 'Connecting…', title: 'Use it in place as a new data source (no copy) – the current source keeps its items' }, 'Use as data source');
+      const useItem = h('button', { class: 'btn', 'data-busy': 'Connecting…', title: s.workspace.project ? 'Use it in place as a new data source (no copy) – the current source keeps its items' : `Use it in place from ${s.workspace.name} as a new data source (no copy) – what you build from it goes to the project workspace; the current source keeps its items` }, 'Use as data source');
       useItem.addEventListener('click', busy(useItem, async () => {
         await post('/sources/in-place', { workspaceId: it.workspaceId, itemId: it.itemId, itemType: it.itemType });
         toast(`${it.name} is the data source now – build its semantic model next`, 'ok');
@@ -71,21 +117,64 @@ export function sourcesDialog() {
         h('td', {}, it.sources.length ? it.sources.map((x) => contextLine(x, close)) : h('span', { class: 'tiny muted' }, 'Not used yet')),
         h('td', { class: 'act' }, it.sources.length ? null : useItem)));
     }
-    for (const x of s.others) {
-      const where = x.missing ? 'No longer in Fabric – switch to it to remove what was built from it'
-        : x.data ? `${ITEM_LABEL[x.data.itemType] || x.data.itemType} in another workspace` : 'Not connected yet';
+    for (const x of others) {
+      const where = x.lost ? 'In a workspace you can\'t open any more – switch to it to remove what was built from it'
+        : x.missing ? 'No longer in Fabric – switch to it to remove what was built from it'
+          : x.data ? ITEM_LABEL[x.data.itemType] || x.data.itemType : 'Not connected yet';
       t.append(h('tr', { class: x.active ? 'sel' : '' },
-        h('td', {}, h('b', {}, breakable(x.data?.name || x.label)), h('div', { class: `tiny ${x.missing ? 'warnx' : 'muted'}` }, where)),
+        h('td', {}, h('b', {}, breakable(x.data?.name || x.label)), h('div', { class: `tiny ${x.missing || x.lost ? 'warnx' : 'muted'}` }, where)),
         h('td', {}, contextLine(x, close)),
         h('td', { class: 'act' })));
     }
     list.className = 'scroll';
     list.replaceChildren(t);
-  }).catch((e) => list.replaceChildren(h('div', { class: 'banner err' }, e.message)));
+  };
+
+  const load = ({ quiet = false } = {}) => {
+    const mine = ++seq;
+    const id = wsSel.value || home;
+    if (!quiet) {
+      data = null;
+      drawHint();
+      list.className = 'muted small';
+      list.replaceChildren(h('span', { class: 'spin' }), ` Reading the data in ${nameOf(id)}…`);
+    }
+    // Always the chosen workspace: the project workspace can change while the pop-up is open (Copilot can do that).
+    return get(`/sources/workspace?workspaceId=${encodeURIComponent(id)}`).then((s) => {
+      if (mine !== seq) return;
+      data = s;
+      names.set(s.workspace.id.toLowerCase(), s.workspace.name);
+      for (const w of s.byWorkspace) if (w.name) names.set(w.workspaceId.toLowerCase(), w.name);
+      fillOptions();
+      draw();
+    }).catch((e) => { if (mine === seq) { data = null; drawHint(); list.className = ''; list.replaceChildren(h('div', { class: 'banner err' }, e.message)); } });
+  };
+
+  // The project workspace first, then the ones the project's data sources read, then the rest by name.
+  let wss = null;
+  let usedKey = null;
+  const fillOptions = () => {
+    if (!wss) return;
+    const used = new Set((data?.byWorkspace || []).map((w) => w.workspaceId.toLowerCase()));
+    const key = `${home.toLowerCase()}|${[...used].sort().join(',')}`;
+    if (key === usedKey) return;
+    usedKey = key;
+    const rank = (w) => (isHomeId(w.id) ? 0 : used.has(w.id.toLowerCase()) ? 1 : 2);
+    const cur = wsSel.value;
+    wsSel.replaceChildren(...[...wss].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))
+      .map((w) => h('option', { value: w.id }, `${w.name}${isHomeId(w.id) ? ' (project workspace)' : used.has(w.id.toLowerCase()) ? ' – used by the project' : ''}`)));
+    if (![...wsSel.options].some((o) => o.value === cur)) wsSel.prepend(h('option', { value: cur }, nameOf(cur)));
+    wsSel.value = cur;
+  };
+
+  wsSel.addEventListener('change', () => { search.value = ''; load(); });
+  search.addEventListener('input', draw);
   dlg = modal({
-    title: `Data sources in ${p.workspace?.name || 'the workspace'}`, className: 'wide',
+    title: 'Data sources', className: 'wide',
     body: h('div', { class: 'col' },
-      h('p', { class: 'small muted', style: { margin: 0 } }, 'The lakehouses, warehouses and databases in the workspace, and what the project built from each. Each data source keeps its own semantic models, reports, ontology, plan and live data; the map shows the active one – parts not built for it yet stay grey. Switching changes nothing in Fabric.'),
+      h('p', { class: 'small muted', style: { margin: 0 } }, 'The lakehouses, warehouses and databases in the project workspace – or in another workspace you pick, to use its data in place – and what the project built from each. Each data source keeps its own semantic models, reports, ontology, plan and live data; the map shows the active one – parts not built for it yet stay grey. Switching changes nothing in Fabric.'),
+      p.workspace ? h('div', { class: 'row' }, wsSel, search) : null,
+      hint,
       list,
       p.workspace
         ? h('div', { class: 'row' }, h('button', { class: 'btn', onclick: () => { close(); app.go('data'); } }, '+ Connect another data source (sample, database, other workspace)'))
@@ -93,8 +182,33 @@ export function sourcesDialog() {
     actions: [{ label: 'Close' }],
     onClose: () => off(),
   });
-  off = on('project.updated', () => { if (dlg) draw(); });
-  draw();
+  if (!p.workspace) return dlg;
+  off = on('project.updated', () => {
+    if (!dlg) return;
+    const now = store.project?.workspace;
+    if (!now) { close(); return; }
+    if (now.id.toLowerCase() !== home.toLowerCase()) {
+      // The project moved to another workspace: start again from the new project workspace.
+      home = now.id;
+      names.set(home.toLowerCase(), now.name);
+      usedKey = null;
+      if (!wss) wsSel.replaceChildren(h('option', { value: home }, `${now.name} (project workspace)`));
+      else if (![...wsSel.options].some((o) => o.value === home)) wsSel.prepend(h('option', { value: home }, now.name));
+      wsSel.value = home;
+      search.value = '';
+      fillOptions();
+      load();
+      return;
+    }
+    load({ quiet: true });
+  });
+  get('/fabric/workspaces').then((all) => {
+    wss = all;
+    for (const w of wss) names.set(w.id.toLowerCase(), w.name);
+    fillOptions();
+    draw();
+  }).catch(() => { /* The project workspace still works; other workspaces can't be picked. */ });
+  load();
   return dlg;
 }
 

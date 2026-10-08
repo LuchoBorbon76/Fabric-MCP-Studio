@@ -126,16 +126,25 @@ const DATA_ITEM_TYPES = ['Lakehouse', 'Warehouse', 'MirroredDatabase', 'SQLDatab
 // Items Fabric makes for itself (dataflow staging, and system databases such as the one behind a Fabric plan).
 const SYSTEM_ITEM = /^(DataflowsStaging|StagingLakehouseForDataflows|StagingWarehouseForDataflows|__)/i;
 
+const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
- * Every item in the project workspace that can be a data source (lakehouses, warehouses, mirrored and SQL databases),
- * each with the project's data sources that read it and what was built from them – plus the project's sources whose
- * data lives elsewhere (another workspace).
+ * Every item in a workspace that can be a data source (lakehouses, warehouses, mirrored and SQL databases) – the project
+ * workspace unless another one is chosen – each with the project's data sources that read it and what was built from
+ * them. Sources whose data was in the workspace but isn't any more are listed too, and the project workspace also lists
+ * the sources without data (not connected yet, items kept without a data source). byWorkspace: how many of the project's
+ * sources read data in each workspace, so the other workspaces that hold some can be shown.
  */
-export async function workspaceDataSources() {
+export async function workspaceDataSources({ workspaceId } = {}) {
   await assertProjectTenant();
   const p = getProject();
   if (!p.workspace) throw new Error('Select a workspace first.');
-  const ws = p.workspace.id;
+  if (workspaceId && !GUID.test(workspaceId)) throw Object.assign(new Error('That isn\'t a workspace ID.'), { status: 400 });
+  const home = p.workspace.id;
+  const isHome = !workspaceId || workspaceId.toLowerCase() === home.toLowerCase();
+  const ws = isHome ? home : workspaceId;
+  const wsName = isHome ? p.workspace.name : (await F.getWorkspace(ws)).displayName;
+  const wsOf = (c) => String(c.data?.workspaceId || home).toLowerCase();
   const items = (await F.listItems(ws)).filter((i) => DATA_ITEM_TYPES.includes(i.type) && !SYSTEM_ITEM.test(i.displayName || ''));
   // Items the studio made to serve a source (the plan values warehouse, the live Silver layer) aren't data sources.
   const helpers = new Set();
@@ -147,7 +156,7 @@ export async function workspaceDataSources() {
   const contexts = sourceContexts(p);
   const byItem = new Map();
   for (const c of contexts) {
-    if (!c.data?.itemId || (c.data.workspaceId && c.data.workspaceId !== ws)) continue;
+    if (!c.data?.itemId || wsOf(c) !== ws.toLowerCase()) continue;
     if (!byItem.has(c.data.itemId)) byItem.set(c.data.itemId, []);
     byItem.get(c.data.itemId).push(c);
   }
@@ -155,11 +164,35 @@ export async function workspaceDataSources() {
   const listed = new Set(rows.flatMap((r) => r.sources.map((c) => c.key)));
   // Items with something built first, then the rest by name.
   rows.sort((a, b) => Number(b.sources.some((c) => c.active)) - Number(a.sources.some((c) => c.active)) || b.sources.length - a.sources.length || a.name.localeCompare(b.name));
-  // A source whose data was in this workspace but isn't any more (deleted in Fabric, or by a clean up) is marked, so it
-  // isn't shown as data in another workspace.
+  // A source whose data was in this workspace but isn't any more (deleted in Fabric, or by a clean up) is marked.
+  // Sources reading data in another workspace are shown with that workspace.
   const here = new Set(items.map((i) => i.id));
-  const others = contexts.filter((c) => !listed.has(c.key)).map((c) => (c.data?.itemId && (!c.data.workspaceId || c.data.workspaceId === ws) && !here.has(c.data.itemId) ? { ...c, missing: true } : c));
-  return { workspace: { id: ws, name: p.workspace.name }, active: p.sourceKey || null, items: rows, others };
+  const others = contexts.filter((c) => !listed.has(c.key) && (c.data?.itemId ? wsOf(c) === ws.toLowerCase() : isHome))
+    .map((c) => (c.data?.itemId && !here.has(c.data.itemId) ? { ...c, missing: true } : c));
+  const byWorkspace = new Map();
+  for (const c of contexts) {
+    if (!c.data?.itemId) continue;
+    const e = byWorkspace.get(wsOf(c)) || { workspaceId: c.data.workspaceId || home, name: null, reachable: true, active: false, sources: [] };
+    e.sources.push(c);
+    e.active ||= c.active;
+    byWorkspace.set(wsOf(c), e);
+  }
+  // The other workspaces by name; one that is gone (deleted, or access removed) keeps its sources reachable here.
+  await Promise.all([...byWorkspace.values()].map(async (e) => {
+    const id = e.workspaceId.toLowerCase();
+    if (id === home.toLowerCase()) e.name = p.workspace.name;
+    else if (id === ws.toLowerCase()) e.name = wsName;
+    else {
+      try { e.name = (await F.getWorkspace(e.workspaceId)).displayName; }
+      catch (err) { if ([403, 404].includes(err.status)) e.reachable = false; }
+    }
+  }));
+  const lost = isHome ? [...byWorkspace.values()].filter((e) => !e.reachable).flatMap((e) => e.sources.map((c) => ({ ...c, lost: true }))) : [];
+  return {
+    workspace: { id: ws, name: wsName, project: isHome }, projectWorkspace: { id: home, name: p.workspace.name },
+    active: p.sourceKey || null, items: rows, others: [...others, ...lost],
+    byWorkspace: [...byWorkspace.values()].filter((e) => e.reachable).map(({ reachable, ...e }) => e),
+  };
 }
 
 /** Work on another data source of the workspace (nothing changes in Fabric). One switch at a time. */
