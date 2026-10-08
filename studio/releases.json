@@ -97,6 +97,6 @@
     { "date": "2026-10-07", "type": "improvement", "commit": "8d9b66a", "title": "Delete app on Reports & apps deletes the org app and its audience (the reports stay)" },
     { "date": "2026-10-08", "type": "improvement", "commit": "6aa91f2", "title": "The Data sources pop-up opens on the project workspace and has a workspace list: pick any workspace to see its lakehouses, warehouses and databases and use one in place; a line says where the active data source (and the others) read their data, with Show" },
     { "date": "2026-10-08", "type": "fix", "commit": "31c377f", "title": "A dropped network connection no longer looks like a permission problem: calls to Fabric and Power BI that only read (and reading a model's definition or querying it) are tried again when the connection drops, changes only when they never left the computer; when the network stays down the message says so instead of \"fetch failed – you need Contributor\"" },
-    { "date": "2026-10-08", "type": "fix", "title": "Uninstalling a copy of the studio removes only the shortcuts that open that copy: a desktop or Start menu shortcut with the same name to another copy (installed in another folder) is kept" }
+    { "date": "2026-10-08", "type": "fix", "commit": "5a1c898", "title": "Uninstalling a copy of the studio removes only the shortcuts that open that copy: a desktop or Start menu shortcut with the same name to another copy (installed in another folder) is kept" }
   ]
 }
