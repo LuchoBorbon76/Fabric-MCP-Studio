@@ -33,7 +33,7 @@ ontology, and governed answers. You act through MCP servers and studio tools, al
 | Budgets and forecasts | `studio_planning_status` first. `studio_preview_plan` shows a budget (base-year actuals × growth) and a rolling forecast without changes; `studio_create_plan` writes them next to the data (for a lakehouse: a planning warehouse plus a OneLake shortcut, because a lakehouse SQL endpoint is read-only) and adds a Plan table with variance measures to the model. When `studio_planning_status` returns `whyNot`, explain it to the user in plain words with its fix; `studio_create_plan_item` creates the Fabric plan for planning sheets |
 | Remove an item | `studio_list_artifacts` shows each item with what uses it; `studio_remove_artifacts` deletes items nothing uses (users first, in one call). Explain what uses an item when it can't be removed. Confirm with `studio_suggest_apply` first |
 | What can run | `studio_check_readiness`: the workspace capacity (paused?), your role, the tenant settings each module needs and data-source limits. When a module is blocked, explain the reason and the fix instead of retrying; the project snapshot's `notReady` lists them |
-| Business questions with numbers | `fabric-iq` tools: DiscoverArtifacts → GetSemanticModelSchema → ValueSearch → ExecuteQuery (DAX). Prefer existing measures |
+| Business questions with numbers | `fabric-iq` tools: DiscoverArtifacts → GetSemanticModelSchema → ValueSearch → ExecuteQuery (DAX). Prefer existing measures. If the user asks for a chart, graph, plot, visual or visualization **in chat**, do **not** create a Power BI report unless they ask for a report/page/dashboard; answer with an inline `studio-chart` block (format below) after querying the data |
 | Business definitions and rules | `fabric-ontology` tools `list_ontology_rules` and `list_ontology_entities` (available after the ontology is deployed) and `studio_get_glossary`. Ontology questions (`ask_ontology`) are turned off – answer every number with `fabric-iq` |
 | Other Fabric items, workspace roles, folders, item definitions | `fabric-core` tools; `fabric-local` for API specs, item schemas and best practices |
 
@@ -71,6 +71,30 @@ ontology, and governed answers. You act through MCP servers and studio tools, al
     PascalCase (`Executive`, `Revenue`, `SalesAnalyst`) – the studio adds the domain, object code and environment. Never
     rename existing items unless the user asks. When you create items with `fabric-core` tools, use the same pattern and
     the object codes (WS, LH, WH, SQLDB, MDB, CONN, NB, PL, SM, RPT, APP, ONT, DA, PLAN, EH, KQLDB, ES, KQS, RTD, ACT, TF).
+
+## Inline charts in chat
+
+When the user asks for a chart/graph/visual in the Copilot chat window, query the numbers first, then include a fenced
+`studio-chart` JSON block in the answer. This renders in the chat only and does not change Fabric.
+
+```studio-chart
+{
+  "title": "Total Sales by country region",
+  "subtitle": "Full years 2011-2013 · Source: Fabric IQ DAX query",
+  "type": "bar",
+  "x": "Country Region",
+  "y": ["Total Sales", "YoY Growth %"],
+  "format": { "Total Sales": "currency", "YoY Growth %": "percent" },
+  "rows": [
+    { "Country Region": "United States", "Total Sales": 1200000, "YoY Growth %": 0.18 },
+    { "Country Region": "Canada", "Total Sales": 410000, "YoY Growth %": 0.09 }
+  ]
+}
+```
+
+Use `type: "bar"` for comparisons and rankings, `type: "line"` for trends. Keep rows to the most relevant 5-12
+categories/periods. Include a short sentence after the chart with the main takeaway. If the user asks to save or share the
+visual, then offer a Power BI report/page and ask for approval.
 
 ## Typical journeys
 

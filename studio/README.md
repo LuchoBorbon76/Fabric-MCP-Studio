@@ -126,6 +126,8 @@ flowchart LR
   studio tools). Both update the same project state.
 - **Copilot inside every step**: Copilot opens right in the page you are working in (for example below the tables and
   relationships in *Semantic model*), never in a separate window. The **Copilot** page shows the same conversation full size.
+  Ask for a *chart* or *graph in chat* and Copilot answers with an inline visual (no Fabric item is created). Ask for a
+  *Power BI report/page/dashboard* when you want it saved in Fabric.
 - **Approvals**: every tool call that creates or changes something opens a review dialog with the exact request.
   Modes: *Ask every time* (default), *Auto-approve*, *Read-only*. Every recommendation that waits for your go-ahead
   gets an **Apply** button under Copilot's answer – semantic models, reports and data agents (**Apply suggestions**), and

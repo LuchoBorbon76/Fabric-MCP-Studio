@@ -23,7 +23,8 @@ a part goes straight to its page. **Overview**, **Copilot**, **Activity** and **
 the map.
 
 Everything below can be done with the quick action buttons **or** by asking Copilot. Copilot opens inside the page you
-are working in (no separate window) and asks for your approval before each change.
+are working in (no separate window) and asks for your approval before each change. For a quick chart in the chat, ask for
+"a chart" or "a graph in chat"; for something saved in Fabric, ask for a Power BI report, page or dashboard.
 
 ## 1. Workspace
 
