@@ -2,6 +2,7 @@
 // source, platform) and whether it can run. Modules that can't run are greyed out in the UI with the reason, and jobs
 // stop before they change anything. Everything here is read-only.
 import { getToken, SCOPES, currentIdentity } from './auth.mjs';
+import { netFetch } from './config.mjs';
 import { fabric } from './fabric.mjs';
 import { getProject, logActivity } from './project.mjs';
 import { emit, clientCount } from './events.mjs';
@@ -38,7 +39,7 @@ let cache = { key: '', at: 0, data: null, pending: null };
 
 async function pbi(path) {
   const token = await getToken(SCOPES.powerbi);
-  const r = await fetch(`${PBI}${path}`, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(20000) });
+  const r = await netFetch(`${PBI}${path}`, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(20000) });
   if (!r.ok) { const e = new Error(`HTTP ${r.status}`); e.status = r.status; throw e; }
   return r.json();
 }

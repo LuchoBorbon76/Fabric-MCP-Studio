@@ -3,7 +3,7 @@
 // (signed-in user's Power BI token, the tenant's home cluster). Only task flows the studio created are changed.
 import { randomUUID } from 'node:crypto';
 import { getToken, SCOPES, currentIdentity } from './auth.mjs';
-import { sleep } from './config.mjs';
+import { sleep, netFetch } from './config.mjs';
 
 export class TaskFlowError extends Error {
   constructor(message, status) { super(message); this.status = status; }
@@ -38,7 +38,7 @@ async function clusterUrl() {
 
 async function call(method, url, body, { etag, raw = false } = {}) {
   for (let attempt = 1; attempt <= 4; attempt++) {
-    const res = await fetch(url, {
+    const res = await netFetch(url, {
       method,
       headers: {
         Authorization: `Bearer ${await token()}`, Accept: 'application/json',
@@ -85,7 +85,7 @@ const base = async (workspaceId) => `${await clusterUrl()}/metadata/workspaces/$
  */
 export async function portalIds(workspaceId) {
   const url = `${await clusterUrl()}/metadata/relations/folder/${workspaceId}`;
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${await token()}`, Accept: 'application/json', 'x-consuming-feature': 'ListView' } });
+  const res = await netFetch(url, { headers: { Authorization: `Bearer ${await token()}`, Accept: 'application/json', 'x-consuming-feature': 'ListView' } });
   if (!res.ok) throw new TaskFlowError(`Could not read the workspace items (${res.status}).`, res.status);
   const j = await res.json();
   return new Map((j?.artifacts || []).filter((a) => a.objectId).map((a) => [a.objectId.toLowerCase(), { id: a.id, type: a.type, typeName: a.typeName }]));

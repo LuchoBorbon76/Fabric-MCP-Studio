@@ -198,6 +198,38 @@ export const newId = () => randomUUID();
 export const shortHash = (s) => createHash('sha256').update(String(s)).digest('hex').slice(0, 12);
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// A dropped or refused connection (Wi-Fi, VPN, proxy, a service resetting the connection) – not an answer from the service.
+const NET_CODES = new Set(['ECONNRESET', 'ETIMEDOUT', 'ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'EPIPE', 'ENETUNREACH', 'EHOSTUNREACH', 'ENETDOWN',
+  'UND_ERR_SOCKET', 'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_HEADERS_TIMEOUT', 'UND_ERR_BODY_TIMEOUT', 'UND_ERR_CLOSED']);
+// The request never left this computer, so any call can be sent again without doing anything twice.
+const NOT_SENT = new Set(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'ENETUNREACH', 'EHOSTUNREACH', 'ENETDOWN', 'UND_ERR_CONNECT_TIMEOUT']);
+const netCode = (e) => e?.cause?.code || e?.code || '';
+export const isNetworkError = (e) => e?.code === 'NETWORK' || (e instanceof TypeError && /fetch failed/i.test(e.message)) || NET_CODES.has(netCode(e));
+
+/**
+ * fetch that tries again when the connection drops. Reads (and calls marked repeatable) are sent again on any dropped
+ * connection; changes only when the request never left this computer, so nothing is made twice. When it keeps failing,
+ * the error says it was the connection (code NETWORK) – not the user's access.
+ */
+export async function netFetch(url, init = {}, { tries = 4, repeatable = false } = {}) {
+  const method = String(init.method || 'GET').toUpperCase();
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fetch(url, init);
+    } catch (e) {
+      if (init.signal?.aborted || !isNetworkError(e)) throw e;
+      const again = repeatable || method === 'GET' || method === 'HEAD' || NOT_SENT.has(netCode(e));
+      if (!again || attempt >= tries) {
+        let host = 'the service';
+        try { host = new URL(url).host; } catch { /* keep the generic name */ }
+        const code = netCode(e);
+        throw Object.assign(new Error(`The connection to ${host} dropped${code ? ` (${code})` : ''}${attempt > 1 ? ` ${attempt} times` : ''} – a network, VPN or proxy problem, not your access. Try again in a moment.`), { code: 'NETWORK', status: 503, cause: e });
+      }
+      await sleep(Math.min(8, 2 ** attempt) * 1000);
+    }
+  }
+}
+
 export function stableUuid(...parts) {
   const h = createHash('sha1').update(parts.join('/')).digest();
   h[6] = (h[6] & 0x0f) | 0x50;

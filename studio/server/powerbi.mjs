@@ -1,6 +1,6 @@
 // Power BI REST: DAX queries against semantic models (model metadata and profiling) and report export for previews.
 import { getToken, SCOPES } from './auth.mjs';
-import { sleep } from './config.mjs';
+import { sleep, netFetch } from './config.mjs';
 
 const API = 'https://api.powerbi.com/v1.0/myorg';
 
@@ -11,11 +11,11 @@ export class PowerBIError extends Error {
 async function pbi(method, path, body, { raw = false } = {}) {
   for (let attempt = 1; attempt <= 5; attempt++) {
     const token = await getToken(SCOPES.powerbi);
-    const res = await fetch(`${API}${path}`, {
+    const res = await netFetch(`${API}${path}`, {
       method,
       headers: { Authorization: `Bearer ${token}`, ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
       body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
+    }, { repeatable: /\/executeQueries$/i.test(path) });
     if ((res.status === 429 || res.status >= 500) && attempt < 5) {
       await sleep((Number(res.headers.get('retry-after')) || 4 * attempt) * 1000);
       continue;

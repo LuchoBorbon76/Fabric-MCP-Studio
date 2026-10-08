@@ -9,6 +9,7 @@ import { allThemes } from './reports/themes.mjs';
 import { listTemplates } from './reports/library.mjs';
 import { getProject, updateProject, logActivity, assertProjectTenant, projectModels, modelWorkspaceId, fabricUrl, contextViews } from './project.mjs';
 import { startJob, listJobs } from './jobs.mjs';
+import { isNetworkError } from './config.mjs';
 import { modelSourceItems } from './modelcheck.mjs';
 import { adoptModelSource } from './pipelines.mjs';
 
@@ -104,16 +105,18 @@ async function agentsOn(model, workspaces, notes, ctx) {
   ctx?.log?.(`Reading ${list.length} data agent${list.length === 1 ? '' : 's'} (about 20 seconds each, ${AGENTS_AT_ONCE} at a time)`);
   const id = model.id.toLowerCase();
   let unreadable = 0;
+  let dropped = 0;
   const hits = await inBatches(list, AGENTS_AT_ONCE, async (it) => {
     if (ctx?.signal?.aborted) return null;
     let parts;
-    try { parts = (await F.getDefinition(it.workspaceId, it.id))?.parts || []; } catch { unreadable++; return null; }
+    try { parts = (await F.getDefinition(it.workspaceId, it.id))?.parts || []; } catch (e) { if (isNetworkError(e)) dropped++; else unreadable++; return null; }
     const uses = parts.some((p) => /datasource\.json$/i.test(p.path) && decodeText(Buffer.from(p.payload || '', 'base64')).toLowerCase().includes(id));
     if (!uses) return null;
     const published = parts.some((p) => /Files\/Config\/publish_info\.json$/i.test(p.path));
     return { id: it.id, name: it.displayName, workspaceId: it.workspaceId, published, url: fabricUrl('DataAgent', it.workspaceId, it.id) };
   });
   if (unreadable) notes.push(`${unreadable} data agent${unreadable === 1 ? '' : 's'} couldn't be read (reading one needs Contributor access to it).`);
+  if (dropped) notes.push(`${dropped} data agent${dropped === 1 ? '' : 's'} couldn't be read because the connection to Fabric dropped – select Look again.`);
   return hits.filter(Boolean);
 }
 

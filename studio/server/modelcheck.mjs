@@ -7,7 +7,7 @@ import { dax, refreshDataset } from './powerbi.mjs';
 import { withPool } from './sql.mjs';
 import { getProject, logActivity, assertProjectTenant, projectModels, modelWorkspaceId } from './project.mjs';
 import { resetProfileCache } from './reports/index.mjs';
-import { sleep } from './config.mjs';
+import { sleep, isNetworkError } from './config.mjs';
 
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const q = (s) => `[${String(s).replace(/]/g, ']]')}]`;
@@ -153,7 +153,12 @@ export async function checkModel({ id, fresh = false } = {}) {
 
   let def;
   try { def = await modelDefinition(ws, m.id); } catch (e) {
-    result.notes.push(`The model's definition couldn't be read (${e.message.split('\n')[0].slice(0, 160)}), so its tables can't be traced to the data. You need Contributor or higher in ${m.workspaceName || 'its workspace'}.`);
+    const why = e.message.split('\n')[0].slice(0, 200);
+    result.notes.push(isNetworkError(e)
+      ? `The model's definition couldn't be read: ${why} Select Check again.`
+      : [401, 403].includes(e.status)
+        ? `The model's definition couldn't be read (${why}), so its tables can't be traced to the data. Reading it needs Contributor or higher in ${m.workspaceName || 'its workspace'} (or Write permission on the model).`
+        : `The model's definition couldn't be read (${why}), so its tables can't be traced to the data. Select Check again; if it keeps failing, check that the model still exists in ${m.workspaceName || 'its workspace'}.`);
     return result;
   }
   // One connection per data source for the whole check (opening one takes several seconds).

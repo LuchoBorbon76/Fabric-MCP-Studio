@@ -1,6 +1,6 @@
 // Microsoft Fabric REST API client: retries, long-running operations, pagination and domain helpers.
 import { getToken, SCOPES } from './auth.mjs';
-import { sleep } from './config.mjs';
+import { sleep, netFetch } from './config.mjs';
 
 const API = 'https://api.fabric.microsoft.com/v1';
 const ONELAKE = 'https://onelake.dfs.fabric.microsoft.com';
@@ -38,16 +38,16 @@ export function plainFabricMessage(msg) {
   return `${head}: ${parts.join(' ')}`;
 }
 
-export async function fabric(method, path, body, { raw = false, signal, lroTimeoutMs = 15 * 60 * 1000, wait = true } = {}) {
+export async function fabric(method, path, body, { raw = false, signal, lroTimeoutMs = 15 * 60 * 1000, wait = true, repeatable = false } = {}) {
   const url = path.startsWith('http') ? path : `${API}${path}`;
   for (let attempt = 1; attempt <= 6; attempt++) {
     const token = await getToken(SCOPES.fabric);
-    const res = await fetch(url, {
+    const res = await netFetch(url, {
       method,
       signal,
       headers: { Authorization: `Bearer ${token}`, ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
       body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
+    }, { repeatable });
     if (res.status === 429 || res.status >= 500) {
       if (attempt < 6) {
         const wait = Number(res.headers.get('retry-after')) || Math.min(60, 5 * attempt);
@@ -84,7 +84,7 @@ async function waitOperation(res, { signal, timeoutMs }) {
     if (signal?.aborted) throw new Error('Cancelled');
     await sleep(delay * 1000);
     const token = await getToken(SCOPES.fabric);
-    const poll = await fetch(location, { headers: { Authorization: `Bearer ${token}` }, signal });
+    const poll = await netFetch(location, { headers: { Authorization: `Bearer ${token}` }, signal });
     if (poll.status === 429) { delay = Number(poll.headers.get('retry-after')) || 10; continue; }
     const text = await poll.text();
     let state = {};
@@ -94,7 +94,7 @@ async function waitOperation(res, { signal, timeoutMs }) {
     if (status === 'Succeeded' || status === 'Completed') {
       if (/\/operations\/[^/]+$/.test(location)) {
         try {
-          const r = await fetch(`${location}/result`, { headers: { Authorization: `Bearer ${token}` } });
+          const r = await netFetch(`${location}/result`, { headers: { Authorization: `Bearer ${token}` } });
           if (r.ok) { const t = await r.text(); if (t) return JSON.parse(t); }
         } catch { /* no result body */ }
       }
@@ -170,7 +170,8 @@ export const updateDefinition = (workspaceId, id, definition) => {
 };
 
 export async function getDefinition(workspaceId, id, format) {
-  const r = await fabric('POST', `/workspaces/${workspaceId}/items/${id}/getDefinition${format ? `?format=${format}` : ''}`);
+  // Reading a definition changes nothing, so it is sent again when the connection drops.
+  const r = await fabric('POST', `/workspaces/${workspaceId}/items/${id}/getDefinition${format ? `?format=${format}` : ''}`, undefined, { repeatable: true });
   return r?.definition || r;
 }
 
@@ -278,7 +279,7 @@ export async function createShortcut(workspaceId, itemId, { path = 'Tables', nam
 /** True when a folder or file exists in an item's OneLake storage (e.g. "Tables/MyTable/_delta_log"). */
 export async function oneLakePathExists(workspaceId, itemId, path) {
   const token = await getToken(SCOPES.storage);
-  const res = await fetch(`${ONELAKE}/${workspaceId}/${itemId}/${path.split('/').map(encodeURIComponent).join('/')}`, { method: 'HEAD', headers: { Authorization: `Bearer ${token}`, 'x-ms-version': '2023-11-03' } });
+  const res = await netFetch(`${ONELAKE}/${workspaceId}/${itemId}/${path.split('/').map(encodeURIComponent).join('/')}`, { method: 'HEAD', headers: { Authorization: `Bearer ${token}`, 'x-ms-version': '2023-11-03' } });
   return res.ok;
 }
 
@@ -287,7 +288,7 @@ export async function uploadOneLake(workspaceId, itemId, remotePath, bytes, { si
   const base = `${ONELAKE}/${workspaceId}/${itemId}/${remotePath.split('/').map(encodeURIComponent).join('/')}`;
   const h = { Authorization: `Bearer ${token}`, 'x-ms-version': '2023-11-03' };
   const call = async (url, init) => {
-    const r = await fetch(url, { ...init, signal, headers: { ...h, ...(init.headers || {}) } });
+    const r = await netFetch(url, { ...init, signal, headers: { ...h, ...(init.headers || {}) } });
     if (!r.ok) throw new FabricError(`OneLake ${init.method} failed (${r.status}): ${await r.text()}`, r.status);
   };
   await call(`${base}?resource=file`, { method: 'PUT' });
@@ -298,7 +299,7 @@ export async function uploadOneLake(workspaceId, itemId, remotePath, bytes, { si
 /** A file from an item's OneLake storage, or null when it doesn't exist. */
 export async function downloadOneLake(workspaceId, itemId, remotePath, { signal } = {}) {
   const token = await getToken(SCOPES.storage);
-  const res = await fetch(`${ONELAKE}/${workspaceId}/${itemId}/${remotePath.split('/').map(encodeURIComponent).join('/')}`, { signal, headers: { Authorization: `Bearer ${token}`, 'x-ms-version': '2023-11-03' } });
+  const res = await netFetch(`${ONELAKE}/${workspaceId}/${itemId}/${remotePath.split('/').map(encodeURIComponent).join('/')}`, { signal, headers: { Authorization: `Bearer ${token}`, 'x-ms-version': '2023-11-03' } });
   if (res.status === 404) return null;
   if (!res.ok) throw new FabricError(`OneLake read failed (${res.status}): ${await res.text()}`, res.status);
   return Buffer.from(await res.arrayBuffer());
