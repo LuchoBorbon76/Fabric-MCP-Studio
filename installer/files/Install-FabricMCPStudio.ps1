@@ -513,9 +513,16 @@ function Invoke-Uninstall {
     $what = if ($KeepData) { ' (your projects, chats and settings are kept)' } else { ' including your projects, chats and settings' }
     if (-not (Confirm-Step "Remove the shortcuts and $InstallDir$($what)?" $false)) { Stop-Installer 'Nothing was removed.' 0 }
     Stop-RunningStudio 'remove' | Out-Null
+    # Only shortcuts to this copy: a copy of the studio installed elsewhere keeps its shortcut (same name).
+    $shell = New-Object -ComObject WScript.Shell
+    $root = $InstallDir.TrimEnd('\') + '\'
     foreach ($dir in @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('Programs'))) {
         $lnk = Join-Path $dir "$ShortcutName.lnk"
-        if (Test-Path -LiteralPath $lnk) { Remove-Item -LiteralPath $lnk -Force; Write-Ok "Removed $lnk" }
+        if (-not (Test-Path -LiteralPath $lnk)) { continue }
+        $s = $shell.CreateShortcut($lnk)
+        $points = "$($s.TargetPath)|$($s.Arguments)|$($s.WorkingDirectory.TrimEnd('\'))\"
+        if ($points.IndexOf($root, [StringComparison]::OrdinalIgnoreCase) -lt 0) { Write-Note "Kept $lnk - it opens another copy of $appName ($($s.WorkingDirectory))"; continue }
+        Remove-Item -LiteralPath $lnk -Force; Write-Ok "Removed $lnk"
     }
     if ($KeepData -and (Test-Path -LiteralPath (Join-Path $studioDir 'data'))) {
         # Next to the app folder, never inside it (it is deleted below).

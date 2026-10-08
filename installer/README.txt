@@ -40,8 +40,9 @@ Inside the app, "Restart now" appears when a newer version is on disk.
 
 UNINSTALL
 ---------
-Double-click "Uninstall Fabric MCP Studio.cmd". It removes the shortcuts and the app folder; your projects, chats and
+Double-click "Uninstall Fabric MCP Studio.cmd". It removes its shortcuts and the app folder; your projects, chats and
 settings are moved next to the folder (FabricMCPStudio-data-<date>). Git, Node.js and the other tools stay installed.
+A shortcut with the same name that opens another copy of the studio (installed in another folder) is kept.
 
 
 OPTIONS (PowerShell)

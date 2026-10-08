@@ -25,7 +25,7 @@
 
 .EXAMPLE
     .\scripts\create-shortcut.ps1 -Remove
-    Remove the shortcuts.
+    Remove the shortcuts to this copy of the studio (a shortcut with the same name to another copy stays).
 #>
 [CmdletBinding()]
 param(
@@ -50,9 +50,19 @@ if ($StartMenu) { $locations += [Environment]::GetFolderPath('Programs') }
 
 if ($Remove) {
     Write-Step 'Removing shortcuts'
+    $shell = New-Object -ComObject WScript.Shell
+    $root = $script:RepoRoot.TrimEnd('\') + '\'
     foreach ($dir in @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('Programs'))) {
         $lnk = Join-Path $dir "$Name.lnk"
-        if (Test-Path -LiteralPath $lnk) { Remove-Item -LiteralPath $lnk -Force; Write-Ok "Removed $lnk" }
+        if (-not (Test-Path -LiteralPath $lnk)) { continue }
+        # Only a shortcut to this copy of the studio: another copy (installed elsewhere) keeps its shortcut.
+        $s = $shell.CreateShortcut($lnk)
+        $points = "$($s.TargetPath)|$($s.Arguments)|$($s.WorkingDirectory.TrimEnd('\'))\"
+        if ($points.IndexOf($root, [StringComparison]::OrdinalIgnoreCase) -lt 0) {
+            Write-Info "Kept $lnk - it opens another copy of the studio ($($s.WorkingDirectory))"
+            continue
+        }
+        Remove-Item -LiteralPath $lnk -Force; Write-Ok "Removed $lnk"
     }
     return
 }
