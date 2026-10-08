@@ -95,6 +95,6 @@
     { "date": "2026-10-07", "type": "fix", "commit": "8d9b66a", "title": "Org apps show their reports: the studio gives the app an audience with the overview and every report (without one Fabric shows “No items to show”, even to its owner); Update app adds it to apps made before" },
     { "date": "2026-10-07", "type": "improvement", "commit": "8d9b66a", "title": "Create app asks which reports go in the org app – the studio's reports on the model are ticked, and reports already on the model in the workspace can be added (the app only links to them); Choose reports changes them later, and Copilot asks first too" },
     { "date": "2026-10-07", "type": "improvement", "commit": "8d9b66a", "title": "Delete app on Reports & apps deletes the org app and its audience (the reports stay)" },
-    { "date": "2026-10-08", "type": "improvement", "title": "The Data sources pop-up opens on the project workspace and has a workspace list: pick any workspace to see its lakehouses, warehouses and databases and use one in place; a line says where the active data source (and the others) read their data, with Show" }
+    { "date": "2026-10-08", "type": "improvement", "commit": "6aa91f2", "title": "The Data sources pop-up opens on the project workspace and has a workspace list: pick any workspace to see its lakehouses, warehouses and databases and use one in place; a line says where the active data source (and the others) read their data, with Show" }
   ]
 }
