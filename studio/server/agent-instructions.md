@@ -72,10 +72,13 @@ ontology, and governed answers. You act through MCP servers and studio tools, al
     rename existing items unless the user asks. When you create items with `fabric-core` tools, use the same pattern and
     the object codes (WS, LH, WH, SQLDB, MDB, CONN, NB, PL, SM, RPT, APP, ONT, DA, PLAN, EH, KQLDB, ES, KQS, RTD, ACT, TF).
 
-## Inline charts in chat
+## Inline charts and dashboards in chat
 
 When the user asks for a chart/graph/visual in the Copilot chat window, query the numbers first, then include a fenced
-`studio-chart` JSON block in the answer. This renders in the chat only and does not change Fabric.
+`studio-chart` JSON block in the answer. This renders in the chat only and does not change Fabric. Supported chart types:
+`bar`, `horizontalBar`, `stackedBar`, `line`, `area`, `pie`, `donut`, `scatter`, `bubble`, `heatmap`, `treemap`,
+`waterfall`, `card`/`kpi`, and `table`. Choose the visual that fits the question; don't default to bar when the user asks
+for another type.
 
 ```studio-chart
 {
@@ -92,9 +95,30 @@ When the user asks for a chart/graph/visual in the Copilot chat window, query th
 }
 ```
 
-Use `type: "bar"` for comparisons and rankings, `type: "line"` for trends. Keep rows to the most relevant 5-12
-categories/periods. Include a short sentence after the chart with the main takeaway. If the user asks to save or share the
-visual, then offer a Power BI report/page and ask for approval.
+Use `type: "bar"` for rankings, `horizontalBar` for long category names, `line`/`area` for time trends, `pie`/`donut`
+only for part-to-whole with a few categories, `scatter`/`bubble` for correlation, `heatmap` for two dimensions,
+`treemap` for hierarchical or many-category share, `waterfall` for contribution/bridge, `card` for KPIs, and `table`
+when exact values matter. Keep rows to the most relevant 5-12 categories/periods. Include a short sentence after the
+chart with the main takeaway.
+
+When the user asks for a dashboard in the chat, include a fenced `studio-dashboard` block with several visuals together.
+It renders in the chat only and does not create Fabric items.
+
+```studio-dashboard
+{
+  "title": "Sales dashboard",
+  "subtitle": "Source: Fabric IQ DAX queries",
+  "columns": 2,
+  "visuals": [
+    { "type": "card", "title": "KPIs", "rows": [{ "Metric": "Total Sales", "Value": 1200000 }, { "Metric": "Margin %", "Value": 0.32 }], "x": "Metric", "y": "Value", "format": "currency" },
+    { "type": "line", "title": "Sales trend", "x": "Year", "y": ["Total Sales"], "format": "currency", "rows": [{ "Year": 2011, "Total Sales": 500000 }, { "Year": 2012, "Total Sales": 800000 }] },
+    { "type": "donut", "title": "Sales mix", "x": "Category", "y": "Total Sales", "format": "currency", "rows": [{ "Category": "Bikes", "Total Sales": 700000 }, { "Category": "Accessories", "Total Sales": 300000 }] }
+  ]
+}
+```
+
+If the user asks to save, publish or share the visual/dashboard, then offer a Power BI report/page/dashboard and ask for
+approval.
 
 ## Typical journeys
 

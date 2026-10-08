@@ -24,7 +24,8 @@ the map.
 
 Everything below can be done with the quick action buttons **or** by asking Copilot. Copilot opens inside the page you
 are working in (no separate window) and asks for your approval before each change. For a quick chart in the chat, ask for
-"a chart" or "a graph in chat"; for something saved in Fabric, ask for a Power BI report, page or dashboard.
+"a chart" or "a graph in chat"; for several visuals together, ask for a "dashboard in chat". For something saved in
+Fabric, ask for a Power BI report, page or dashboard.
 
 ## 1. Workspace
 

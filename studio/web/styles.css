@@ -209,10 +209,22 @@ ul.pre{margin:6px 0 0;padding-left:18px;font-size:12px;color:var(--muted)}
 .chart .axis{stroke:var(--muted);stroke-width:1}
 .chart text{fill:var(--muted);font-size:11px}
 .chart .xlabel{font-size:10.5px}
+.dashboard{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:12px;margin:8px 0;max-width:min(960px,100%);box-shadow:var(--shadow)}
+.dgrid{display:grid;gap:10px;align-items:stretch;margin-top:8px}
+.dgrid .chart{margin:0;max-width:100%;box-shadow:none}
+.dgrid .chart svg{max-height:260px}
 .clegend{display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);margin-top:4px}
 .clegend span{display:inline-flex;align-items:center;gap:5px}
 .clegend i{width:10px;height:10px;border-radius:2px;display:inline-block}
 .cvals{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:2px 12px;margin-top:6px}
+.ccards{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:8px}
+.ccards div{border:1px solid var(--line);border-radius:10px;padding:9px 10px;background:var(--chip)}
+.ccards span{display:block;font-size:11px;color:var(--muted);margin-bottom:4px}
+.ccards b{display:block;font-size:20px;line-height:1.2}
+.ccards small{display:block;color:var(--muted);font-size:11px;margin-top:4px}
+.tablechart .inner-table{padding:0;margin:6px 0 0;box-shadow:none}
+.tablechart table{display:table;width:100%;margin:0}
+@media(max-width:900px){.dgrid{grid-template-columns:1fr!important}}
 .cursor::after{content:'▍';animation:pulse 1s infinite;margin-left:2px;color:var(--brand)}
 .tcard{border:1px solid var(--line);border-radius:10px;background:var(--panel);font-size:12.5px;max-width:92%;overflow:hidden}
 .tcard .th{display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer}
