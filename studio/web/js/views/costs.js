@@ -31,6 +31,21 @@ function simpleTable(cols, rows, empty = 'No rows') {
     rows.map((r) => h('tr', {}, cols.map((c) => h('td', { class: c.num ? 'num' : '' }, c.render ? c.render(r) : r[c.key]))))));
 }
 
+function rankList({ title, subtitle, rows, label, value, meta, empty = 'No rows found.' }) {
+  const max = Math.max(...(rows || []).map((r) => Number(value(r)) || 0), 0);
+  return h('div', { class: 'card compact' },
+    h('h2', {}, title),
+    subtitle ? h('p', { class: 'lead' }, subtitle) : null,
+    rows?.length ? h('div', { class: 'ranklist' }, rows.slice(0, 10).map((r, i) => {
+      const v = Number(value(r)) || 0;
+      return h('div', { class: 'rank' },
+        h('div', { class: 'rhead' }, h('b', {}, label(r)), h('span', {}, num(v))),
+        meta ? h('div', { class: 'tiny muted' }, meta(r)) : null,
+        h('div', { class: 'rbar' }, h('i', { style: { width: `${max ? Math.max(3, v / max * 100) : 0}%` } })),
+        i === 0 ? h('div', { class: 'tiny muted' }, 'Largest contributor in this list') : null);
+    })) : h('div', { class: 'empty' }, empty));
+}
+
 function installCard(el, s) {
   el.append(h('div', { class: 'banner warn' },
     h('div', { style: { flex: 1 } },
@@ -76,7 +91,7 @@ function overview(el, s) {
     h('div', { class: 'row sp' },
       h('div', {}, h('h1', {}, 'Costs & utilization'), h('p', { class: 'lead' }, 'A friendly view of capacity health, heavy hitters, smoothing/overage, and cost choices.')),
       h('div', { class: 'row' }, sel, h('button', { class: 'btn', 'data-busy': 'Refreshing…', onclick: busy(null, async () => { state = null; await renderCosts(el); }) }, '↻ Refresh'), s.metricsApp?.reportUrl ? h('a', { class: 'btn', href: s.metricsApp.reportUrl, target: '_blank', rel: 'noopener' }, 'Open Capacity Metrics ↗') : h('a', { class: 'btn', href: s.install.url, target: '_blank', rel: 'noopener' }, 'Install metrics app ↗'))),
-    h('div', { class: 'grid g4 mt' },
+    h('div', { class: 'grid g4 mt cost-kpis' },
       card('Capacity', `${cap?.name || 'Unknown'} · ${cap?.sku || '?'}`, cap?.state || ''),
       card('Average usage', x ? pct(x.avgUtil) : '–', 'Recent timepoints'),
       card('Peak usage', x ? pct(x.peak) : '–', x?.peak > 100 ? 'Above the capacity line' : 'Highest recent point', x?.peak > 100 ? 'bad' : ''),
@@ -87,18 +102,18 @@ function charts(el, s) {
   const x = s.summary;
   if (!x) return;
   const timeline = x.timeline.slice(-80).map((r) => ({ Time: new Date(r.at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }), Interactive: r.interactive, Background: r.background, Limit: r.limit }));
-  const workspaces = x.byWorkspace.map((r) => ({ Workspace: r.key, 'CU seconds': r.cu }));
-  const items = x.byItem.map((r) => ({ Item: `${r.item} (${r.itemKind})`, 'CU seconds': r.cu }));
-  const users = x.byUser.map((r) => ({ User: r.key, 'CU seconds': r.cu }));
   const over = x.overage.slice(-80).map((r) => ({ Time: new Date(r.at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }), Add: r.add, Burndown: r.burndown, Cumulative: r.cumulative }));
+  const hasOver = over.some((r) => r.Add || r.Burndown || r.Cumulative);
+  const hasMix = x.interactiveCu || x.backgroundCu;
   const noSeries = h('div', { class: 'empty' }, 'The Capacity Metrics app has no timepoint rows for this capacity yet. Refresh/connect the app in Fabric; the heavy-hitter tables below can still use the item history data.');
   el.append(h('div', { class: 'grid g2' },
     h('div', { class: 'card' }, timeline.length ? chart({ type: 'area', title: 'Capacity usage over time', subtitle: 'Interactive and background CU seconds. The limit line is the 30-second allowance.', x: 'Time', y: ['Interactive', 'Background', 'Limit'], rows: timeline }) : [h('h2', {}, 'Capacity usage over time'), noSeries]),
-    h('div', { class: 'card' }, workspaces.length ? chart({ type: 'treemap', title: 'Workspaces using the most capacity', subtitle: 'Bigger boxes use more CU seconds.', x: 'Workspace', y: 'CU seconds', rows: workspaces }) : [h('h2', {}, 'Workspaces using the most capacity'), h('div', { class: 'empty' }, 'No workspace rows found.')]),
-    h('div', { class: 'card' }, items.length ? chart({ type: 'horizontalBar', title: 'Heavy-hitter items', subtitle: 'Items with the largest CU seconds.', x: 'Item', y: ['CU seconds'], rows: items }) : [h('h2', {}, 'Heavy-hitter items'), h('div', { class: 'empty' }, 'No item rows found.')]),
-    h('div', { class: 'card' }, users.length ? chart({ type: 'horizontalBar', title: 'Users or service principals with most consuming operations', x: 'User', y: ['CU seconds'], rows: users }) : [h('h2', {}, 'Users or service principals with most consuming operations'), h('div', { class: 'empty' }, 'No user-level detail rows found. The metrics app sometimes keeps only item history for older periods.')]),
-    h('div', { class: 'card' }, over.length ? chart({ type: 'line', title: 'Smoothing / overage carry-forward', subtitle: 'If cumulative carry-forward rises, future work may be delayed or billed as overage.', x: 'Time', y: ['Add', 'Burndown', 'Cumulative'], rows: over }) : [h('h2', {}, 'Smoothing / overage carry-forward'), h('div', { class: 'empty' }, 'No overage/carry-forward rows were found for this capacity.')]),
-    h('div', { class: 'card' }, chart({ type: 'donut', title: 'User vs background work', subtitle: 'Interactive means user-triggered; background means refresh/jobs/scheduled work.', x: 'Type', y: 'CU seconds', rows: [{ Type: 'User-triggered', 'CU seconds': x.interactiveCu }, { Type: 'Background', 'CU seconds': x.backgroundCu }] }))));
+    h('div', { class: 'card' }, hasOver ? chart({ type: 'line', title: 'Smoothing / overage carry-forward', subtitle: 'If cumulative carry-forward rises, future work may be delayed or billed as overage.', x: 'Time', y: ['Add', 'Burndown', 'Cumulative'], rows: over }) : [h('h2', {}, 'Smoothing / overage carry-forward'), h('div', { class: 'empty' }, 'No overage/carry-forward was found for this capacity. That means there is no visible backlog being paid back in the metrics app data.')]),
+    h('div', { class: 'card' }, hasMix ? chart({ type: 'donut', title: 'User vs background work', subtitle: 'Interactive means user-triggered; background means refresh/jobs/scheduled work.', x: 'Type', y: 'CU seconds', rows: [{ Type: 'User-triggered', 'CU seconds': x.interactiveCu }, { Type: 'Background', 'CU seconds': x.backgroundCu }] }) : [h('h2', {}, 'User vs background work'), h('div', { class: 'empty' }, 'No timepoint detail rows were found for user/background split. The item-history heavy hitters below still show what consumed the most CUs.')])));
+  el.append(h('div', { class: 'grid g3' },
+    rankList({ title: 'Top workspaces', subtitle: 'Where the capacity is being spent.', rows: x.byWorkspace, label: (r) => short(r.key, 40), value: (r) => r.cu, meta: (r) => `${num(r.operations)} operations · ${num(r.users)} users` }),
+    rankList({ title: 'Heavy-hitter items', subtitle: 'The individual items to investigate first.', rows: x.byItem, label: (r) => short(r.item, 42), value: (r) => r.cu, meta: (r) => `${r.itemKind} · ${short(r.workspace, 34)}` }),
+    rankList({ title: 'Users and service principals', subtitle: 'Who triggered the most consuming work when user detail is available.', rows: x.byUser, label: (r) => short(r.key, 44), value: (r) => r.cu, meta: (r) => `${num(r.operations)} operations`, empty: 'No user-level detail rows found. The metrics app sometimes keeps only item history for older periods.' })));
 }
 
 function detailTables(el, s) {

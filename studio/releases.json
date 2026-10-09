@@ -100,6 +100,7 @@
     { "date": "2026-10-08", "type": "fix", "commit": "5a1c898", "title": "Uninstalling a copy of the studio removes only the shortcuts that open that copy: a desktop or Start menu shortcut with the same name to another copy (installed in another folder) is kept" },
     { "date": "2026-10-08", "type": "improvement", "commit": "85508e4", "title": "Copilot can render inline charts in the chat window with a studio-chart block, so a request for a chart or graph no longer has to create a Power BI report unless the user asks for one" },
     { "date": "2026-10-08", "type": "improvement", "commit": "fcf7edf", "title": "Inline chat visuals support many chart types and dashboards: bar, horizontal/stacked bar, line, area, pie/donut, scatter/bubble, heatmap, treemap, waterfall, KPI cards, tables and multi-visual dashboard grids" },
-    { "date": "2026-10-09", "type": "improvement", "commit": "c58238f", "title": "New Costs tab: a friendly capacity utilization and cost dashboard over the Microsoft Fabric Capacity Metrics app, with heavy hitters, workspace/user/background usage, smoothing/overage guidance, recommendations, and pay-as-you-go vs reservation estimates" }
+    { "date": "2026-10-09", "type": "improvement", "commit": "c58238f", "title": "New Costs tab: a friendly capacity utilization and cost dashboard over the Microsoft Fabric Capacity Metrics app, with heavy hitters, workspace/user/background usage, smoothing/overage guidance, recommendations, and pay-as-you-go vs reservation estimates" },
+    { "date": "2026-10-09", "type": "fix", "title": "Costs page is easier to read: compact KPI cards, readable ranked bars for heavy hitters, and clear empty-state cards instead of tiny zero-value chart axes" }
   ]
 }
