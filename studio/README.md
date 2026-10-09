@@ -504,7 +504,8 @@ when the metrics app has timepoint rows, heavy-hitter workspaces/items/operation
 official AppSource install flow and explains the required first-run connection steps; Microsoft still requires a capacity
 admin to complete the **Install** and **Connect** screens in Fabric. If the metrics model has not refreshed a timepoint
 table yet, the tab says so instead of showing fake 0% values, and still shows heavy hitters and cost context from the
-data it can read.
+data it can read. **What to do next** is shown as action cards (not a long paragraph list) so capacity owners can scan the
+artifact, operation, workspace and sizing actions quickly.
 
 The cost card estimates an always-on Azure F capacity: pay-as-you-go from Azure Retail Prices (CU-hour × CUs × 730
 hours/month) and a reservation estimate using the Azure pricing page guidance of about **41% savings**. This is planning

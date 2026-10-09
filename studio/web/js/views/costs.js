@@ -118,13 +118,46 @@ function costCard(s) {
     h('p', { class: 'tiny muted' }, p.note || 'For exact regional prices, open Azure pricing.', ' ', h('a', { href: s.pricingPage, target: '_blank', rel: 'noopener' }, 'Azure pricing ↗')));
 }
 
+const recLabel = (s) => {
+  if (/^Start with/i.test(s)) return 'Start here';
+  if (/^Operation to investigate/i.test(s)) return 'Operation';
+  if (/^Workspace to review/i.test(s)) return 'Workspace';
+  if (/^Workload type to route/i.test(s)) return 'Workload';
+  if (/^User\/service principal/i.test(s)) return 'Owner';
+  if (/metrics model did not expose user-level/i.test(s)) return 'Drill-through';
+  if (/overload|throttling/i.test(s)) return 'Protect users';
+  if (/Carry-forward/i.test(s)) return 'Carry-forward';
+  if (/Average timepoint utilization/i.test(s)) return 'Sizing';
+  return 'Action';
+};
+
+function splitRecommendation(s) {
+  const text = String(s || '').trim();
+  const colon = text.indexOf(':');
+  const dot = text.search(/\.\s/);
+  const cut = dot > 0 && dot < 160 ? dot : colon > 0 && colon < 80 ? colon : -1;
+  if (cut < 0) return { title: text, detail: '' };
+  return { title: text.slice(0, cut + (text[cut] === ':' ? 1 : 0)).replace(/\.$/, ''), detail: text.slice(cut + 1).trim() };
+}
+
+function recCard(x, i) {
+  const { title, detail } = splitRecommendation(x);
+  return h('div', { class: 'actioncard' },
+    h('div', { class: 'ahead' }, h('span', { class: 'anum' }, i + 1), h('span', { class: 'pill' }, recLabel(x))),
+    h('b', {}, title),
+    detail ? h('p', {}, detail) : null);
+}
+
 function recommendations(s) {
   const r = s.summary?.recommendations || [];
   return h('div', { class: 'card' },
-    h('h2', {}, 'What to do next'),
-    h('p', { class: 'lead' }, 'Plain-English recommendations based on utilization, smoothing, overage and the biggest consumers.'),
-    h('ol', { class: 'pre' }, r.map((x) => h('li', {}, x))),
-    h('div', { class: 'banner', style: { marginTop: '12px' } }, h('div', {}, h('b', {}, 'How to improve utilization. '), 'Tune or move the heaviest items first, separate background refresh windows, avoid overlapping long-running jobs, pause dev/test capacity when not used, and reserve only the stable always-on baseline.')));
+    h('div', { class: 'row sp actiontitle' },
+      h('div', {}, h('h2', {}, 'What to do next'), h('p', { class: 'lead' }, 'Plain-English actions based on utilization, smoothing, overage and the biggest consumers.')),
+      h('span', { class: 'pill' }, `${r.length || 0} action${r.length === 1 ? '' : 's'}`)),
+    r.length ? h('div', { class: 'actiongrid' }, r.map(recCard)) : h('div', { class: 'empty' }, 'No actions found yet. Refresh Capacity Metrics after more usage appears.'),
+    h('div', { class: 'utiltip' },
+      h('b', {}, 'How to improve utilization'),
+      h('div', { class: 'chips' }, ['Tune heaviest items first', 'Separate refresh windows', 'Avoid overlapping jobs', 'Pause dev/test when idle', 'Reserve only the stable baseline'].map((x) => h('span', {}, x)))));
 }
 
 function overview(el, s) {
