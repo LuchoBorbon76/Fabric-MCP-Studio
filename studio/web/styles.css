@@ -98,6 +98,10 @@ header.top p{margin:0;opacity:.92;font-size:12.5px;padding-right:420px}
 .kpi.warn{border-color:color-mix(in srgb,var(--warn) 50%,var(--line));background:color-mix(in srgb,var(--warn) 10%,var(--panel))}
 .kpi.bad{border-color:color-mix(in srgb,var(--bad) 50%,var(--line));background:color-mix(in srgb,var(--bad) 10%,var(--panel))}
 .card.compact{padding:13px 15px}
+#view-costs>*+*{margin-top:22px}
+#view-costs>.tiny.muted.mb{display:block;margin:12px 0 4px}
+#view-costs>.grid{align-items:start}
+.cost-kpis{margin-top:14px}
 .visual-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:18px;margin:18px 0}
 .card.visual{padding:15px;display:flex;flex-direction:column;gap:8px}
 .card.visual .chart{box-shadow:none;margin:0;max-width:100%;padding:8px 10px}
