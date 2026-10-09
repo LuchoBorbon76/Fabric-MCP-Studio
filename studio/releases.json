@@ -102,7 +102,7 @@
     { "date": "2026-10-08", "type": "improvement", "commit": "fcf7edf", "title": "Inline chat visuals support many chart types and dashboards: bar, horizontal/stacked bar, line, area, pie/donut, scatter/bubble, heatmap, treemap, waterfall, KPI cards, tables and multi-visual dashboard grids" },
     { "date": "2026-10-09", "type": "improvement", "commit": "c58238f", "title": "New Costs tab: a friendly capacity utilization and cost dashboard over the Microsoft Fabric Capacity Metrics app, with heavy hitters, workspace/user/background usage, smoothing/overage guidance, recommendations, and pay-as-you-go vs reservation estimates" },
     { "date": "2026-10-09", "type": "fix", "commit": "7cad6f6", "title": "Costs page is easier to read: compact KPI cards, readable ranked bars for heavy hitters, and clear empty-state cards instead of tiny zero-value chart axes" },
-    { "date": "2026-10-09", "type": "fix", "title": "Costs cards no longer show fake 0% values when the Capacity Metrics app has no timepoint rows: they show Not available and use item-history CU-hours/top-item data instead" },
-    { "date": "2026-10-09", "type": "improvement", "title": "When Microsoft Fabric Capacity Metrics is missing, the Costs tab opens the supported Microsoft AppSource install flow and explains that a capacity admin must finish Install and Connect in Fabric" }
+    { "date": "2026-10-09", "type": "fix", "commit": "4d14a95", "title": "Costs cards no longer show fake 0% values when the Capacity Metrics app has no timepoint rows: they show Not available and use item-history CU-hours/top-item data instead" },
+    { "date": "2026-10-09", "type": "improvement", "commit": "4d14a95", "title": "When Microsoft Fabric Capacity Metrics is missing, the Costs tab opens the supported Microsoft AppSource install flow and explains that a capacity admin must finish Install and Connect in Fabric" }
   ]
 }
