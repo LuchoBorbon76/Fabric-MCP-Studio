@@ -47,6 +47,28 @@ function rankList({ title, subtitle, rows, label, value, meta, empty = 'No rows 
     })) : h('div', { class: 'empty' }, empty));
 }
 
+function visualSummary(s) {
+  const x = s.summary;
+  if (!x) return null;
+  const kindRows = x.byKind.slice(0, 6).map((r) => ({ Type: r.key, 'CU seconds': r.cu }));
+  const costRows = s.pricing?.available ? [
+    { Option: 'Pay-as-you-go', Monthly: s.pricing.paygMonthly },
+    { Option: 'Reservation', Monthly: s.pricing.reservationMonthly },
+    { Option: 'Estimated savings', Monthly: s.pricing.reservationSavingsMonthly },
+  ] : [];
+  const topOps = x.byOperation.slice(0, 6).map((r) => ({ Operation: r.key, 'CU seconds': r.cu }));
+  return h('div', { class: 'visual-summary' },
+    kindRows.length ? h('div', { class: 'card visual' },
+      chart({ type: 'donut', title: 'CU mix by workload type', subtitle: 'Which Fabric workload family is using capacity.', x: 'Type', y: 'CU seconds', rows: kindRows }),
+      h('div', { class: 'vnote' }, `Largest: ${kindRows[0].Type} (${num(kindRows[0]['CU seconds'])} CU seconds)`)) : null,
+    topOps.length ? h('div', { class: 'card visual' },
+      chart({ type: 'horizontalBar', title: 'Top operation types', subtitle: 'The kind of work creating the most load.', x: 'Operation', y: ['CU seconds'], rows: topOps, maxRows: 6 }),
+      h('div', { class: 'vnote' }, `Start with ${topOps[0].Operation}.`)) : null,
+    costRows.length ? h('div', { class: 'card visual' },
+      chart({ type: 'horizontalBar', title: 'Cost comparison', subtitle: 'Always-on monthly estimate for this capacity.', x: 'Option', y: ['Monthly'], format: { Monthly: 'currency' }, rows: costRows }),
+      h('div', { class: 'vnote' }, `Reservation estimate saves about ${money(s.pricing.reservationSavingsMonthly)} per month if this capacity stays on.`)) : null);
+}
+
 function installCard(el, s) {
   if (s.status === 'missing-app' && !installOpened) {
     installOpened = true;
@@ -123,6 +145,8 @@ function charts(el, s) {
   const hasOver = over.some((r) => r.Add || r.Burndown || r.Cumulative);
   const hasMix = x.interactiveCu || x.backgroundCu;
   const noSeries = h('div', { class: 'empty' }, 'The Capacity Metrics app has no timepoint rows for this capacity yet. Refresh/connect the app in Fabric; the heavy-hitter tables below can still use the item history data.');
+  const visual = visualSummary(s);
+  if (visual) el.append(visual);
   el.append(h('div', { class: 'grid g2' },
     h('div', { class: 'card' }, timeline.length ? chart({ type: 'area', title: 'Capacity usage over time', subtitle: 'Interactive and background CU seconds. The limit line is the 30-second allowance.', x: 'Time', y: ['Interactive', 'Background', 'Limit'], rows: timeline }) : [h('h2', {}, 'Capacity usage over time'), noSeries]),
     h('div', { class: 'card' }, hasOver ? chart({ type: 'line', title: 'Smoothing / overage carry-forward', subtitle: 'If cumulative carry-forward rises, future work may be delayed or billed as overage.', x: 'Time', y: ['Add', 'Burndown', 'Cumulative'], rows: over }) : [h('h2', {}, 'Smoothing / overage carry-forward'), h('div', { class: 'empty' }, 'No overage/carry-forward was found for this capacity. That means there is no visible backlog being paid back in the metrics app data.')]),

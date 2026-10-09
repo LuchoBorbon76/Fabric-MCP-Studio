@@ -82,6 +82,7 @@ async function modelRows(workspaceId, datasetId, capacityId) {
     // a visible Capacity Id. Use them as-is: when the app is configured for one capacity this is the right time series.
     timeline: 'EVALUATE TOPN(350, \'Timepoint CU Detail\', \'Timepoint CU Detail\'[Window start time], DESC)',
     overage: 'EVALUATE TOPN(350, \'Timepoint Overage Detail\', \'Timepoint Overage Detail\'[Window start time], DESC)',
+    history: `EVALUATE TOPN(2000, FILTER('Item History Main', CONTAINSSTRING('Item History Main'[ItemHistoryUniquKey], "${cap}")), 'Item History Main'[ArtifactName], ASC)`,
   };
   const out = {};
   await Promise.all(Object.entries(queries).map(async ([k, q]) => {
@@ -96,13 +97,23 @@ function buildSummary(rows, capacityId, fabricWorkspaces = []) {
   const itemById = new Map((rows.items || []).map((i) => [String(i['Item Id'] || '').toUpperCase(), i]));
   const wsById = new Map((rows.workspaces || []).map((w) => [String(w['Workspace Id'] || '').toUpperCase(), w]));
   for (const w of fabricWorkspaces || []) if (w?.id && !wsById.has(String(w.id).toUpperCase())) wsById.set(String(w.id).toUpperCase(), { 'Workspace name': w.displayName || w.name || w.id });
+  const histByItem = new Map();
+  const guidRx = /[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}/ig;
+  for (const h of rows.history || []) {
+    const ids = String(h.ItemHistoryUniquKey || '').match(guidRx) || [];
+    const itemId = String(ids[2] || '').toUpperCase();
+    if (!itemId || histByItem.has(itemId)) continue;
+    histByItem.set(itemId, { name: h.ArtifactName, workspace: h.WorkspaceName, kind: h.ArtifactKind, operation: h.OperationName, usage: h.UtilizationType, billing: h['Billing type'] });
+  }
   const enrich = (r, kind) => {
-    const item = itemById.get(String(r['Item Id'] || '').toUpperCase());
+    const itemId = String(r['Item Id'] || '').toUpperCase();
+    const item = itemById.get(itemId);
+    const hist = histByItem.get(itemId);
     const ws = wsById.get(String(r['Workspace Id'] || item?.['Workspace Id'] || '').toUpperCase());
     return {
-      kind, itemId: r['Item Id'], item: item?.['Item name'] || r.Item || `Item ${String(r['Item Id'] || '').slice(0, 8)}`,
-      itemKind: item?.['Item kind'] || r['Artifact Kind'] || 'Item',
-      workspace: ws?.['Workspace name'] || item?.['Workspace name'] || (r['Workspace Id'] ? `Workspace ${String(r['Workspace Id']).slice(0, 8)}` : 'Unknown workspace'),
+      kind, itemId: r['Item Id'], item: item?.['Item name'] || hist?.name || r.Item || `Item ${String(r['Item Id'] || '').slice(0, 8)}`,
+      itemKind: item?.['Item kind'] || hist?.kind || r['Artifact Kind'] || 'Item',
+      workspace: ws?.['Workspace name'] || item?.['Workspace name'] || hist?.workspace || (r['Workspace Id'] ? `Workspace ${String(r['Workspace Id']).slice(0, 8)}` : 'Unknown workspace'),
       operation: r['Operation name'] || r.Operation || 'Operation',
       user: r.User || item?.Users || 'Unknown or service principal',
       cu: n(r['CU (s)'] ?? r['Total CU (s)']), duration: n(r['Duration (s)']), operations: n(r.Operations) || 1,
@@ -139,14 +150,25 @@ function buildSummary(rows, capacityId, fabricWorkspaces = []) {
   const interactiveCu = details.filter((r) => r.kind === 'User').reduce((a, r) => a + r.cu, 0);
   const backgroundCu = details.filter((r) => r.kind === 'Background').reduce((a, r) => a + r.cu, 0);
   const recommendations = [];
-  if (peak > 100 || maxDelay > 100 || maxReject > 0) recommendations.push('The capacity had overload signals. Start with the top items below, then move background work away from business hours or scale up during known peak windows.');
-  if (byItem[0]) recommendations.push(`${byItem[0].item} in ${byItem[0].workspace} is the biggest consumer. Check whether it is a refresh, query loop, notebook, dataflow, or long-running item and tune that first.`);
-  if (backgroundCu > interactiveCu * 1.2) recommendations.push('Background work is larger than user-triggered work. Schedule refreshes, dataflows, notebooks and pipelines outside peak hours and avoid overlapping refresh windows.');
-  if (interactiveCu > backgroundCu * 1.2) recommendations.push('User-triggered interactions dominate usage. Focus on report/semantic-model optimization, aggregations, reducing high-cardinality visuals, and training users away from broad ad-hoc queries.');
-  if (maxCarry > 0) recommendations.push('Carry-forward/overage exists. This means past usage is still being paid back; reduce bursts or enable/size overage intentionally so users are not surprised by delays.');
-  if (avgUtil < 20 && peak < 70) recommendations.push('Average utilization is low. If this pattern is typical, consider pausing the capacity outside business hours or testing a smaller SKU.');
+  const topItem = byItem[0];
+  const topWorkspace = byWorkspace[0];
+  const topOperation = byOperation[0];
+  const topKind = byKind[0];
+  const topUser = byUser[0];
+  if (topItem) {
+    const where = topItem.workspace && topItem.workspace !== topItem.item ? ` in **${topItem.workspace}**` : '';
+    recommendations.push(`Start with **${topItem.item}** (${topItem.itemKind})${where}. It used ${Math.round(topItem.cu).toLocaleString()} CU seconds across ${Math.round(topItem.operations).toLocaleString()} operations. Open the item in Capacity Metrics item history and check whether this is a refresh, long query loop, notebook/dataflow run, or always-on item; tune it before changing capacity size.`);
+  }
+  if (topOperation) recommendations.push(`The largest operation type is **${topOperation.key}** (${Math.round(topOperation.cu).toLocaleString()} CU seconds). If this operation runs on a schedule, move it outside business hours; if it is user-triggered, reduce result size, add model aggregations/indexing where applicable, and avoid repeated broad queries.`);
+  if (topWorkspace) recommendations.push(`Assign an owner to **${topWorkspace.key}**. It is the top workspace by consumption (${Math.round(topWorkspace.cu).toLocaleString()} CU seconds). Review its pipelines, dataflows, notebooks, semantic model refreshes and reports together instead of troubleshooting individual users first.`);
+  if (topKind) recommendations.push(`The busiest workload type is **${topKind.key}**. Use this to route the work: warehouses/SQL endpoints need query tuning and concurrency review; dataflows/pipelines need schedule staggering; Eventhouse/streaming needs retention and always-on review; Planning needs session and sheet usage review.`);
+  if (topUser) recommendations.push(`The most expensive user or service principal in the detail rows is **${topUser.key}** (${Math.round(topUser.cu).toLocaleString()} CU seconds). Pair that identity with the top artifact above to find the exact workflow to tune. If user detail is missing, use Capacity Metrics item history drill-through for the heavy items.`);
+  else recommendations.push('The metrics model did not expose user-level CU rows for this period. Use the **item history** drill-through in Capacity Metrics for the top artifacts to see the triggering users/service principals.');
+  if (peak > 100 || maxDelay > 100 || maxReject > 0) recommendations.push('There are overload/throttling signals. Protect business users first: move background jobs away from the peak window, reduce overlapping refreshes, and consider temporary scale-up only for predictable peaks.');
+  if (maxCarry > 0) recommendations.push(`Carry-forward reached ${Math.round(maxCarry).toLocaleString()}%. That means past bursts are still being paid back. Reduce burst size, spread background work, or intentionally configure overage/scale-up for the peak window.`);
+  if (avgUtil < 20 && peak < 70 && byItem.length) recommendations.push('Average timepoint utilization looks low while item history has real usage. That often means the capacity is bursty or timepoint data is incomplete. If this is a dev/test capacity, pause it when idle; if it is production, reserve only the stable baseline and keep pay-as-you-go for bursty periods.');
   if (!recommendations.length) recommendations.push('No obvious overload pattern was found in the metrics app data. Keep watching top items and schedule heavy background jobs away from business hours.');
-  return { cap, avgUtil, peak, maxDelay, maxReject, maxCarry, timeline, overage, ops: ops.slice(0, 40), details: details.slice(0, 40), byWorkspace, byItem, byOperation, byKind, byUser, interactiveCu, backgroundCu, recommendations };
+  return { cap, avgUtil, peak, maxDelay, maxReject, maxCarry, timeline, overage, ops: ops.slice(0, 40), details: details.slice(0, 40), byWorkspace, byItem, byOperation, byKind, byUser, interactiveCu, backgroundCu, recommendations, topItem, topWorkspace, topOperation, topKind, topUser };
 }
 
 export async function costState({ capacityId } = {}) {

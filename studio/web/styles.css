@@ -98,6 +98,13 @@ header.top p{margin:0;opacity:.92;font-size:12.5px;padding-right:420px}
 .kpi.warn{border-color:color-mix(in srgb,var(--warn) 50%,var(--line));background:color-mix(in srgb,var(--warn) 10%,var(--panel))}
 .kpi.bad{border-color:color-mix(in srgb,var(--bad) 50%,var(--line));background:color-mix(in srgb,var(--bad) 10%,var(--panel))}
 .card.compact{padding:13px 15px}
+.visual-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:18px;margin:18px 0}
+.card.visual{padding:15px;display:flex;flex-direction:column;gap:8px}
+.card.visual .chart{box-shadow:none;margin:0;max-width:100%;padding:8px 10px}
+.card.visual .chart svg{max-height:260px}
+.card.visual .clegend{font-size:12px;gap:10px}
+.card.visual .cvals{display:none}
+.vnote{border-top:1px solid var(--line);padding-top:8px;font-size:12px;color:var(--muted)}
 .ranklist{display:flex;flex-direction:column;gap:9px;margin-top:10px}
 .rank{min-width:0}
 .rhead{display:flex;justify-content:space-between;gap:12px;align-items:baseline;font-size:12.5px}
