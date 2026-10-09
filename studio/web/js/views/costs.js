@@ -50,12 +50,12 @@ function rankList({ title, subtitle, rows, label, value, meta, empty = 'No rows 
 function operationEvidence(rows) {
   if (!rows?.length) return null;
   return h('div', { class: 'evidence' },
-    rows.slice(0, 4).map((r) => h('div', {},
-      h('b', {}, short(r.key, 32)),
+    rows.slice(0, 4).map((r) => h('div', { class: 'evrow' },
+      h('b', {}, r.key),
       h('span', {}, [
-        r.topItem ? short(r.topItem, 34) : 'No artifact name',
+        r.topItem || 'No artifact name',
         r.topItemKind,
-        r.topWorkspace && r.topWorkspace !== r.topItem ? short(r.topWorkspace, 30) : null,
+        r.topWorkspace && r.topWorkspace !== r.topItem ? r.topWorkspace : null,
         `${num(r.cu)} CU seconds`,
       ].filter(Boolean).join(' · ')))));
 }
