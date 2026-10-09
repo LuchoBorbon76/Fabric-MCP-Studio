@@ -144,7 +144,22 @@ function buildSummary(rows, capacityId, fabricWorkspaces = []) {
     const [item, workspace, itemKind] = x.key.split('|');
     return { ...x, item, workspace, itemKind };
   }).slice(0, 12);
-  const byOperation = sumBy(ops, (r) => r.operation, (r) => r.cu).slice(0, 10);
+  const byOperation = sumBy(ops, (r) => r.operation, (r) => r.cu).map((op) => {
+    const members = ops.filter((r) => r.operation === op.key).sort((a, b) => b.cu - a.cu);
+    const top = members[0] || {};
+    return {
+      ...op,
+      topItem: top.item || '',
+      topWorkspace: top.workspace || '',
+      topItemKind: top.itemKind || '',
+      topUser: top.user || '',
+      items: sumBy(members, (r) => `${r.item}|${r.workspace}|${r.itemKind}`, (r) => r.cu).slice(0, 3).map((x) => {
+        const [item, workspace, itemKind] = x.key.split('|');
+        return { ...x, item, workspace, itemKind };
+      }),
+      workspaces: sumBy(members, (r) => r.workspace, (r) => r.cu).slice(0, 3),
+    };
+  }).slice(0, 10);
   const byKind = sumBy(ops, (r) => r.itemKind, (r) => r.cu).slice(0, 8);
   const byUser = sumBy(details, (r) => r.user, (r) => r.cu).slice(0, 10);
   const interactiveCu = details.filter((r) => r.kind === 'User').reduce((a, r) => a + r.cu, 0);
@@ -159,7 +174,10 @@ function buildSummary(rows, capacityId, fabricWorkspaces = []) {
     const where = topItem.workspace && topItem.workspace !== topItem.item ? ` in **${topItem.workspace}**` : '';
     recommendations.push(`Start with ${topItem.item} (${topItem.itemKind})${where.replace(/\*\*/g, '')}. It used ${Math.round(topItem.cu).toLocaleString()} CU seconds across ${Math.round(topItem.operations).toLocaleString()} operations. Open the Capacity Metrics report, go to item history for this artifact, and check whether it is a refresh, long query loop, notebook/dataflow run, planning session, or always-on item. Tune this artifact before changing capacity size.`);
   }
-  if (topOperation) recommendations.push(`Operation to investigate: ${topOperation.key}. It used ${Math.round(topOperation.cu).toLocaleString()} CU seconds. If it runs on a schedule, move it outside business hours and avoid overlap with other refreshes/jobs. If it is user-triggered, reduce result size, add model aggregations or warehouse/query tuning where applicable, and avoid repeated broad queries.`);
+  if (topOperation) {
+    const tied = topOperation.topItem ? ` Most of that usage is tied to ${topOperation.topItem}${topOperation.topItemKind ? ` (${topOperation.topItemKind})` : ''}${topOperation.topWorkspace && topOperation.topWorkspace !== topOperation.topItem ? ` in ${topOperation.topWorkspace}` : ''}.` : '';
+    recommendations.push(`Operation to investigate: ${topOperation.key}. It used ${Math.round(topOperation.cu).toLocaleString()} CU seconds.${tied} If it runs on a schedule, move it outside business hours and avoid overlap with other refreshes/jobs. If it is user-triggered, reduce result size, add model aggregations or warehouse/query tuning where applicable, and avoid repeated broad queries.`);
+  }
   if (topWorkspace) recommendations.push(`Workspace to review: ${topWorkspace.key}. It is the top workspace by consumption (${Math.round(topWorkspace.cu).toLocaleString()} CU seconds). Assign an owner, review its pipelines, dataflows, notebooks, semantic model refreshes and reports together, and decide what can be paused, rescheduled, or tuned.`);
   if (topKind) recommendations.push(`Workload type to route: ${topKind.key}. Warehouses/SQL endpoints need query tuning and concurrency review; dataflows/pipelines need schedule staggering; Eventhouse/streaming needs retention and always-on review; Planning needs session and sheet usage review.`);
   if (topUser) recommendations.push(`User/service principal to contact: ${topUser.key}. It used ${Math.round(topUser.cu).toLocaleString()} CU seconds in the detail rows. Pair this identity with the top artifact above to find the exact workflow to tune. If this is a service principal, check the automation schedule and whether it retries too often.`);

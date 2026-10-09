@@ -47,6 +47,19 @@ function rankList({ title, subtitle, rows, label, value, meta, empty = 'No rows 
     })) : h('div', { class: 'empty' }, empty));
 }
 
+function operationEvidence(rows) {
+  if (!rows?.length) return null;
+  return h('div', { class: 'evidence' },
+    rows.slice(0, 4).map((r) => h('div', {},
+      h('b', {}, short(r.key, 32)),
+      h('span', {}, [
+        r.topItem ? short(r.topItem, 34) : 'No artifact name',
+        r.topItemKind,
+        r.topWorkspace && r.topWorkspace !== r.topItem ? short(r.topWorkspace, 30) : null,
+        `${num(r.cu)} CU seconds`,
+      ].filter(Boolean).join(' · ')))));
+}
+
 function visualSummary(s) {
   const x = s.summary;
   if (!x) return null;
@@ -63,7 +76,8 @@ function visualSummary(s) {
       h('div', { class: 'vnote' }, `Largest: ${kindRows[0].Type} (${num(kindRows[0]['CU seconds'])} CU seconds)`)) : null,
     topOps.length ? h('div', { class: 'card visual' },
       chart({ type: 'horizontalBar', title: 'Top operation types', subtitle: 'The kind of work creating the most load.', x: 'Operation', y: ['CU seconds'], rows: topOps, maxRows: 6 }),
-      h('div', { class: 'vnote' }, `Start with ${topOps[0].Operation}.`)) : null,
+      h('div', { class: 'vnote' }, `Start with ${topOps[0].Operation}. The details below show the artifact and workspace behind each operation.`),
+      operationEvidence(x.byOperation)) : null,
     costRows.length ? h('div', { class: 'card visual' },
       chart({ type: 'horizontalBar', title: 'Cost comparison', subtitle: 'Always-on monthly estimate for this capacity.', x: 'Option', y: ['Monthly'], format: { Monthly: 'currency' }, rows: costRows }),
       h('div', { class: 'vnote' }, `Reservation estimate saves about ${money(s.pricing.reservationSavingsMonthly)} per month if this capacity stays on.`)) : null);
@@ -168,6 +182,7 @@ function detailTables(el, s) {
   ];
   const opCols = [
     { label: 'Operation', render: (r) => r.key },
+    { label: 'Top artifact', render: (r) => h('div', {}, h('b', {}, short(r.topItem || 'Unknown item', 46)), h('div', { class: 'tiny muted' }, [r.topItemKind, r.topWorkspace].filter(Boolean).join(' · '))) },
     { label: 'CU seconds', num: true, render: (r) => num(r.cu) },
     { label: 'Operations', num: true, render: (r) => num(r.operations) },
   ];
