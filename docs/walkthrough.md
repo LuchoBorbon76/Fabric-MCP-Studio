@@ -20,12 +20,16 @@ The app opens on the **solution map**: every part below is a box on the map, gre
 with lines showing what is built from what. Select a part to see its details and the suggested next step, and
 **Open** it (or double-click it) to work on it; while you work, the map stays on top in a compact form and selecting
 a part goes straight to its page. **Overview**, **Copilot**, **Activity** and **Settings** are at the top right of
-the map.
+the map, and **Costs** shows capacity utilization and cost guidance.
 
 Everything below can be done with the quick action buttons **or** by asking Copilot. Copilot opens inside the page you
 are working in (no separate window) and asks for your approval before each change. For a quick chart in the chat, ask for
 "a chart" or "a graph in chat"; for several visuals together, ask for a "dashboard in chat". For something saved in
 Fabric, ask for a Power BI report, page or dashboard.
+
+The **Costs** tab uses the Microsoft Fabric Capacity Metrics app (or opens its install page if it is missing) to explain
+heavy-hitter workspaces, items, operations, users, background jobs, smoothing/overage and pay-as-you-go versus reservation
+costs in plain language.
 
 ## 1. Workspace
 

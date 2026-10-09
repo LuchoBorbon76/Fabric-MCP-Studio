@@ -495,6 +495,20 @@ model on it.
 
 Copilot tools: `studio_planning_status`, `studio_preview_plan`, `studio_create_plan` and `studio_create_plan_item`.
 
+## Costs & utilization
+
+The **Costs** tab gives non-technical owners a plain-English view of the Fabric capacity: average and peak utilization,
+heavy-hitter workspaces/items/operations/users, interactive (user-triggered) versus background work, smoothing and
+overage carry-forward, and practical recommendations. It uses the **Microsoft Fabric Capacity Metrics** app when it is
+installed and connected. If the app is missing, the tab opens the official AppSource install link and explains the first
+run connection steps; if the metrics model has not refreshed yet, it still shows the capacity and cost context it can
+read.
+
+The cost card estimates an always-on Azure F capacity: pay-as-you-go from Azure Retail Prices (CU-hour × CUs × 730
+hours/month) and a reservation estimate using the Azure pricing page guidance of about **41% savings**. This is planning
+guidance, not a bill: pausing pay-as-you-go capacity lowers the bill, overage/storage can increase it, and reservations
+cover the stable baseline only.
+
 ## Files
 
 | Path | Purpose |

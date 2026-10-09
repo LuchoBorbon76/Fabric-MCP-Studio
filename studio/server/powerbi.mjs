@@ -42,6 +42,11 @@ async function pbi(method, path, body, { raw = false } = {}) {
   throw new PowerBIError(`${method} ${path} failed after retries`, 0);
 }
 
+export const powerBI = pbi;
+export const listApps = () => pbi('GET', '/apps').then((r) => r?.value || []);
+export const appReports = (appId) => pbi('GET', `/apps/${appId}/reports`).then((r) => r?.value || []);
+export const groupDatasets = (workspaceId) => pbi('GET', `/groups/${workspaceId}/datasets`).then((r) => r?.value || []);
+
 /** Reports in a workspace with the semantic model each one uses (to find reports the studio didn't build). */
 export async function workspaceReports(workspaceId) {
   const r = await pbi('GET', `/groups/${workspaceId}/reports`);

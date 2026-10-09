@@ -19,6 +19,7 @@ import { renderReports } from './views/reports.js';
 import { renderRealtime } from './views/realtime.js';
 import { renderPlanning } from './views/planning.js';
 import { renderShare } from './views/share.js';
+import { renderCosts } from './views/costs.js';
 import { renderActivity } from './views/activity.js';
 import { renderSettings } from './views/settings.js';
 
@@ -33,6 +34,7 @@ const VIEWS = {
   realtime: { label: 'Real-time', render: renderRealtime },
   planning: { label: 'Planning', render: renderPlanning },
   share: { label: 'Ask & share', render: renderShare },
+  costs: { label: 'Costs & usage', render: renderCosts },
   activity: { label: 'Activity', render: renderActivity },
   settings: { label: 'Settings', render: renderSettings },
 };
