@@ -4,6 +4,7 @@ import { md } from '../md.js';
 
 let state = null;
 let selected = '';
+let installOpened = false;
 
 const money = (v) => Number.isFinite(Number(v)) ? Number(v).toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }) : 'n/a';
 const num = (v, d = 0) => Number.isFinite(Number(v)) ? Number(v).toLocaleString(undefined, { maximumFractionDigits: d }) : '–';
@@ -47,10 +48,18 @@ function rankList({ title, subtitle, rows, label, value, meta, empty = 'No rows 
 }
 
 function installCard(el, s) {
+  if (s.status === 'missing-app' && !installOpened) {
+    installOpened = true;
+    setTimeout(() => {
+      const w = window.open(s.install.url, '_blank', 'noopener');
+      toast(w ? 'Opened the Microsoft Fabric Capacity Metrics install flow.' : 'Your browser blocked the install window. Select Install app to continue.', w ? 'ok' : 'err');
+    }, 600);
+  }
   el.append(h('div', { class: 'banner warn' },
     h('div', { style: { flex: 1 } },
       h('b', {}, s.status === 'missing-app' ? 'Install the Capacity Metrics app. ' : 'Connect the Capacity Metrics app. '),
-      s.message || 'The metrics app needs to be installed and connected before the dashboard can show utilization.'),
+      s.message || 'The metrics app needs to be installed and connected before the dashboard can show utilization.',
+      h('div', { class: 'tiny muted mt' }, 'The studio opens the supported Microsoft install flow. Microsoft still asks a capacity admin to finish Install/Connect in Fabric.')),
     h('a', { class: 'btn pri', href: s.install.url, target: '_blank', rel: 'noopener' }, s.status === 'missing-app' ? 'Install app ↗' : 'Open setup ↗')));
 }
 
@@ -85,6 +94,10 @@ function recommendations(s) {
 function overview(el, s) {
   const x = s.summary;
   const cap = s.selectedCapacity;
+  const hasTime = Boolean(x?.timeline?.length);
+  const hasCarry = Boolean(x?.overage?.some((r) => r.add || r.burndown || r.cumulative));
+  const totalCuHours = (x?.byItem || []).reduce((a, r) => a + Number(r.cu || 0), 0) / 3600;
+  const topItem = x?.byItem?.[0];
   const sel = h('select', { class: 'i', style: { maxWidth: '360px' }, onchange: async (e) => { selected = e.target.value; state = null; await renderCosts(el); } },
     s.capacities.map((c) => h('option', { value: c.id, selected: c.id === s.selectedCapacityId || undefined }, `${c.name || c.id} · ${c.sku || '?'} · ${c.state || '?'}`)));
   el.append(h('div', { class: 'card' },
@@ -93,9 +106,13 @@ function overview(el, s) {
       h('div', { class: 'row' }, sel, h('button', { class: 'btn', 'data-busy': 'Refreshing…', onclick: busy(null, async () => { state = null; await renderCosts(el); }) }, '↻ Refresh'), s.metricsApp?.reportUrl ? h('a', { class: 'btn', href: s.metricsApp.reportUrl, target: '_blank', rel: 'noopener' }, 'Open Capacity Metrics ↗') : h('a', { class: 'btn', href: s.install.url, target: '_blank', rel: 'noopener' }, 'Install metrics app ↗'))),
     h('div', { class: 'grid g4 mt cost-kpis' },
       card('Capacity', `${cap?.name || 'Unknown'} · ${cap?.sku || '?'}`, cap?.state || ''),
-      card('Average usage', x ? pct(x.avgUtil) : '–', 'Recent timepoints'),
-      card('Peak usage', x ? pct(x.peak) : '–', x?.peak > 100 ? 'Above the capacity line' : 'Highest recent point', x?.peak > 100 ? 'bad' : ''),
-      card('Overage / carry-forward', x ? pct(x.maxCarry) : '–', x?.maxCarry > 0 ? 'Work is being paid back' : 'No carry-forward found', x?.maxCarry > 0 ? 'warn' : ''))));
+      card('CU used', x ? `${num(totalCuHours, 1)} CU-hours` : '–', 'From item history in Capacity Metrics'),
+      hasTime
+        ? card('Peak usage', pct(x.peak), x.peak > 100 ? 'Above the capacity line' : 'Highest recent point', x.peak > 100 ? 'bad' : '')
+        : card('Timepoint usage', 'Not available', 'Metrics app has no timepoint rows yet', 'warn'),
+      hasCarry
+        ? card('Carry-forward', pct(x.maxCarry), 'Work is being paid back', 'warn')
+        : card('Top item', topItem ? short(topItem.item, 24) : 'None found', topItem ? `${num(topItem.cu)} CU seconds` : 'No item history rows'))));
 }
 
 function charts(el, s) {

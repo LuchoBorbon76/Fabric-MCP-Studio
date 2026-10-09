@@ -497,12 +497,14 @@ Copilot tools: `studio_planning_status`, `studio_preview_plan`, `studio_create_p
 
 ## Costs & utilization
 
-The **Costs** tab gives non-technical owners a plain-English view of the Fabric capacity: average and peak utilization,
-heavy-hitter workspaces/items/operations/users, interactive (user-triggered) versus background work, smoothing and
-overage carry-forward, and practical recommendations. It uses the **Microsoft Fabric Capacity Metrics** app when it is
-installed and connected. If the app is missing, the tab opens the official AppSource install link and explains the first
-run connection steps; if the metrics model has not refreshed yet, it still shows the capacity and cost context it can
-read.
+The **Costs** tab gives non-technical owners a plain-English view of the Fabric capacity: average and peak utilization
+when the metrics app has timepoint rows, heavy-hitter workspaces/items/operations/users from item history, interactive
+(user-triggered) versus background work, smoothing and overage carry-forward, and practical recommendations. It uses the
+**Microsoft Fabric Capacity Metrics** app when it is installed and connected. If the app is missing, the tab opens the
+official AppSource install flow and explains the required first-run connection steps; Microsoft still requires a capacity
+admin to complete the **Install** and **Connect** screens in Fabric. If the metrics model has not refreshed a timepoint
+table yet, the tab says so instead of showing fake 0% values, and still shows heavy hitters and cost context from the
+data it can read.
 
 The cost card estimates an always-on Azure F capacity: pay-as-you-go from Azure Retail Prices (CU-hour × CUs × 730
 hours/month) and a reservation estimate using the Azure pricing page guidance of about **41% savings**. This is planning

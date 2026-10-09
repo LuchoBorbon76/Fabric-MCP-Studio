@@ -29,7 +29,8 @@ Fabric, ask for a Power BI report, page or dashboard.
 
 The **Costs** tab uses the Microsoft Fabric Capacity Metrics app (or opens its install page if it is missing) to explain
 heavy-hitter workspaces, items, operations, users, background jobs, smoothing/overage and pay-as-you-go versus reservation
-costs in plain language.
+costs in plain language. When the metrics app is missing, the studio opens the supported Microsoft install flow; a
+capacity admin still completes the Install/Connect screens in Fabric.
 
 ## 1. Workspace
 
