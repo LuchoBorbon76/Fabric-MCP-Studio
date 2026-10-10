@@ -57,10 +57,10 @@ function renderHeader() {
   const u = store.user;
   $('#avatar').textContent = u?.signedIn ? initials(u.name) : '?';
   $('#userName').textContent = u?.signedIn ? (u.name || u.upn) : 'Sign in';
-  $('#userChip').title = u?.signedIn ? `${u.upn} · ${u.tenantDomain || u.tenantId}` : 'Sign in to Microsoft Fabric';
+  $('#userChip').title = u?.signedIn ? `Signed in as ${u.upn || u.name}` : 'Sign in to Microsoft Fabric';
   const p = store.project;
   const parts = [];
-  if (u?.signedIn) parts.push(`${u.upn || u.name} · ${u.tenantDomain || 'tenant'}`);
+  if (u?.signedIn) parts.push(u.upn || u.name);
   if (store.provider) parts.push(`AI: ${store.provider.name}${store.provider.model ? ` (${store.provider.model})` : ''}`);
   if (p?.workspace) parts.push(`Workspace: ${p.workspace.name}`);
   if (p?.semanticModel) parts.push(`Model: ${p.semanticModel.name}${(p.semanticModels || []).length > 1 ? ` (1 of ${p.semanticModels.length})` : ''}`);
