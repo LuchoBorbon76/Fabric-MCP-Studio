@@ -59,12 +59,16 @@ function renderHeader() {
   $('#userName').textContent = u?.signedIn ? (u.name || u.upn) : 'Sign in';
   $('#userChip').title = u?.signedIn ? `Signed in as ${u.upn || u.name}` : 'Sign in to Microsoft Fabric';
   const p = store.project;
-  const parts = [];
-  if (u?.signedIn) parts.push(u.upn || u.name);
-  if (store.provider) parts.push(`AI: ${store.provider.name}${store.provider.model ? ` (${store.provider.model})` : ''}`);
-  if (p?.workspace) parts.push(`Workspace: ${p.workspace.name}`);
-  if (p?.semanticModel) parts.push(`Model: ${p.semanticModel.name}${(p.semanticModels || []).length > 1 ? ` (1 of ${p.semanticModels.length})` : ''}`);
-  $('#subtitle').textContent = parts.length ? parts.join(' · ') : 'Build lakehouses, semantic models and ontologies in Microsoft Fabric by chatting with the Copilot you already use.';
+  const chips = [];
+  if (u?.signedIn) chips.push(['Account', u.upn || u.name]);
+  if (store.provider) chips.push(['AI', `${store.provider.name}${store.provider.model ? ` · ${store.provider.model}` : ''}`]);
+  if (p?.workspace) chips.push(['Workspace', p.workspace.name]);
+  if (p?.semanticModel) chips.push(['Model', `${p.semanticModel.name}${(p.semanticModels || []).length > 1 ? ` · 1 of ${p.semanticModels.length}` : ''}`]);
+  const sub = $('#subtitle');
+  sub.className = chips.length ? 'subchips' : '';
+  sub.replaceChildren(...(chips.length
+    ? chips.map(([label, value]) => h('span', { class: 'subchip', title: `${label}: ${value}` }, h('b', {}, label), h('span', {}, value)))
+    : ['Build lakehouses, semantic models and ontologies in Microsoft Fabric by chatting with the Copilot you already use.']));
   renderTenantBanner();
 }
 

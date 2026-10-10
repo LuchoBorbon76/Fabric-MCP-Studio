@@ -31,6 +31,10 @@ button,input,select,textarea{font:inherit;color:inherit}
 header.top{background:linear-gradient(120deg,var(--hdr1),var(--hdr2) 55%,var(--hdr3));color:#fff;padding:20px 30px 46px;position:relative}
 header.top h1{margin:0 0 4px;font-size:23px;font-weight:600;padding-right:420px;display:flex;align-items:center;gap:10px}
 header.top p{margin:0;opacity:.92;font-size:12.5px;padding-right:420px}
+header.top p.subchips{display:flex;gap:6px;align-items:center;flex-wrap:wrap;opacity:1;line-height:1.2;margin-top:4px}
+.subchip{display:inline-flex;align-items:center;gap:6px;max-width:min(100%,420px);min-width:0;padding:3px 8px;border-radius:999px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.26);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.subchip b{font-size:10px;letter-spacing:.055em;text-transform:uppercase;opacity:.74;flex-shrink:0}
+.subchip span{min-width:0;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;font-weight:600}
 .mslogo{flex:0 0 auto;border-radius:2px;background:#fff;padding:3px;box-shadow:0 1px 3px rgba(0,0,0,.25)}
 .buildchip{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:600;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.3);color:inherit;font-family:inherit;cursor:pointer;vertical-align:middle}
 .buildchip:hover{background:rgba(255,255,255,.3)}
