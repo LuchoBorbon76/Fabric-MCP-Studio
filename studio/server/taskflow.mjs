@@ -97,7 +97,9 @@ const LEGACY = { SemanticModel: { code: 3, artifactType: 'dataset' }, Report: { 
 /** All task flow canvases in the workspace: [{ id, etag, name, description, tasks, edges }]. */
 export async function listTaskFlows(workspaceId) {
   const r = await call('GET', `${await base(workspaceId)}/taskflow202602`);
-  return (Array.isArray(r) ? r : r?.taskFlows || []).map((x) => ({ ...x.taskFlow, taskFlowId: x.taskFlow?.id || null, id: x.resourceId, etag: x.etag }));
+  return (Array.isArray(r) ? r : r?.taskFlows || [])
+    .filter((x) => x?.resourceId && x.taskFlow)
+    .map((x) => ({ ...x.taskFlow, name: x.taskFlow.name || 'Task flow', taskFlowId: x.taskFlow.id || null, id: x.resourceId, etag: x.etag }));
 }
 
 export async function getTaskFlow(workspaceId, id) {
@@ -142,7 +144,7 @@ export async function patchTaskFlow(workspaceId, id, mutate) {
   for (let attempt = 1; attempt <= 3; attempt++) {
     const cur = await getTaskFlow(workspaceId, id);
     if (!cur) throw new TaskFlowError('The task flow is no longer in the workspace.', 404);
-    const flow = structuredClone({ name: cur.name, ...(cur.description !== undefined ? { description: cur.description } : {}), tasks: cur.tasks || [], edges: cur.edges || [] });
+    const flow = structuredClone({ name: cur.name || 'Task flow', ...(cur.description !== undefined ? { description: cur.description } : {}), tasks: cur.tasks || [], edges: cur.edges || [] });
     const next = mutate(flow) || flow;
     try {
       await call('PUT', `${await base(workspaceId)}/taskflow202512/${cur.id}`, { ...next, id: cur.taskFlowId }, { etag: cur.etag });

@@ -889,6 +889,7 @@ async function waitForReplica(ctx, workspaceId, ep, expected, { from, to, verify
 // Item types Fabric moves to the workspace recycle bin when item recovery is on (the default); the rest are deleted
 // for good.
 const RECOVERABLE = new Set(['Lakehouse', 'SQLDatabase', 'MirroredDatabase', 'Warehouse', 'Ontology', 'KQLDashboard', 'Eventstream']);
+const displayName = (x, fallback = 'item') => x?.name || x?.displayName || x?.itemName || x?.id || fallback;
 
 /** What "Clean up resources" deletes, in delete order: only items the studio created or mirrored – for every data source of the workspace. */
 function teardownItems(p) {
@@ -935,7 +936,7 @@ function contextTeardownItems(p) {
     ['SQLDatabase', 'SQL database', p.sqlDatabase],
   ];
   const seen = new Set();
-  return list.filter(([, , it]) => it?.id && !seen.has(it.id) && seen.add(it.id)).map(([type, label, it]) => ({ type, label, id: it.id, name: it.name || it.displayName || it.id }));
+  return list.filter(([, , it]) => it?.id && !seen.has(it.id) && seen.add(it.id)).map(([type, label, it]) => ({ type, label, id: it.id, name: displayName(it) }));
 }
 
 /** Shown before "Clean up resources" runs, so the user confirms exactly what is deleted. */
@@ -964,6 +965,8 @@ export function teardownPlan({ deleteWorkspace = false } = {}) {
 
 export async function runTeardown(ctx, { deleteWorkspace = false } = {}) {
   const p = getProject();
+  const workspace = p.workspace ? { ...p.workspace } : null;
+  const workspaceName = workspace?.name || 'the workspace';
   const views = contextViews(p).map((v) => v.view);
   discoveryCache = { key: null, at: 0, data: null };
   resetProfileCache();
@@ -971,40 +974,43 @@ export async function runTeardown(ctx, { deleteWorkspace = false } = {}) {
   // the planning warehouse that goes now – in both clean-up paths, for every data source.
   for (const v of views) {
     const pt = v.planning?.target?.kind === 'Lakehouse' ? v.planning.target : v.planStore?.shortcut ? v.planStore : null;
-    if (p.workspace && pt?.shortcut && pt.lakehouse && pt.lakehouse.id !== v.lakehouse?.id) {
-      try { await F.fabric('DELETE', `/workspaces/${pt.lakehouse.workspaceId}/items/${pt.lakehouse.id}/shortcuts/${pt.shortcut.path}/${pt.shortcut.name}`); ctx.log(`Deleted the plan shortcut in ${pt.lakehouse.name}`); } catch (e) { if (e.status !== 404) ctx.log(`Could not delete the plan shortcut in ${pt.lakehouse.name}: ${e.message}`); }
+    if (workspace && pt?.shortcut && pt.lakehouse && pt.lakehouse.id !== v.lakehouse?.id) {
+      const lhName = displayName(pt.lakehouse, 'lakehouse');
+      try { await F.fabric('DELETE', `/workspaces/${pt.lakehouse.workspaceId}/items/${pt.lakehouse.id}/shortcuts/${pt.shortcut.path}/${pt.shortcut.name}`); ctx.log(`Deleted the plan shortcut in ${lhName}`); } catch (e) { if (e.status !== 404) ctx.log(`Could not delete the plan shortcut in ${lhName}: ${e.message}`); }
     }
   }
   // The project starts empty again; only the glossary is kept for the next project.
   const empty = { workspace: null, ...blankSourcesPatch(), glossary: p.glossary || '', tenant: null, steps: {} };
-  if (deleteWorkspace && p.workspace?.created) {
+  if (deleteWorkspace && workspace?.created) {
     stopSimulator('clean up');
-    ctx.step(`Delete workspace ${p.workspace.name}`);
-    await F.deleteWorkspace(p.workspace.id);
+    ctx.step(`Delete workspace ${workspaceName}`);
+    await F.deleteWorkspace(workspace.id);
     updateProject(empty);
     clearDataPrepFiles();
-  } else if (p.workspace) {
+  } else if (workspace) {
     ctx.step('Delete items created by the studio');
     stopSimulator('clean up');
     for (const v of views) {
       const tf = v.realtime?.medallion?.taskFlow;
       if (tf?.id) {
-        try { ctx.log((await deleteTaskFlow(p.workspace.id, tf.id)) ? `Deleted task flow "${tf.name}"` : `Task flow "${tf.name}" was already deleted`); } catch (e) { ctx.log(`Could not delete task flow "${tf.name}": ${e.message}`); }
+        const tfName = displayName(tf, 'task flow');
+        try { ctx.log((await deleteTaskFlow(workspace.id, tf.id)) ? `Deleted task flow "${tfName}"` : `Task flow "${tfName}" was already deleted`); } catch (e) { ctx.log(`Could not delete task flow "${tfName}": ${e.message}`); }
       }
     }
     const mf = p.taskFlow;
     if (mf?.id) {
-      try { ctx.log(await WTF.teardownTaskFlow()); } catch (e) { ctx.log(`Could not ${mf.mode === 'existing' ? 'take the studio\'s items off' : 'delete'} task flow "${mf.name}": ${e.message}`); }
+      const mfName = displayName(mf, 'task flow');
+      try { ctx.log(await WTF.teardownTaskFlow()); } catch (e) { ctx.log(`Could not ${mf.mode === 'existing' ? 'take the studio\'s items off' : 'delete'} task flow "${mfName}": ${e.message}`); }
     }
     for (const it of teardownItems(p)) {
-      if (it.type === 'MirroredDatabase') { try { await F.stopMirroring(p.workspace.id, it.id); } catch { /* already stopped */ } }
-      try { await F.deleteItem(p.workspace.id, it.id); ctx.log(`Deleted ${it.name} (${it.label.replace(/ \(.*\)$/, '')})`); } catch (e) { ctx.log(e.status === 404 ? `${it.name} was already deleted` : `Could not delete ${it.name}: ${e.message}`); }
-      if (it.type === 'Ontology') await deleteOntologyCompanions(p.workspace.id, it.id, ctx.log);
+      if (it.type === 'MirroredDatabase') { try { await F.stopMirroring(workspace.id, it.id); } catch { /* already stopped */ } }
+      try { await F.deleteItem(workspace.id, it.id); ctx.log(`Deleted ${it.name} (${it.label.replace(/ \(.*\)$/, '')})`); } catch (e) { ctx.log(e.status === 404 ? `${it.name} was already deleted` : `Could not delete ${it.name}: ${e.message}`); }
+      if (it.type === 'Ontology') await deleteOntologyCompanions(workspace.id, it.id, ctx.log);
     }
     // The project starts empty again: the workspace itself stays in Fabric, but the studio no longer points to it.
     updateProject(empty);
     clearDataPrepFiles();
-    ctx.log(`The project is empty again – ${p.workspace.name} stays in Fabric; choose a workspace to start a new one`);
+    ctx.log(`The project is empty again – ${workspaceName} stays in Fabric; choose a workspace to start a new one`);
   }
   return { ok: true };
 }

@@ -184,6 +184,8 @@ function contextItems(p, ws, put) {
   }
 }
 
+const flowName = (tf) => tf?.name || tf?.id || 'task flow';
+
 // ---------------- task flows already in the workspace: which task takes which role ----------------
 
 const EVENT = /event|stream|real[\s-]?time|kql|eventhouse|telemetry|iot|live|speed/i;
@@ -518,9 +520,10 @@ async function applyTaskFlow(ctx, { choice, overrides } = {}) {
 
 /** Stop using a task flow: delete the studio's own canvas, or take the studio's items off a flow people made. */
 async function leave(tf, ws) {
+  const name = flowName(tf);
   if (tf.mode === 'existing') {
     const ids = new Set(Object.values(tf.assigned || {}).flat());
-    if (!ids.size) return `Nothing of the studio's was on "${tf.name}"`;
+    if (!ids.size) return `Nothing of the studio's was on "${name}"`;
     try {
       let n = 0;
       await TF.patchTaskFlow(ws, tf.id, (flow) => {
@@ -532,13 +535,13 @@ async function leave(tf, ws) {
         }
         return flow;
       });
-      return `Took ${n} of the studio's assignment${n === 1 ? '' : 's'} off "${tf.name}" – the task flow stays`;
+      return `Took ${n} of the studio's assignment${n === 1 ? '' : 's'} off "${name}" – the task flow stays`;
     } catch (e) {
-      if (e.status === 404) return `"${tf.name}" is no longer in the workspace`;
+      if (e.status === 404) return `"${name}" is no longer in the workspace`;
       throw e;
     }
   }
-  return (await TF.deleteTaskFlow(ws, tf.id)) ? `Deleted the task flow "${tf.name}" (the items stay)` : `The task flow "${tf.name}" was already deleted`;
+  return (await TF.deleteTaskFlow(ws, tf.id)) ? `Deleted the task flow "${name}" (the items stay)` : `The task flow "${name}" was already deleted`;
 }
 
 /** Keep the task flow in step with new or removed items (quietly; only when there is one). */
