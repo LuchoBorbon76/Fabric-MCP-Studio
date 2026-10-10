@@ -86,6 +86,7 @@ const ITEM_ICON = { Lakehouse: 'lake', Warehouse: 'warehouse', MirroredDatabase:
 const ITEM_PATH = { Lakehouse: 'lakehouses', Warehouse: 'warehouses', MirroredDatabase: 'mirroreddatabases', SQLDatabase: 'sqldatabases', SemanticModel: 'datasets', Ontology: 'ontologies', Eventhouse: 'eventhouses', Eventstream: 'eventstreams', Notebook: 'synapsenotebooks', DataAgent: 'aiskills' };
 const METHOD = { files: 'Loaded', 'sql-database': 'Loaded', mirror: 'Mirroring', shortcut: 'Shortcuts', 'in-place': 'In place' };
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const DATA_JOB_KINDS = new Set(['sample', 'mirror', 'shortcut', 'data-prep']);
 
 export function fabricItemUrl(type, workspaceId, id) {
   if (!workspaceId || !id || !ITEM_PATH[type]) return null;
@@ -95,6 +96,13 @@ export function fabricItemUrl(type, workspaceId, id) {
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const firstReason = (m) => m?.reasons?.find((r) => r.status === 'error') || m?.reasons?.find((r) => r.status === 'warn');
 const when = (iso) => (iso ? new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '–');
+const ts = (iso) => (iso ? Date.parse(iso) || 0 : 0);
+
+function staleForCurrentData(job, nodeId, p) {
+  if (!job || !DATA_JOB_KINDS.has(job.kind) || !['source', 'data'].includes(nodeId)) return false;
+  const connectedAt = Math.max(ts(p.steps?.data?.at), ...((p.sources || []).filter((s) => s.key === p.sourceKey).map((s) => ts(s.addedAt))));
+  return connectedAt && connectedAt > Math.max(ts(job.endedAt), ts(job.startedAt));
+}
 
 /** What each part shows: configured or not, name, one-line summary, link and facts for the inspector. */
 function describe(id, s) {
@@ -254,7 +262,7 @@ export function buildGraph(s = store) {
     if (!signedIn) { n.avail = false; n.needs = 'Sign in first'; }
     n.state = n.done ? 'done' : n.avail ? 'available' : 'off';
     const job = running.find((j) => JOB_NODES[j.kind]?.includes(d.id));
-    const last = jobs.find((j) => JOB_NODES[j.kind]?.includes(d.id));
+    const last = jobs.find((j) => JOB_NODES[j.kind]?.includes(d.id) && !staleForCurrentData(j, d.id, p));
     if (job || (cleaning && n.done)) { n.state = 'running'; n.job = job || running.find((j) => j.kind === 'teardown'); }
     else if (!n.done && last && ['failed', 'interrupted'].includes(last.status)) { n.state = 'failed'; n.error = last.error || 'The last run didn\'t finish.'; n.job = last; }
     // Configured, but the last change to it failed (for example binding live events to the ontology): the part works
