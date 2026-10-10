@@ -16,6 +16,7 @@ import { itemNameFor, purposeOf, freeAcrossSources } from '../naming.mjs';
 
 const PREVIEW_DIR = join(DATA_DIR, 'previews');
 let profileCache = { key: null, at: 0, data: null };
+const fail = (message, status = 400) => Object.assign(new Error(message), { status });
 
 export function reportsCatalog() {
   return {
@@ -26,8 +27,8 @@ export function reportsCatalog() {
 
 export function requireModel() {
   const p = getProject();
-  if (!p.workspace) throw new Error('Select a workspace first.');
-  if (!p.semanticModel?.id) throw new Error('Create the semantic model first (Semantic model tab). Reports are built on it.');
+  if (!p.workspace) throw fail('Select a workspace first.');
+  if (!p.semanticModel?.id) throw fail('Create the semantic model first (Semantic model tab). Reports are built on it.');
   return p;
 }
 
