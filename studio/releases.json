@@ -110,6 +110,6 @@
     { "date": "2026-10-10", "type": "fix", "commit": "899190e", "title": "The header subtitle now shows only the signed-in account, not the tenant name repeated next to it" },
     { "date": "2026-10-10", "type": "improvement", "commit": "0737aa7", "title": "The header context is cleaner: account, AI provider, workspace and model are shown as labeled chips that wrap instead of one long line" },
     { "date": "2026-10-10", "type": "fix", "commit": "8142f05", "title": "Clean up resources no longer fails at the end after deleting items; the workspace name is kept for the final message, deleted task flows are handled cleanly, and malformed task-flow metadata is ignored" },
-    { "date": "2026-10-10", "type": "fix", "title": "GitHub Copilot sign-in no longer starts a new device-login prompt when GitHub CLI is already signed in; it checks the existing gh session first and gives a useful error when Copilot access is still not accepted" }
+    { "date": "2026-10-10", "type": "fix", "commit": "eed7af0", "title": "GitHub Copilot sign-in no longer starts a new device-login prompt when GitHub CLI is already signed in; it checks the existing gh session first and gives a useful error when Copilot access is still not accepted" }
   ]
 }
