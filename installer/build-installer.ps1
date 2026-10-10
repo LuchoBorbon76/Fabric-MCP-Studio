@@ -78,6 +78,12 @@ $readme = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'README.txt'))
 $readme = $readme.Replace('{{REPO}}', $RepoUrl).Replace('{{BRANCH}}', $Branch).Replace('{{INSTALLDIR}}', $InstallDir).Replace('{{VERSION}}', $version).Replace('{{MINNODE}}', $minNode).Replace('{{BUILT}}', (Get-Date -Format 'yyyy-MM-dd'))
 [IO.File]::WriteAllText((Join-Path $root 'README.txt'), (& $crlf $readme), $utf8Bom)
 
+# Non-technical install/use instructions, available before the app is installed.
+$guide = Join-Path $repo 'docs\Fabric-MCP-Studio-User-Guide.pdf'
+if (Test-Path -LiteralPath $guide) {
+    Copy-Item -LiteralPath $guide -Destination (Join-Path $root 'Fabric-MCP-Studio-User-Guide.pdf') -Force
+}
+
 if (-not (Test-Path -LiteralPath $OutDir)) { New-Item -ItemType Directory -Path $OutDir -Force | Out-Null }
 $zip = Join-Path $OutDir 'Fabric-MCP-Studio-Installer.zip'
 if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }

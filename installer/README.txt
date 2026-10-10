@@ -15,8 +15,10 @@ This installer downloads the app from its GitHub repository and sets everything 
 INSTALL
 -------
 1. Extract this zip file (right-click > Extract All). Don't run the files from inside the zip.
-2. Double-click "Install Fabric MCP Studio.cmd".
-3. Answer the questions. The installer:
+2. Open this README.txt if you need quick install/update/uninstall instructions. For a complete app walkthrough, open
+   "Fabric-MCP-Studio-User-Guide.pdf" in the same folder.
+3. Double-click "Install Fabric MCP Studio.cmd".
+4. Answer the questions. The installer:
    - checks the prerequisites and shows what is installed, missing or too old;
    - installs what is missing (it asks first; Windows may ask for permission):
        required : Git (with Git Credential Manager), Node.js LTS {{MINNODE}} or later (with npm)
@@ -25,9 +27,18 @@ INSTALL
      access to the repository);
    - installs the app's packages (about 150 MB);
    - creates the "Fabric MCP Studio" desktop shortcut and offers to start the app.
-4. In the app: sign in with your Microsoft Entra work account and choose your AI provider in Settings.
+5. In the app: sign in with your Microsoft Entra work account, choose your AI provider in Settings, then select
+   "Check setup".
 
 Only want to see what is installed? Double-click "Check prerequisites.cmd" (it changes nothing).
+
+
+INSTRUCTIONS FILES
+------------------
+- README.txt (this file): installer instructions, update/uninstall steps, command-line options and troubleshooting.
+- Fabric-MCP-Studio-User-Guide.pdf: full step-by-step app instructions with screenshots, written for people without a
+  technical background.
+- After install, the same guide is also in the app folder under docs\Fabric-MCP-Studio-User-Guide.pdf.
 
 
 UPDATE

@@ -31,19 +31,43 @@ The app opens on a **solution map**: a lineage diagram of every part above – f
 the semantic model to reports, plans, answers, agents and the real-time items – showing what is built from what.
 Parts stay greyed out until they are configured and light up as you build; select one to see its details or open it.
 
+## Install for external users
+
+For customers, partners or anyone who should not work from a Git clone, share the **Windows installer zip**:
+
+```powershell
+.\installer\build-installer.ps1
+```
+
+This creates `dist\Fabric-MCP-Studio-Installer.zip`. The external user:
+
+1. Downloads and extracts the zip (right-click **Extract All**; don't run it from inside the zip).
+2. Opens `README.txt` in the extracted folder for the install instructions.
+3. Double-clicks **Install Fabric MCP Studio.cmd**.
+4. Lets the installer check/install prerequisites:
+   - required: Git with Git Credential Manager, Node.js LTS with npm;
+   - optional: Azure CLI (reuse `az login`) and GitHub CLI (private repo / GitHub Copilot sign-in).
+5. Starts the app from the **Fabric MCP Studio** desktop shortcut.
+6. Signs in with their Microsoft Entra work account, chooses an AI provider in **Settings › AI provider**, and runs
+   **Check setup**.
+
+If this repository is private, the installer opens a GitHub sign-in window once; the user needs read access to this repo.
+If you want non-technical users to avoid GitHub entirely, publish/share a release package or zip from a location they can
+read, or run the installer with `-GitHubToken` for controlled unattended installs.
+
+**Instruction files included with the installer:**
+
+- `README.txt` – quick install, update, uninstall and troubleshooting instructions for the extracted installer folder.
+- `Fabric-MCP-Studio-User-Guide.pdf` – full step-by-step user guide with screenshots for non-technical users.
+
+Developers can still run from source:
+
 ```powershell
 git clone https://github.com/luisbor_microsoft/Fabric-MCP-Studio.git
 cd Fabric-MCP-Studio
 .\Start-Studio.cmd            # Windows  (macOS/Linux: ./studio/start-studio.sh)
 .\scripts\create-shortcut.ps1 # optional: "Fabric MCP Studio" desktop icon, runs in the background (-StartMenu adds it to the Start menu)
 ```
-
-**Share it as an installer (Windows):** `.\installer\build-installer.ps1` builds `dist\Fabric-MCP-Studio-Installer.zip`.
-Whoever extracts it and double-clicks *Install Fabric MCP Studio.cmd* gets a prerequisites check (installed, missing or
-too old), the missing tools (Git, Node.js LTS; optionally Azure CLI and GitHub CLI – via winget, it asks first), the app
-cloned from this repository (a private repository asks them to sign in to GitHub – they need read access), its packages
-and the desktop shortcut. Running it again updates the app and keeps their data; *Check prerequisites.cmd* and
-*Uninstall Fabric MCP Studio.cmd* are in the zip too. Details: `installer/README.txt`.
 
 Requirements: Node.js 20.19+, a Microsoft Entra work account with Fabric access, and one AI provider.
 Details: [studio/README.md](studio/README.md) · Step-by-step: [docs/walkthrough.md](docs/walkthrough.md).
