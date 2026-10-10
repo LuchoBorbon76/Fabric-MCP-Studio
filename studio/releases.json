@@ -112,7 +112,7 @@
     { "date": "2026-10-10", "type": "fix", "commit": "8142f05", "title": "Clean up resources no longer fails at the end after deleting items; the workspace name is kept for the final message, deleted task flows are handled cleanly, and malformed task-flow metadata is ignored" },
     { "date": "2026-10-10", "type": "fix", "commit": "eed7af0", "title": "GitHub Copilot sign-in no longer starts a new device-login prompt when GitHub CLI is already signed in; it checks the existing gh session first and gives a useful error when Copilot access is still not accepted" },
     { "date": "2026-10-10", "type": "fix", "commit": "b249009", "title": "Reports profile now returns the expected user-facing Create the semantic model first state instead of a server error when no semantic model exists" },
-    { "date": "2026-10-10", "type": "improvement", "title": "Settings has a Diagnostics card that downloads a redacted troubleshooting bundle with version, project summary, readiness, jobs, activity and recent logs" },
-    { "date": "2026-10-10", "type": "improvement", "title": "Safe demo mode (STUDIO_DEMO=1) uses mock Fabric data and blocks writes for training/screenshots, and npm run smoke starts that mode to regression-check key endpoints without touching Fabric" }
+    { "date": "2026-10-10", "type": "improvement", "commit": "26217df", "title": "Settings has a Diagnostics card that downloads a redacted troubleshooting bundle with version, project summary, readiness, jobs, activity and recent logs" },
+    { "date": "2026-10-10", "type": "improvement", "commit": "26217df", "title": "Safe demo mode (STUDIO_DEMO=1) uses mock Fabric data and blocks writes for training/screenshots, and npm run smoke starts that mode to regression-check key endpoints without touching Fabric" }
   ]
 }
