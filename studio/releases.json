@@ -115,6 +115,6 @@
     { "date": "2026-10-10", "type": "improvement", "commit": "26217df", "title": "Settings has a Diagnostics card that downloads a redacted troubleshooting bundle with version, project summary, readiness, jobs, activity and recent logs" },
     { "date": "2026-10-10", "type": "improvement", "commit": "26217df", "title": "Safe demo mode (STUDIO_DEMO=1) uses mock Fabric data and blocks writes for training/screenshots, and npm run smoke starts that mode to regression-check key endpoints without touching Fabric" },
     { "date": "2026-10-10", "type": "improvement", "commit": "aef25c4", "title": "Audit log is now a smaller fixed-height card with its own scrollbar and sticky filter header, so the Activity page is easier to scan" },
-    { "date": "2026-10-10", "type": "improvement", "title": "GitHub README and installer instructions now explain the external-user install path, and the installer zip includes the full user guide PDF next to README.txt" }
+    { "date": "2026-10-10", "type": "improvement", "commit": "30b7e35", "title": "GitHub README and installer instructions now explain the external-user install path, and the installer zip includes the full user guide PDF next to README.txt" }
   ]
 }
