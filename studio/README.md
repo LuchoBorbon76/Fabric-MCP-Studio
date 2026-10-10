@@ -50,6 +50,14 @@ The first run installs dependencies (~150 MB, includes the GitHub Copilot runtim
 `http://127.0.0.1:4870`. Launching it again while it is running just reopens the running copy in your browser.
 Options: `--port 5000`, `--no-open`, `--check` (readiness checks only), `--new-instance` (start another copy).
 
+**Safe demo / training mode:** start with `STUDIO_DEMO=1 npm start` (PowerShell: `$env:STUDIO_DEMO=1; npm start`) to
+show a realistic project without calling Fabric or changing anything. Demo mode is read-only and uses mock workspaces,
+data, reports, costs and readiness results for training, screenshots and regression checks.
+
+**Diagnostics and smoke checks:** Settings › Diagnostics downloads a redacted JSON bundle (version, project summary,
+readiness, jobs, activity and recent logs). Developers can run `npm run smoke` to start the app in safe demo mode and
+verify the high-value endpoints, provider cards and write blocking without touching Fabric.
+
 The desktop icon starts the studio in the background, with no console window (`Start-Studio-Silent.wsf`, Windows
 Script Host). Stop it with **Shut down** in the app header; server output goes to `studio/data/studio.log` (after
 *Restart now*, to `studio.log` or `studio.restart.log` – whichever the running copy isn't writing to).

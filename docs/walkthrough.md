@@ -16,6 +16,10 @@ connected to the same MCP servers. Allow 30–45 minutes the first time.
 - [ ] **Check setup** shows green for Microsoft Entra, Fabric capacity, your AI provider and the MCP servers
 - [ ] Optional: pick your AI provider in **Settings › AI provider** (Azure AI Foundry / Azure OpenAI by default, OpenAI, Anthropic, local; GitHub Copilot in developer mode)
 
+For training or screenshots without touching Fabric, start the studio in safe demo mode (`STUDIO_DEMO=1`). It is
+read-only and shows mock workspaces, data, reports and costs. If something fails, Settings › Diagnostics downloads a
+redacted troubleshooting bundle with version, readiness, project summary, activity and recent logs.
+
 The app opens on the **solution map**: every part below is a box on the map, greyed out until it is configured,
 with lines showing what is built from what. Select a part to see its details and the suggested next step, and
 **Open** it (or double-click it) to work on it; while you work, the map stays on top in a compact form and selecting

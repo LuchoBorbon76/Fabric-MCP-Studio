@@ -598,7 +598,7 @@ async function refresh() {
   try {
     const b = await get('/bootstrap');
     updateKnown = Object.prototype.hasOwnProperty.call(b, 'update');
-    Object.assign(store, { version: b.version, build: b.build || null, update: b.update || (routeMissing ? store.update : null), user: b.user, settings: b.settings, provider: b.provider, providers: b.providers, project: b.project, naming: b.naming || null, catalog: b.catalog, chats: b.chats, approvals: b.approvals, preset: b.preset, platform: b.platform, realtime: b.realtime || null, planning: b.planning || null, readiness: b.readiness || store.readiness || null });
+    Object.assign(store, { version: b.version, build: b.build || null, update: b.update || (routeMissing ? store.update : null), user: b.user, settings: b.settings, provider: b.provider, providers: b.providers, project: b.project, naming: b.naming || null, catalog: b.catalog, chats: b.chats, approvals: b.approvals, preset: b.preset, platform: b.platform, realtime: b.realtime || null, planning: b.planning || null, readiness: b.readiness || store.readiness || null, demoMode: Boolean(b.demoMode) });
     readinessKey = [b.project?.workspace?.id, b.project?.modelSource?.itemId, Boolean(b.project?.realtime)].join('|');
     presetSource = b.project?.source?.id || null;
     dataSourceKey = dataKey(b.project);

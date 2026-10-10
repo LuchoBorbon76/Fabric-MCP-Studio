@@ -8,7 +8,7 @@ let draftProvider = null;
 
 export function renderSettings(el) {
   el.append(h('div', { class: 'grid g2' },
-    h('div', { class: 'col', style: { gap: '14px' } }, providerCard(), approvalsCard(), aboutCard()),
+    h('div', { class: 'col', style: { gap: '14px' } }, providerCard(), approvalsCard(), diagnosticsCard(), aboutCard()),
     h('div', { class: 'col', style: { gap: '14px' } }, mcpCard(), entraCard(), dangerCard())));
 }
 
@@ -21,10 +21,30 @@ function aboutCard() {
     h('dl', { class: 'kv' },
       h('dt', {}, 'Build'), h('dd', {}, store.build ? `${store.build.commit} · ${store.build.date}` : '– (not a git copy)'),
       h('dt', {}, 'Disclaimer'), h('dd', {}, s?.acceptedAt ? `Acknowledged ${new Date(s.acceptedAt).toLocaleDateString()}` : 'Not acknowledged yet'),
-      store.settings?.developer ? [h('dt', {}, 'Developer mode'), h('dd', {}, 'On – GitHub Copilot is available as an AI provider')] : null),
+    store.demoMode ? [h('dt', {}, 'Safe demo mode'), h('dd', {}, 'On – read-only mock Fabric data; no Fabric changes are made')] : null,
+    store.settings?.developer ? [h('dt', {}, 'Developer mode'), h('dd', {}, 'On – GitHub Copilot is available as an AI provider')] : null),
     h('div', { class: 'row mt' },
       h('button', { class: 'btn', onclick: () => showWhatsNew() }, 'What\'s new'),
       h('button', { class: 'btn', onclick: () => showDisclaimer() }, 'Disclaimer')));
+}
+
+function diagnosticsCard() {
+  const dl = h('button', { class: 'btn pri', 'data-busy': 'Building…' }, 'Download diagnostics');
+  dl.addEventListener('click', busy(dl, async () => {
+    const bundle = await get('/diagnostics');
+    const name = `fabric-mcp-studio-diagnostics-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+    const url = URL.createObjectURL(new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' }));
+    const a = h('a', { href: url, download: name });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    toast('Diagnostics bundle downloaded', 'ok');
+  }));
+  return h('div', { class: 'card' },
+    h('h2', {}, 'Diagnostics'),
+    h('p', { class: 'lead' }, 'Download a redacted troubleshooting bundle with app version, project summary, readiness, recent jobs, activity and logs. API keys and tokens are removed.'),
+    h('div', { class: 'row' }, dl, store.demoMode ? h('span', { class: 'pill ok' }, 'Safe demo mode') : null));
 }
 
 // ---------------- AI provider ----------------

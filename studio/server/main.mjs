@@ -5,7 +5,7 @@ import { join, extname, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { WEB_ROOT, DATA_DIR, STUDIO_ROOT, VERSION, BUILD, RELEASES, getSettings, saveSettings, publicSettings, readJson, writeJson, shortHash, isDeveloper, pendingUpdate } from './config.mjs';
+import { WEB_ROOT, DATA_DIR, STUDIO_ROOT, VERSION, BUILD, RELEASES, DEMO_MODE, getSettings, saveSettings, publicSettings, readJson, writeJson, shortHash, isDeveloper, pendingUpdate } from './config.mjs';
 import { addClient, emit } from './events.mjs';
 import * as auth from './auth.mjs';
 import * as F from './fabric.mjs';
@@ -32,6 +32,8 @@ import * as ARTS from './artifacts.mjs';
 import * as COST from './costs.mjs';
 import { health } from './health.mjs';
 import { presetSummary } from './presets.mjs';
+import { diagnosticsBundle } from './diagnostics.mjs';
+import { demoApi } from './demo.mjs';
 
 
 const args = process.argv.slice(2);
@@ -154,11 +156,12 @@ const route = (method, pattern, handler) => {
 route('GET', '/api/bootstrap', async () => {
   const me = await auth.whoAmI();
   const p = getProject();
-  return { version: VERSION, build: BUILD, update: pendingUpdate(), user: me, settings: publicSettings(), provider: A.providerSummary(), providers: A.visibleProviders(), project: p, preset: presetSummary(p), naming: N.namingState(p), catalog: catalog(), jobs: listJobs().slice(0, 20), chats: A.listChats(), approvals: A.pendingApprovals(), realtime: RT.realtimeState(), planning: PL.planningState(), readiness: cachedReadiness(), platform: process.platform };
+  return { version: VERSION, build: BUILD, update: pendingUpdate(), user: me, settings: publicSettings(), provider: A.providerSummary(), providers: A.visibleProviders(), project: p, preset: presetSummary(p), naming: N.namingState(p), catalog: catalog(), jobs: listJobs().slice(0, 20), chats: A.listChats(), approvals: A.pendingApprovals(), realtime: RT.realtimeState(), planning: PL.planningState(), readiness: cachedReadiness(), platform: process.platform, demoMode: DEMO_MODE };
 });
 route('GET', '/api/update', () => ({ version: VERSION, update: pendingUpdate() }));
 route('GET', '/api/health', () => health());
 route('GET', '/api/about', () => ({ version: VERSION, build: BUILD, improvements: RELEASES.improvements, fixes: RELEASES.fixes, changes: RELEASES.changes }));
+route('GET', '/api/diagnostics', () => diagnosticsBundle());
 // The disclaimer is shown until it is acknowledged once per installation (and again when its text changes).
 route('POST', '/api/disclaimer/accept', (_, b) => {
   const version = Number(b.version) || 1;
@@ -513,6 +516,12 @@ const server = createServer(async (req, res) => {
       if (!bytes) return send(res, 404, { error: 'No chart' });
       res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
       return res.end(bytes);
+    }
+    if (DEMO_MODE && pathname.startsWith('/api/')) {
+      if (req.headers['x-studio-token'] !== TOKEN) return send(res, 401, { error: 'Unauthorized' });
+      const demo = demoApi(req.method, pathname, url.searchParams);
+      if (demo) return send(res, demo.status, demo.body);
+      if (!['GET', 'HEAD'].includes(req.method)) return send(res, 403, { error: 'Safe demo mode is read-only. Start the studio without STUDIO_DEMO=1 to make changes in Fabric.', code: 'DEMO_MODE' });
     }
     // Template uploads are raw bytes (a .pbix can be large), not JSON.
     if (pathname === '/api/report-templates/upload' && req.method === 'POST') {

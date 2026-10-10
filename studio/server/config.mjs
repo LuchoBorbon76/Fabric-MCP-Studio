@@ -10,6 +10,7 @@ export const REPO_ROOT = resolve(STUDIO_ROOT, '..');
 export const WEB_ROOT = join(STUDIO_ROOT, 'web');
 export const DATA_DIR = process.env.STUDIO_DATA_DIR ? resolve(process.env.STUDIO_DATA_DIR) : join(STUDIO_ROOT, 'data');
 export const COPILOT_HOME = join(DATA_DIR, 'copilot-home');
+export const DEMO_MODE = /^(1|true|yes|on)$/i.test(String(process.env.STUDIO_DEMO || ''));
 
 /**
  * Version from the release history (releases.json): 1.<improvements>.<fixes>. Each change also gets the version it
