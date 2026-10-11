@@ -124,7 +124,7 @@ const approvals = new Map();           // approvalId -> { resolve, info }
 const CHAT_DIR = join(DATA_DIR, 'chats');
 if (!existsSync(CHAT_DIR)) mkdirSync(CHAT_DIR, { recursive: true });
 
-export function setGitHubToken(t) { memGitHubToken = t || ''; restartClient(); }
+export function setGitHubToken(t) { memGitHubToken = t || ''; return restartClient(); }
 
 async function startRuntime({ token = '', env } = {}) {
   const c = new CopilotClient({

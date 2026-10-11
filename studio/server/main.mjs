@@ -293,15 +293,22 @@ function activeGhLogin(lines) {
   }
 }
 
-route('POST', '/api/copilot/token', async (_, b) => { developerOnly(); A.setGitHubToken(String(b.token || '').trim()); return A.copilotStatus(); });
+async function loadCopilotFromGh(ctx) {
+  const token = await runGh(['auth', 'token', '--hostname', 'github.com'], ctx, { log: false });
+  const value = token.lines.join('').trim();
+  if (token.code !== 0 || !value) throw new Error('GitHub CLI is signed in, but it could not return a token. Use Switch GitHub account, or paste a token in Settings.');
+  await A.setGitHubToken(value);
+  return A.copilotStatus();
+}
+
+route('POST', '/api/copilot/token', async (_, b) => { developerOnly(); await A.setGitHubToken(String(b.token || '').trim()); return A.copilotStatus(); });
 const runningGitHubLogin = () => listJobs().find((j) => j.kind === 'github-login' && j.status === 'running');
 route('POST', '/api/copilot/login', () => developerOnly() || runningGitHubLogin() || startJob('github-login', 'Sign in to GitHub', async (ctx) => {
   ctx.step('Check the GitHub CLI sign-in');
   const current = await runGh(['auth', 'status', '--hostname', 'github.com'], ctx);
   if (current.code === 0) {
     ctx.log('GitHub CLI is already signed in. Checking Copilot access…');
-    await A.restartClient();
-    const s = await A.copilotStatus();
+    const s = await loadCopilotFromGh(ctx);
     if (s.isAuthenticated) return { ok: true, alreadySignedIn: true };
     throw new Error(`${s.statusMessage || 'GitHub is signed in, but Copilot access was not accepted.'} If this account has a Copilot seat, paste a token with Copilot access or sign out with "gh auth logout --hostname github.com" and sign in again.`);
   }
@@ -313,8 +320,7 @@ route('POST', '/api/copilot/login', () => developerOnly() || runningGitHubLogin(
     const detail = login.lines.slice(-4).join(' ').trim();
     throw new Error(`GitHub CLI sign-in did not finish${detail ? `: ${detail}` : ` (exit ${login.code})`}. Try again, or paste a token in Settings.`);
   }
-  await A.restartClient();
-  const s = await A.copilotStatus();
+  const s = await loadCopilotFromGh(ctx);
   if (!s.isAuthenticated) throw new Error(`${s.statusMessage || 'GitHub sign-in finished, but Copilot access was not accepted.'} Choose another provider or paste a token with Copilot access.`);
   return { ok: true };
 }));
@@ -338,8 +344,7 @@ route('POST', '/api/copilot/switch', () => developerOnly() || runningGitHubLogin
     const detail = next.lines.slice(-4).join(' ').trim();
     throw new Error(`GitHub CLI sign-in did not finish${detail ? `: ${detail}` : ` (exit ${next.code})`}. Try again, or paste a token in Settings.`);
   }
-  await A.restartClient();
-  const s = await A.copilotStatus();
+  const s = await loadCopilotFromGh(ctx);
   if (!s.isAuthenticated) throw new Error(`${s.statusMessage || 'GitHub sign-in finished, but Copilot access was not accepted.'} Choose another provider or paste a token with Copilot access.`);
   return { ok: true, switched: true };
 }));
