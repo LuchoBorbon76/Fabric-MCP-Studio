@@ -498,8 +498,8 @@ route('POST', '/api/jobs/remove', (_, b) => {
 });
 onJobSucceeded((j) => { if (WTF.SYNC_KINDS.has(j.kind)) WTF.syncTaskFlow().catch(() => {}); });
 route('GET', '/api/planning', () => PL.planningState());
-route('GET', '/api/readiness', (_, __, q) => readiness({ refresh: q.get('refresh') === '1' }));
 route('GET', '/api/readiness/fixes', (_, __, q) => prerequisiteFixes({ refresh: q.get('refresh') === '1' }));
+route('GET', '/api/readiness', (_, __, q) => readiness({ refresh: q.get('refresh') === '1' }));
 route('POST', '/api/planning/preview', (_, b) => PL.planPreview(PL.planOptions(b)));
 route('GET', '/api/planning/summary', () => PL.planSummary());
 route('POST', '/api/jobs/planning', (_, b) => startJob('planning', 'Build the budget and forecast', (ctx) => PL.runPlan(ctx, PL.planOptions(b))));
