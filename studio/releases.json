@@ -148,6 +148,6 @@
     { "date": "2026-10-11", "type": "fix", "commit": "d041b4b", "title": "Generated Real-Time Dashboards now use Fabric-supported auto-refresh intervals such as 10s instead of unsupported values like 5s" },
     { "date": "2026-10-11", "type": "fix", "commit": "db1adcf", "title": "Generated Power BI visuals now use table-qualified native query references for columns so schemas with repeated names such as NAME do not break visuals" },
     { "date": "2026-10-11", "type": "fix", "commit": "3021950", "title": "Source discovery now merges declared and inferred relationships, detects self-named keys such as Date and PickupHour, and includes multiple role-playing foreign keys such as pickup and dropoff zones" },
-    { "date": "2026-10-11", "type": "improvement", "commit": "pending", "title": "Planning now labels Fabric Plan items as containers that still need a Planning Sheet, with explicit Data > Add > Connect instructions instead of implying the sheet opens prebuilt" }
+    { "date": "2026-10-11", "type": "improvement", "commit": "f72a391", "title": "Planning now labels Fabric Plan items as containers that still need a Planning Sheet, with explicit Data > Add > Connect instructions instead of implying the sheet opens prebuilt" }
   ]
 }
