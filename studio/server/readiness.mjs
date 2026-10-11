@@ -247,6 +247,27 @@ export async function readiness({ refresh = false, allowStale = false } = {}) {
 export const cachedReadiness = () => cache.data;
 export const resetReadiness = () => { cache = { key: '', at: 0, data: null, pending: null }; };
 
+export async function prerequisiteFixes({ refresh = false } = {}) {
+  const r = await readiness({ refresh });
+  const actionable = (reason) => ['error', 'warn', 'unknown'].includes(reason.status);
+  const modules = Object.values(r.modules || {}).map((m) => ({
+    id: m.id,
+    label: m.label,
+    status: m.status,
+    fixes: (m.reasons || []).filter(actionable).map((x) => ({ status: x.status, text: x.text, fix: x.fix || '', link: x.link || '' })),
+  })).filter((m) => m.status !== 'ready' || m.fixes.length);
+  const checks = (r.checks || []).filter((c) => c.status !== 'ok').map((c) => ({ id: c.id, label: c.label, status: c.status, text: c.detail, fix: c.fix || '', link: c.link || '' }));
+  return {
+    at: r.at,
+    workspace: r.workspace,
+    capacity: r.capacity,
+    role: r.role,
+    allReady: !modules.some((m) => ['blocked', 'limited'].includes(m.status)) && !checks.some((c) => ['error', 'warn'].includes(c.status)),
+    modules,
+    checks,
+  };
+}
+
 // ---------------- capacity watch ----------------
 // A paused capacity blocks most of the studio. While it is paused the studio checks it every minute (and every few
 // minutes while it runs, to notice a pause): when the state changes, readiness is checked again and pushed to the

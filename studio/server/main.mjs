@@ -20,7 +20,7 @@ import * as DP from './dataprep.mjs';
 import * as DA from './dataagent.mjs';
 import * as N from './naming.mjs';
 import { promptSuggestions } from './prompts.mjs';
-import { readiness, cachedReadiness, resetReadiness, assertModuleReady, assertLiveEventsAllowed } from './readiness.mjs';
+import { readiness, cachedReadiness, resetReadiness, prerequisiteFixes, assertModuleReady, assertLiveEventsAllowed } from './readiness.mjs';
 import { catalog } from './sources.mjs';
 import { getProject, updateProject, resetProject, getActivity, clearActivity, logActivity, assertProjectTenant, projectModels, modelWorkspaceId } from './project.mjs';
 import { startJob, listJobs, getJob, cancelJob, flushRunningJobs, onJobSucceeded, plainError } from './jobs.mjs';
@@ -499,6 +499,7 @@ route('POST', '/api/jobs/remove', (_, b) => {
 onJobSucceeded((j) => { if (WTF.SYNC_KINDS.has(j.kind)) WTF.syncTaskFlow().catch(() => {}); });
 route('GET', '/api/planning', () => PL.planningState());
 route('GET', '/api/readiness', (_, __, q) => readiness({ refresh: q.get('refresh') === '1' }));
+route('GET', '/api/readiness/fixes', (_, __, q) => prerequisiteFixes({ refresh: q.get('refresh') === '1' }));
 route('POST', '/api/planning/preview', (_, b) => PL.planPreview(PL.planOptions(b)));
 route('GET', '/api/planning/summary', () => PL.planSummary());
 route('POST', '/api/jobs/planning', (_, b) => startJob('planning', 'Build the budget and forecast', (ctx) => PL.runPlan(ctx, PL.planOptions(b))));

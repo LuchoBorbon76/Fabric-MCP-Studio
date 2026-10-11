@@ -1,6 +1,7 @@
-// What is built on a semantic model in Fabric – reports, data agents – and the data it reads. Found when an existing
-// model is added (or on request) so the map shows the whole picture. Read only: the studio never changes or deletes
-// these items, they stay the user's. A project without data takes the model's data in place (nothing is copied).
+// What is built around a semantic model/workspace in Fabric – reports, data agents, ontologies, plans, real-time items –
+// and the data it reads. Found when an existing model is added (or on request) so the map shows the whole picture. Read
+// only: the studio never changes or deletes these items, they stay the user's. A project without data takes the model's
+// data in place (nothing is copied).
 import * as F from './fabric.mjs';
 import { workspaceReports } from './powerbi.mjs';
 import { decodeText } from './reports/zip.mjs';
@@ -12,14 +13,21 @@ import { startJob, listJobs } from './jobs.mjs';
 import { isNetworkError } from './config.mjs';
 import { modelSourceItems } from './modelcheck.mjs';
 import { adoptModelSource } from './pipelines.mjs';
+import { parseName } from './naming.mjs';
 
 // Version of what a look in Fabric finds; a model looked at by an older version is looked at again (2: reports the
 // studio built are recognised by their description).
-export const LINKS_VERSION = 2;
+export const LINKS_VERSION = 3;
 // Reading a data agent's definition takes Fabric about 20 seconds: a few at a time, and not without end.
 const AGENTS_AT_ONCE = 4;
 const MAX_AGENTS = 30;
 const firstLine = (e) => String(e?.message || e).split('\n')[0].slice(0, 200);
+const stdMatch = (item, codes, p = getProject()) => {
+  const x = parseName(item.displayName || item.name || '');
+  return x && codes.includes(x.code) && (!p.naming?.domain || x.domain.toLowerCase() === p.naming.domain.toLowerCase()) && (!p.naming?.environment || x.environment.toLowerCase() === p.naming.environment.toLowerCase());
+};
+const newest = (items) => items.sort((a, b) => String(b.modifiedDateTime || b.createdDateTime || '').localeCompare(String(a.modifiedDateTime || a.createdDateTime || '')))[0] || null;
+const decodePartText = (part) => decodeText(Buffer.from(part.payload || '', 'base64'));
 
 async function inBatches(list, n, fn) {
   const out = [];
@@ -120,6 +128,87 @@ async function agentsOn(model, workspaces, notes, ctx) {
   return hits.filter(Boolean);
 }
 
+async function definitionContains(workspaceId, item, needles) {
+  if (!needles.filter(Boolean).length) return false;
+  try {
+    const text = ((await F.getDefinition(workspaceId, item.id))?.parts || []).map(decodePartText).join('\n').toLowerCase();
+    return needles.filter(Boolean).some((x) => text.includes(String(x).toLowerCase()));
+  } catch { return false; }
+}
+
+async function adoptWorkspaceArtifacts(model, linked, notes) {
+  const p = getProject();
+  const ws = p.workspace?.id;
+  if (p.semanticModel?.id !== model.id) return { ontology: null, realtime: null, plan: null, taskFlow: null };
+  if (!ws) return { ontology: null, realtime: null, plan: null, taskFlow: null };
+  const items = await F.listItems(ws).catch((e) => { notes.push(`Workspace items couldn't be listed (${firstLine(e)}).`); return []; });
+  const byType = (type) => items.filter((i) => i.type === type);
+  const sourceIds = (linked.sources || []).map((s) => s.id).filter(Boolean);
+  const sourceNames = (linked.sources || []).map((s) => s.name).filter(Boolean);
+  const needles = [model.id, model.name, ...sourceIds, ...sourceNames];
+  const patch = {};
+  let ontology = null;
+  if (!p.ontology) {
+    const onts = byType('Ontology').filter((i) => stdMatch(i, ['ONT'], p));
+    ontology = (await Promise.all(onts.map(async (i) => ({ item: i, hit: await definitionContains(ws, i, needles) })))).find((x) => x.hit)?.item || (onts.length === 1 ? onts[0] : null);
+    if (ontology) patch.ontology = { id: ontology.id, name: ontology.displayName, workspaceId: ws, sourceItemId: sourceIds[0] || null, adoptedAt: new Date().toISOString() };
+  }
+  if (!p.realtime) {
+    const eventhouse = newest(byType('Eventhouse').filter((i) => stdMatch(i, ['EH'], p)));
+    const eventstream = newest(byType('Eventstream').filter((i) => stdMatch(i, ['ES'], p)));
+    if (eventhouse || eventstream) {
+      let queryUri = null;
+      let database = null;
+      if (eventhouse) {
+        try {
+          const props = (await F.fabric('GET', `/workspaces/${ws}/eventhouses/${eventhouse.id}`))?.properties || {};
+          queryUri = props.queryServiceUri || null;
+          const dbs = await F.listItems(ws, 'KQLDatabase').catch(() => []);
+          const db = dbs.find((d) => (props.databasesItemIds || []).includes(d.id)) || null;
+          if (db) database = { id: db.id, name: db.displayName };
+        } catch (e) { notes.push(`Eventhouse "${eventhouse.displayName}" details couldn't be read (${firstLine(e)}).`); }
+      }
+      const dashboard = newest(byType('KQLDashboard').filter((i) => stdMatch(i, ['RTD'], p)));
+      const alerts = newest(byType('Reflex').filter((i) => stdMatch(i, ['ACT'], p)));
+      const kq = byType('KQLQueryset').filter((i) => stdMatch(i, ['KQS'], p));
+      const silverQueryset = kq.find((i) => /bronze.*silver|silver/i.test(i.displayName)) || null;
+      const goldQueryset = kq.find((i) => /silver.*gold|gold/i.test(i.displayName)) || null;
+      const goldModel = byType('SemanticModel').find((i) => stdMatch(i, ['SM'], p) && /live|gold/i.test(i.displayName)) || null;
+      const silverLakehouse = byType('Lakehouse').find((i) => stdMatch(i, ['LH'], p) && /silver/i.test(i.displayName)) || null;
+      patch.realtime = {
+        scenario: { id: 'adopted', label: 'Existing live events', table: 'BusinessEvents', columns: [] },
+        eventhouse: eventhouse ? { id: eventhouse.id, name: eventhouse.displayName, queryUri } : null,
+        database,
+        table: 'BusinessEvents',
+        eventstream: eventstream ? { id: eventstream.id, name: eventstream.displayName } : null,
+        dashboard: dashboard ? { id: dashboard.id, name: dashboard.displayName, url: fabricUrl('KQLDashboard', ws, dashboard.id), pages: [], tiles: null, refreshSeconds: null, adoptedAt: new Date().toISOString() } : null,
+        alerts: alerts ? { id: alerts.id, name: alerts.displayName, url: fabricUrl('Reflex', ws, alerts.id), adoptedAt: new Date().toISOString() } : null,
+        medallion: (silverQueryset || goldQueryset || goldModel || silverLakehouse) ? {
+          adoptedAt: new Date().toISOString(),
+          names: { bronze: 'BusinessEvents', silver: 'BusinessEvents_Silver', quarantine: 'BusinessEvents_Quarantine', clean: 'BusinessEvents_Silver_Dedup' },
+          items: {
+            silverQueryset: silverQueryset ? { id: silverQueryset.id, name: silverQueryset.displayName } : null,
+            goldQueryset: goldQueryset ? { id: goldQueryset.id, name: goldQueryset.displayName } : null,
+            goldModel: goldModel ? { id: goldModel.id, name: goldModel.displayName } : null,
+            silverLakehouse: silverLakehouse ? { id: silverLakehouse.id, name: silverLakehouse.displayName } : null,
+          },
+        } : null,
+        adoptedAt: new Date().toISOString(),
+      };
+    }
+  }
+  if (!p.planning?.planItem) {
+    const plan = newest(byType('Plan').filter((i) => stdMatch(i, ['PLAN'], p)));
+    if (plan && p.planning) patch.planning = { ...p.planning, planItem: { id: plan.id, name: plan.displayName, url: fabricUrl('Plan', ws, plan.id), connected: false, adoptedAt: new Date().toISOString(), sheetSetup: { required: true, reason: 'Existing Fabric Plan item adopted by the studio; create/connect a Planning Sheet in Fabric.', steps: ['Open the plan', 'Select New Planning Sheet', `Use Data > Add to pick ${model.name}`, 'Select Add, then Connect with your own sign-in'] } } };
+  }
+  if (!p.taskFlow) {
+    const taskFlow = newest(items.filter((i) => ['TaskFlow', 'DataPipeline'].includes(i.type) && stdMatch(i, ['TF'], p)));
+    if (taskFlow) patch.taskFlow = { mode: 'existing', id: taskFlow.id, name: taskFlow.displayName, adoptedAt: new Date().toISOString() };
+  }
+  if (Object.keys(patch).length) updateProject(patch);
+  return { ontology: patch.ontology?.name || null, realtime: patch.realtime?.eventhouse?.name || patch.realtime?.eventstream?.name || null, plan: patch.planning?.planItem?.name || null, taskFlow: patch.taskFlow?.name || null };
+}
+
 /** Change a project model's entry (the active one through semanticModel, so it stays in step). */
 function patchModel(id, patch) {
   const p = getProject();
@@ -157,9 +246,11 @@ export async function runModelLinks(ctx, { id, adopt = true } = {}) {
     ctx.log('The semantic model is no longer in the project (another data source or workspace is active): nothing was saved.');
     return { model: m.name, reports: reports.length, agents: agents.length, saved: false };
   }
+  const adoptedArtifacts = await adoptWorkspaceArtifacts(m, linked, notes);
   ctx.log(`${reports.length} report${reports.length === 1 ? '' : 's'}${reports.length ? `: ${reports.map((r) => r.name).join(', ')}` : ''}`);
   const back = await adoptStudioReports(m, reports, ctx);
   if (back.length) ctx.log(`Built by the studio, back in the project: ${back.map((r) => r.name).join(', ')} (they can be rebuilt and go in the org app)`);
+  for (const [kind, name] of Object.entries(adoptedArtifacts)) if (name) ctx.log(`Existing ${kind} added to the project: ${name}`);
   ctx.log(`${agents.length} data agent${agents.length === 1 ? '' : 's'}${agents.length ? `: ${agents.map((a) => a.name).join(', ')}` : ''}`);
   if (linked.sources.length) ctx.log(`Reads ${linked.sources.map((s) => `${s.name} (${s.type})`).join(', ')}`);
   for (const n of notes) ctx.log(n);
@@ -177,8 +268,8 @@ export async function runModelLinks(ctx, { id, adopt = true } = {}) {
   }
   ctx.progress(100);
   const what = [reports.length ? `${reports.length} report${reports.length === 1 ? '' : 's'}` : null, agents.length ? `${agents.length} data agent${agents.length === 1 ? '' : 's'}` : null].filter(Boolean).join(' and ');
-  logActivity('model.links', `${m.name}: ${what || 'no reports or data agents'} found in Fabric${back.length ? `; ${back.map((r) => r.name).join(', ')} built by the studio` : ''}${adopted ? `; data source ${adopted.name}` : ''}`, { semanticModelId: m.id, studioReports: back.map((r) => r.id) });
-  return { model: m.name, reports: reports.length, agents: agents.length, studioReports: back.map((r) => r.name), sources: linked.sources.map((s) => s.name), adopted: adopted?.name || null, notes };
+  logActivity('model.links', `${m.name}: ${what || 'no reports or data agents'} found in Fabric${back.length ? `; ${back.map((r) => r.name).join(', ')} built by the studio` : ''}${adopted ? `; data source ${adopted.name}` : ''}`, { semanticModelId: m.id, studioReports: back.map((r) => r.id), adoptedArtifacts });
+  return { model: m.name, reports: reports.length, agents: agents.length, studioReports: back.map((r) => r.name), sources: linked.sources.map((s) => s.name), adopted: adopted?.name || null, adoptedArtifacts, notes };
 }
 
 /** Start looking at a model (or return the search already running for it). */

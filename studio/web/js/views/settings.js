@@ -95,7 +95,7 @@ function showRecommendations(providerId, d, redraw) {
 
 export function renderSettings(el) {
   el.append(h('div', { class: 'grid g2' },
-    h('div', { class: 'col', style: { gap: '14px' } }, providerCard(), approvalsCard(), diagnosticsCard(), aboutCard()),
+    h('div', { class: 'col', style: { gap: '14px' } }, providerCard(), prerequisitesCard(), approvalsCard(), diagnosticsCard(), aboutCard()),
     h('div', { class: 'col', style: { gap: '14px' } }, mcpCard(), entraCard(), dangerCard())));
 }
 
@@ -132,6 +132,39 @@ function diagnosticsCard() {
     h('h2', {}, 'Diagnostics'),
     h('p', { class: 'lead' }, 'Download a redacted troubleshooting bundle with app version, project summary, readiness, recent jobs, activity and logs. API keys and tokens are removed.'),
     h('div', { class: 'row' }, dl, store.demoMode ? h('span', { class: 'pill ok' }, 'Safe demo mode') : null));
+}
+
+function prerequisitesCard() {
+  const body = h('div', { class: 'col' }, h('div', { class: 'row muted' }, h('span', { class: 'spin' }), 'Checking prerequisites…'));
+  const load = async () => {
+    body.replaceChildren(h('div', { class: 'row muted' }, h('span', { class: 'spin' }), 'Checking prerequisites…'));
+    try {
+      const r = await get('/readiness/fixes?refresh=1');
+      body.innerHTML = '';
+      if (r.allReady && !r.modules.length && !r.checks.length) {
+        body.append(h('div', { class: 'banner ok' }, h('div', {}, h('b', {}, 'Everything important is ready. '), 'No required prerequisite fixes were found.')));
+        return;
+      }
+      const groups = r.modules.filter((m) => m.fixes.length);
+      if (r.checks.length) body.append(h('div', { class: 'pgrp' }, h('h4', {}, 'Environment checks'), fixChips(r.checks)));
+      for (const m of groups) body.append(h('div', { class: 'pgrp' }, h('h4', {}, m.label, h('span', { class: `pill ${m.status === 'blocked' ? 'err' : 'warn'}`, style: { marginLeft: '8px' } }, m.status)), fixChips(m.fixes)));
+    } catch (e) {
+      body.replaceChildren(h('div', { class: 'banner err' }, e.message));
+    }
+  };
+  const retry = h('button', { class: 'btn', 'data-busy': 'Checking…' }, 'Check again');
+  retry.addEventListener('click', busy(retry, load));
+  load();
+  return h('div', { class: 'card' },
+    h('div', { class: 'row sp' }, h('h2', {}, 'Fix prerequisites'), retry),
+    h('p', { class: 'lead' }, 'When something is blocked or limited, this shows exactly what is missing, who can fix it, and where to go next.'),
+    body);
+}
+
+function fixChips(items) {
+  return h('div', { class: 'col', style: { gap: '8px' } }, items.map((x) => h('div', { class: `banner ${x.status === 'error' ? 'err' : x.status === 'warn' || x.status === 'unknown' ? 'warn' : ''}` },
+    h('div', {}, h('b', {}, x.text), x.fix ? h('div', { class: 'small', style: { marginTop: '4px' } }, x.fix) : null),
+    x.link ? h('a', { class: 'btn', href: x.link, target: '_blank', rel: 'noopener' }, 'Open fix ↗') : null)));
 }
 
 // ---------------- AI provider ----------------
