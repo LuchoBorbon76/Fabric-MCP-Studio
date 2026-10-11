@@ -77,8 +77,11 @@ function providerCard() {
     const tok = input({ type: 'password', placeholder: 'GitHub token (optional)' });
     const showLoginJob = (j, anchor) => {
       app.watchJob(j.id);
-      const box = h('div', { class: 'mt' });
-      anchor.after(box);
+      let box = card.querySelector(`[data-gh-job="${j.id}"]`);
+      if (!box) {
+        box = h('div', { class: 'mt', 'data-gh-job': j.id });
+        anchor.after(box);
+      }
       const render = (x) => { box.innerHTML = ''; box.append(app.jobCard(x)); };
       render(j);
       const off = on('job', (e) => { if (e.job.id !== j.id) return; render(e.job); if (e.job.status !== 'running') { off(); redraw(); } });

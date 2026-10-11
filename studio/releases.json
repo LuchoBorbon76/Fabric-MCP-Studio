@@ -119,6 +119,7 @@
     { "date": "2026-10-10", "type": "fix", "commit": "71be91d", "title": "The solution map clears stale failed data-source warnings when a newer data source is successfully connected, so a failed mirror does not keep warning after switching to a working SQL database or Fabric item" },
     { "date": "2026-10-10", "type": "fix", "commit": "d85d7ec", "title": "Settings now has an embedded Switch GitHub account flow for GitHub Copilot: it signs the active GitHub CLI account out locally, opens browser sign-in for the new account, and then verifies Copilot access" },
     { "date": "2026-10-10", "type": "fix", "commit": "ab90d67", "title": "GitHub Copilot sign-in and switch account ignore GITHUB_TOKEN, GH_TOKEN and related environment variables so browser GitHub CLI sign-in works even when a non-Copilot token is set for other tools" },
-    { "date": "2026-10-10", "type": "fix", "commit": "ac55ffd", "title": "GitHub Copilot sign-in and Switch GitHub account now show the GitHub device code as the active step, open the device page, log clear instructions, reuse an existing in-progress sign-in job on repeated clicks, and time out instead of waiting forever" }
+    { "date": "2026-10-10", "type": "fix", "commit": "ac55ffd", "title": "GitHub Copilot sign-in and Switch GitHub account now show the GitHub device code as the active step, open the device page, log clear instructions, reuse an existing in-progress sign-in job on repeated clicks, and time out instead of waiting forever" },
+    { "date": "2026-10-10", "type": "fix", "title": "Cancel now stops the GitHub CLI device-code sign-in process, marks the job cancelled, and repeated GitHub sign-in clicks reuse the same job card instead of adding duplicates" }
   ]
 }

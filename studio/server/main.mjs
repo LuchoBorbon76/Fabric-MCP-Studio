@@ -214,7 +214,9 @@ const withoutGhEnvTokens = () => Object.fromEntries(Object.entries(process.env).
 function runGh(args, ctx, { input = false, log = true } = {}) {
   return new Promise((resolveP, reject) => {
     const lines = [];
-    const child = spawn('gh', args, { shell: process.platform === 'win32', windowsHide: true, env: withoutGhEnvTokens() });
+    const child = spawn('gh', args, { windowsHide: true, env: withoutGhEnvTokens() });
+    const abort = () => { try { child.kill(); } catch { /* ignore */ } };
+    ctx?.signal?.addEventListener('abort', abort, { once: true });
     const onData = (d) => String(d).split(/\r?\n/).filter(Boolean).forEach((l) => {
       lines.push(l);
       if (log && !/^\s*-\s*Token:/i.test(l)) ctx?.log?.(l);
@@ -222,7 +224,7 @@ function runGh(args, ctx, { input = false, log = true } = {}) {
     child.stdout.on('data', onData); child.stderr.on('data', onData);
     if (input) child.stdin.end('\n'); else child.stdin.end();
     child.on('error', () => reject(new Error('GitHub CLI (gh) not found. Install it from https://cli.github.com or paste a token in Settings.')));
-    child.on('exit', (code) => resolveP({ code, lines }));
+    child.on('exit', (code) => { ctx?.signal?.removeEventListener('abort', abort); resolveP({ code, lines, aborted: Boolean(ctx?.signal?.aborted) }); });
   });
 }
 
@@ -233,12 +235,18 @@ function runGhBrowserLogin(ctx, label = 'GitHub sign-in') {
     let codeShown = false;
     let urlOpened = false;
     let done = false;
-    const child = spawn('gh', args, { shell: process.platform === 'win32', windowsHide: true, env: withoutGhEnvTokens() });
+    const child = spawn('gh', args, { windowsHide: true, env: withoutGhEnvTokens() });
+    const abort = () => {
+      try { child.kill(); } catch { /* ignore */ }
+      finish(reject, new Error(`${label} was cancelled.`));
+    };
+    ctx.signal?.addEventListener('abort', abort, { once: true });
     const finish = (fn, value) => {
       if (done) return;
       done = true;
       clearTimeout(timer);
       clearInterval(pulse);
+      ctx.signal?.removeEventListener('abort', abort);
       fn(value);
     };
     const timer = setTimeout(() => {
