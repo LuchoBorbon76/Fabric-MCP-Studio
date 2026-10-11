@@ -1184,6 +1184,13 @@ function wire(chat) {
   });
 }
 
+const missingSession = (e) => /session not found|failed to load session events|session\.resume/i.test(String(e?.message || e || ''));
+
+async function createSessionFor(chatId) {
+  const c = await getClient();
+  return c.createSession({ sessionId: chatId, ...(await sessionConfig(chatId)) });
+}
+
 export async function createChat() {
   await assertCopilotSignedIn();
   const c = await getClient();
@@ -1204,7 +1211,13 @@ async function ensureFresh(chat) {
   if (Date.now() < chat.tokenExp - 10 * 60 * 1000 && chat.ontologyId === getProject().ontology?.id && chat.sessionProvider === providerId) return;
   const c = await getClient();
   try { await chat.session.disconnect(); } catch { /* ignore */ }
-  chat.session = await c.resumeSession(chat.id, await sessionConfig(chat.id));
+  try {
+    chat.session = await c.resumeSession(chat.id, await sessionConfig(chat.id));
+  } catch (e) {
+    if (!missingSession(e)) throw e;
+    chat.session = await createSessionFor(chat.id);
+    chat.transcript.push({ role: 'system', content: 'The previous AI session expired, so the studio started a fresh session for this chat.', at: Date.now() });
+  }
   chat.sessionProvider = providerId;
   chat.tokenExp = tokenExpiresOn(SCOPES.fabric);
   chat.ontologyId = getProject().ontology?.id;
@@ -1217,10 +1230,20 @@ async function getChat(id) {
   const saved = readJson(transcriptPath(id), null);
   if (!saved) throw new Error('Chat not found');
   const c = await getClient();
-  const session = await c.resumeSession(id, await sessionConfig(id));
+  let session;
+  let restarted = false;
+  try {
+    session = await c.resumeSession(id, await sessionConfig(id));
+  } catch (e) {
+    if (!missingSession(e)) throw e;
+    session = await createSessionFor(id);
+    restarted = true;
+  }
   chat = { id, session, title: saved.title, busy: false, tokenExp: tokenExpiresOn(SCOPES.fabric), createdAt: saved.createdAt, provider: saved.provider, sessionProvider: getSettings().provider.id, transcript: saved.transcript || [] };
+  if (restarted) chat.transcript.push({ role: 'system', content: 'The previous AI session expired, so the studio started a fresh session for this chat.', at: Date.now() });
   chats.set(id, chat);
   wire(chat);
+  if (restarted) persist(chat);
   return chat;
 }
 
@@ -1236,6 +1259,14 @@ export async function sendMessage(chatId, prompt) {
   try {
     await chat.session.send({ prompt });
   } catch (e) {
+    if (missingSession(e)) {
+      chat.session = await createSessionFor(chat.id);
+      chat.sessionProvider = getSettings().provider.id;
+      chat.tokenExp = tokenExpiresOn(SCOPES.fabric);
+      wire(chat);
+      await chat.session.send({ prompt });
+      return { ok: true };
+    }
     chat.busy = false;
     throw e;
   }
