@@ -359,11 +359,24 @@ export function classifyTool(toolName, args) {
   return { write, server, tool, title: tool.replace(/[_-]+/g, ' ') };
 }
 
+export function toolDenyReason(info, args) {
+  if (BLOCKED_TOOLS[info.server]?.includes(info.tool)) {
+    return 'Ontology questions are turned off in this studio. Use list_ontology_rules or list_ontology_entities for definitions and Fabric IQ for numbers.';
+  }
+  if (info.server === 'powerbi-authoring' && info.tool === 'connection_operations') {
+    const op = String(args?.request?.operation || args?.operation || '').toLowerCase();
+    const connectionName = args?.request?.connectionName || args?.connectionName || '';
+    if (op === 'list' && !connectionName) {
+      return 'No Power BI Authoring connection is active. For data, ontology, report recommendations and source profiling, use the Studio tools (studio_describe_data, studio_query_data, studio_get_glossary, studio_describe_report_options). Use Power BI Authoring only when the user explicitly asks to edit an existing semantic model, and connect directly to that model first instead of listing an empty connection context.';
+    }
+  }
+  return null;
+}
+
 async function approve(chatId, input) {
   const info = classifyTool(input.toolName, input.toolArgs);
-  if (BLOCKED_TOOLS[info.server]?.includes(info.tool)) {
-    return { permissionDecision: 'deny', permissionDecisionReason: 'Ontology questions are turned off in this studio. Use list_ontology_rules or list_ontology_entities for definitions and Fabric IQ for numbers.' };
-  }
+  const deny = toolDenyReason(info, input.toolArgs);
+  if (deny) return { permissionDecision: 'deny', permissionDecisionReason: deny };
   if (!info.write) return { permissionDecision: 'allow' };
   const mode = getSettings().approvalMode;
   if (mode === 'readonly') {
