@@ -159,6 +159,6 @@
     { "date": "2026-10-11", "type": "fix", "commit": "d8dc556", "title": "The assistant no longer tries GitHub Copilot Space context tools in Fabric MCP Studio; those GitHub MCP calls are blocked with a clear explanation because Studio context comes from Studio/Fabric tools" },
     { "date": "2026-10-11", "type": "improvement", "commit": "d8dc556", "title": "Generic chat UI is now provider-neutral: Copilot tab/header/buttons are renamed AI Assistant while GitHub Copilot remains only the provider name" },
     { "date": "2026-10-11", "type": "improvement", "commit": "44b418f", "title": "New professional Fabric MCP Studio icon for the desktop shortcut, browser tab and app header, replacing the generic Microsoft tile with a Fabric graph motif" },
-    { "date": "2026-10-11", "type": "fix", "commit": "pending", "title": "The desktop shortcut now uses a versioned icon file so Windows does not keep showing the old cached logo after an icon refresh" }
+    { "date": "2026-10-11", "type": "fix", "commit": "122d601", "title": "The desktop shortcut now uses a versioned icon file so Windows does not keep showing the old cached logo after an icon refresh" }
   ]
 }
