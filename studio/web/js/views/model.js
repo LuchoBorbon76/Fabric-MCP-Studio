@@ -77,7 +77,7 @@ function modelCard(p) {
   const switcher = h('button', { class: 'btn', title: 'Switch to another semantic model, add an existing one or start a new one (or double-click Semantic model on the map)', onclick: () => modelsDialog() }, count > 1 ? `⇄ Models (${count})` : '⇄ Switch or add a model');
   return h('div', { class: 'card', style: { marginBottom: '14px' } },
     h('div', { class: 'row sp' },
-      h('div', {}, h('div', { class: 'row' }, h('h2', {}, sm.name), h('span', { class: `pill ${theirs ? 'brand' : 'ok'}` }, theirs ? 'Existing model' : 'Deployed'), h('span', { class: 'pill ok' }, 'Active')), h('div', { class: 'muted small' }, `${how} · ${counts}`)),
+      h('div', {}, h('div', { class: 'row' }, h('h2', {}, sm.name), h('span', { class: `pill ${theirs ? 'brand' : 'ok'}` }, theirs ? 'Existing model' : 'Deployed'), h('span', { class: 'pill ok' }, 'Active'), sm.quality ? h('span', { class: `pill ${sm.quality.status === 'ready' ? 'ok' : sm.quality.status === 'needs-review' ? 'warn' : 'err'}` }, `Quality ${sm.quality.score}/100`) : null), h('div', { class: 'muted small' }, `${how} · ${counts}`)),
       h('div', { class: 'row' },
         switcher,
         reread,
@@ -236,8 +236,9 @@ export function proposalCounts(pr) {
 }
 
 function proposalBanner(pr) {
+  const q = pr.quality;
   return h('div', { class: 'banner ok mt' },
-    h('div', { style: { flex: 1 } }, h('b', {}, 'Copilot suggested a design. '), proposalCounts(pr), pr.warnings?.length ? h('div', { class: 'tiny muted' }, `${pr.warnings.length} item(s) left out – see the review.`) : null),
+    h('div', { style: { flex: 1 } }, h('b', {}, 'Copilot suggested a design. '), proposalCounts(pr), q ? h('span', { class: `pill ${q.status === 'ready' ? 'ok' : q.status === 'needs-review' ? 'warn' : 'err'}`, style: { marginLeft: '6px' } }, `Quality ${q.score}/100`) : null, pr.warnings?.length ? h('div', { class: 'tiny muted' }, `${pr.warnings.length} item(s) left out – see the review.`) : null),
     h('button', { class: 'btn', onclick: () => reviewSuggestedMeasures(pr) }, 'Measures'),
     h('button', { class: 'btn pri', onclick: () => applyModelProposal(pr) }, '✓ Apply suggestions'));
 }
@@ -260,6 +261,7 @@ export function applyModelProposal(pr) {
     h('dl', { class: 'kv' },
       h('dt', {}, 'Semantic model'), h('dd', {}, h('b', {}, current.name), current.updatesExisting ? ' – updates the existing model' : ' – new Direct Lake model'),
       h('dt', {}, 'Data source'), h('dd', {}, store.project.modelSource?.itemName || '')),
+    current.quality ? h('div', { class: `banner ${current.quality.status === 'ready' ? 'ok' : current.quality.status === 'needs-review' ? 'warn' : 'err'}` }, h('div', {}, h('b', {}, `Quality gate: ${current.quality.summary}. `), [...(current.quality.errors || []), ...(current.quality.warnings || [])].slice(0, 4).join(' '))) : null,
     current.warnings?.length ? h('div', { class: 'banner warn' }, h('div', {}, h('b', {}, 'Left out. '), current.warnings.join(' '))) : null,
     h('h3', {}, `Tables (${pv.tables.length})`),
     tbl(['Business name', 'Source table', 'Role'], pv.tables.map((t) => h('tr', {}, h('td', {}, h('b', {}, t.name)), h('td', { class: 'mono tiny' }, t.key), h('td', {}, h('span', { class: `pill ${t.role === 'fact' ? 'brand' : ''}` }, t.role))))),

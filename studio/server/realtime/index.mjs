@@ -80,6 +80,42 @@ async function scenarioFor(p, { fresh = false } = {}) {
   return scenario;
 }
 
+function realtimeQuality(scenario) {
+  const errors = [];
+  const warnings = [];
+  let score = 100;
+  const roles = new Set((scenario.columns || []).map((c) => c.role).filter(Boolean));
+  if (!scenario.table) errors.push('No Eventhouse table name was generated.');
+  if (!scenario.columns?.length) errors.push('No event columns were generated.');
+  if (!roles.has('time')) errors.push('The live event schema has no time column.');
+  if (!roles.has('order') && !roles.has('itemKey') && !roles.has('partyKey')) warnings.push('The event schema has no obvious business key (order, item or party).');
+  if (!roles.has('amount')) warnings.push('The event schema has no amount column, so dashboard KPIs will focus on counts.');
+  if (!roles.has('rule')) warnings.push('No rule-break column was generated; Activator alerts will be limited.');
+  if (!Object.values(scenario.references || {}).some((n) => Number(n) > 0)) warnings.push('No reference data was loaded; simulated events may be generic.');
+  if (!scenario.rules?.length) warnings.push('No business-rule scenarios were generated for live events.');
+  score -= errors.length * 40;
+  score -= warnings.length * 8;
+  score = Math.max(0, Math.min(100, score));
+  const status = errors.length ? 'not-ready' : score >= 80 ? 'ready' : 'needs-review';
+  return { status, score, errors, warnings: warnings.slice(0, 10), summary: status === 'ready' ? `Ready (${score}/100)` : status === 'needs-review' ? `Needs review (${score}/100)` : `Not ready (${score}/100)` };
+}
+
+function medallionQuality(model, summary) {
+  const errors = [];
+  const warnings = [];
+  let score = 100;
+  if (!model?.checks?.length) errors.push('No Silver validation checks were generated.');
+  if (!model?.gold?.length) errors.push('No Gold aggregate views were generated.');
+  if (!summary?.names?.silver || !summary?.names?.clean) errors.push('Silver table/view names are missing.');
+  if (!model?.extras?.some((x) => x.role === 'hash')) warnings.push('No event hash column was generated; duplicate detection may be weaker.');
+  if (!model?.gold?.some((g) => /minute|hour|day/i.test(g.name))) warnings.push('No time-bucket Gold view was generated; dashboard trend tiles may be limited.');
+  score -= errors.length * 40;
+  score -= warnings.length * 8;
+  score = Math.max(0, Math.min(100, score));
+  const status = errors.length ? 'not-ready' : score >= 80 ? 'ready' : 'needs-review';
+  return { status, score, errors, warnings: warnings.slice(0, 10), summary: status === 'ready' ? `Ready (${score}/100)` : status === 'needs-review' ? `Needs review (${score}/100)` : `Not ready (${score}/100)` };
+}
+
 /** Create (or reuse) the Eventhouse, the events table and the Eventstream that feeds it. */
 export async function runRealtimeSetup(ctx, { name } = {}) {
   const p = requireWorkspace();
@@ -88,6 +124,11 @@ export async function runRealtimeSetup(ctx, { name } = {}) {
   const scenario = await scenarioFor(p, { fresh: true });
   ctx.log(`${scenario.label}: ${scenario.description}`);
   ctx.log(`Reference data: ${Object.entries(scenario.references).map(([k, v]) => `${v} ${k}`).join(', ')}`);
+  const quality = realtimeQuality(scenario);
+  ctx.step(`Real-time quality gate: ${quality.summary}`);
+  if (quality.errors.length) throw new Error(`Real-time setup is not ready: ${quality.errors.join(' ')}`);
+  ctx.log(`Quality gate: ${quality.summary}`);
+  for (const w of quality.warnings) ctx.log(`Quality warning: ${w}`);
   ctx.progress(15);
 
   const prevRt = p.realtime;
@@ -190,6 +231,7 @@ export async function runRealtimeSetup(ctx, { name } = {}) {
     alerts: same ? prev.alerts || null : null,
     medallion: same ? prev.medallion || null : null,
     medallionRemoval: same ? prev.medallionRemoval || null : null,
+    quality,
     createdAt: prev?.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -518,11 +560,16 @@ export async function runMedallion(ctx, opts = {}) {
   const ws = p.workspace;
   const rt = p.realtime;
   const model = MED.medallionModel(rt.scenario, MED.medallionOptions(opts, rt.medallion?.options));
-  const out = await MED.applyMedallion(kq(rt), model, ctx);
   const summary = MED.modelSummary(model);
+  const quality = medallionQuality(model, summary);
+  ctx.step(`Medallion quality gate: ${quality.summary}`);
+  if (quality.errors.length) throw new Error(`Medallion design is not ready: ${quality.errors.join(' ')}`);
+  ctx.log(`Quality gate: ${quality.summary}`);
+  for (const w of quality.warnings) ctx.log(`Quality warning: ${w}`);
+  const out = await MED.applyMedallion(kq(rt), model, ctx);
   const prevItems = rt.medallion?.items || {};
   updateProject({ realtime: { ...getProject().realtime, medallionRemoval: null, medallion: {
-    ...summary, items: prevItems, taskFlow: rt.medallion?.taskFlow || null, counts: out.counts, oneLake: out.oneLake,
+    ...summary, quality, items: prevItems, taskFlow: rt.medallion?.taskFlow || null, counts: out.counts, oneLake: out.oneLake,
     bronzePolicies: rt.medallion?.bronzePolicies ?? rt.medallionRemoval?.bronzePolicies ?? out.bronzePolicies, appliedAt: rt.medallion?.appliedAt || new Date().toISOString(), updatedAt: new Date().toISOString(),
   } } });
 

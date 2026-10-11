@@ -32,6 +32,9 @@ chatting with the **AI the customer already licenses**:
   reports, ontology rules, plan, live data and data source – and shown on the Overview, Ask & share and each page.
 
 Everything runs on the customer's computer, signs in to Fabric as the customer, and **asks before every change**.
+Quality gates run by default before generated artifacts are deployed: semantic models, ontology, plans and real-time
+Eventhouse/medallion designs are scored as Ready / Needs review / Not ready. Hard errors stop deployment; warnings are
+shown in the job log and stored with the artifact so weak AI suggestions do not silently create poor models or diagrams.
 
 > **Sample app, provided as is** – not an official Microsoft product or supported service. Whoever runs it sees the
 > [disclaimer](../README.md#disclaimer) once (and from the footer or **Settings › About**). The version is

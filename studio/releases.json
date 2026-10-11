@@ -129,6 +129,8 @@
     { "date": "2026-10-10", "type": "fix", "commit": "e57dfde", "title": "Copilot-suggested measures are automatically renamed when they collide with source columns or other measures in the same semantic model, and DAX references are rewritten to the safe names so Fabric accepts the model" },
     { "date": "2026-10-10", "type": "improvement", "commit": "2ddcee3", "title": "Semantic model design now shows the suggested measures from Copilot/defaults and the created measures currently visible in the active model" },
     { "date": "2026-10-10", "type": "fix", "commit": "63ad85e", "title": "Report recommendations no longer collapse around a blank headline measure: the profiler tests candidate measures and uses a populated KPI for recommendations and visuals" },
-    { "date": "2026-10-10", "type": "improvement", "commit": "63ad85e", "title": "Reports recommends measure-portfolio and operations reports when a model has many measure groups but weak segment detection, so rich report choices still appear" }
+    { "date": "2026-10-10", "type": "improvement", "commit": "63ad85e", "title": "Reports recommends measure-portfolio and operations reports when a model has many measure groups but weak segment detection, so rich report choices still appear" },
+    { "date": "2026-10-10", "type": "improvement", "title": "Semantic model creation now always runs a quality gate before deployment, blocking hard issues and showing a Ready / Needs review / Not ready score in proposals and active model cards" },
+    { "date": "2026-10-10", "type": "improvement", "title": "Ontology, planning and real-time/Eventhouse flows now run default quality gates too, logging warnings and stopping deployment when required structure, relationships or event schema pieces are missing" }
   ]
 }

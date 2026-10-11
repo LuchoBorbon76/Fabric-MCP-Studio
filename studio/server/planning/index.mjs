@@ -94,6 +94,27 @@ export async function planPreview(opts = {}) {
   return { ...rest, rows: rows.length };
 }
 
+function planQuality(pv, target) {
+  const errors = [];
+  const warnings = [];
+  let score = 100;
+  const d = pv.design;
+  if (!pv.rows) errors.push('No plan rows were generated.');
+  if (!Number.isFinite(Number(pv.totals?.budget)) || !Number(pv.totals?.budget)) errors.push('Budget total is empty.');
+  if (!Number.isFinite(Number(pv.totals?.forecast)) || !Number(pv.totals?.forecast)) errors.push('Forecast total is empty.');
+  if (!d?.date?.table || !d?.date?.month) errors.push('The plan has no date/month grain.');
+  if (!d?.dims?.length) warnings.push('No planning dimensions were selected; the plan is total-only.');
+  if (d?.dims?.some((x) => !x.members)) warnings.push('A planning dimension has no members.');
+  if (!pv.members?.length && d?.dims?.length) warnings.push('No member-level plan rows were generated for the chosen dimensions.');
+  if (!d.asOfMonth) warnings.push('No actual months are closed in the forecast yet; forecast equals the budget until actuals arrive.');
+  if (target?.replicated) warnings.push('The plan store is replicated through OneLake, so the model may need a short wait before it reads the new rows.');
+  score -= errors.length * 40;
+  score -= warnings.length * 8;
+  score = Math.max(0, Math.min(100, score));
+  const status = errors.length ? 'not-ready' : score >= 80 ? 'ready' : 'needs-review';
+  return { status, score, errors, warnings: warnings.slice(0, 10), summary: status === 'ready' ? `Ready (${score}/100)` : status === 'needs-review' ? `Needs review (${score}/100)` : `Not ready (${score}/100)` };
+}
+
 /** Columns of the plan table and how it relates to the model. */
 function planSpec(design, names, source = { schema: PLAN_SCHEMA, table: PLAN_TABLE }) {
   const used = new Set(['scenario', 'planyear', 'monthnumber', 'periodstart', 'amount', 'closedperiod', 'updatedat']);
@@ -139,6 +160,11 @@ export async function runPlan(ctx, opts = {}) {
   const pv = await previewPlan(ws.id, p.semanticModel.id, opts, { profile });
   const d = pv.design;
   const fmt = (n) => Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
+  const quality = planQuality(pv, target);
+  ctx.step(`Plan quality gate: ${quality.summary}`);
+  if (quality.errors.length) throw new Error(`Plan is not ready: ${quality.errors.join(' ')}`);
+  ctx.log(`Quality gate: ${quality.summary}`);
+  for (const w of quality.warnings) ctx.log(`Quality warning: ${w}`);
   if (!opts.planYear && pv.defaults.reason) ctx.log(pv.defaults.reason);
   ctx.log(`${d.measure.name} by month${d.dims.length ? ` × ${d.dims.map((x) => `${x.labelText} (${x.members})`).join(' × ')}` : ''} · plan year ${d.planYear} from ${d.baseYear}`);
   ctx.log(`Budget ${fmt(pv.totals.budget)} (${d.growthPct >= 0 ? '+' : ''}${d.growthPct}% on ${fmt(pv.totals.base)}${d.overrides.length ? `, ${d.overrides.length} member override${d.overrides.length === 1 ? '' : 's'}` : ''}) · forecast ${fmt(pv.totals.forecast)}${d.asOfMonth ? ` (actuals to ${monthName(d.asOfMonth)}, run rate ${pv.totals.runRate.toFixed(2)})` : ' (equals the budget until actuals arrive)'}`);
@@ -197,6 +223,7 @@ export async function runPlan(ctx, opts = {}) {
     semanticModelId: p.semanticModel.id,
     measure: d.measure, date: d.date, dims: spec.dims, planYear: d.planYear, baseYear: d.baseYear, asOfMonth: d.asOfMonth, growthPct: d.growthPct, overrides: d.overrides,
     target: { kind: target.kind, label: target.label, table: `${target.source.schema}.${target.source.table}`, warehouse: target.warehouse || null, lakehouse: target.lakehouse || null, shortcut: target.shortcut || null },
+    quality,
     spec: { modelTable: spec.modelTable, source: spec.source, columns: spec.columns, date: spec.date, dateYear: spec.dateYear, dims: spec.dims, measure: spec.measure, names: spec.names, description: spec.description, keyCols: spec.keyCols },
     totals: { ...pv.totals, checked: { budget: Number(check.budget), forecast: Number(check.forecast), actual: Number(check.actual), variance: Number(check.variance) } },
     months: pv.months, members: pv.members.slice(0, 40),

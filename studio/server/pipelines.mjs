@@ -571,6 +571,12 @@ export async function runSemanticModel(ctx, { name, include, names, relationship
   if (kpis.length) ctx.log(`${kpis.length} measures from the notebook's KPIs`);
   if (m.warnings?.length) for (const w of m.warnings) ctx.log(w);
   const dateTable = preset?.dateTable && plan.tables.some((t) => t.name === preset.dateTable.table) ? preset.dateTable : preset ? null : findDateTable(plan);
+  const quality = semanticModelQuality(plan, m, { dateTable, measureWarnings: m.warnings });
+  ctx.step(`Semantic model quality gate: ${quality.summary}`);
+  if (quality.errors.length) throw new Error(`Semantic model is not ready: ${quality.errors.join(' ')}`);
+  ctx.log(`Quality gate: ${quality.summary}`);
+  for (const w of quality.warnings.slice(0, 6)) ctx.log(`Quality warning: ${w}`);
+  ctx.progress(32);
   const modelName = modelNameFor(p, preset, name);
   // A model the user added to the project (not built by the studio) is never overwritten by a generated one.
   const theirs = (p.semanticModels || []).find((x) => x.origin === 'existing' && (x.workspaceId || ws.id) === ws.id && x.name.toLowerCase() === modelName.toLowerCase());
@@ -583,7 +589,7 @@ export async function runSemanticModel(ctx, { name, include, names, relationship
     files = reapplyPlan(files, p);
     ctx.log(`Plan ${p.planning.planYear} kept (Plan table with budget and forecast measures)`);
   }
-  ctx.log(`${Object.keys(files).length} definition parts · ${m.length} measures`);
+  ctx.log(`${Object.keys(files).length} definition parts · ${m.length} measures · quality ${quality.score}/100`);
   ctx.progress(45);
 
   ctx.step(`Deploy semantic model "${modelName}"`);
@@ -603,13 +609,13 @@ export async function runSemanticModel(ctx, { name, include, names, relationship
   updateProject({
     // sourceItemId: the item the model reads (so the item can't be removed while the model uses it). The model becomes
     // the active one; a model built before stays in the project with its own reports and data agent.
-    semanticModel: { id: item.id, name: modelName, workspaceId: ws.id, workspaceName: ws.name, origin: 'studio', storageMode: 'DirectLake', tables: plan.tables.length, measures: m.length, relationships: plan.relationships.length, sourceItemId: p.modelSource.itemId },
+    semanticModel: { id: item.id, name: modelName, workspaceId: ws.id, workspaceName: ws.name, origin: 'studio', storageMode: 'DirectLake', tables: plan.tables.length, measures: m.length, relationships: plan.relationships.length, quality, sourceItemId: p.modelSource.itemId },
     ...(proposalId && proposal?.id === proposalId ? { modelProposal: { ...proposal, appliedAt: new Date().toISOString(), semanticModelId: item.id } } : {}),
   });
   const others = (getProject().semanticModels || []).filter((x) => x.id !== item.id);
   if (isNew && others.length) ctx.log(`${modelName} is now the active model; ${others.length === 1 ? `${others[0].name} stays` : `the other ${others.length} models stay`} in the project (switch on the Semantic model page)`);
   setStep('model', 'done', modelName);
-  return { id: item.id, name: modelName, tables: plan.tables.map((t) => t.name), measures: m.map((x) => x.name), relationships: plan.relationships.length };
+  return { id: item.id, name: modelName, tables: plan.tables.map((t) => t.name), measures: m.map((x) => x.name), relationships: plan.relationships.length, quality };
 }
 
 /**
@@ -701,6 +707,56 @@ function sanitizeMeasures(plan, measures) {
   return out;
 }
 
+const WEAK_DIM = /(key|id|guid|code|phone|email|address|url|image|description|flag|status|number|row)/i;
+function semanticModelQuality(plan, measures, { dateTable = null, measureWarnings = [] } = {}) {
+  const errors = [];
+  const warnings = [...(measureWarnings || [])];
+  let score = 100;
+  const byTable = new Map(plan.tables.map((t) => [t.name, t]));
+  const measureNames = new Set();
+  const columnsByTable = new Map(plan.tables.map((t) => [t.name, new Set(t.columns.map((c) => c.name.toLowerCase()))]));
+  if (!plan.tables.length) errors.push('No tables are included.');
+  if (!measures.length) errors.push('No measures are included. Add at least one business measure before deploying.');
+  if (plan.tables.length > 1 && !plan.relationships.length) errors.push('Multiple tables are included but there are no relationships.');
+
+  for (const m of measures) {
+    const tbl = byTable.get(m.table);
+    if (!tbl) errors.push(`Measure "${m.name}" uses table "${m.table}", which is not in the model.`);
+    const key = String(m.name || '').toLowerCase();
+    if (measureNames.has(key)) errors.push(`Measure "${m.name}" is duplicated.`);
+    measureNames.add(key);
+    if (columnsByTable.get(m.table)?.has(key)) errors.push(`Measure "${m.name}" collides with a column in ${m.table}.`);
+  }
+  const unresolved = [];
+  for (const m of measures) {
+    for (const ref of String(m.expression || '').matchAll(/(?<!['\w\]])\[([^\]]+)\]/g)) {
+      const name = ref[1].replace(/]]/g, ']');
+      if (!measureNames.has(name.toLowerCase())) unresolved.push(`${m.name} → [${name}]`);
+    }
+  }
+  if (unresolved.length) warnings.push(`Some measure references do not match another measure by name (${unresolved.slice(0, 6).join(', ')}).`);
+
+  const factTables = new Set(plan.relationships.map((r) => r.from.name));
+  const dimTables = new Set(plan.relationships.map((r) => r.to.name));
+  if (!factTables.size && plan.tables.length > 1) warnings.push('No fact table was detected from relationships.');
+  if (!dimTables.size && plan.tables.length > 1) warnings.push('No dimension tables were detected from relationships.');
+  if (!dateTable) warnings.push('No date table was detected; reports will have limited time trends.');
+  const categories = plan.tables.flatMap((t) => t.columns.map((c) => ({ t, c })))
+    .filter(({ t, c }) => c.dataType === 'string' && !c.isKey && t.name !== dateTable?.table && !WEAK_DIM.test(c.name) && (t.role !== 'fact' || /category|segment|region|country|territory|channel|type|group/i.test(c.name)));
+  if (!categories.length) warnings.push('No strong breakdown dimension was detected; reports may focus on KPIs instead of segment analysis.');
+  const businessMeasures = measures.filter((m) => !/countrows|row count/i.test(m.expression || m.name));
+  if (businessMeasures.length < 3) warnings.push('Fewer than three business measures are included; reports may look sparse.');
+
+  score -= errors.length * 35;
+  score -= warnings.length * 8;
+  score = Math.max(0, Math.min(100, score));
+  const status = errors.length ? 'not-ready' : score >= 80 ? 'ready' : score >= 55 ? 'needs-review' : 'not-ready';
+  return {
+    status, score, errors, warnings: warnings.slice(0, 12),
+    summary: status === 'ready' ? `Ready (${score}/100)` : status === 'needs-review' ? `Needs review (${score}/100)` : `Not ready (${score}/100)`,
+  };
+}
+
 export function modelMeasures(plan, preset, measures, useDefaults = true) {
   let m;
   if (preset?.measures?.length) {
@@ -725,11 +781,15 @@ export async function proposeSemanticModel({ name, include, names, relationships
   if (!plan.tables.length) throw new Error('None of the suggested tables exist in the data source. Call studio_describe_data and use schema.table names.');
   const given = (measures || []).filter((x) => x?.table && x?.name && x?.expression);
   const effective = modelMeasures(plan, preset, given);
+  const propDateTable = preset?.dateTable && plan.tables.some((t) => t.name === preset.dateTable.table) ? preset.dateTable : preset ? null : findDateTable(plan);
+  const quality = semanticModelQuality(plan, effective, { dateTable: propDateTable, measureWarnings: effective.warnings });
   const warnings = [
     ...(include || []).filter((k) => !known.has(k)).map((k) => `Table ${k} doesn't exist in the data source and was left out.`),
     ...given.filter((x) => !plan.tables.some((t) => t.name === x.table)).map((x) => `Measure ${x.name} uses table "${x.table}", which isn't one of the model's business table names, and was left out.`),
     ...(relationships?.length && plan.relationships.length < relationships.length ? [`${relationships.length - plan.relationships.length} relationship(s) use tables or columns that aren't in the model and were left out.`] : []),
     ...(effective.warnings || []),
+    ...quality.warnings,
+    ...quality.errors,
   ];
   const modelName = modelNameFor(p, preset, name);
   // Snowflaked dimensions (Product → Subcategory) are on the "from" side too; only tables nothing points to are facts.
@@ -742,6 +802,7 @@ export async function proposeSemanticModel({ name, include, names, relationships
     names: names || {},
     relationships: relationships?.length ? relationships : null,
     measures: given,
+    quality,
     updatesExisting: (p.semanticModels || []).some((x) => x.origin !== 'existing' && x.name.toLowerCase() === modelName.toLowerCase()),
     preview: {
       tables: plan.tables.map((t) => ({ key: t.key, name: t.name, role: role(t) })),
@@ -756,6 +817,26 @@ export async function proposeSemanticModel({ name, include, names, relationships
 }
 
 // ---------------- ontology ----------------
+
+function ontologyQuality(out, plan, rules = []) {
+  const errors = [];
+  const warnings = [];
+  let score = 100;
+  const entityCount = Object.keys(out.entities || {}).length;
+  if (!entityCount) errors.push('No entities were generated.');
+  if (plan.tables.length > 1 && !out.relationships.length) warnings.push('No entity relationships were generated; ontology answers will have little navigation context.');
+  if (!out.rules.length) warnings.push('No business rules were generated; governance dashboards will be limited.');
+  const noKey = plan.tables.filter((t) => !t.columns.some((c) => c.isKey)).map((t) => t.name);
+  if (noKey.length) warnings.push(`${noKey.slice(0, 5).join(', ')} ${noKey.length === 1 ? 'has' : 'have'} no key column, so instance linking may be weaker.`);
+  const knownEntities = new Set(Object.values(out.entities || {}));
+  const brokenRules = (rules || []).filter((r) => r.entities?.length && r.entities.some((e) => !knownEntities.has(e.entity || e)));
+  if (brokenRules.length) warnings.push(`${brokenRules.length} rule${brokenRules.length === 1 ? '' : 's'} reference entities that were not generated.`);
+  score -= errors.length * 40;
+  score -= warnings.length * 10;
+  score = Math.max(0, Math.min(100, score));
+  const status = errors.length ? 'not-ready' : score >= 80 ? 'ready' : 'needs-review';
+  return { status, score, errors, warnings: warnings.slice(0, 10), summary: status === 'ready' ? `Ready (${score}/100)` : status === 'needs-review' ? `Needs review (${score}/100)` : `Not ready (${score}/100)` };
+}
 
 export async function runOntology(ctx, { name, include, entityNames, rules, descriptions } = {}) {
   const ws = requireWorkspace();
@@ -781,6 +862,11 @@ export async function runOntology(ctx, { name, include, entityNames, rules, desc
   ctx.step('Generate the ontology (entities, relationships, rules)');
   const out = ontologyFiles({ name: ontName, src: { server: p.modelSource.server, endpointId: p.modelSource.endpointId, item: ontologySourceOf(p) }, plan, rules: ruleSet, entityNames: entityNames || preset?.ontology?.entityNames || {}, descriptions: descriptions || {} });
   ctx.log(`${Object.keys(out.entities).length} entities · ${out.relationships.length} relationships · ${out.rules.length} rules`);
+  const quality = ontologyQuality(out, plan, ruleSet);
+  ctx.step(`Ontology quality gate: ${quality.summary}`);
+  if (quality.errors.length) throw new Error(`Ontology is not ready: ${quality.errors.join(' ')}`);
+  ctx.log(`Quality gate: ${quality.summary}`);
+  for (const w of quality.warnings) ctx.log(`Quality warning: ${w}`);
   // Keep the live time-series properties when the ontology was connected to the live events before.
   let files = out.files;
   const events = p.realtime?.ontology ? liveEventsOf(p) : null;
@@ -799,7 +885,7 @@ export async function runOntology(ctx, { name, include, entityNames, rules, desc
     item = await F.createItem(ws.id, { name: ontName, type: 'Ontology', description: 'Business ontology generated by Fabric MCP Studio.', definition });
     recordArtifact({ type: 'Ontology', id: item.id, name: ontName, workspaceId: ws.id });
   }
-  updateProject({ ontology: { id: item.id, name: ontName, sourceItemId: p.modelSource.itemId, entities: Object.values(out.entities), rules: out.rules, ruleDetails: ruleSet.filter((r) => out.rules.includes(r.name)).map((r) => ({ name: r.name, statement: r.statement })), relationships: out.relationships.map((r) => r.label) } });
+  updateProject({ ontology: { id: item.id, name: ontName, sourceItemId: p.modelSource.itemId, entities: Object.values(out.entities), rules: out.rules, ruleDetails: ruleSet.filter((r) => out.rules.includes(r.name)).map((r) => ({ name: r.name, statement: r.statement })), relationships: out.relationships.map((r) => r.label), quality } });
   setStep('ontology', 'done', ontName);
   return { id: item.id, name: ontName, entities: Object.values(out.entities), rules: out.rules };
 }
