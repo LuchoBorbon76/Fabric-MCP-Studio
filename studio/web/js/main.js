@@ -25,7 +25,7 @@ import { renderSettings } from './views/settings.js';
 
 const VIEWS = {
   home: { label: 'Home', render: renderHome },
-  copilot: { label: '✦ Copilot', render: renderCopilot },
+  copilot: { label: '✦ AI Assistant', render: renderCopilot },
   workspace: { label: 'Workspace', render: renderWorkspace },
   data: { label: 'Data', render: renderData },
   model: { label: 'Semantic model', render: renderModel },
@@ -68,7 +68,7 @@ function renderHeader() {
   sub.className = chips.length ? 'subchips' : '';
   sub.replaceChildren(...(chips.length
     ? chips.map(([label, value]) => h('span', { class: 'subchip', title: `${label}: ${value}` }, h('b', {}, label), h('span', {}, value)))
-    : ['Build lakehouses, semantic models and ontologies in Microsoft Fabric by chatting with the Copilot you already use.']));
+    : ['Build lakehouses, semantic models and ontologies in Microsoft Fabric with the AI provider and tools you choose.']));
   renderTenantBanner();
 }
 
@@ -366,8 +366,8 @@ function renderAll() {
   refreshSuggestions();
 }
 
-// ---------------- Copilot (embedded) ----------------
-// One chat component. It lives in the Copilot tab, or embedded in the current view's Copilot slot (.cslot) when the
+// ---------------- AI Assistant (embedded) ----------------
+// One chat component. It lives in the AI Assistant tab, or embedded in the current view's assistant slot (.cslot) when the
 // user asks from that view. Nothing floats over the page.
 const inlineOpen = new Set();
 const chatEl = chatElement({
@@ -397,7 +397,7 @@ function placeChat() {
   if (chatEl.parentElement && chatEl.parentElement.id !== 'chatSlot') chatEl.remove();
 }
 
-/** Open Copilot embedded in a view (default: the current one) and send a prompt. */
+/** Open the AI Assistant embedded in a view (default: the current one) and send a prompt. */
 function askCopilot(prompt, { view } = {}) {
   if (view && view !== current) go(view);
   const slot = viewSlot();
@@ -425,7 +425,7 @@ function showNextApproval() {
     showNextApproval();
   };
   modal({
-    title: 'Copilot wants to make a change',
+    title: 'AI Assistant wants to make a change',
     className: 'appr',
     body: h('div', { class: 'col' },
       h('div', { class: 'row' }, h('span', { class: `srv ${a.server}` }, SERVER_LABEL[a.server] || a.server), h('b', {}, a.title || a.tool)),

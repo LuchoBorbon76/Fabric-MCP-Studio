@@ -19,7 +19,7 @@ export function renderHome(el) {
   el.append(h('div', { class: 'sheet' },
     inspector(g, n),
     n.id === 'workspace' && g.signedIn ? namingCard({ compact: true }) : null,
-    store.project?.semanticModel ? askCard({ title: 'Start asking', lead: `Questions from "${store.project.semanticModel.name}", your reports, rules, plan and live data. Select one and Copilot answers with the numbers.`, perGroup: 2 }) : null,
+    store.project?.semanticModel ? askCard({ title: 'Start asking', lead: `Questions from "${store.project.semanticModel.name}", your reports, rules, plan and live data. Select one and the AI Assistant answers with the numbers.`, perGroup: 2 }) : null,
     h('div', { class: 'sheetrow' }, checksSection(), createdSection())));
 }
 
@@ -58,7 +58,7 @@ function inspector(g, n) {
     left = h('p', { class: 'small muted', style: { margin: 0 } }, n.state === 'off'
       ? `${n.needs}. Parts light up on the map as they are configured – set up the earlier ones first.`
       : isWs ? 'Everything the studio builds is created in one Fabric workspace on a capacity. Create a new one or use one you already have.'
-        : 'Not configured yet. Open it to set it up with a quick action, or let Copilot do it with your approval.');
+        : 'Not configured yet. Open it to set it up with a quick action, or let the AI Assistant do it with your approval.');
   }
 
   // Middle: how it connects to the rest.
@@ -77,7 +77,7 @@ function inspector(g, n) {
     acts.append(h('button', { class: 'btn pri', onclick: () => document.getElementById('userChip').click() }, 'Sign in to Microsoft Fabric'));
   } else {
     acts.append(h('button', { class: `btn ${n.done || n.state === 'off' ? '' : 'pri'}`, onclick: () => (app.openPart ? app.openPart(n.id, n.view) : app.go(n.view)) }, n.done ? `Open ${VIEW_LABEL[n.view]}` : `Set up in ${VIEW_LABEL[n.view]}`, ' ›'));
-    if (n.state !== 'off') acts.append(h('button', { class: 'btn ai', onclick: () => app.ask(nodePrompt(n.id), { view: n.view }) }, n.done ? '✦ Ask Copilot about it' : '✦ Let Copilot do it'));
+    if (n.state !== 'off') acts.append(h('button', { class: 'btn ai', onclick: () => app.ask(nodePrompt(n.id), { view: n.view }) }, n.done ? '✦ Ask AI Assistant' : '✦ Let AI Assistant do it'));
     if (n.id === 'model' && store.project?.workspace) acts.append(h('button', { class: 'btn', title: 'Or double-click Semantic model on the map', onclick: () => modelsDialog() }, (store.project.semanticModels || []).length > 1 ? `⇄ Switch model (${store.project.semanticModels.length})` : '⇄ Switch or add a model'));
     if (n.id === 'model' && store.project?.semanticModel) acts.append(h('button', { class: 'btn', title: 'Check that every relationship key is unique in the data the model reads', onclick: () => modelCheckDialog() }, '🩺 Check data'));
     if (n.id === 'source' && store.project?.workspace) acts.append(h('button', { class: 'btn', title: 'Or double-click Data source on the map', onclick: () => sourcesDialog() }, (store.project.sources || []).length > 1 ? `⇄ Switch data source (${store.project.sources.length})` : '⇄ Data in this workspace'));
@@ -90,7 +90,7 @@ function inspector(g, n) {
   const why = n.reason && (n.flag === 'blocked' || n.flag === 'limited')
     ? h('div', { class: `banner ${n.flag === 'blocked' ? 'err' : 'warn'} mt`, style: { marginBottom: 0 } }, h('div', {}, h('b', {}, n.reason.text), n.reason.fix ? h('div', { class: 'tiny muted' }, n.reason.fix) : null))
     : n.state === 'failed' ? h('div', { class: 'banner err mt', style: { marginBottom: 0 } }, h('div', {}, h('b', {}, 'The last run didn\'t finish. '), n.error || ''))
-      : n.done && n.warn ? h('div', { class: 'banner warn mt', style: { marginBottom: 0 } }, h('div', {}, h('b', {}, `"${n.warn.title}" didn't finish – it works as it did before. `), n.warn.error, h('div', { class: 'tiny muted' }, 'Run it again from its page, or ask Copilot what went wrong.'))) : null;
+      : n.done && n.warn ? h('div', { class: 'banner warn mt', style: { marginBottom: 0 } }, h('div', {}, h('b', {}, `"${n.warn.title}" didn't finish – it works as it did before. `), n.warn.error, h('div', { class: 'tiny muted' }, 'Run it again from its page, or ask the AI Assistant what went wrong.'))) : null;
 
   const insp = h('section', { class: `insp ${n.state}`, 'aria-live': 'polite' }, head, h('div', { class: 'ibody' }, h('div', { class: 'ileft' }, left), deps, acts), why);
   return tint(insp, n.cat);
@@ -102,7 +102,7 @@ function startPaths() {
     path('sample', 'Start from sample data', 'Contoso Retail, or AdventureWorksDW2022 as a Fabric SQL database.', () => app.go('data')),
     path('mirror', 'Connect my databases', 'Azure SQL, SQL Managed Instance, SQL Server or PostgreSQL via Mirroring.', () => app.go('data')),
     path('lake', 'Use my Fabric data', 'Lakehouses, warehouses or mirrored databases, in place or with shortcuts.', () => app.go('data')),
-    path('answers', 'Just ask Copilot', 'Describe your business and let Copilot drive each step with your approval.', () => app.ask(nodePrompt('source'), { view: 'data' })));
+    path('answers', 'Just ask the AI Assistant', 'Describe your business and let the assistant drive each step with your approval.', () => app.ask(nodePrompt('source'), { view: 'data' })));
 }
 
 function checksSection() {

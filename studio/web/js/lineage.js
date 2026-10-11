@@ -39,7 +39,7 @@ export function icon(name, cls = '') {
   return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ICONS.database}</svg>`;
 }
 
-export const VIEW_LABEL = { home: 'Overview', copilot: 'Copilot', workspace: 'Workspace', data: 'Data', model: 'Semantic model', ontology: 'Ontology', reports: 'Reports & apps', realtime: 'Real-time', planning: 'Planning', share: 'Ask & share', costs: 'Costs & usage', activity: 'Activity', settings: 'Settings' };
+export const VIEW_LABEL = { home: 'Overview', copilot: 'AI Assistant', workspace: 'Workspace', data: 'Data', model: 'Semantic model', ontology: 'Ontology', reports: 'Reports & apps', realtime: 'Real-time', planning: 'Planning', share: 'Ask & share', costs: 'Costs & usage', activity: 'Activity', settings: 'Settings' };
 const UTILITY = new Set(['copilot', 'costs', 'activity', 'settings']);
 const COLS = ['Sources', 'OneLake', 'Semantic layer', 'Insights & AI', 'Apps & sharing'];
 
@@ -51,7 +51,7 @@ const DEFS = [
   { id: 'ontology', c: 2, r: 2, view: 'ontology', module: 'ontology', cat: 'ontology', type: 'Ontology', icon: 'ontology', desc: 'Business entities, relationships and plain-English rules in Fabric IQ.' },
   { id: 'reports', c: 3, r: 0, view: 'reports', module: 'reports', cat: 'reports', type: 'Power BI reports', icon: 'reports', desc: 'Professional reports built from templates and themes on your model\'s measures.' },
   { id: 'planning', c: 3, r: 1, view: 'planning', module: 'planning', cat: 'planning', type: 'Budget & forecast', icon: 'planning', desc: 'A budget and rolling forecast from your actuals, with variance measures in the model.' },
-  { id: 'answers', c: 3, r: 2, view: 'share', module: 'share', cat: 'ai', type: 'Copilot answers', icon: 'answers', desc: 'Governed answers through Fabric IQ, with each person\'s permissions and row-level security.' },
+  { id: 'answers', c: 3, r: 2, view: 'share', module: 'share', cat: 'ai', type: 'AI answers', icon: 'answers', desc: 'Governed answers through Fabric IQ, with each person\'s permissions and row-level security.' },
   { id: 'orgapp', c: 4, r: 0, view: 'reports', module: 'reports', cat: 'apps', type: 'Org app', icon: 'app', desc: 'Your reports bundled into one app for business users.' },
   { id: 'planitem', c: 4, r: 1, view: 'planning', module: 'planning', cat: 'planning', type: 'Fabric plan', icon: 'plan', desc: 'Planning sheets where planners refine the budget and forecast.' },
   { id: 'agent', c: 4, r: 2, view: 'share', module: 'share', cat: 'ai', type: 'Microsoft 365 agent', icon: 'agent', desc: 'The same governed answers in Microsoft Teams and Microsoft 365 Copilot.' },
@@ -459,7 +459,7 @@ export function mountMap(root, { onNode, onTab, opensOnDouble }) {
         h('span', {}, h('i', { class: 'lg off' }), 'Needs an earlier step'),
         h('span', {}, h('i', { class: 'lg bl' }), 'Can\'t run')) : null,
       h('nav', { class: 'mtabs', 'aria-label': 'Sections' },
-        tab('home', 'Overview'), tab('copilot', '✦ Copilot'), tab('costs', 'Costs'), tab('activity', 'Activity', running ? h('span', { class: 'cnt' }, running) : null), tab('settings', 'Settings')),
+        tab('home', 'Overview'), tab('copilot', '✦ AI Assistant'), tab('costs', 'Costs'), tab('activity', 'Activity', running ? h('span', { class: 'cnt' }, running) : null), tab('settings', 'Settings')),
       fold);
   }
 

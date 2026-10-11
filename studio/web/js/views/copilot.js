@@ -17,7 +17,7 @@ export function renderCopilot(el) {
   const side = h('div', { class: 'chatside' },
     h('div', { class: 'card' }, h('h3', {}, 'Context'), ctx, h('div', { class: 'mt' }, h('div', { class: 'tiny muted mb' }, 'MCP servers'), servers)),
     h('div', { class: 'card' }, h('h3', {}, 'Try asking'), promptGallery({ perGroup: 3, compact: true })),
-    h('div', { class: 'card' }, h('h3', {}, 'How it works'), h('p', { class: 'small muted' }, 'Copilot plans the work, calls Microsoft Fabric MCP servers as you, and shows each call inline. Anything that creates or changes items waits for your approval. Secrets never go through the chat – database credentials are entered in the Data page and sent straight to Fabric.')));
+    h('div', { class: 'card' }, h('h3', {}, 'How it works'), h('p', { class: 'small muted' }, 'The AI Assistant uses the provider you selected, calls Microsoft Fabric MCP servers as you, and shows each call inline. Anything that creates or changes items waits for your approval. Secrets never go through the chat – database credentials are entered in the Data page and sent straight to Fabric.')));
 
   el.append(h('div', { class: 'chatwrap' }, h('div', { id: 'chatSlot', style: { minHeight: 0 } }), side));
   requestAnimationFrame(fitChat);

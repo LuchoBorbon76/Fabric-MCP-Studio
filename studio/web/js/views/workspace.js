@@ -91,7 +91,7 @@ function newForm() {
       field('Description', desc)),
     h('div', { class: 'row mt' }, btn, h('button', { class: 'btn ai', onclick: () => app.ask(nm.configured
       ? `Create a new Fabric workspace named "${fullName()}" on the most suitable capacity I have, and make it the project workspace.`
-      : 'Help me create the project workspace: first ask what this environment is for and the business domain, then create it on the most suitable capacity I have.') }, '✦ Ask Copilot to do it')),
+      : 'Help me create the project workspace: first ask what this environment is for and the business domain, then create it on the most suitable capacity I have.') }, '✦ Ask AI Assistant')),
     h('p', { class: 'tiny muted' }, 'If a workspace with this name already exists and you have access, the studio uses it instead of creating a duplicate.'));
 }
 

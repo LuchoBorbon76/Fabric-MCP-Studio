@@ -1,4 +1,4 @@
-// Shared app actions (set by main.js) so views can navigate and talk to Copilot without circular imports.
+// Shared app actions (set by main.js) so views can navigate and talk to the AI Assistant without circular imports.
 export const app = {
   go: () => {},
   ask: () => {},
@@ -11,8 +11,8 @@ export const app = {
 };
 
 /**
- * Where Copilot opens inside a view. Copilot is always embedded in the page (never a pop-up): app.ask() from a view
- * moves the chat into that view's slot. One slot per view; views without one use the Copilot tab.
+ * Where the AI Assistant opens inside a view. It is always embedded in the page (never a pop-up): app.ask() from a view
+ * moves the chat into that view's slot. One slot per view; views without one use the AI Assistant tab.
  */
 export function copilotSlot() {
   const el = document.createElement('section');
@@ -22,7 +22,7 @@ export function copilotSlot() {
 }
 
 export const STEPS = [
-  { id: 'ai', view: 'settings', title: 'Connect your AI', desc: 'Pick the Copilot or model you already license' },
+  { id: 'ai', view: 'settings', title: 'Connect your AI', desc: 'Pick the AI provider or model you already license' },
   { id: 'workspace', view: 'workspace', title: 'Workspace', desc: 'Create a new workspace or use an existing one' },
   { id: 'data', view: 'data', title: 'Data', desc: 'Sample data, your databases, or existing Fabric data' },
   { id: 'model', view: 'model', title: 'Semantic model', desc: 'Direct Lake model with business measures' },
@@ -30,7 +30,7 @@ export const STEPS = [
   { id: 'reports', view: 'reports', title: 'Reports & apps', desc: 'Polished Power BI reports from templates and themes' },
   { id: 'realtime', view: 'realtime', title: 'Real-time', desc: 'Live events, Real-Time Dashboard, live ontology and alerts' },
   { id: 'planning', view: 'planning', title: 'Planning', desc: 'Budget and rolling forecast, Plan vs actual, Fabric planning' },
-  { id: 'share', view: 'share', title: 'Ask & share', desc: 'Governed answers in Copilot, Teams and more' },
+  { id: 'share', view: 'share', title: 'Ask & share', desc: 'Governed answers in the AI Assistant, Teams and more' },
 ];
 
 export function stepStatus(project, store) {

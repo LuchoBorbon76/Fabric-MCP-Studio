@@ -174,11 +174,11 @@ function drawDesigner(card, p) {
     }));
     const measuresNote = preset?.measureCount
       ? `The ${preset.label} sample adds ${preset.measureCount} business measures from its glossary (${preset.measureNames.slice(0, 4).join(', ')}…).`
-      : 'Starter measures (row counts and totals of amount columns) are generated. Ask Copilot to design business measures from your glossary.';
+      : 'Starter measures (row counts and totals of amount columns) are generated. Ask the AI Assistant to design business measures from your glossary.';
     body.append(
       h('div', { class: 'grid g2' },
         h('div', {}, tablesTitle, h('div', { class: 'scroll' }, tbl)),
-        h('div', {}, h('h3', {}, `Relationships (${s.relationships.length})`), s.relationships.length ? h('div', { class: 'scroll' }, rels) : h('div', { class: 'banner warn' }, 'No relationships found. Ask Copilot to infer them from the data, or the model is created without relationships.'),
+        h('div', {}, h('h3', {}, `Relationships (${s.relationships.length})`), s.relationships.length ? h('div', { class: 'scroll' }, rels) : h('div', { class: 'banner warn' }, 'No relationships found. Ask the AI Assistant to infer them from the data, or the model is created without relationships.'),
           h('div', { class: 'banner mt' }, h('div', {}, h('b', {}, 'Measures. '), measuresNote)))));
     footer.append(...[
       pendingProposal(p) ? proposalBanner(p.modelProposal) : null,

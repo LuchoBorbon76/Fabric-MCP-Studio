@@ -137,13 +137,13 @@ flowchart LR
   properties). Parts stay greyed out until they are configured, then light up with their names and details; the
   edges show what is built from what, the suggested next part pulses, running jobs and live streams animate, and
   parts that can't run show a badge. On the overview, select a part to see its details, what it is built from and
-  what it feeds, with *Open*, *Let Copilot do it* and *Open in Fabric*; elsewhere the map stays on top in a compact
+  what it feeds, with *Open*, *Let AI Assistant do it* and *Open in Fabric*; elsewhere the map stays on top in a compact
   form (or hidden with *Hide map*) and selecting a part opens its page.
-- **Two ways to do every step**: quick actions (deterministic, using Fabric REST APIs) or Copilot (MCP servers +
+- **Two ways to do every step**: quick actions (deterministic, using Fabric REST APIs) or the AI Assistant (MCP servers +
   studio tools). Both update the same project state.
-- **Copilot inside every step**: Copilot opens right in the page you are working in (for example below the tables and
-  relationships in *Semantic model*), never in a separate window. The **Copilot** page shows the same conversation full size.
-  Ask for a *chart*, *graph* or *dashboard in chat* and Copilot answers with inline visuals (bar, stacked/horizontal bar,
+- **AI Assistant inside every step**: the assistant opens right in the page you are working in (for example below the tables and
+  relationships in *Semantic model*), never in a separate window. The **AI Assistant** page shows the same conversation full size.
+  Ask for a *chart*, *graph* or *dashboard in chat* and it answers with inline visuals (bar, stacked/horizontal bar,
   line, area, pie/donut, scatter/bubble, heat map, treemap, waterfall, KPI cards or tables – no Fabric item is created).
   Ask for a *Power BI report/page/dashboard* when you want it saved in Fabric.
 - **Approvals**: every tool call that creates or changes something opens a review dialog with the exact request.

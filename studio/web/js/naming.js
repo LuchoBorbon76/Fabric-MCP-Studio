@@ -138,7 +138,7 @@ export function namingCard({ compact = false, onSaved } = {}) {
         h('div', {}, h('div', { class: 'tiny muted', style: { marginBottom: '4px' } }, 'Names the studio will use'), preview)),
       h('div', { class: 'row mt' }, save,
         compact && cur.configured ? h('button', { class: 'btn ghost', onclick: () => { resetDraft(); draw(); } }, 'Cancel') : null,
-        h('button', { class: 'btn ai', onclick: () => app.ask('Help me choose the naming standard: ask what this environment is for and the business domain, then set it.') }, '✦ Ask Copilot')),
+        h('button', { class: 'btn ai', onclick: () => app.ask('Help me choose the naming standard: ask what this environment is for and the business domain, then set it.') }, '✦ Ask AI Assistant')),
     );
   };
   draw();

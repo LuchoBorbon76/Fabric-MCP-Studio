@@ -341,6 +341,11 @@ const BLOCKED_TOOLS = { 'fabric-ontology': ['ask_ontology', 'search_ontology'] }
 // ---------------- approvals ----------------
 
 const READ_OPS = /^(help|list|get|export|query|execute(query)?|describe|connect|connectfabric|disconnect|getconnection|listconnections|search|find|validate|evaluate|analy[sz]e|run(query)?|preview|bpa|best)/i;
+const isGitHubSpaceTool = (input = {}) => {
+  const name = String(input.toolName || input.name || '').toLowerCase();
+  const server = String(input.mcpServerName || input.serverName || input.server || '').toLowerCase();
+  return server.includes('github-mcp-server') || (name.includes('copilot') && name.includes('space'));
+};
 
 export function classifyTool(toolName, args) {
   const name = String(toolName || '');
@@ -374,6 +379,9 @@ export function toolDenyReason(info, args) {
 }
 
 async function approve(chatId, input) {
+  if (isGitHubSpaceTool(input)) {
+    return { permissionDecision: 'deny', permissionDecisionReason: 'Fabric MCP Studio is not connected to a GitHub Copilot Space or repository context. Use the Studio and Fabric tools for this local project instead.' };
+  }
   const info = classifyTool(input.toolName, input.toolArgs);
   const deny = toolDenyReason(info, input.toolArgs);
   if (deny) return { permissionDecision: 'deny', permissionDecisionReason: deny };

@@ -234,7 +234,7 @@ function dataPrepCard() {
     return h('div', { class: 'mt' },
       h('div', { class: 'small', style: { fontWeight: 600, marginBottom: '4px' } }, 'Write the curated tables to'), targetSeg, hint,
       h('label', { class: 'row small mt', style: { cursor: 'pointer' } }, runBox, 'Run it now (a few minutes in a Python session)'),
-      h('div', { class: 'row mt' }, btn, h('button', { class: 'btn ai', onclick: () => app.ask('Create and run the data prep notebook for my lakehouse, then tell me what it renamed, fixed and found.') }, '✦ Ask Copilot')));
+      h('div', { class: 'row mt' }, btn, h('button', { class: 'btn ai', onclick: () => app.ask('Create and run the data prep notebook for my lakehouse, then tell me what it renamed, fixed and found.') }, '✦ Ask AI Assistant')));
   }
 
   function details(s, dp) {
@@ -363,7 +363,7 @@ function samples() {
     h('div', { class: 'row mt' }, h('span', { class: 'pill brand' }, retail.lands), h('span', { class: 'pill' }, retail.needs), h('span', { class: 'pill' }, `~${retail.minutes} min`)),
     inUseBanner(retail.id),
     inUse(retail.id) ? null : prepOption(),
-    h('div', { class: 'row mt' }, useAgain(retail.id), rBtn, h('button', { class: 'btn ai', onclick: () => app.ask('Load the Contoso Retail sample data into my workspace, then tell me what tables were created.') }, '✦ Ask Copilot')),
+    h('div', { class: 'row mt' }, useAgain(retail.id), rBtn, h('button', { class: 'btn ai', onclick: () => app.ask('Load the Contoso Retail sample data into my workspace, then tell me what tables were created.') }, '✦ Ask AI Assistant')),
     rJob));
 
   const awJob = h('div', { class: 'mt' });
@@ -382,7 +382,7 @@ function samples() {
       h('li', {}, 'Fabric replicates the tables to OneLake automatically; the semantic model and ontology use that replica.'),
       h('li', {}, 'Uses your Microsoft Entra sign-in. No Azure subscription, passwords or connections needed.')),
     inUseBanner(aw.id),
-    h('div', { class: 'row mt' }, useAgain(aw.id), awBtn, h('button', { class: 'btn ai', onclick: () => app.ask('Create the AdventureWorksDW2022 sample in my workspace (studio_load_sample_data with dataset adventureworks), then describe the tables that were created.') }, '✦ Ask Copilot')),
+    h('div', { class: 'row mt' }, useAgain(aw.id), awBtn, h('button', { class: 'btn ai', onclick: () => app.ask('Create the AdventureWorksDW2022 sample in my workspace (studio_load_sample_data with dataset adventureworks), then describe the tables that were created.') }, '✦ Ask AI Assistant')),
     awJob));
   return out;
 }
@@ -546,7 +546,7 @@ function wizard(t, redraw) {
       h('dl', { class: 'kv' }, h('dt', {}, 'Source'), h('dd', {}, `${t.name} · ${w.values.server} / ${w.values.database}`), h('dt', {}, 'Connection'), h('dd', {}, w.connectionName || w.connectionId), h('dt', {}, 'Tables'), h('dd', {}, w.tables ? `${w.selected.size} of ${w.tables.length} selected` : 'All tables (new tables are added automatically)')),
       h('div', { class: 'formgrid mt' }, field('Mirrored database name', name, 'Letters, numbers and underscores')),
       h('div', { class: 'row mt' }, h('button', { class: 'btn', onclick: () => { w.step = 2; redraw(); } }, '← Back'), btn,
-        h('button', { class: 'btn ai', onclick: () => app.ask(`Mirror the ${t.name} database "${w.values.database}" into my workspace using Fabric connection ${w.connectionId}, then describe the mirrored tables.`) }, '✦ Ask Copilot to do it')),
+        h('button', { class: 'btn ai', onclick: () => app.ask(`Mirror the ${t.name} database "${w.values.database}" into my workspace using Fabric connection ${w.connectionId}, then describe the mirrored tables.`) }, '✦ Ask AI Assistant')),
       job, live);
   }
   return el;

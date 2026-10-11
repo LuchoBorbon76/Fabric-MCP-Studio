@@ -1,4 +1,4 @@
-// Chat with the selected AI provider. One component, embedded in the Copilot tab or in the current view.
+// Chat with the selected AI provider. One component, embedded in the AI Assistant tab or in the current view.
 import { api, post, put, get, store, on } from './api.js';
 import { h, $, toast, esc, SERVER_LABEL } from './ui.js';
 import { md } from './md.js';
@@ -14,8 +14,8 @@ let busyState = false;
 let streamBubble = null;
 let streamText = '';
 let thinkEl = null;
-let turnProposal = null; // shown when Copilot finishes its answer, so the button sits below the explanation
-let turnText = '';       // Copilot's last message this turn (does it ask for a go-ahead?)
+let turnProposal = null; // shown when the assistant finishes its answer, so the button sits below the explanation
+let turnText = '';       // Assistant's last message this turn (does it ask for a go-ahead?)
 const toolCards = new Map();
 let suggestionsFn = () => [];
 let onCloseFn = () => {};
@@ -25,7 +25,7 @@ export function chatElement({ suggestions, onClose }) {
   onCloseFn = onClose || onCloseFn;
   if (root) return root;
 
-  titleEl = h('span', {}, 'Copilot');
+  titleEl = h('span', {}, 'AI Assistant');
   providerEl = h('span', { class: 'provider', title: 'AI provider – change it in Settings' }, '…');
   modelSel = h('select', { class: 'mini', title: 'Model', onchange: async () => {
     const p = store.provider || {};
@@ -38,10 +38,10 @@ export function chatElement({ suggestions, onClose }) {
     } catch (e) { toast(e.message, 'err'); }
   } });
   histSel = h('select', { class: 'mini', title: 'Recent chats', onchange: () => { if (histSel.value) loadChat(histSel.value); } });
-  closeBtn = h('button', { class: 'mini', title: 'Hide Copilot', onclick: () => onCloseFn() }, '✕');
+  closeBtn = h('button', { class: 'mini', title: 'Hide AI Assistant', onclick: () => onCloseFn() }, '✕');
 
   msgsEl = h('div', { class: 'msgs' });
-  inputEl = h('textarea', { rows: 1, placeholder: 'Ask Copilot to build, explain or answer… (Enter to send, Shift+Enter for a new line)' });
+  inputEl = h('textarea', { rows: 1, placeholder: 'Ask the AI Assistant to build, explain or answer… (Enter to send, Shift+Enter for a new line)' });
   inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } });
   inputEl.addEventListener('input', autosize);
   sendBtn = h('button', { class: 'sendbtn', title: 'Send', onclick: () => (busyState ? stop() : submit()) }, '➤');
@@ -158,7 +158,7 @@ function prettyResult(r) {
   try { return JSON.stringify(JSON.parse(r), null, 2).slice(0, 6000); } catch { return String(r).slice(0, 6000); }
 }
 
-// ---- Copilot's suggestions: one-click apply ----
+// ---- AI Assistant suggestions: one-click apply ----
 const PROPOSALS = {
   'semantic-model': { key: 'modelProposal', title: 'Semantic model design ready', text: (pr) => proposalCounts(pr), apply: (pr) => applyModelProposal(pr), hint: 'Review it, then create it in one click.' },
   report: { key: 'reportProposal', title: 'Power BI report ready to build', text: (pr) => reportProposalText(pr), apply: (pr) => applyReportProposal(pr), hint: 'Review it, then build it in one click.' },
@@ -167,7 +167,7 @@ const PROPOSALS = {
 const kindOf = (pr) => (PROPOSALS[pr?.kind] ? pr.kind : 'semantic-model');
 const currentOf = (kind) => store.project?.[PROPOSALS[kind].key] || null;
 
-// Any other recommendation that waits for the user's go-ahead gets an Apply button too: either Copilot offers it
+// Any other recommendation that waits for the user's go-ahead gets an Apply button too: either the assistant offers it
 // (studio_suggest_apply, with the exact request) or the answer ends by asking for a go-ahead ("Shall I create it?",
 // "Confirm these rules and I'll deploy…"). Statements like "let me know if you have questions" don't count.
 const GO_AHEAD = 'Yes – go ahead.';
@@ -181,13 +181,13 @@ function looksLikeConfirmation(text) {
 
 function actionCard(pr, { answered = false } = {}) {
   const generic = pr.kind === 'confirm';
-  const state = h('span', { class: 'pstate small muted' }, generic ? 'Copilot is asking for your go-ahead.' : 'Copilot does this when you select Apply.');
+  const state = h('span', { class: 'pstate small muted' }, generic ? 'The AI Assistant is asking for your go-ahead.' : 'The assistant does this when you select Apply.');
   const card = h('div', { class: 'pcard', 'data-action': pr.id, 'data-kind': pr.kind });
   const done = (text, ok = true) => { card.dataset.applied = '1'; card.querySelectorAll('button').forEach((b) => { b.hidden = true; }); state.textContent = text; state.classList.toggle('ok', ok); };
-  const apply = h('button', { class: 'btn pri', onclick: async () => { if (busyState) { toast('Copilot is still working. Stop it or wait.', 'err'); return; } done(generic ? '✓ Sent – Copilot is on it' : '✓ Applied – Copilot is on it'); await ask(pr.instruction || GO_AHEAD); } }, generic ? '✓ Yes, go ahead' : '✓ Apply');
-  const change = h('button', { class: 'btn ghost', onclick: () => { inputEl.focus(); inputEl.placeholder = 'Tell Copilot what to change…'; } }, generic ? 'Something else' : 'Change something');
+  const apply = h('button', { class: 'btn pri', onclick: async () => { if (busyState) { toast('The assistant is still working. Stop it or wait.', 'err'); return; } done(generic ? '✓ Sent – assistant is on it' : '✓ Applied – assistant is on it'); await ask(pr.instruction || GO_AHEAD); } }, generic ? '✓ Yes, go ahead' : '✓ Apply');
+  const change = h('button', { class: 'btn ghost', onclick: () => { inputEl.focus(); inputEl.placeholder = 'Tell the assistant what to change…'; } }, generic ? 'Something else' : 'Change something');
   card.append(...[
-    h('div', { class: 'ph' }, h('span', {}, '✦'), pr.title || 'Copilot is waiting for your go-ahead'),
+    h('div', { class: 'ph' }, h('span', {}, '✦'), pr.title || 'The AI Assistant is waiting for your go-ahead'),
     pr.summary ? h('div', { class: 'small muted' }, pr.summary) : null,
     h('div', { class: 'row' }, apply, change, state)].filter(Boolean));
   if (answered) done('✓ Applied');
@@ -304,7 +304,7 @@ async function ensureChat() {
 export async function newChat() {
   chatId = null;
   store.activeChat = null;
-  titleEl.textContent = 'Copilot';
+  titleEl.textContent = 'AI Assistant';
   toolCards.clear();
   turnProposal = null;
   turnText = '';
@@ -324,7 +324,7 @@ export async function loadChat(id) {
     endStream();
     turnProposal = null;
     turnText = '';
-    // Suggestion cards go after Copilot's explanation of that turn, as they did live.
+    // Suggestion cards go after the assistant's explanation of that turn, as they did live.
     const tr = c.transcript;
     // An Apply card counts as applied when the next message is its own request (what the button sends).
     const appliedBy = (i, instruction) => tr.slice(i + 1).find((x) => x.role === 'user')?.content?.trim() === String(instruction || '').trim();
@@ -356,7 +356,7 @@ async function submit() {
 }
 
 export async function ask(text) {
-  if (busyState) { toast('Copilot is still working. Stop it or wait.', 'err'); return; }
+  if (busyState) { toast('The assistant is still working. Stop it or wait.', 'err'); return; }
   setBusy(true);
   try {
     const welcome = $('.welcome', msgsEl);

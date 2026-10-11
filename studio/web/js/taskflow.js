@@ -101,7 +101,7 @@ export function taskFlowCard() {
       h('a', { class: 'btn', href: s.workspace.url, target: '_blank', rel: 'noopener' }, 'Open in Fabric ↗'),
       moved ? h('button', { class: 'btn ghost', onclick: () => { draft = { choice: s.choice, overrides: {} }; load(); } }, 'Undo my moves') : null,
       remove,
-      h('button', { class: 'btn ai', onclick: () => app.ask(`Look at my workspace task flow options (studio_task_flow_status): which flow fits my project best, where each item goes in "${pl.name}", and what to add next. Then suggest applying it.`) }, '✦ Ask Copilot')),
+      h('button', { class: 'btn ai', onclick: () => app.ask(`Look at my workspace task flow options (studio_task_flow_status): which flow fits my project best, where each item goes in "${pl.name}", and what to add next. Then suggest applying it.`) }, '✦ Ask AI Assistant')),
     h('p', { class: 'tiny muted' }, f ? `"${f.name}" · ${f.items} items on ${f.tasks} tasks · updated automatically when the studio adds or removes items.` : `${pl.count} items go to ${pl.tasks.filter((t) => t.items.length).length} of the ${pl.tasks.length} tasks. Nothing changes in Fabric until you apply.`),
     job);
   };
