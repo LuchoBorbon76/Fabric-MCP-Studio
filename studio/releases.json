@@ -151,6 +151,6 @@
     { "date": "2026-10-11", "type": "improvement", "commit": "f72a391", "title": "Planning now labels Fabric Plan items as containers that still need a Planning Sheet, with explicit Data > Add > Connect instructions instead of implying the sheet opens prebuilt" },
     { "date": "2026-10-11", "type": "improvement", "commit": "c128a66", "title": "Settings now includes a Fix prerequisites panel with module-by-module blockers, fixes, deep links and a Check again action" },
     { "date": "2026-10-11", "type": "fix", "commit": "c128a66", "title": "Adding or switching to an existing semantic model now also looks for related Studio artifacts in the workspace, including ontology, plans, real-time Eventhouse/Eventstream/dashboard/alerts, medallion layers and task flows" },
-    { "date": "2026-10-11", "type": "fix", "commit": "pending", "title": "The solution map now shows every artifact box as in-progress while existing artifacts are being discovered and added for a semantic model" }
+    { "date": "2026-10-11", "type": "fix", "commit": "08234be", "title": "The solution map now shows every artifact box as in-progress while existing artifacts are being discovered and added for a semantic model" }
   ]
 }
