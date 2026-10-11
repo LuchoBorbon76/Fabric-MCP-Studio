@@ -255,14 +255,18 @@ function geo(theme, profile, { subtitle }) {
   const coarse = g.levels[0] || null;
   const fine = g.mode === 'points' ? g.label || g.levels[g.levels.length - 1] || null : g.levels[g.levels.length - 1] || null;
   const tips = p.kpis.filter((k) => k.name !== p.primary.name).slice(0, 2);
-  const where = g.mode === 'points' ? (g.label?.label || 'location') : g.levels.map((c) => c.label).join(' › ');
+  const coordinateOnly = g.mode === 'points' && !g.levels.length;
+  const locations = g.mode === 'points' ? (coordinateOnly ? [] : g.levels) : g.levels;
+  const where = locations.length ? locations.map((c) => c.label).join(' › ') : g.label?.label || 'location';
   visuals.push({
     key: 'map', pos: { x: M, y, w: mapW, h },
     visual: V_.map(theme, {
-      locations: g.mode === 'points' ? (g.label ? [g.label] : []) : g.levels,
-      lat: g.mode === 'points' ? g.lat : null, lon: g.mode === 'points' ? g.lon : null,
+      // Power BI Azure Maps rejects Location + Latitude/Longitude together unless the coordinates are averaged.
+      // Prefer geographic place columns when they exist; use raw coordinates only when the model has no place columns.
+      locations,
+      lat: coordinateOnly ? g.lat : null, lon: coordinateOnly ? g.lon : null,
       size: p.primary, tooltips: tips,
-      title: `${p.primary.label} by ${where.toLowerCase()}${g.mode === 'places' && g.levels.length > 1 ? ' (drill down for detail)' : ''}`,
+      title: `${p.primary.label} by ${where.toLowerCase()}${locations.length > 1 ? ' (drill down for detail)' : ''}`,
     }),
   });
   const rx = M + mapW + G;

@@ -4,6 +4,17 @@ import { stableUuid } from '../config.mjs';
 import { kqlName, kqlString } from './kusto.mjs';
 
 const GRID = 24;
+const REFRESH_INTERVALS = [
+  [1, '1s'], [10, '10s'], [30, '30s'], [60, '1m'], [300, '5m'], [900, '15m'],
+  [1800, '30m'], [3600, '1h'], [7200, '2h'], [86400, '1d'],
+];
+function refreshInterval(seconds) {
+  const s = Math.max(1, Number(seconds) || 30);
+  return (REFRESH_INTERVALS.find(([n]) => s <= n) || REFRESH_INTERVALS.at(-1))[1];
+}
+function refreshText(interval) {
+  return interval.replace(/^(\d+)s$/, '$1 seconds').replace(/^(\d+)m$/, '$1 minutes').replace(/^(\d+)h$/, '$1 hours').replace(/^(\d+)d$/, '$1 day');
+}
 
 /**
  * @param {object} o
@@ -29,6 +40,8 @@ export function buildDashboard({ title, source, scenario, refreshSeconds = 30, m
   const perMinute = M?.gold?.find((g) => g.kind === 'perMinute') || null;
   const inGold = (role) => Boolean(perMinute && R[role] && perMinute.by.includes(R[role].name));
   const timeVars = ['_startTime', '_endTime'];
+  const autoRefreshInterval = refreshInterval(refreshSeconds);
+  const autoRefreshLabel = refreshText(autoRefreshInterval);
 
   const dsId = id('ds');
   const dataSources = [{
@@ -82,8 +95,8 @@ export function buildDashboard({ title, source, scenario, refreshSeconds = 30, m
 
   // ---- page 1: live overview ----
   const desc = M
-    ? `Live events in **${md(source.databaseName)}** · checked and deduplicated in **${md(M.names.clean)}** (Silver), trends from **${md(perMinute?.name || M.names.clean)}** (Gold) · refreshes every ${refreshSeconds} seconds · change the time range at the top`
-    : `Live events in **${md(source.databaseName)}** · table **${md(scenario.table)}** · refreshes every ${refreshSeconds} seconds · change the time range at the top`;
+    ? `Live events in **${md(source.databaseName)}** · checked and deduplicated in **${md(M.names.clean)}** (Silver), trends from **${md(perMinute?.name || M.names.clean)}** (Gold) · refreshes every ${autoRefreshLabel} · change the time range at the top`
+    : `Live events in **${md(source.databaseName)}** · table **${md(scenario.table)}** · refreshes every ${autoRefreshLabel} · change the time range at the top`;
   markdown(live, 'header', `## ${md(title)}\n${desc}`, { x: 0, y: 0, width: GRID, height: 3 });
   const cards = [
     order ? ['orders', R.order.role === 'order' && scenario.unit === 'sales line' ? 'Orders' : `${unitPlural[0].toUpperCase()}${unitPlural.slice(1)}`, `${baseVar}\n| summarize Value = ${scenario.unit === 'sales line' ? `dcount(${order})` : 'count()'}`] : null,
@@ -189,7 +202,7 @@ export function buildDashboard({ title, source, scenario, refreshSeconds = 30, m
   return {
     schema_version: '52',
     title,
-    autoRefresh: { enabled: true, defaultInterval: `${refreshSeconds}s`, minInterval: '30s' },
+    autoRefresh: { enabled: true, defaultInterval: autoRefreshInterval, minInterval: '1s' },
     tiles,
     baseQueries,
     parameters: [{
