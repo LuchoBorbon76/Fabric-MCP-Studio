@@ -127,6 +127,6 @@
     { "date": "2026-10-10", "type": "improvement", "commit": "db9215f", "title": "Settings recommends the best model for Fabric MCP work per AI provider, applies a sensible default when switching providers, and shows a Recommended models picker with reasons when several good choices exist" },
     { "date": "2026-10-10", "type": "improvement", "commit": "da2e9ff", "title": "Model check can now repair older app-created semantic models by hiding every column used in relationships (keys and foreign keys), and Copilot has a matching studio_hide_relationship_keys tool" },
     { "date": "2026-10-10", "type": "fix", "commit": "e57dfde", "title": "Copilot-suggested measures are automatically renamed when they collide with source columns or other measures in the same semantic model, and DAX references are rewritten to the safe names so Fabric accepts the model" },
-    { "date": "2026-10-10", "type": "improvement", "title": "Semantic model design now shows the suggested measures from Copilot/defaults and the created measures currently visible in the active model" }
+    { "date": "2026-10-10", "type": "improvement", "commit": "2ddcee3", "title": "Semantic model design now shows the suggested measures from Copilot/defaults and the created measures currently visible in the active model" }
   ]
 }
