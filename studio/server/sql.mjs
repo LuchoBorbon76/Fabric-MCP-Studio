@@ -102,9 +102,12 @@ export async function discoverSqlServer(conn, { fabricEndpoint = false, exactCou
       }
     }
     for (const t of tables) t.rows = counts.has(`${t.schema}.${t.name}`) ? counts.get(`${t.schema}.${t.name}`) : null;
-    const relationships = fks.length
-      ? fks.map((f) => ({ from: { schema: f.fromSchema, table: f.fromTable, column: f.fromColumn }, to: { schema: f.toSchema, table: f.toTable, column: f.toColumn }, source: 'foreign key', name: f.name }))
-      : inferRelationships(tables);
+    const declared = fks.map((f) => ({ from: { schema: f.fromSchema, table: f.fromTable, column: f.fromColumn }, to: { schema: f.toSchema, table: f.toTable, column: f.toColumn }, source: 'foreign key', name: f.name }));
+    const seen = new Set(declared.map((r) => `${r.from.schema}.${r.from.table}.${r.from.column}->${r.to.schema}.${r.to.table}.${r.to.column}`.toLowerCase()));
+    const relationships = [
+      ...declared,
+      ...inferRelationships(tables).filter((r) => !seen.has(`${r.from.schema}.${r.from.table}.${r.from.column}->${r.to.schema}.${r.to.table}.${r.to.column}`.toLowerCase())),
+    ];
     return { engine: fabricEndpoint ? 'Fabric SQL analytics endpoint' : 'SQL Server', version, tables, relationships };
   });
 }
@@ -275,8 +278,10 @@ export function inferRelationships(tables) {
     const pk = t.columns.filter((c) => c.isPk);
     if (pk.length === 1) { keyOf.set(t, pk[0].name); continue; }
     const base = norm(singular(t.name.replace(/^(dim|fact|fct|tbl)_?/i, '')));
-    const cand = t.columns.find((c) => [`${base}id`, `${base}key`, `${base}code`].includes(norm(c.name)))
-      || t.columns.find((c) => ['id', 'key'].includes(norm(c.name)));
+    const idLike = t.columns.filter((c) => /(id|key|code)$/i.test(c.name) && !/^parent/i.test(c.name));
+    const cand = t.columns.find((c) => [base, `${base}id`, `${base}key`, `${base}code`].includes(norm(c.name)))
+      || t.columns.find((c) => ['id', 'key'].includes(norm(c.name)))
+      || (idLike.length === 1 ? idLike[0] : null);
     if (cand) keyOf.set(t, cand.name);
   }
   const rels = [];
@@ -288,14 +293,16 @@ export function inferRelationships(tables) {
     const wanted = keyNorm === 'id' || keyNorm === 'key' ? [dimBase, `${dimBase}id`, `${dimBase}key`, `${dimBase}code`] : [keyNorm];
     for (const fact of tables) {
       if (fact === dim) continue;
-      const col = fact.columns.find((c) => wanted.includes(norm(c.name)));
-      if (!col) continue;
-      if (keyOf.get(fact) && norm(keyOf.get(fact)) === norm(col.name)) continue;
-      rels.push({
-        from: { schema: fact.schema, table: fact.name, column: col.name },
-        to: { schema: dim.schema, table: dim.name, column: key },
-        source: 'inferred from names',
-      });
+      const cols = fact.columns.filter((c) => wanted.includes(norm(c.name))
+        || (keyNorm.length > 3 && norm(c.name).endsWith(keyNorm) && !norm(c.name).startsWith('parent')));
+      for (const col of cols) {
+        if (keyOf.get(fact) && norm(keyOf.get(fact)) === norm(col.name)) continue;
+        rels.push({
+          from: { schema: fact.schema, table: fact.name, column: col.name },
+          to: { schema: dim.schema, table: dim.name, column: key },
+          source: 'inferred from names',
+        });
+      }
     }
   }
   for (const t of tables) for (const c of t.columns) if (keyOf.get(t) === c.name) c.isKey = true;
