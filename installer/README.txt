@@ -28,7 +28,7 @@ INSTALL
    - installs the app's packages (about 150 MB);
    - creates the "Fabric MCP Studio" desktop shortcut and offers to start the app.
 5. In the app: sign in with your Microsoft Entra work account, choose your AI provider in Settings, then select
-   "Check setup".
+   "Check setup". If anything is yellow or red, open Settings > Fix prerequisites for exact fixes and admin links.
 
 Only want to see what is installed? Double-click "Check prerequisites.cmd" (it changes nothing).
 

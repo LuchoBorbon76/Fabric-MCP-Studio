@@ -5,8 +5,9 @@ chatting with the **AI the customer already licenses**:
 
 - **Workspace** – create a new one on any capacity, or use an existing workspace.
 - **Naming standard** – every item the studio creates is named `[Domain]_[Object]_[Purpose]_[Environment]`
-  (for example `Sales_SM_Revenue_PROD`). The Overview and Workspace pages ask what the environment is for (demo, proof
-  of concept, development, test, user acceptance, production, training or sandbox) and the business domain.
+  (for example `Sales_SM_Revenue_PROD`). The Workspace page, and the Overview only when the Workspace box is selected,
+  ask what the environment is for (demo, proof of concept, development, test, user acceptance, production, training or
+  sandbox) and the business domain.
 - **Data** – start from sample data (Contoso Retail, or AdventureWorksDW2022 created as a Fabric SQL database), mirror
   your databases (Azure SQL Database, Azure SQL Managed Instance, SQL Server on-premises via gateway, Azure Database
   for PostgreSQL), or reuse Fabric lakehouses, warehouses, mirrored databases and SQL databases (in place or with
@@ -24,7 +25,8 @@ chatting with the **AI the customer already licenses**:
   auto-refreshing Real-Time Dashboard, live time-series properties in the ontology and Activator alerts on rule breaks,
   plus the **medallion architecture** (Bronze, Silver, Gold) applied to the stream and shown as a Fabric task flow.
 - **Planning** – a budget and rolling forecast from your actuals, a Plan table with variance measures in the model, a
-  Plan vs actual report, and the Fabric plan for planning sheets.
+  Plan vs actual report, and a Fabric Plan container for planning sheets. The Plan item opens as a shell until a user
+  creates a Planning Sheet and connects the semantic model with their own sign-in.
 - **Ask & share** – governed answers in the app chat, Microsoft 365 Copilot / Teams agent, other AI clients, and a
   **Fabric data agent** on the semantic model (Copilot suggests the instructions, **Apply suggestions** creates and
   publishes it; the studio writes the item definition with every table, column and measure).
@@ -158,14 +160,17 @@ flowchart LR
   the tenant settings each step needs (when you are a Fabric administrator) and what your data source supports. Parts
   that can't run get a red badge on the map and their page a banner with the reason and the fix, and their actions
   are disabled; parts that run with limits say so. Jobs and Copilot tools stop before changing anything when their
-  step can't run. *Check setup* and `npm run check` show the same list. A **paused capacity** is checked again every
+  step can't run. *Check setup*, **Settings › Fix prerequisites** and `npm run check` show the same list; Fix
+  prerequisites groups blockers by module, includes exact fix text and opens Fabric/Azure admin links when available.
+  A **paused capacity** is checked again every
   minute (`STUDIO_CAPACITY_CHECK_SECONDS`, at least 15) and a running one every five minutes while a page is open: when
   it is resumed (or paused) the map, the badges and every page change by themselves – no reload or *Check again*.
 
 ## Naming standard
 
 Every item the studio creates follows **`[Domain]_[Object]_[Purpose]_[Environment]`**, so anyone can tell what an item
-is, what it's for and where it runs. The **Overview** and **Workspace** pages ask *What is this environment for?* and the
+is, what it's for and where it runs. The **Workspace** page, and the Overview only when the Workspace box is selected,
+ask *What is this environment for?* and the
 business domain, with a live preview of the names; Copilot asks too (`studio_set_naming`) before it creates anything.
 
 | Part | What it is | Examples |
@@ -212,12 +217,14 @@ sample's questions to the models built on that data: another model gets only its
 - The studio **never regenerates or deletes a model you added**: Remove only stops using it, clean up leaves it, and a
   new model can't take its name. Changes to it go through Copilot (Power BI authoring) after you approve each one.
 - **What is already built on it shows on the map.** When you add an existing model (or make it active for the first
-  time), the studio looks in Fabric in the background: Power BI reports on the model and Fabric data agents that answer
-  from it (in the model's and the project's workspace – reading a data agent takes Fabric about 20 seconds, 4 at a
-  time), and the lakehouse or warehouse it reads. Reports appear on the Power BI reports node and on Reports & apps
-  (*Existing report*, with *Open in Power BI* only), data agents on Copilot answers, and a project without data takes
-  the model's lakehouse or warehouse as its data source, in place (nothing is copied). The studio never changes,
-  rebuilds or deletes these items, clean up leaves them, and a new report can't take an existing report's name. A report
+  time), the studio looks in Fabric in the background and every artifact box it is checking shows as working: Power BI
+  reports on the model, Fabric data agents that answer from it, the lakehouse/warehouse/SQL item it reads, and related
+  Studio-built items in the project workspace (ontology, Fabric plan, Eventhouse, Eventstream, Real-Time Dashboard,
+  Activator alerts, medallion querysets/lakehouse/Gold model and task flows). Reports appear on the Power BI reports
+  node and on Reports & apps (*Existing report*, with *Open in Power BI* only), data agents on Copilot answers, live
+  items on Real-time, and a project without data takes the model's lakehouse or warehouse as its data source, in place
+  (nothing is copied). The studio never changes, rebuilds or deletes these items, clean up leaves them, and a new report
+  can't take an existing report's name. A report
   **the studio built** (its description in Fabric says so – for example by another copy of the studio, or before the
   project was started over) is the project's again instead: it shows as *Built by the studio* with its theme and pages
   read from its definition, can be rebuilt and deleted, and goes in the org app. *Look in
@@ -492,12 +499,13 @@ Copilot tools: `studio_medallion_status`, `studio_apply_medallion` and `studio_r
    Plan table; *Remove…* takes it out again.
 3. **Plan vs actual report** – a Power BI page with actual, budget, variance and forecast KPIs, the monthly trend of
    all three, and the variance by region and category (also a page template in Reports & apps).
-4. **Plan in Fabric** – creates the Fabric plan item for planning sheets. Planners connect it to the semantic model
-   with their own sign-in: *New Planning Sheet* › *Data* › *Add* › the model › *Connect* (they need Read and Build on
-   the model – Contributor or higher in the workspace). The studio doesn't bind a shared cloud connection: Microsoft
-   deprecated that flow for planning (it reads the model as the connection's saved account and fails with *DMTS
-   connection owner missing*), and a plan that still uses one gets *Recreate without a connection*. *Check the plan*
-   recreates a plan that points to a model that was recreated – only while it has no sheets. Planners add rows like
+4. **Plan item and Planning Sheet** – creates the Fabric Plan container. It opens on Fabric's "How would you like to get
+   started?" page until a user creates a Planning Sheet. In the plan, select *New Planning Sheet* › *Data* › *Add* › the
+   model › *Connect* (it uses the planner's own sign-in; they need Read and Build on the model – Contributor or higher
+   in the workspace). The studio doesn't bind a shared cloud connection: Microsoft deprecated that flow for planning
+   (it reads the model as the connection's saved account and fails with *DMTS connection owner missing*), and a plan that
+   still uses one gets *Recreate without a connection*. *Check the plan* recreates a plan that points to a model that was
+   recreated – only while it has no sheets. Planners add rows like
    *Region › Category*, columns *Year › Month* and values *Budget, Forecast, Actual*, adjust the numbers, comment,
    approve and write back to a SQL database. **Who can plan** lists the workspace's people and roles and gives a planner
    Contributor (or Member) access in one step.

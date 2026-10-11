@@ -13,7 +13,8 @@ connected to the same MCP servers. Allow 30–45 minutes the first time.
       `.\scripts\create-shortcut.ps1` adds a **Fabric MCP Studio** icon to the desktop that runs the studio in the
       background (stop it with **Shut down** in the app).
 - [ ] Sign in with the Microsoft Entra work account that has Fabric access (top right)
-- [ ] **Check setup** shows green for Microsoft Entra, Fabric capacity, your AI provider and the MCP servers
+- [ ] **Check setup** shows green for Microsoft Entra, Fabric capacity, your AI provider and the MCP servers. If anything
+      is yellow or red, use **Settings › Fix prerequisites** for module-by-module fixes and admin links.
 - [ ] Optional: pick your AI provider in **Settings › AI provider** (Azure AI Foundry / Azure OpenAI by default, OpenAI, Anthropic, local; GitHub Copilot in developer mode)
 
 For training or screenshots without touching Fabric, start the studio in safe demo mode (`STUDIO_DEMO=1`). It is
@@ -38,7 +39,7 @@ capacity admin still completes the Install/Connect screens in Fabric.
 
 ## 1. Workspace
 
-First tell the studio **what this environment is for** (Overview or Workspace page): demo, proof of concept,
+First tell the studio **what this environment is for** (Workspace page, or the Overview when the Workspace box is selected): demo, proof of concept,
 development, test, user acceptance, production, training or sandbox, and the business domain (for example Sales). Every
 item it creates is then named `[Domain]_[Object]_[Purpose]_[Environment]` – `Sales_WS_Analytics_PROD`,
 `Sales_SM_Revenue_PROD`, `Sales_RPT_Executive_PROD` – and the page previews the names. Items that already exist keep
@@ -106,10 +107,10 @@ from any workspace you can read (Direct Lake, Import or DirectQuery). The active
 agent, the org app and Copilot use – switch it with *Use this model* in the pop-up or the **Semantic model** bar at the top of Reports
 & apps, Planning and Ask & share. The studio never changes or deletes a model you added.
 
-When you add an existing model, the studio also looks in Fabric for what is already built on it: its Power BI reports
-appear on the map and on Reports & apps as *Existing report*, the data agents that answer from it on Copilot answers,
-and – when the project has no data yet – the lakehouse or warehouse it reads becomes the data source (in place). The
-studio never changes these items; *↻ Look again* in the Semantic models pop-up refreshes the list.
+When you add an existing model, the studio also looks in Fabric for what is already built around it: reports, data agents,
+the lakehouse/warehouse/SQL item it reads, ontology, Fabric plans, real-time Eventhouse/Eventstream/dashboard/alerts,
+medallion layers and task flows. Matching boxes show as working while they are discovered. Existing items appear on the
+map; the studio never changes or deletes them unless you ask. *↻ Look again* in the Semantic models pop-up refreshes the list.
 
 If a model you add fails with a *duplicate value … one side of a relationship* error, select **🩺 Check and fix the data**:
 the studio finds the table with repeated keys and, when they are exact copies in a warehouse, removes them (with a
@@ -192,7 +193,8 @@ Ontology is in preview; the Ontology MCP endpoint (used by agents) needs a paid 
    forecast rows go to `planning.PlanValues`, and the semantic model gets a Plan table with budget, forecast and variance
    measures. *Plan vs actual* then shows actual, budget to date, variance and forecast through the model.
 3. **Plan vs actual report** › *Build report*: one Power BI page with KPIs, the monthly trend and the variance by region.
-4. **Plan in Fabric** › *Create the Fabric plan*, then *Open plan*: *New Planning Sheet* (Planning) › in the *Data* pane
+4. **Plan item and Planning Sheet** › *Create the Fabric plan item*, then *Open plan*. Fabric opens the plan on
+   *How would you like to get started?* until a planner creates *New Planning Sheet*. In the sheet's *Data* pane select
    *Add* › pick the model › *Add* › *Connect* – it uses your own sign-in (Contributor or higher in the workspace; no
    shared connection). Then rows *Region › Category*, columns *Year › Month* and values *Budget, Forecast, Actual*.
 

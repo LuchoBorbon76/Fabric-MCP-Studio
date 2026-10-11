@@ -19,7 +19,7 @@
       by clicking buttons or by asking Copilot in plain language. No coding needed.</p>
     <table class="cover-meta">
       <tr><td>For</td><td>Business users, analysts and anyone who wants to use Fabric MCP Studio – no technical background required</td></tr>
-      <tr><td>App version</td><td>1.33 and later</td></tr>
+      <tr><td>App version</td><td>1.63 and later</td></tr>
       <tr><td>Updated</td><td>October 2026</td></tr>
     </table>
     <div class="note cover-note">
@@ -235,10 +235,12 @@
     questions but never change anything.</p>
 
   <h3>Run the setup check</h3>
-  <p>Select <b>Check setup</b> at the top. The app tests your sign-in, capacity, AI, connections and Fabric settings.</p>
+  <p>Select <b>Check setup</b> at the top. The app tests your sign-in, capacity, AI, connections and Fabric settings.
+    For a focused fix list, open <b>Settings › Fix prerequisites</b>: it groups blockers by module, explains who can fix
+    each one, and gives links to Fabric or Azure admin pages when available.</p>
   <div class="figrow">
     <figure><img src="images/27-ai-provider.png" alt="AI provider settings"><figcaption>Settings › AI provider. <b>Save</b> first, then <b>Test</b>.</figcaption></figure>
-    <figure><img src="images/03-setup-check.png" alt="Setup check"><figcaption><b>Check setup</b>: green dots are fine; yellow or red lines say what is missing and how to fix it. <b>What can run</b> shows each part as <i>Ready</i> or not.</figcaption></figure>
+    <figure><img src="images/03-setup-check.png" alt="Setup check"><figcaption><b>Check setup</b>: green dots are fine; yellow or red lines say what is missing and how to fix it. <b>Settings › Fix prerequisites</b> shows the same issues as actionable cards.</figcaption></figure>
   </div>
 </section>
 
@@ -429,8 +431,9 @@
   <ol class="steps">
     <li>Select <b>⇄ Switch or add a model</b> (or double-click <b>Semantic model</b> on the map).</li>
     <li>Select <b>+ Add an existing model</b>, choose the workspace and the model, then <b>Add</b>.</li>
-    <li>The app reads its tables and measures, and looks in Fabric for the <b>reports and data agents already built on it</b>.
-      They appear on the map and on Reports &amp; apps as <i>Existing report</i>. The app never changes or deletes them.</li>
+    <li>The app reads its tables and measures, and looks in Fabric for artifacts already built around it: <b>reports, data
+      agents, ontology, plans, real-time items and task flows</b>. The matching boxes show as working while this happens.
+      Existing items appear on the map; the app never changes or deletes them unless you ask.</li>
   </ol>
   <figure><img src="images/09-models-popup.png" class="w70" alt="Semantic models"><figcaption>The Semantic models window: switch the active model, add one, or build a new one.</figcaption></figure>
   <div class="note"><b>One model is active at a time.</b> Reports, Copilot's answers, the data agent and the org app use the
@@ -556,10 +559,13 @@
     <li>Open <b>Planning</b>. <b>Design the plan</b> recommends a plan year and growth – change the growth for any region and
       select <b>↻ Apply growth targets</b> to see the effect.</li>
     <li>Select <b>Build the plan</b> (about 4 minutes).</li>
-    <li>Select <b>Build report</b> for the Plan vs actual report, and <b>Create the Fabric plan</b> so planners can refine numbers in planning sheets.</li>
+    <li>Select <b>Build report</b> for the Plan vs actual report, and <b>Create the Fabric plan item</b>. The budget and
+      forecast rows are already in the model; the Fabric Plan item is a container where planners create a Planning Sheet.</li>
   </ol>
   <div class="note">Planning works on a semantic model <b>the app built</b> from your data. If your active model is one you
-    added, the page tells you – switch models or build a new one first.</div>
+    added, the page tells you – switch models or build a new one first. When you open the Fabric Plan item, Fabric shows
+    "How would you like to get started?" until you create a <b>New Planning Sheet</b>; then use <b>Data › Add</b> to connect
+    the semantic model with your own sign-in.</div>
   <figure><img src="images/21-planning.png" alt="Planning"><figcaption>Here the active model is an existing one, so the page explains what to do.</figcaption></figure>
 </section>
 
@@ -613,7 +619,8 @@
 <!-- ============================== TROUBLESHOOTING ============================== -->
 <section class="page" id="trouble">
   <h2>When something doesn't work</h2>
-  <p>First select <b>Check setup</b> – it finds most problems and says how to fix them. You can also ask Copilot:
+  <p>First select <b>Check setup</b> – it finds most problems and says how to fix them. For a more actionable list, open
+    <b>Settings › Fix prerequisites</b>. You can also ask Copilot:
     <i>"Why can't I build a report?"</i></p>
   <table class="trouble">
     <tr><th>What you see</th><th>What to do</th></tr>
@@ -621,6 +628,7 @@
     <tr><td>"Fabric MCP Studio isn't running" at the top of the page</td><td>Start it again from the desktop icon; the page reconnects by itself.</td></tr>
     <tr><td><b>Sign in</b> at the top right, or "Not signed in"</td><td>Select <b>Sign in › Sign in with browser</b> and use your work account.</td></tr>
     <tr><td>Copilot says the AI provider isn't set up</td><td><b>Settings › AI provider</b>: enter the details from IT, <b>Save</b>, then <b>Test</b>.</td></tr>
+    <tr><td>A setting, role or capacity is missing</td><td>Open <b>Settings › Fix prerequisites</b>. It tells you the module affected, the exact fix and the admin link when available.</td></tr>
     <tr><td>A red badge on a map box, or "Can't run"</td><td>Select the box – it says what is missing (often a Fabric setting your administrator must turn on).</td></tr>
     <tr><td>"The capacity is paused"</td><td>Ask your Fabric administrator to resume the capacity, then select <b>Check again</b>.</td></tr>
     <tr><td>A grey box you can't open</td><td>Build the parts to its left first – the box says what it needs.</td></tr>
