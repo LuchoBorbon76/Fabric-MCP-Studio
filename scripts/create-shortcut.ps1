@@ -44,7 +44,7 @@ $launcher = Join-Path $script:RepoRoot 'Start-Studio.cmd'
 $studio = Join-Path $script:RepoRoot 'studio'
 $silent = Join-Path $studio 'Start-Studio-Silent.wsf'
 $wscript = Join-Path $env:SystemRoot 'System32\wscript.exe'
-$icon = Join-Path $studio 'assets\fabric-mcp-studio.ico'
+$icon = Join-Path $studio 'assets\fabric-mcp-studio-v2.ico'
 $locations = @([Environment]::GetFolderPath('Desktop'))
 if ($StartMenu) { $locations += [Environment]::GetFolderPath('Programs') }
 
@@ -108,7 +108,7 @@ foreach ($dir in $locations) {
         $lnk.WindowStyle = 7   # minimized - the studio opens in your browser
     }
     $lnk.WorkingDirectory = $studio
-    $lnk.Description = 'Build Fabric workspaces, semantic models and ontologies with the Copilot you already use.'
+    $lnk.Description = 'Build Fabric workspaces, semantic models and ontologies with your AI assistant.'
     if (Test-Path -LiteralPath $icon) { $lnk.IconLocation = "$icon,0" }
     $lnk.Save()
     Write-Ok $path
