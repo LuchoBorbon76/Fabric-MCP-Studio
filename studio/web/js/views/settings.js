@@ -1,10 +1,97 @@
 import { store, get, post, put, patch, on } from '../api.js';
-import { h, toast, busy, field, input, select, seg, confirmDialog, typedConfirmDialog, statusDot } from '../ui.js';
+import { h, toast, busy, field, input, select, seg, confirmDialog, typedConfirmDialog, statusDot, modal } from '../ui.js';
 import { app } from '../app.js';
 import { showDisclaimer, showWhatsNew } from '../about.js';
-import { OPENROUTER_AUTO, fillModelSelect } from '../openrouter.js';
+import { OPENROUTER_AUTO, fillModelSelect, modelFacts } from '../openrouter.js';
 
 let draftProvider = null;
+const promptedRecommendations = new Set();
+
+const STATIC_RECOMMENDATIONS = {
+  github: [
+    { model: 'auto', title: 'Auto (best available)', badge: 'Recommended', why: 'Lets GitHub Copilot pick the strongest available model for tool-heavy Fabric MCP work.' },
+  ],
+  'azure-openai': [
+    { model: 'gpt-5.4', title: 'GPT-5.4', badge: 'Recommended', why: 'Best default when your Azure AI Foundry deployment supports tool calling, larger context and reasoning.', config: { modelId: 'gpt-5.4', deployment: 'gpt-5.4', authMode: 'entra', wireApi: 'responses' }, effort: 'medium' },
+    { model: 'gpt-5.4-mini', title: 'GPT-5.4 Mini', badge: 'Lower cost', why: 'Good for demos and lighter Fabric actions when you want faster/lower-cost responses.', config: { modelId: 'gpt-5.4-mini', deployment: 'gpt-5.4-mini', authMode: 'entra', wireApi: 'responses' }, effort: 'low' },
+    { model: 'gpt-4.1', title: 'GPT-4.1', badge: 'Compatibility', why: 'Use when this is the strongest tool-calling deployment available in your Azure resource.', config: { modelId: 'gpt-4.1', deployment: 'gpt-4.1', authMode: 'entra', wireApi: 'responses' }, effort: '' },
+  ],
+  openai: [
+    { model: 'gpt-5.4', title: 'GPT-5.4', badge: 'Recommended', why: 'Strong tool use and reasoning for multi-step Fabric build/debug workflows.', config: { modelId: 'gpt-5.4' }, effort: 'medium' },
+    { model: 'gpt-5.4-mini', title: 'GPT-5.4 Mini', badge: 'Lower cost', why: 'Good for everyday assistance and shorter Fabric MCP tasks.', config: { modelId: 'gpt-5.4-mini' }, effort: 'low' },
+    { model: 'gpt-4.1', title: 'GPT-4.1', badge: 'Compatibility', why: 'Fallback when the GPT-5 family is not available on your account.', config: { modelId: 'gpt-4.1' }, effort: '' },
+  ],
+  anthropic: [
+    { model: 'claude-sonnet-4-5', title: 'Claude Sonnet 4.5', badge: 'Recommended', why: 'Best balance for tool-calling, long reasoning and code/report planning.', config: { modelId: 'claude-sonnet-4-5' }, effort: 'medium' },
+    { model: 'claude-opus-4-5', title: 'Claude Opus 4.5', badge: 'Deep reasoning', why: 'Use for difficult architecture or troubleshooting work when latency/cost matter less.', config: { modelId: 'claude-opus-4-5' }, effort: 'high' },
+    { model: 'claude-haiku-4-5', title: 'Claude Haiku 4.5', badge: 'Fast', why: 'Use for quick answers and simple Fabric navigation tasks.', config: { modelId: 'claude-haiku-4-5' }, effort: 'low' },
+  ],
+  local: [
+    { model: 'qwen3:32b', title: 'Qwen3 32B', badge: 'Recommended local', why: 'Good local default when served through Ollama/LM Studio/vLLM with tool calling.', config: { modelId: 'qwen3:32b', baseUrl: 'http://localhost:11434/v1' } },
+    { model: 'gpt-oss:120b', title: 'gpt-oss 120B', badge: 'Large local', why: 'Use if your machine/server can host a larger local tool-calling model.', config: { modelId: 'gpt-oss:120b', baseUrl: 'http://localhost:11434/v1' } },
+    { model: 'llama3.1:70b', title: 'Llama 3.1 70B', badge: 'Compatible local', why: 'Fallback local model family when Qwen/GPT-OSS is not available.', config: { modelId: 'llama3.1:70b', baseUrl: 'http://localhost:11434/v1' } },
+  ],
+};
+
+function openRouterRecommendations(models = []) {
+  const recs = [{ model: OPENROUTER_AUTO, title: 'OpenRouter Auto Router', badge: 'Recommended', why: 'Best default: OpenRouter picks a tool-capable model per request, useful when availability and pricing change.' }];
+  const usable = models.filter((m) => m.id !== OPENROUTER_AUTO && m.context && m.price?.input !== -1000000);
+  const score = (m) => {
+    const name = `${m.id} ${m.name}`.toLowerCase();
+    const family = /claude|gpt-|gemini|grok|kimi|qwen|mistral/.test(name) ? 3 : 0;
+    const reason = m.reasoning ? 2.5 : 0;
+    const ctxScore = Math.min(4, Math.log10(Math.max(1, m.context / 1000)));
+    const price = Number(m.price?.input || 0) + Number(m.price?.output || 0);
+    const pricePenalty = price > 0 ? Math.min(3, Math.log10(price + 1)) : 0;
+    return family + reason + ctxScore - pricePenalty;
+  };
+  const best = [...usable].sort((a, b) => score(b) - score(a))[0];
+  const budget = [...usable].filter((m) => (m.price?.input === 0 && m.price?.output === 0) || (Number(m.price?.input || 0) + Number(m.price?.output || 0) <= 1)).sort((a, b) => (b.context || 0) - (a.context || 0))[0];
+  const long = [...usable].sort((a, b) => (b.context || 0) - (a.context || 0))[0];
+  for (const [m, badge, why] of [
+    [best, 'Strongest fit', 'Best scored tool-capable option by context, reasoning support, model family and cost.'],
+    [long, 'Largest context', 'Use for long chats, large schemas and broad project troubleshooting.'],
+    [budget, 'Budget', 'Use when you want a lower-cost or free model that can still call tools.'],
+  ]) {
+    if (m && !recs.some((r) => r.model === m.id)) recs.push({ model: m.id, title: m.name, badge, why, facts: modelFacts(m), effort: m.reasoning ? 'medium' : '' });
+  }
+  return recs.slice(0, 4);
+}
+
+function recommendations(providerId, liveModels = []) {
+  if (providerId === 'openrouter') return openRouterRecommendations(liveModels);
+  if (providerId === 'github' && liveModels.length > 1) {
+    const extras = liveModels.filter((m) => m.id !== 'auto').slice(0, 3).map((m) => ({ model: m.id, title: m.name || m.id, badge: m.reasoning ? 'Reasoning' : 'Available', why: m.reasoning ? 'Good when you want explicit reasoning effort support.' : 'Available in your GitHub Copilot plan.' }));
+    return [...STATIC_RECOMMENDATIONS.github, ...extras];
+  }
+  return STATIC_RECOMMENDATIONS[providerId] || [];
+}
+
+function applyRecommendation(d, r) {
+  if (!r) return;
+  d.model = r.model || d.model || '';
+  if (r.effort !== undefined) d.reasoningEffort = r.effort || '';
+  d.config = { ...(d.config || {}), ...(r.config || {}) };
+}
+
+function showRecommendations(providerId, d, redraw) {
+  const list = recommendations(providerId, d.liveModels || []);
+  if (!list.length) { toast('No built-in model recommendations for this provider yet.', 'err'); return; }
+  const body = h('div', { class: 'col' },
+    h('p', { class: 'small muted', style: { margin: 0 } }, 'These models are suggested for Fabric MCP because they support tool use, reasoning, enough context for schemas/project state, or a good cost/performance trade-off. You can still edit the fields after choosing.'),
+    h('div', { class: 'recmodels' }, list.map((r, i) => {
+      const choose = h('button', { class: `btn ${i === 0 ? 'pri' : ''}` }, i === 0 ? 'Use recommended' : 'Use this');
+      const row = h('div', { class: 'recmodel' },
+        h('div', { style: { minWidth: 0 } },
+          h('div', { class: 'row', style: { gap: '6px' } }, h('b', {}, r.title || r.model), h('span', { class: 'pill' }, r.badge || 'Suggested')),
+          h('div', { class: 'tiny muted' }, [r.model, r.facts].filter(Boolean).join(' · ')),
+          h('p', { class: 'small muted' }, r.why)),
+        choose);
+      choose.addEventListener('click', () => { applyRecommendation(d, r); dlg.close(); redraw(); toast(`Model set to ${r.model}`, 'ok'); });
+      return row;
+    })));
+  const dlg = modal({ title: 'Recommended models for Fabric MCP', className: 'wide', body, actions: [{ label: 'Close' }] });
+}
 
 export function renderSettings(el) {
   el.append(h('div', { class: 'grid g2' },
@@ -52,9 +139,27 @@ function providerCard() {
   const card = h('div', { class: 'card' });
   const cur = store.settings?.provider || { id: 'azure-openai' };
   if (!draftProvider || draftProvider.saved !== cur.id) draftProvider = { id: cur.id, model: cur.model, reasoningEffort: cur.reasoningEffort || '', config: { ...(cur.config || {}) }, saved: cur.id };
+  if (!draftProvider.model && !draftProvider.config?.modelId && !draftProvider.config?.deployment) applyRecommendation(draftProvider, recommendations(draftProvider.id)[0]);
   const d = draftProvider;
   const body = h('div');
-  const cards = h('div', { class: 'srcs' }, store.providers.map((p) => h('div', { class: `src ${d.id === p.id ? 'on' : ''}`, onclick: () => { d.id = p.id; d.config = p.id === cur.id ? { ...(cur.config || {}) } : {}; d.model = p.id === cur.id ? cur.model : ''; d.reasoningEffort = p.id === cur.id ? cur.reasoningEffort || '' : ''; d.read = null; redraw(); } },
+  const cards = h('div', { class: 'srcs' }, store.providers.map((p) => h('div', { class: `src ${d.id === p.id ? 'on' : ''}`, onclick: () => {
+    const changed = d.id !== p.id;
+    d.id = p.id;
+    d.config = p.id === cur.id ? { ...(cur.config || {}) } : {};
+    d.model = p.id === cur.id ? cur.model : '';
+    d.reasoningEffort = p.id === cur.id ? cur.reasoningEffort || '' : '';
+    d.read = null;
+    if (changed) {
+      d.promptRecommendation = true;
+      applyRecommendation(d, recommendations(p.id)[0]);
+      if (p.id !== 'openrouter' && recommendations(p.id).length > 1 && !promptedRecommendations.has(p.id)) {
+        d.promptRecommendation = false;
+        promptedRecommendations.add(p.id);
+        setTimeout(() => showRecommendations(p.id, draftProvider, () => app.rerender()), 0);
+      }
+    }
+    redraw();
+  } },
     h('div', { class: 'h' }, h('div', { class: 'ic' }, { github: '🐙', 'azure-openai': '☁', openai: '◎', anthropic: '✳', local: '🖥', openrouter: '🔀' }[p.id] || '✦'), p.name, p.developer ? h('span', { class: 'pill', title: 'Only in developer mode' }, 'Dev') : null),
     h('div', { class: 'meta' }, p.license))));
   const redraw = () => { card.replaceWith(providerCard()); };
@@ -70,7 +175,10 @@ function providerCard() {
       if (s.note) status.append(h('span', { class: 'tiny muted', style: { flexBasis: '100%' } }, s.note));
     }).catch((e) => { status.textContent = e.message; });
     const model = select([{ value: d.model || 'auto', label: d.model || 'auto' }]);
-    get('/copilot/models').then((ms) => { model.innerHTML = ''; for (const m of ms) model.append(h('option', { value: m.id, selected: m.id === (d.model || 'auto') || undefined }, m.id === 'auto' ? 'auto (best available)' : m.name)); }).catch(() => {});
+    get('/copilot/models').then((ms) => {
+      d.liveModels = ms; model.innerHTML = ''; for (const m of ms) model.append(h('option', { value: m.id, selected: m.id === (d.model || 'auto') || undefined }, m.id === 'auto' ? 'auto (best available)' : m.name));
+      if (d.promptRecommendation && recommendations('github', ms).length > 1 && !promptedRecommendations.has('github')) { d.promptRecommendation = false; promptedRecommendations.add('github'); setTimeout(() => showRecommendations('github', d, redraw), 0); }
+    }).catch(() => {});
     model.addEventListener('change', () => { d.model = model.value; });
     const effort = select(['', 'low', 'medium', 'high', 'xhigh'].map((x) => ({ value: x, label: x || 'default', selected: x === d.reasoningEffort })));
     effort.addEventListener('change', () => { d.reasoningEffort = effort.value; });
@@ -118,7 +226,12 @@ function providerCard() {
       const ctx = m.context ? `${m.context.toLocaleString()} tokens of context` : '';
       info.textContent = [m.id, price, ctx, m.reasoning ? 'supports reasoning effort' : ''].filter(Boolean).join(' · ');
     };
-    get('/openrouter/models').then((ms) => { models = ms; fillModelSelect(model, models, d.model || OPENROUTER_AUTO); showInfo(); })
+    get('/openrouter/models').then((ms) => {
+      models = ms; d.liveModels = ms;
+      if (!d.model) applyRecommendation(d, openRouterRecommendations(models)[0]);
+      fillModelSelect(model, models, d.model || OPENROUTER_AUTO); showInfo();
+      if (d.promptRecommendation && !promptedRecommendations.has('openrouter')) { d.promptRecommendation = false; promptedRecommendations.add('openrouter'); setTimeout(() => showRecommendations('openrouter', d, redraw), 0); }
+    })
       .catch((e) => { model.innerHTML = ''; model.append(h('option', { value: d.model || OPENROUTER_AUTO }, d.model || OPENROUTER_AUTO)); info.textContent = e.message; });
     search.addEventListener('input', () => { fillModelSelect(model, models, model.value, search.value); showInfo(); });
     model.addEventListener('change', () => { d.model = model.value; showInfo(); });
@@ -159,7 +272,8 @@ function providerCard() {
     const r = await post('/providers/test');
     toast(`${r.name}${r.model ? ` (${r.model})` : ''} replied "${r.reply}" in ${(r.ms / 1000).toFixed(1)}s`, 'ok');
   }));
-  card.append(h('h2', {}, 'AI provider'), h('p', { class: 'lead' }, 'Use the Copilot or model your organization already licenses. The Fabric MCP servers are the same for every provider.'), cards, body, h('div', { class: 'row mt' }, save, test, h('span', { class: 'tiny muted' }, 'Save first, then Test.')));
+  const recommend = h('button', { class: 'btn', onclick: () => showRecommendations(d.id, d, redraw) }, 'Recommended models');
+  card.append(h('h2', {}, 'AI provider'), h('p', { class: 'lead' }, 'Use the Copilot or model your organization already licenses. The Fabric MCP servers are the same for every provider.'), cards, body, h('div', { class: 'row mt' }, save, test, recommend, h('span', { class: 'tiny muted' }, 'Save first, then Test.')));
   return card;
 }
 
