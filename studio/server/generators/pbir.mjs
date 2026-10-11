@@ -28,7 +28,10 @@ export function fieldOf(ref) {
 }
 const queryRef = (ref) => `${ref.table}.${ref.name}`;
 function projection(ref, extra = {}) {
-  return { field: fieldOf(ref), queryRef: queryRef(ref), nativeQueryRef: ref.name, ...(ref.label && ref.label !== ref.name ? { displayName: ref.label } : {}), ...extra };
+  // Power BI requires nativeQueryRef values to be unique inside a visual. Customer schemas often have generic
+  // columns such as NAME, TYPE or CODE in several tables, so use the table-qualified name for columns.
+  const nativeQueryRef = ref.kind === 'column' ? `${ref.table}.${ref.name}` : ref.name;
+  return { field: fieldOf(ref), queryRef: queryRef(ref), nativeQueryRef, ...(ref.label && ref.label !== ref.name ? { displayName: ref.label } : {}), ...extra };
 }
 const sortBy = (refs) => ({ sort: refs.map(([ref, direction]) => ({ field: fieldOf(ref), direction })), isDefaultSort: false });
 
