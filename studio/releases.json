@@ -132,6 +132,7 @@
     { "date": "2026-10-10", "type": "improvement", "commit": "63ad85e", "title": "Reports recommends measure-portfolio and operations reports when a model has many measure groups but weak segment detection, so rich report choices still appear" },
     { "date": "2026-10-10", "type": "improvement", "commit": "1d318e9", "title": "Semantic model creation now always runs a quality gate before deployment, blocking hard issues and showing a Ready / Needs review / Not ready score in proposals and active model cards" },
     { "date": "2026-10-10", "type": "improvement", "commit": "1d318e9", "title": "Ontology, planning and real-time/Eventhouse flows now run default quality gates too, logging warnings and stopping deployment when required structure, relationships or event schema pieces are missing" },
-    { "date": "2026-10-10", "type": "fix", "commit": "6b80940", "title": "Read-only Studio query data now safely quotes AI-generated reserved aliases such as RowCount, Count and Key, so profiling queries do not fail with SQL syntax errors" }
+    { "date": "2026-10-10", "type": "fix", "commit": "6b80940", "title": "Read-only Studio query data now safely quotes AI-generated reserved aliases such as RowCount, Count and Key, so profiling queries do not fail with SQL syntax errors" },
+    { "date": "2026-10-11", "type": "fix", "commit": "pending", "title": "Stale interrupted or failed job warnings no longer keep popping up after the same artifact is successfully recreated" }
   ]
 }

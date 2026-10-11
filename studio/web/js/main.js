@@ -444,6 +444,11 @@ new ResizeObserver(() => document.documentElement.style.setProperty('--dockh', `
 
 const JOB_ICON = { succeeded: '✓', cancelled: '■', interrupted: '!', failed: '✗' };
 const JOB_WORD = { succeeded: 'done', cancelled: 'cancelled', interrupted: 'interrupted', failed: 'failed' };
+const jobTime = (j) => Date.parse(j?.startedAt || j?.endedAt || '') || 0;
+function supersededJob(j) {
+  if (!j || !['interrupted', 'failed'].includes(j.status)) return false;
+  return [...store.jobs.values()].some((x) => x.id !== j.id && x.kind === j.kind && jobTime(x) > jobTime(j) && ['succeeded', 'running'].includes(x.status));
+}
 
 export function jobCard(job, { compact = false } = {}) {
   const icon = job.status === 'running' ? h('span', { class: 'spin' }) : h('span', { class: 'jicon' }, JOB_ICON[job.status] || '✗');
@@ -468,6 +473,7 @@ function renderDock() {
   for (const id of dockJobs) {
     const j = store.jobs.get(id);
     if (!j) continue;
+    if (supersededJob(j)) { dockJobs.delete(id); continue; }
     const card = jobCard(j, { compact: true });
     card.style.cursor = 'pointer';
     card.title = 'Open Activity';
@@ -607,7 +613,7 @@ async function refresh() {
       store.jobs.set(j.id, j);
       if (j.status === 'running') dockJobs.add(j.id);
       // A job cut off by the last shut down: show it once so the user knows to run it again.
-      else if (j.status === 'interrupted' && Date.now() - Date.parse(j.endedAt) < 10 * 60 * 1000 && !dockJobs.has(j.id)) { dockJobs.add(j.id); setTimeout(() => { dockJobs.delete(j.id); renderDock(); }, 20000); }
+      else if (j.status === 'interrupted' && !supersededJob(j) && Date.now() - Date.parse(j.endedAt) < 10 * 60 * 1000 && !dockJobs.has(j.id)) { dockJobs.add(j.id); setTimeout(() => { dockJobs.delete(j.id); renderDock(); }, 20000); }
     }
     if (b.settings?.theme && !localStorage.getItem('studioTheme')) setTheme(b.settings.theme);
     for (const a of b.approvals || []) if (!approvalSeen.has(a.id)) { approvalSeen.add(a.id); approvalQueue.push(a); }

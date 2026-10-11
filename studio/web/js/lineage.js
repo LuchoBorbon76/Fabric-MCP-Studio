@@ -97,6 +97,8 @@ const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const firstReason = (m) => m?.reasons?.find((r) => r.status === 'error') || m?.reasons?.find((r) => r.status === 'warn');
 const when = (iso) => (iso ? new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '–');
 const ts = (iso) => (iso ? Date.parse(iso) || 0 : 0);
+const supersededByNewerSuccess = (job, jobs) => job && ['failed', 'interrupted'].includes(job.status)
+  && jobs.some((j) => j.id !== job.id && j.kind === job.kind && ts(j.startedAt) > ts(job.startedAt) && ['succeeded', 'running'].includes(j.status));
 
 function staleForCurrentData(job, nodeId, p) {
   if (!job || !DATA_JOB_KINDS.has(job.kind) || !['source', 'data'].includes(nodeId)) return false;
@@ -262,7 +264,7 @@ export function buildGraph(s = store) {
     if (!signedIn) { n.avail = false; n.needs = 'Sign in first'; }
     n.state = n.done ? 'done' : n.avail ? 'available' : 'off';
     const job = running.find((j) => JOB_NODES[j.kind]?.includes(d.id));
-    const last = jobs.find((j) => JOB_NODES[j.kind]?.includes(d.id) && !staleForCurrentData(j, d.id, p));
+    const last = jobs.find((j) => JOB_NODES[j.kind]?.includes(d.id) && !staleForCurrentData(j, d.id, p) && !supersededByNewerSuccess(j, jobs));
     if (job || (cleaning && n.done)) { n.state = 'running'; n.job = job || running.find((j) => j.kind === 'teardown'); }
     else if (!n.done && last && ['failed', 'interrupted'].includes(last.status)) { n.state = 'failed'; n.error = last.error || 'The last run didn\'t finish.'; n.job = last; }
     // Configured, but the last change to it failed (for example binding live events to the ontology): the part works

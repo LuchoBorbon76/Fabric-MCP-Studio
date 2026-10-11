@@ -10,12 +10,15 @@ const jobs = new Map();
 // as interrupted the next time the studio starts, instead of silently disappearing.
 const RUNNING_FILE = join(DATA_DIR, 'running-jobs.json');
 let saveTimer = null;
+function runningJobs() {
+  return [...jobs.values()].filter((j) => j.status === 'running').map(publicJob);
+}
+function writeRunningNow() {
+  try { writeJson(RUNNING_FILE, runningJobs()); } catch { /* read-only data folder */ }
+}
 function saveRunning() {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    const running = [...jobs.values()].filter((j) => j.status === 'running').map(publicJob);
-    try { writeJson(RUNNING_FILE, running); } catch { /* read-only data folder */ }
-  }, 500);
+  saveTimer = setTimeout(writeRunningNow, 500);
 }
 
 for (const j of readJson(RUNNING_FILE, []) || []) {
@@ -49,8 +52,7 @@ function publicJob(j) {
 /** Write the running-jobs record now (used just before the process exits). */
 export function flushRunningJobs() {
   clearTimeout(saveTimer);
-  const running = [...jobs.values()].filter((j) => j.status === 'running').map(publicJob);
-  try { writeJson(RUNNING_FILE, running); } catch { /* ignore */ }
+  writeRunningNow();
 }
 
 /** Run `fn(job)` after every job that succeeds (used to keep the workspace task flow in step). */
@@ -112,6 +114,7 @@ export function startJob(kind, title, fn, { meta = {} } = {}) {
     } finally {
       job.endedAt = new Date().toISOString();
       push();
+      if (job.status !== 'running') flushRunningJobs();
     }
   })();
 
