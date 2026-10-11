@@ -1,11 +1,11 @@
 // AI agent layer: GitHub Copilot SDK runtime + the customer's chosen model provider + Fabric MCP servers + studio tools.
-import { CopilotClient, ToolSet, BuiltInTools, defineTool } from '@github/copilot-sdk';
+import { CopilotClient, ToolSet, defineTool } from '@github/copilot-sdk';
 import { join } from 'node:path';
 import { existsSync, readFileSync, mkdirSync } from 'node:fs';
 import { COPILOT_HOME, DATA_DIR, REPO_ROOT, STUDIO_ROOT, getSettings, envApiKey, newId, truncate, readJson, writeJson, isDeveloper } from './config.mjs';
 import { getToken, tokenExpiresOn, SCOPES, whoAmI } from './auth.mjs';
 import { emit } from './events.mjs';
-import { getProject, updateProject, logActivity, assertProjectTenant, projectModels, sourceContexts, modelFits } from './project.mjs';
+import { getProject, updateProject, logActivity, assertProjectTenant, projectModels, sourceContexts, modelFits, modelWorkspaceId } from './project.mjs';
 import { startJob, waitForJob } from './jobs.mjs';
 import * as P from './pipelines.mjs';
 import * as R from './reports/index.mjs';
@@ -123,6 +123,12 @@ const chats = new Map();               // chatId -> { session, title, busy, toke
 const approvals = new Map();           // approvalId -> { resolve, info }
 const CHAT_DIR = join(DATA_DIR, 'chats');
 if (!existsSync(CHAT_DIR)) mkdirSync(CHAT_DIR, { recursive: true });
+const STUDIO_BUILT_INS = ['ask_user', 'task_complete', 'exit_plan_mode'];
+const STUDIO_EXCLUDED_TOOLS = [
+  'builtin:task', 'builtin:read_agent', 'builtin:write_agent', 'builtin:list_agents', 'builtin:skill', 'builtin:context_board',
+  'mcp:github-mcp-server-*', 'mcp:github-*',
+];
+const STUDIO_EXCLUDED_AGENTS = ['task', 'explore', 'general-purpose', 'code-review', 'security-review', 'research'];
 
 export function setGitHubToken(t) { memGitHubToken = t || ''; return restartClient(); }
 
@@ -341,10 +347,14 @@ const BLOCKED_TOOLS = { 'fabric-ontology': ['ask_ontology', 'search_ontology'] }
 // ---------------- approvals ----------------
 
 const READ_OPS = /^(help|list|get|export|query|execute(query)?|describe|connect|connectfabric|disconnect|getconnection|listconnections|search|find|validate|evaluate|analy[sz]e|run(query)?|preview|bpa|best)/i;
-const isGitHubSpaceTool = (input = {}) => {
+const isUnsupportedGitHubTool = (input = {}) => {
   const name = String(input.toolName || input.name || '').toLowerCase();
   const server = String(input.mcpServerName || input.serverName || input.server || '').toLowerCase();
-  return server.includes('github-mcp-server') || (name.includes('copilot') && name.includes('space'));
+  return server.includes('github-mcp-server') || /^github[-_]/.test(name) || name.includes('github-mcp-server') || (name.includes('copilot') && name.includes('space'));
+};
+const isUnsupportedBuiltInAgentTool = (input = {}) => {
+  const name = String(input.toolName || input.name || '').toLowerCase();
+  return ['task', 'read_agent', 'write_agent', 'list_agents', 'skill', 'context_board'].includes(name);
 };
 
 export function classifyTool(toolName, args) {
@@ -379,8 +389,11 @@ export function toolDenyReason(info, args) {
 }
 
 async function approve(chatId, input) {
-  if (isGitHubSpaceTool(input)) {
-    return { permissionDecision: 'deny', permissionDecisionReason: 'Fabric MCP Studio is not connected to a GitHub Copilot Space or repository context. Use the Studio and Fabric tools for this local project instead.' };
+  if (isUnsupportedBuiltInAgentTool(input)) {
+    return { permissionDecision: 'deny', permissionDecisionReason: 'Nested agents are not available inside Fabric MCP Studio. Complete the task directly with Studio and Fabric tools.' };
+  }
+  if (isUnsupportedGitHubTool(input)) {
+    return { permissionDecision: 'deny', permissionDecisionReason: 'Fabric MCP Studio is not connected to a GitHub Copilot Space or GitHub repository search context. Use the Studio and Fabric tools for this project instead.' };
   }
   const info = classifyTool(input.toolName, input.toolArgs);
   const deny = toolDenyReason(info, input.toolArgs);
@@ -437,6 +450,7 @@ const STUDIO_TOOLS_META = {
   studio_create_semantic_model: { write: true, title: 'Create semantic model' },
   studio_propose_semantic_model: { write: false, title: 'Suggest semantic model design' },
   studio_describe_report_options: { write: false, title: 'Read report options (model profile, themes, pages)' },
+  studio_review_semantic_model: { write: false, title: 'Review semantic model best practices' },
   studio_propose_report: { write: false, title: 'Suggest a Power BI report' },
   studio_create_report: { write: true, title: 'Create Power BI report' },
   studio_list_report_templates: { write: false, title: 'Read your uploaded report templates' },
@@ -720,6 +734,51 @@ function studioTools(chatId) {
           pages: R.reportsCatalog().pages.map((x) => `${x.id}: ${x.name} – ${x.description}${x.id === 'plan' && !modelFits(getProject()).plan ? ' (not available on this model: no plan on it – the plan lives on the model its Plan table was added to)' : ''}`),
           reports: (getProject().reports || []).map((x) => ({ id: x.id, name: x.name, theme: x.theme, pages: x.pages, url: x.url })),
         };
+      },
+    }),
+    studioTool('studio_review_semantic_model', {
+      description: 'Review the active semantic model against modeling best practices using Fabric metadata and Studio profiling; do not inspect local files. Returns tables, measure counts, relationship counts, reportability evidence, warnings and explicit improvement recommendations. Read-only. Set deepCheck=true only when the user wants a slower data-integrity pass for duplicate one-side relationship keys.',
+      parameters: obj({ refresh: { type: 'boolean' }, deepCheck: { type: 'boolean', description: 'Also run the slower relationship-key/data-integrity check' } }),
+      handler: async ({ refresh, deepCheck }) => {
+        const p = getProject();
+        const model = p.semanticModel;
+        if (!model?.id) return { ok: false, blocker: 'No semantic model is active yet.', recommendations: ['Create or select a semantic model first.'] };
+        let pr;
+        try { pr = await R.currentProfile({ refresh }); } catch (e) {
+          return {
+            ok: false,
+            model: { id: model.id, name: model.name, workspaceId: modelWorkspaceId(p, model), origin: model.origin || 'studio' },
+            blocker: e.message,
+            recommendations: [
+              /no measures/i.test(e.message) ? 'Add business measures before reviewing reportability and user-facing analytics.' : 'Check that the capacity is running and that you have Build permission on the semantic model.',
+              'Use Studio semantic-model suggestions for model design changes instead of searching local files.',
+            ],
+          };
+        }
+        const label = (x) => (x ? `${x.table}[${x.name}]${x.label && x.label !== x.name ? ` (${x.label})` : ''}` : null);
+        const recommendations = [];
+        if (!pr.model.relationships) recommendations.push({ area: 'Relationships', severity: 'high', issue: 'The model has no relationships.', fix: 'Create a star schema with facts on the many side and conformed dimensions on the one side before building reports.' });
+        if (!pr.model.measures) recommendations.push({ area: 'Measures', severity: 'high', issue: 'The model has no measures.', fix: 'Add explicit business measures with descriptions, format strings and display folders; avoid relying on implicit column aggregation.' });
+        if (!pr.time) recommendations.push({ area: 'Date intelligence', severity: 'medium', issue: 'No usable date/year axis was found.', fix: 'Add or expose a date dimension with year, quarter/month and active relationships to the fact tables so trends and time comparisons work.' });
+        if (!pr.share && !pr.breakdown && !pr.entity) recommendations.push({ area: 'Dimensions', severity: 'medium', issue: 'No report-ready categorical dimensions split the primary measure.', fix: 'Add useful dimension attributes, verify relationships reach the fact table, and hide technical keys from report users.' });
+        if (pr.warnings?.length) recommendations.push(...pr.warnings.map((w) => ({ area: 'Profile warning', severity: 'medium', issue: w, fix: 'Review the related model table, column or measure and update the semantic model design before publishing broadly.' })));
+        if (!recommendations.length) recommendations.push({ area: 'Model readiness', severity: 'info', issue: 'The model has measures, relationships and reportable dimensions.', fix: 'Next improvements should focus on descriptions, display folders, RLS/OLS needs and report-specific UX polish.' });
+        const review = {
+          ok: true,
+          model: pr.model,
+          tables: pr.tables,
+          counts: { tables: pr.model.tables, measures: pr.model.measures, relationships: pr.model.relationships },
+          primaryMeasure: label(pr.primary),
+          kpis: pr.kpis.map(label),
+          measureGroups: pr.measureGroups,
+          time: pr.time ? { grain: pr.time.grain, years: pr.time.years, fullYears: pr.time.fullYears, axis: pr.time.axis.map(label), dateLinkedTables: pr.dateLinked } : null,
+          dimensions: { share: label(pr.share), breakdown: label(pr.breakdown), entity: label(pr.entity), hierarchy: pr.hierarchy.map(label) },
+          stories: pr.stories,
+          warnings: pr.warnings,
+          recommendations,
+        };
+        if (deepCheck) review.dataIntegrity = await MC.checkModel({}).catch((e) => ({ error: e.message }));
+        return review;
       },
     }),
     studioTool('studio_propose_report', {
@@ -1131,7 +1190,9 @@ async function sessionConfig(chatId) {
     clientName: 'fabric-mcp-studio',
     streaming: true,
     workingDirectory: REPO_ROOT,
-    availableTools: new ToolSet().addBuiltIn(BuiltInTools.Isolated).addMcp('*').addCustom('*').toArray(),
+    availableTools: new ToolSet().addBuiltIn(STUDIO_BUILT_INS).addMcp('*').addCustom('*').toArray(),
+    excludedTools: STUDIO_EXCLUDED_TOOLS,
+    excludedBuiltinAgents: STUDIO_EXCLUDED_AGENTS,
     mcpServers: await mcpServerConfig(),
     tools: studioTools(chatId),
     systemMessage: { mode: 'append', content: instructions() },
