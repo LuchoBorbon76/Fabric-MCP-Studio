@@ -134,15 +134,16 @@ async function measureTotals(workspaceId, datasetId, candidates) {
 
 async function measureTimeStats(workspaceId, datasetId, candidates, date) {
   const out = new Map(candidates.map((m) => [m, { periods: 0, years: 0, values: 0 }]));
-  if (!date?.year || !candidates.length) return out;
-  const periodCol = date.monthNum || date.quarter;
+  if ((!date?.year && !date?.date) || !candidates.length) return out;
+  const periodCol = date.year ? (date.monthNum || date.quarter) : null;
+  const dateCol = date.year || date.date;
   const chunkSize = 8;
   for (let i = 0; i < candidates.length; i += chunkSize) {
     const chunk = candidates.slice(i, i + chunkSize);
-    const periodTable = (m) => `FILTER(SUMMARIZECOLUMNS(${cRef(date.year)}${periodCol ? `, ${cRef(periodCol)}` : ''}, "v", ${mRef(m)}), NOT ISBLANK([v]))`;
+    const periodTable = (m) => `FILTER(SUMMARIZECOLUMNS(${cRef(dateCol)}${periodCol ? `, ${cRef(periodCol)}` : ''}, "v", ${mRef(m)}), NOT ISBLANK([v]))`;
     const exprs = chunk.flatMap((m, j) => [
       `"p${j}", COUNTROWS(${periodTable(m)})`,
-      `"y${j}", COUNTROWS(FILTER(SUMMARIZECOLUMNS(${cRef(date.year)}, "v", ${mRef(m)}), NOT ISBLANK([v])))`,
+      `"y${j}", COUNTROWS(FILTER(SUMMARIZECOLUMNS(${cRef(dateCol)}, "v", ${mRef(m)}), NOT ISBLANK([v])))`,
       `"d${j}", COUNTROWS(DISTINCT(SELECTCOLUMNS(${periodTable(m)}, "v", [v])))`,
     ]);
     try {
@@ -189,10 +190,22 @@ function yearColumns(cols, hidden = []) {
   return out;
 }
 
-export function dateInfo(meta) {
+export function dateInfo(meta, preferredTables = []) {
   const dateTable = meta.tables.find((t) => t.dataCategory === 'Time')?.name
     || meta.tables.find((t) => /^(dim)?(dates?|calendar|time)$/i.test(t.name.replace(/\s+/g, '')))?.name;
-  if (!dateTable) return null;
+  const scoreDateColumn = (c) => {
+    let s = preferredTables.includes(c.table) ? 80 : 0;
+    if (/^(start|date|encounterdate|servicedate|orderdate)$/i.test(c.name)) s += 40;
+    if (/date|start/i.test(c.name)) s += 20;
+    if (/stop|end|death|birth/i.test(c.name)) s -= 25;
+    return s;
+  };
+  if (!dateTable) {
+    if (!preferredTables.length) return null;
+    const allDates = [...meta.columns, ...(meta.hiddenColumns || [])].filter((c) => c.dataType === 'Date' || /date/i.test(c.dataType));
+    const c = allDates.sort((a, b) => scoreDateColumn(b) - scoreDateColumn(a))[0];
+    return c ? { table: c.table, year: null, yearCandidates: [], quarter: null, monthNum: null, monthName: null, date: c, fallback: true } : null;
+  }
   const cols = meta.columns.filter((c) => c.table === dateTable);
   const hidden = (meta.hiddenColumns || []).filter((c) => c.table === dateTable);
   const find = (rx, type) => cols.find((c) => rx.test(c.name) && (!type || type.includes(c.dataType)));
@@ -215,7 +228,12 @@ const looksLikeYears = (values) => {
   });
 };
 
-const col = (c, label) => ({ kind: 'column', table: c.table, name: c.name, label: label || columnLabel(c.name) });
+const col = (c, label) => {
+  let text = label || columnLabel(c.name);
+  text = { NAME: 'Name', DESCRIPTION: 'Description', TYPE: 'Type', CLASS: 'Class', CATEGORY: 'Category', CODE: 'Code', ID: 'ID' }[text] || text;
+  if (/^(name|description|type|class|category|code|id)$/i.test(text)) text = `${columnLabel(c.table).replace(/s$/i, '')} ${text}`;
+  return { kind: 'column', table: c.table, name: c.name, label: text };
+};
 const meas = (m, label) => ({ kind: 'measure', table: m.table, name: m.name, label: label || m.name, formatString: m.formatString, percent: isPercent(m), displayFolder: m.displayFolder || '', description: m.description || '' });
 
 // ---------------- geography ----------------
@@ -317,10 +335,10 @@ export async function profileModel(workspaceId, datasetId, { modelName = '' } = 
   const warnings = [];
   const measures = meta.measures;
   if (!measures.length) throw new Error('This semantic model has no measures yet. Add business measures first (Semantic model tab › Copilot), then design reports.');
-  const date = dateInfo(meta);
+  let date = dateInfo(meta);
   const rankedMeasures = [...measures].sort((a, b) => scoreMeasure(b) - scoreMeasure(a));
   const profiledMeasures = rankedMeasures.slice(0, 60);
-  const [totals, timeStats] = await Promise.all([
+  let [totals, timeStats] = await Promise.all([
     measureTotals(workspaceId, datasetId, profiledMeasures),
     measureTimeStats(workspaceId, datasetId, profiledMeasures, date),
   ]);
@@ -352,6 +370,11 @@ export async function profileModel(workspaceId, datasetId, { modelName = '' } = 
     ? [...usableMeasures].sort((a, b) => reportability(b) - reportability(a) || scoreMeasure(b) - scoreMeasure(a))
     : rankedMeasures;
   const primary = reportMeasures[0] || rankedMeasures[0];
+  const primaryDate = (!date || date.fallback) ? dateInfo(meta, [primary.table]) : null;
+  if (primaryDate && primaryDate !== date) {
+    date = primaryDate;
+    timeStats = await measureTimeStats(workspaceId, datasetId, profiledMeasures, date);
+  }
   if (usableMeasures.length && primary !== rankedMeasures[0]) {
     const first = rankedMeasures[0];
     const periods = timeStats.get(first)?.periods || 0;
@@ -467,7 +490,25 @@ export async function profileModel(workspaceId, datasetId, { modelName = '' } = 
       if (growth !== null) insights.push({ kind: 'growth', text: `${primary.name} ${growth >= 0 ? 'grew' : 'fell'} ${Math.abs(growth * 100).toFixed(1)}% in ${last} vs ${prev}.`, value: growth });
     }
     if (years.length && fullYears.length < years.length) insights.push({ kind: 'partial', text: `Partial periods: ${years.filter((y) => !fullYears.includes(y)).join(', ')} (compare full years only).` });
-  } else if (!date) warnings.push('No date table found; trend visuals were left out.');
+  } else if (date?.date) {
+    rows = await dax(workspaceId, datasetId, `EVALUATE SUMMARIZECOLUMNS(${cRef(date.date)}, "v", ${mRef(primary)}) ORDER BY ${cRef(date.date)}`);
+    const dated = rows
+      .map((r) => ({ raw: r[date.date.name], at: new Date(r[date.date.name]), v: Number(r.v) || 0 }))
+      .filter((r) => r.raw !== null && r.raw !== undefined && r.raw !== '' && !Number.isNaN(r.at.getTime()));
+    const years = [...new Set(dated.map((r) => r.at.getUTCFullYear()))].sort((a, b) => a - b);
+    const perYear = new Map();
+    for (const r of dated) perYear.set(r.at.getUTCFullYear(), (perYear.get(r.at.getUTCFullYear()) || []).concat(r));
+    const fullYears = years.filter((y) => (perYear.get(y)?.length || 0) >= 6);
+    const axisDate = col(date.date, columnLabel(date.date.name) || 'Date');
+    time = { table: date.table, year: axisDate, axis: [axisDate], grain: 'date', years, fullYears, first: years[0], last: years[years.length - 1], fallback: true };
+    if (fullYears.length >= 2) {
+      const sum = (y) => perYear.get(y).reduce((a, r) => a + r.v, 0);
+      const [prev, last] = fullYears.slice(-2);
+      const growth = sum(prev) ? (sum(last) - sum(prev)) / sum(prev) : null;
+      if (growth !== null) insights.push({ kind: 'growth', text: `${primary.name} ${growth >= 0 ? 'grew' : 'fell'} ${Math.abs(growth * 100).toFixed(1)}% in ${last} vs ${prev}.`, value: growth });
+    }
+    if (years.length && fullYears.length < years.length) insights.push({ kind: 'partial', text: `Partial periods: ${years.filter((y) => !fullYears.includes(y)).join(', ')} (compare full years only).` });
+  } else if (!date) warnings.push('No date columns found; trend visuals were left out.');
   else if (!warnings.some((w) => w.includes('has no column with years'))) warnings.push(`${date.table} has no year column; trend visuals were left out.`);
 
   // Concentration insight for the share dimension.

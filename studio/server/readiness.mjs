@@ -196,6 +196,8 @@ export function evaluate({ project: p, capacity: cap, role, tenant: ts, platform
   const planProblem = ms ? planStoreProblem(ms) : null;
   if (planProblem) {
     put(['planning'], req('warn', `You can preview the plan but not build it: ${ms.itemName} (${{ MirroredDatabase: 'mirrored database' }[ms.itemType] || ms.itemType}) can't hold the plan values.`, planProblem));
+  } else if (p.semanticModel?.quality?.warnings?.some((w) => /No dedicated date table|No date table/i.test(w))) {
+    put(['planning'], req('warn', 'Planning needs a dedicated date table with year and month columns related to the fact table.', 'Reports can use fact dates, but budgets and forecasts need a stable month grain. Add a date table to the model source, then rebuild the semantic model.'));
   } else if (ms?.itemType === 'Lakehouse') {
     put(['planning'], req('info', `A lakehouse's SQL endpoint is read-only, so the plan values go to a planning warehouse in the project workspace and ${ms.itemName} reads them through a OneLake shortcut.`, 'Creating the warehouse needs the Contributor role (or higher) in the project workspace.'));
   }

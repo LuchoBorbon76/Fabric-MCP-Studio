@@ -137,6 +137,11 @@
     { "date": "2026-10-11", "type": "fix", "commit": "b5190c7", "title": "Report and question profiling now chooses the richest report-ready business measure instead of falling back to a sparse measure with only one populated period" },
     { "date": "2026-10-11", "type": "improvement", "commit": "b5190c7", "title": "Power BI reports now include a Measure portfolio page and Copilot question suggestions cover multiple business stories from the semantic model" },
     { "date": "2026-10-11", "type": "fix", "commit": "e818d68", "title": "Read-only data queries now allow safe Copilot profiling SQL with semicolons inside text labels, SQL fences and multiple SELECT result sets while still blocking writes" },
-    { "date": "2026-10-11", "type": "fix", "commit": "5b7142d", "title": "Ontology and source-profiling chats no longer call Power BI Authoring connection operations when no semantic-model editing connection is active" }
+    { "date": "2026-10-11", "type": "fix", "commit": "5b7142d", "title": "Ontology and source-profiling chats no longer call Power BI Authoring connection operations when no semantic-model editing connection is active" },
+    { "date": "2026-10-11", "type": "fix", "commit": "pending", "title": "Relationship inference now links complex public/customer schemas that use entity-name foreign keys such as PATIENT, ENCOUNTER, PAYER or PROVIDER instead of only PatientId-style names" },
+    { "date": "2026-10-11", "type": "fix", "commit": "pending", "title": "Report profiling now uses fact date columns when a model has no dedicated date table, and recomputes story coverage from the selected primary measure's fact date" },
+    { "date": "2026-10-11", "type": "improvement", "commit": "pending", "title": "Report field labels now qualify generic columns like Name or Code with the table/entity name so complex schemas do not show ambiguous labels such as NAME to NAME" },
+    { "date": "2026-10-11", "type": "fix", "commit": "pending", "title": "Ontology rule validation and generation now normalize plural table names and generated singular entity names so rules bind correctly across source schemas" },
+    { "date": "2026-10-11", "type": "fix", "commit": "pending", "title": "Planning availability and readiness now show a clear blocker when the model has only fact dates and no dedicated year/month date table" }
   ]
 }

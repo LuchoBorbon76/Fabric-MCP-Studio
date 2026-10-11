@@ -740,7 +740,9 @@ function semanticModelQuality(plan, measures, { dateTable = null, measureWarning
   const dimTables = new Set(plan.relationships.map((r) => r.to.name));
   if (!factTables.size && plan.tables.length > 1) warnings.push('No fact table was detected from relationships.');
   if (!dimTables.size && plan.tables.length > 1) warnings.push('No dimension tables were detected from relationships.');
-  if (!dateTable) warnings.push('No date table was detected; reports will have limited time trends.');
+  const hasDateColumn = plan.tables.some((t) => t.columns.some((c) => c.dataType === 'dateTime' && /date|start|time/i.test(c.name)));
+  if (!dateTable && !hasDateColumn) warnings.push('No date table was detected; reports will have limited time trends.');
+  else if (!dateTable && hasDateColumn) warnings.push('No dedicated date table was detected; reports will use fact date columns for trends.');
   const categories = plan.tables.flatMap((t) => t.columns.map((c) => ({ t, c })))
     .filter(({ t, c }) => c.dataType === 'string' && !c.isKey && t.name !== dateTable?.table && !WEAK_DIM.test(c.name) && (t.role !== 'fact' || /category|segment|region|country|territory|channel|type|group/i.test(c.name)));
   if (!categories.length) warnings.push('No strong breakdown dimension was detected; reports may focus on KPIs instead of segment analysis.');
@@ -828,8 +830,14 @@ function ontologyQuality(out, plan, rules = []) {
   if (!out.rules.length) warnings.push('No business rules were generated; governance dashboards will be limited.');
   const noKey = plan.tables.filter((t) => !t.columns.some((c) => c.isKey)).map((t) => t.name);
   if (noKey.length) warnings.push(`${noKey.slice(0, 5).join(', ')} ${noKey.length === 1 ? 'has' : 'have'} no key column, so instance linking may be weaker.`);
-  const knownEntities = new Set(Object.values(out.entities || {}));
-  const brokenRules = (rules || []).filter((r) => r.entities?.length && r.entities.some((e) => !knownEntities.has(e.entity || e)));
+  const normEntity = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const one = (s) => String(s || '').replace(/ies$/i, 'y').replace(/(ss)es$/i, '$1').replace(/([^s])s$/i, '$1');
+  const knownEntities = new Set();
+  for (const t of plan.tables) {
+    const e = out.entities?.[t.key];
+    for (const n of [e, t.name, t.source, one(t.name), one(t.source), t.key.split('.').pop()]) if (n) knownEntities.add(normEntity(n));
+  }
+  const brokenRules = (rules || []).filter((r) => r.entities?.length && r.entities.some((e) => !knownEntities.has(normEntity(e.entity || e))));
   if (brokenRules.length) warnings.push(`${brokenRules.length} rule${brokenRules.length === 1 ? '' : 's'} reference entities that were not generated.`);
   score -= errors.length * 40;
   score -= warnings.length * 10;

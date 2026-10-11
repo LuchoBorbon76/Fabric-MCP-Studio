@@ -285,7 +285,7 @@ export function inferRelationships(tables) {
     if (!key) continue;
     const keyNorm = norm(key);
     const dimBase = norm(singular(dim.name.replace(/^(dim|fact|fct|tbl)_?/i, '')));
-    const wanted = keyNorm === 'id' || keyNorm === 'key' ? [`${dimBase}id`, `${dimBase}key`] : [keyNorm];
+    const wanted = keyNorm === 'id' || keyNorm === 'key' ? [dimBase, `${dimBase}id`, `${dimBase}key`, `${dimBase}code`] : [keyNorm];
     for (const fact of tables) {
       if (fact === dim) continue;
       const col = fact.columns.find((c) => wanted.includes(norm(c.name)));

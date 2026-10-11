@@ -63,11 +63,14 @@ export function planningState() {
   const ms = p.modelSource;
   const sm = planModelOf(p);
   const modelProblem = pl ? null : planModelProblem(p, sm);
+  const dateProblem = !pl && sm?.quality?.warnings?.some((w) => /No dedicated date table|No date table/i.test(w))
+    ? 'Planning needs a dedicated date table with year and month columns related to the fact table. Reports can use fact dates, but budget and forecast rows need a stable month grain.'
+    : null;
   return {
-    available: Boolean(p.workspace && sm) && !modelProblem,
-    writable: !planStoreProblem(ms) && !modelProblem,
+    available: Boolean(p.workspace && sm) && !modelProblem && !dateProblem,
+    writable: !planStoreProblem(ms) && !modelProblem && !dateProblem,
     // Why the plan can't be built on this data source or model (shown on the Planning page and to Copilot), or null.
-    problem: modelProblem || (ms ? planStoreProblem(ms) : null),
+    problem: modelProblem || dateProblem || (ms ? planStoreProblem(ms) : null),
     // The model the plan is on, and whether that's another model than the active one.
     model: sm ? { id: sm.id, name: sm.name, active: sm.id === p.semanticModel?.id } : null,
     activeModel: p.semanticModel ? { id: p.semanticModel.id, name: p.semanticModel.name } : null,

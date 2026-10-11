@@ -376,7 +376,14 @@ export function ontologyFiles({ name, src, plan, rules = [], entityNames = {}, d
   }
 
   // Business rules.
-  const entityByName = new Map([...entities.values()].map((e) => [e.toLowerCase(), e]));
+  const normName = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const entityByName = new Map();
+  for (const t of plan.tables) {
+    const e = entities.get(t.key);
+    for (const n of [e, humanize(e), t.name, singular(t.name), t.source, singular(t.source), t.key.split('.').pop()]) {
+      if (n) entityByName.set(normName(n), e);
+    }
+  }
   const ruleNames = [];
   for (const rule of rules) {
     const rname = pascal(rule.name).replace(/[^A-Za-z0-9_]/g, '') || `Rule${ruleNames.length + 1}`;
@@ -394,7 +401,7 @@ export function ontologyFiles({ name, src, plan, rules = [], entityNames = {}, d
       }).map((t) => ({ entity: entities.get(t.key) }));
     }
     for (const ref of refs) {
-      const e = entityByName.get(String(ref.entity || ref).toLowerCase());
+      const e = entityByName.get(normName(ref.entity || ref));
       if (!e) continue;
       lines.push(`${T}ruleReferencedEntity ${e}`);
       const t = plan.tables.find((x) => entities.get(x.key) === e);
