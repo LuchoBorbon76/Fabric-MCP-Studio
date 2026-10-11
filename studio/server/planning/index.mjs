@@ -359,15 +359,23 @@ export async function runPlanItem(ctx, { name, connection } = {}) {
     if (finalName !== itemName) ctx.log(`Fabric hasn't released "${itemName}" yet, so the plan is called "${finalName}"`);
     recordArtifact({ type: 'Plan', id: item.id, name: finalName, workspaceId: ws.id, url: planItemUrl(ws.id, item.id) });
     boundModel = conn ? p.semanticModel.id : null;
-    ctx.log(`Planners connect it to ${p.semanticModel.name} with their own sign-in: New Planning Sheet › Data › Add › ${p.semanticModel.name} › Connect (no shared connection)`);
+    ctx.log(`Fabric opens new Plan items on the "How would you like to get started?" page until a Planning Sheet is created.`);
+    ctx.log(`Next in the plan: New Planning Sheet › Data › Add › ${p.semanticModel.name} › Connect with your own sign-in (no shared connection).`);
     ctx.log('Fabric keeps the plan\'s settings in a shared SQL database in the workspace (__fabric_plan_sys)');
   } else {
-    ctx.log(conn ? `The plan still uses the shared connection "${conn.name}", which Microsoft deprecated for planning – select Recreate without a connection` : `Planners connect it to ${p.semanticModel.name} with their own sign-in (planning sheet › Data › Add)`);
+    ctx.log(conn ? `The plan still uses the shared connection "${conn.name}", which Microsoft deprecated for planning – select Recreate without a connection` : `Open the plan, create a Planning Sheet, then connect ${p.semanticModel.name} with your own sign-in (Data › Add › Connect)`);
   }
   ctx.progress(90);
-  const planItem = { id: item.id, name: finalName, url: planItemUrl(ws.id, item.id), semanticModelId: boundModel, connected: Boolean(conn), connectionId: conn?.id || null, connectionName: conn?.name || null, createdAt: item.id === p.planning.planItem?.id ? p.planning.planItem.createdAt : new Date().toISOString() };
+  const sheetSetup = conn
+    ? null
+    : {
+      required: true,
+      reason: 'Fabric does not expose a public API for the studio to pre-create a Planning Sheet or connect a semantic model with each planner\'s own sign-in.',
+      steps: ['Open the plan', 'Select New Planning Sheet', `Use Data > Add to pick ${p.semanticModel.name}`, 'Select Add, then Connect with your own sign-in'],
+    };
+  const planItem = { id: item.id, name: finalName, url: planItemUrl(ws.id, item.id), semanticModelId: boundModel, connected: Boolean(conn), connectionId: conn?.id || null, connectionName: conn?.name || null, sheetSetup, createdAt: item.id === p.planning.planItem?.id ? p.planning.planItem.createdAt : new Date().toISOString() };
   updateProject({ planning: { ...getProject().planning, planItem } });
-  logActivity('planning.item', `Plan item "${finalName}" ${conn ? `still uses the deprecated shared connection "${conn.name}"` : `ready – planners connect ${p.semanticModel.name} with their own sign-in`}`, {});
+  logActivity('planning.item', `Plan item "${finalName}" ${conn ? `still uses the deprecated shared connection "${conn.name}"` : `created – create a Planning Sheet and connect ${p.semanticModel.name} with your own sign-in`}`, {});
   return planItem;
 }
 

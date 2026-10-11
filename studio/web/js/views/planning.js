@@ -68,7 +68,7 @@ function flow(s, p) {
     ['Budget & forecast', pl ? `${pl.planYear} · ${pl.growthPct >= 0 ? '+' : ''}${pl.growthPct}%` : 'From last year + growth', pl ? 'ok' : 'todo'],
     ['Plan table', pl ? `${Object.keys(pl.spec?.names || {}).length} measures in the model` : 'Budget, forecast, variance', pl ? 'ok' : 'todo'],
     ['Plan vs actual', report ? report.name : 'Power BI report', report ? 'ok' : 'todo'],
-    ['Fabric plan', pl?.planItem ? pl.planItem.name : 'Planning sheets', pl?.planItem ? 'ok' : 'todo'],
+    ['Fabric plan', pl?.planItem ? (pl.planItem.connected ? pl.planItem.name : 'Create a Planning Sheet in Fabric') : 'Planning sheets', pl?.planItem?.connected ? 'ok' : 'todo'],
   ];
   return h('div', { class: 'rtflow' }, steps.map(([t, sub, state], i) => [
     i ? h('span', { class: 'rtarrow' }, '→') : null,
@@ -294,8 +294,8 @@ function planItemCard(s) {
 
   // Planners connect the plan to the model with their own sign-in (planning sheet › Data › Add). Microsoft deprecated the
   // shared cloud connection flow for planning, so the studio doesn't bind one; a plan that still uses one is recreated.
-  const go = h('button', { class: 'btn pri', 'data-busy': 'Starting…', disabled: !pl || undefined, title: pl ? (it ? 'Checks the plan in Fabric and recreates it when it points to a model that no longer exists (only while it has no sheets)' : '') : 'Build the plan first' }, it ? '↻ Check the plan' : 'Create the Fabric plan');
-  go.addEventListener('click', busy(go, async () => { await startJob('/jobs/plan-item', it ? {} : { connection: ASK_IN_FABRIC }, job, 'Fabric plan ready'); }));
+  const go = h('button', { class: 'btn pri', 'data-busy': 'Starting…', disabled: !pl || undefined, title: pl ? (it ? 'Checks the plan in Fabric and recreates it when it points to a model that no longer exists (only while it has no sheets)' : '') : 'Build the plan first' }, it ? '↻ Check the plan item' : 'Create the Fabric plan item');
+  go.addEventListener('click', busy(go, async () => { await startJob('/jobs/plan-item', it ? {} : { connection: ASK_IN_FABRIC }, job, 'Plan item created – create a Planning Sheet in Fabric'); }));
   const recreate = h('button', { class: 'btn', 'data-busy': 'Recreating…', hidden: !it?.connected || undefined }, 'Recreate without a connection');
   recreate.addEventListener('click', busy(recreate, async () => {
     const ok = await confirmDialog('Recreate the plan without a connection', `"${it.name}" uses the shared cloud connection "${it.connectionName}" – a flow Microsoft deprecated for planning. Fabric keeps a plan's connection once it exists, so the studio deletes the plan and creates it again without one; planners then connect ${model} with their own sign-in. This only works while the plan has no sheets.`, 'Recreate the plan');
@@ -306,11 +306,14 @@ function planItemCard(s) {
   const dims = pl ? pl.dims.map((x) => x.labelText) : ['Region', 'Category'];
   const n = pl?.spec?.names || { budget: 'Budget', forecast: 'Forecast', actual: 'Actual' };
   put(card,
-    h('div', { class: 'row sp' }, h('h3', { style: { margin: 0 } }, '4 · Plan in Fabric'), it ? h('span', { class: `pill ${it.connected ? 'warn' : 'ok'}` }, it.connected ? 'Uses a deprecated connection' : 'Ready') : pl ? h('span', { class: 'pill brand' }, 'Next') : h('span', { class: 'pill' }, 'Needs the plan')),
-    h('p', { class: 'small muted' }, 'Planning in Fabric IQ gives planners Excel-like planning sheets on the same model: adjust the budget, run what-if scenarios, comment, approve, and write the results back to a Fabric SQL database.'),
+    h('div', { class: 'row sp' }, h('h3', { style: { margin: 0 } }, '4 · Plan item and Planning Sheet'), it ? h('span', { class: `pill ${it.connected ? 'warn' : 'brand'}` }, it.connected ? 'Uses a deprecated connection' : 'Planning Sheet setup needed') : pl ? h('span', { class: 'pill brand' }, 'Next') : h('span', { class: 'pill' }, 'Needs the plan')),
+    h('p', { class: 'small muted' }, 'The studio writes the budget/forecast rows and adds the Plan table to the semantic model. Fabric Plan items open as a blank shell until a planner creates a Planning Sheet and connects the semantic model with their own sign-in.'),
     it ? h('dl', { class: 'kv', style: { marginTop: '10px' } },
       h('dt', {}, 'Plan'), h('dd', {}, h('a', { href: it.url, target: '_blank', rel: 'noopener' }, it.name, ' ↗')),
       h('dt', {}, 'Semantic model'), h('dd', {}, it.connected ? `${model} through the shared connection "${it.connectionName}" (deprecated for planning)` : `${model} – each planner connects it with their own sign-in`)) : null,
+    it && !it.connected ? h('div', { class: 'banner', style: { marginTop: '10px' } }, h('div', {},
+      h('b', {}, 'Why Fabric opens the blank "How would you like to get started?" page. '),
+      'The public Plan item API creates the plan container, but Fabric does not expose an API for the studio to pre-create a Planning Sheet or connect the semantic model with each planner\'s own sign-in. The actual budget and forecast are already in the semantic model and Plan vs actual report; create the sheet below to edit them in Fabric Planning.')) : null,
     h('ol', { class: 'pre small', style: { marginTop: '10px' } },
       h('li', {}, it ? 'Open the plan.' : 'Create the plan here, then open it.'),
       h('li', {}, 'Select ', h('b', {}, 'New Planning Sheet'), ' (Planning), give it a name and select Create.'),

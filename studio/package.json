@@ -1,6 +1,6 @@
 {
   "name": "fabric-mcp-studio",
-  "version": "1.61.85",
+  "version": "1.62.85",
   "private": true,
   "description": "Fabric MCP Studio - build Fabric lakehouses, semantic models and ontologies by chatting with your own Copilot through MCP servers.",
   "type": "module",
