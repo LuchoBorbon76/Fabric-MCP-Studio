@@ -153,6 +153,6 @@
     { "date": "2026-10-11", "type": "fix", "commit": "c128a66", "title": "Adding or switching to an existing semantic model now also looks for related Studio artifacts in the workspace, including ontology, plans, real-time Eventhouse/Eventstream/dashboard/alerts, medallion layers and task flows" },
     { "date": "2026-10-11", "type": "fix", "commit": "08234be", "title": "The solution map now shows every artifact box as in-progress while existing artifacts are being discovered and added for a semantic model" },
     { "date": "2026-10-11", "type": "fix", "commit": "ebbe6ec", "title": "The naming/environment selector now appears only on the Workspace page, not in every artifact overview" },
-    { "date": "2026-10-11", "type": "fix", "commit": "pending", "title": "The naming/environment selector now also appears when the Workspace box is selected on the solution map, and not for other artifact boxes" }
+    { "date": "2026-10-11", "type": "fix", "commit": "a18444c", "title": "The naming/environment selector now also appears when the Workspace box is selected on the solution map, and not for other artifact boxes" }
   ]
 }
