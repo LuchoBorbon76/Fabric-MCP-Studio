@@ -24,6 +24,20 @@ function reasonsFor(profile, focus) {
     if (ratio) r.push(`Tracks ${ratio.label} by year – ratios hide in totals.`);
     if (p.breakdown) r.push(`Ranks ${p.breakdown.label.toLowerCase()} on every KPI with data bars.`);
     if (p.hierarchy.length) r.push(`Drill path ${p.hierarchy.map((x) => x.label).join(' › ')} to find the drivers.`);
+    if (!seg && p.time) r.push(`Tracks ${p.kpis.map((k) => k.label).slice(0, 4).join(', ')} over time.`);
+  }
+  if (focus === 'portfolio') {
+    const groups = (p.measureGroups || []).slice(0, 4);
+    if (groups.length) r.push(`Covers ${groups.map((g) => `${g.name} (${g.count})`).join(', ')} measure groups.`);
+    r.push(`${p.measures.length} visible measures available for analysts to explore.`);
+    if (p.time) r.push(`Uses ${p.time.grain} trend visuals where the measures have date coverage.`);
+  }
+  if (focus === 'operations') {
+    const groups = (p.measureGroups || []).filter((g) => /call|inventory|finance|quota|survey|operation/i.test(g.name)).slice(0, 3);
+    if (groups.length) r.push(`Operational measure groups detected: ${groups.map((g) => g.name).join(', ')}.`);
+    const pct = p.kpis.find((k) => k.percent);
+    if (pct) r.push(`Highlights ${pct.label}, a ratio that is easy to miss in totals.`);
+    if (p.time) r.push(`Shows recent movement by ${p.time.grain} for action-oriented metrics.`);
   }
   if (focus === 'geo' && p.geo) {
     const g = p.geo;
@@ -35,7 +49,7 @@ function reasonsFor(profile, focus) {
     if (g.levels.length) r.push(`Ranks the top ${plural(g.levels[0].label.toLowerCase())}${g.levels.length > 1 ? ` and ${plural(g.levels[g.levels.length - 1].label.toLowerCase())}` : ''} next to the map.`);
   }
   if (focus === 'executive' && p.geo) r.push(`Adds a map of ${p.primary.label} by ${p.geo.mode === 'points' ? 'location' : p.geo.levels.map((c) => c.label.toLowerCase()).join(' › ')}.`);
-  if (partial && p.time) r.push(`Uses full years only (${p.time.fullYears.join(', ')}) so comparisons are fair.`);
+  if (partial && p.time?.fullYears?.length) r.push(`Uses full years only (${p.time.fullYears.join(', ')}) so comparisons are fair.`);
   return r.slice(0, 4);
 }
 
@@ -59,7 +73,7 @@ export function recommendations(profile, project, { rules = null, values = [] } 
   // (another model has it), so one model's reports are named alike.
   const plain = (purpose) => standardName('Report', purpose, project);
   const prefixed = (purpose) => standardName('Report', `${purposeOf(model, 'SemanticModel') || 'Model'}${purpose}`, project);
-  const prefixAll = ['Executive', 'Regional', 'BusinessRules', 'Scorecard', 'PlanVsActual'].some((x) => theirs.has(plain(x).toLowerCase()));
+  const prefixAll = ['Executive', 'Regional', 'BusinessRules', 'Scorecard', 'PlanVsActual', 'MeasurePortfolio', 'Operations'].some((x) => theirs.has(plain(x).toLowerCase()));
   const nameFor = (purpose, legacy) => {
     const b = own.find((r) => r.name.toLowerCase() === legacy.toLowerCase() || parseName(r.name)?.purpose.toLowerCase() === purpose.toLowerCase());
     if (b) return b.name;
@@ -71,7 +85,20 @@ export function recommendations(profile, project, { rules = null, values = [] } 
 
   const exec = { id: 'executive-report', kind: 'report', title: 'Executive report', audience: 'Leadership', theme: 'executive', pages: ['executive', ...(profile.geo ? ['geo'] : []), 'drivers', 'scorecard'].filter((x) => x !== 'scorecard' || (hasTime && hasSegments)), name: nameFor('Executive', `${model} – Executive report`) };
   exec.reasons = reasonsFor(profile, 'executive');
+  if (profile.warnings?.some((w) => /is blank without extra filters/i.test(w))) exec.reasons.push(profile.warnings.find((w) => /is blank without extra filters/i.test(w)));
   out.push(exec);
+
+  if (profile.measures.length >= 8) {
+    const portfolio = { id: 'measure-portfolio-report', kind: 'report', title: 'Measure portfolio', audience: 'Analysts and model owners', theme: 'slate', pages: ['executive', 'drivers', ...(hasTime ? ['scorecard'] : [])], name: nameFor('MeasurePortfolio', `${model} – Measure portfolio`) };
+    portfolio.reasons = reasonsFor(profile, 'portfolio');
+    out.push(portfolio);
+  }
+
+  if ((profile.measureGroups || []).some((g) => /call|inventory|finance|quota|survey|operation/i.test(g.name)) || profile.kpis.some((k) => /call|order|issue|inventory|quota|survey/i.test(k.name))) {
+    const ops = { id: 'operations-report', kind: 'report', title: 'Operations report', audience: 'Operations managers', theme: 'teal', pages: ['scorecard', 'drivers', 'executive'], name: nameFor('Operations', `${model} – Operations report`) };
+    ops.reasons = reasonsFor(profile, 'operations');
+    out.push(ops);
+  }
 
   // Location columns (or coordinates) in the model: a map-first report for the people who run regions.
   if (profile.geo) {
@@ -95,7 +122,7 @@ export function recommendations(profile, project, { rules = null, values = [] } 
     out.push(dash);
   }
 
-  if (hasSegments && hasTime) {
+  if ((hasSegments && hasTime) || (hasTime && profile.kpis.length >= 3)) {
     const ops = { id: 'scorecard-report', kind: 'report', title: 'Performance scorecard', audience: 'Managers and analysts', theme: 'teal', pages: ['scorecard', 'drivers'], name: nameFor('Scorecard', `${model} – Scorecard`) };
     ops.reasons = reasonsFor(profile, 'scorecard');
     out.push(ops);

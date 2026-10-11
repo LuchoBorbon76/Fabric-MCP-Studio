@@ -66,6 +66,22 @@ function channelMeasures(measures, primary) {
   return measures.filter((m) => m !== primary && rx.test(m.name) && !isComparison(m)).slice(0, 4);
 }
 
+async function measureTotals(workspaceId, datasetId, candidates) {
+  if (!candidates.length) return new Map();
+  const out = new Map();
+  const chunkSize = 16;
+  for (let i = 0; i < candidates.length; i += chunkSize) {
+    const chunk = candidates.slice(i, i + chunkSize);
+    try {
+      const row = (await dax(workspaceId, datasetId, `EVALUATE ROW(${chunk.map((m, j) => `"m${j}", ${mRef(m)}`).join(', ')})`))[0] || {};
+      chunk.forEach((m, j) => out.set(m, row[`m${j}`] ?? row[`[m${j}]`]));
+    } catch {
+      chunk.forEach((m) => out.set(m, null));
+    }
+  }
+  return out;
+}
+
 // A year column: "Year", "Calendar Year", "Fiscal Year", "Order Year"… – not "Week Number Of Year" or "Day Of Year".
 const NOT_YEAR = /day|week|month|quarter|semester|period|half|of\s*year|number\s*of/i;
 const isYearName = (n) => /year/i.test(n) && !NOT_YEAR.test(n);
@@ -215,9 +231,15 @@ export async function profileModel(workspaceId, datasetId, { modelName = '' } = 
   const warnings = [];
   const measures = meta.measures;
   if (!measures.length) throw new Error('This semantic model has no measures yet. Add business measures first (Semantic model tab › Copilot), then design reports.');
-  const primary = [...measures].sort((a, b) => scoreMeasure(b) - scoreMeasure(a))[0];
-  const channels = channelMeasures(measures, primary);
-  const kpis = pickKpis(measures, primary, channels);
+  const rankedMeasures = [...measures].sort((a, b) => scoreMeasure(b) - scoreMeasure(a));
+  const totals = await measureTotals(workspaceId, datasetId, rankedMeasures.slice(0, 40));
+  const usableMeasures = rankedMeasures.filter((m) => totals.has(m) && totals.get(m) !== null && totals.get(m) !== undefined);
+  const primary = usableMeasures[0] || rankedMeasures[0];
+  if (usableMeasures.length && primary !== rankedMeasures[0]) warnings.push(`${rankedMeasures[0].name} is blank without extra filters, so ${primary.name} is used for report recommendations.`);
+  else if (!usableMeasures.length) warnings.push('All tested headline measures are blank without extra filters; recommendations use the highest-scored measure, but visuals may need slicers.');
+  const reportMeasures = usableMeasures.length ? usableMeasures : measures;
+  const channels = channelMeasures(reportMeasures, primary);
+  const kpis = pickKpis(reportMeasures, primary, channels);
   const date = dateInfo(meta);
 
   // Fact tables hold measures or are only ever on the "many" side; candidate categories live in dimensions.
@@ -295,7 +317,8 @@ export async function profileModel(workspaceId, datasetId, { modelName = '' } = 
   }
   if (date?.year) {
     // Facts without a matching date show as a blank year: not a period to compare.
-    const years = [...new Set(rows.map((r) => r[date.year.name]))].filter((y) => y !== null && y !== undefined && y !== '');
+    const years = [...new Set(rows.map((r) => r[date.year.name]))].filter((y) => y !== null && y !== undefined && y !== '')
+      .sort((a, b) => Number(String(a).match(/\d{4}/)?.[0] ?? a) - Number(String(b).match(/\d{4}/)?.[0] ?? b));
     const perYear = new Map();
     for (const r of rows) perYear.set(r[date.year.name], (perYear.get(r[date.year.name]) || []).concat(r));
     const fullYears = years.filter((y) => (date.monthNum ? perYear.get(y).length === 12 : date.quarter ? perYear.get(y).length === 4 : true));
@@ -340,6 +363,14 @@ export async function profileModel(workspaceId, datasetId, { modelName = '' } = 
     tables: meta.tables.map((t) => t.name),
     dateLinked,
     measures: measures.map((m) => meas(m)),
+    measureGroups: [...Object.entries(measures.reduce((a, m) => {
+      const key = (m.displayFolder || m.table || 'Measures').split(/[\\/]/)[0] || m.table || 'Measures';
+      (a[key] ||= []).push(meas(m));
+      return a;
+    }, {}))]
+      .map(([name, list]) => ({ name, measures: list.slice(0, 8), count: list.length }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8),
     primary: meas(primary),
     kpis: kpis.map((m) => meas(m)),
     channels: channels.map((m) => meas(m, m.name.replace(new RegExp(`\\s*${primary.name.replace(/^total\s+/i, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'), '') || m.name)),
