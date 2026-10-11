@@ -136,6 +136,6 @@
     { "date": "2026-10-11", "type": "fix", "commit": "deb31e7", "title": "Stale interrupted or failed job warnings no longer keep popping up after the same artifact is successfully recreated" },
     { "date": "2026-10-11", "type": "fix", "commit": "b5190c7", "title": "Report and question profiling now chooses the richest report-ready business measure instead of falling back to a sparse measure with only one populated period" },
     { "date": "2026-10-11", "type": "improvement", "commit": "b5190c7", "title": "Power BI reports now include a Measure portfolio page and Copilot question suggestions cover multiple business stories from the semantic model" },
-    { "date": "2026-10-11", "type": "fix", "commit": "pending", "title": "Read-only data queries now allow safe Copilot profiling SQL with semicolons inside text labels, SQL fences and multiple SELECT result sets while still blocking writes" }
+    { "date": "2026-10-11", "type": "fix", "commit": "e818d68", "title": "Read-only data queries now allow safe Copilot profiling SQL with semicolons inside text labels, SQL fences and multiple SELECT result sets while still blocking writes" }
   ]
 }
