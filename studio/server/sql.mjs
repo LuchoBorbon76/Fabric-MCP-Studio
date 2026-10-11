@@ -111,7 +111,7 @@ export async function discoverSqlServer(conn, { fabricEndpoint = false, exactCou
 
 /** Run a read-only query against the model source (used by the agent for profiling). */
 export async function readOnlyQuery(conn, query, { maxRows = 200 } = {}) {
-  const text = String(query || '').trim().replace(/;+\s*$/, '');
+  const text = normalizeSelect(String(query || '').trim().replace(/;+\s*$/, ''));
   if (!/^(select|with)\b/i.test(text) || /;\s*\S/.test(text) || /\b(insert|update|delete|merge|drop|alter|create|truncate|exec|execute|grant|revoke|into)\b/i.test(text)) {
     throw new Error('Only a single read-only SELECT (or WITH … SELECT) statement is allowed.');
   }
@@ -120,6 +120,18 @@ export async function readOnlyQuery(conn, query, { maxRows = 200 } = {}) {
     const rows = r.recordset || [];
     return { columns: rows.length ? Object.keys(rows[0]) : [], rows: rows.slice(0, maxRows), rowCount: rows.length, truncated: rows.length > maxRows };
   });
+}
+
+const RESERVED_ALIASES = new Set(['rowcount', 'count', 'key', 'value', 'group', 'order', 'user', 'date', 'time', 'type', 'table', 'schema']);
+const quoteAlias = (a) => `[${String(a).replace(/]/g, ']]')}]`;
+
+function normalizeSelect(text) {
+  // AI-generated profiling SQL often uses aliases such as "AS RowCount" or "COUNT_BIG(*) RowCount".
+  // Some SQL endpoints treat these as keywords. Quote just the alias, never identifiers or expressions.
+  return text
+    .replace(/\bAS\s+([A-Za-z_][A-Za-z0-9_]*)\b/gi, (all, a) => (RESERVED_ALIASES.has(a.toLowerCase()) ? `AS ${quoteAlias(a)}` : all))
+    .replace(/(\)|\]|\*)\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?=,|\s+FROM\b|\s+UNION\b|\s+ORDER\b|\s+GROUP\b|\s+HAVING\b|$)/gi,
+      (all, exprEnd, a) => (RESERVED_ALIASES.has(a.toLowerCase()) ? `${exprEnd} AS ${quoteAlias(a)}` : all));
 }
 
 export async function testSqlServer(conn) {

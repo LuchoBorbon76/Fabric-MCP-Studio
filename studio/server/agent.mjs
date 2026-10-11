@@ -634,7 +634,7 @@ function studioTools(chatId) {
       },
     }),
     studioTool('studio_query_data', {
-      description: 'Run one read-only T-SQL SELECT against the model source SQL analytics endpoint to profile data (max 200 rows returned). Use TOP/aggregations.',
+      description: 'Run one read-only T-SQL SELECT against the model source SQL analytics endpoint to profile data (max 200 rows returned). Use TOP/aggregations. Prefer bracketed aliases such as AS [RowCount] and AS [DistinctCount] because words like RowCount can be reserved by SQL endpoints.',
       parameters: obj({ sql: str('A single SELECT statement') }, ['sql']),
       handler: async ({ sql }) => P.queryModelSource(sql),
     }),
