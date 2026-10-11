@@ -111,19 +111,127 @@ export async function discoverSqlServer(conn, { fabricEndpoint = false, exactCou
 
 /** Run a read-only query against the model source (used by the agent for profiling). */
 export async function readOnlyQuery(conn, query, { maxRows = 200 } = {}) {
-  const text = normalizeSelect(String(query || '').trim().replace(/;+\s*$/, ''));
-  if (!/^(select|with)\b/i.test(text) || /;\s*\S/.test(text) || /\b(insert|update|delete|merge|drop|alter|create|truncate|exec|execute|grant|revoke|into)\b/i.test(text)) {
-    throw new Error('Only a single read-only SELECT (or WITH … SELECT) statement is allowed.');
-  }
+  const statements = prepareReadOnlyStatements(query);
   return withPool(conn, async (pool) => {
-    const r = await pool.request().query(text);
-    const rows = r.recordset || [];
-    return { columns: rows.length ? Object.keys(rows[0]) : [], rows: rows.slice(0, maxRows), rowCount: rows.length, truncated: rows.length > maxRows };
+    const resultSets = [];
+    for (const text of statements) {
+      const r = await pool.request().query(text);
+      const rows = r.recordset || [];
+      resultSets.push({ columns: rows.length ? Object.keys(rows[0]) : [], rows: rows.slice(0, maxRows), rowCount: rows.length, truncated: rows.length > maxRows });
+    }
+    if (resultSets.length === 1) return resultSets[0];
+    return { columns: resultSets[0]?.columns || [], rows: resultSets[0]?.rows || [], rowCount: resultSets.reduce((a, r) => a + r.rowCount, 0), truncated: resultSets.some((r) => r.truncated), resultSets };
   });
 }
 
 const RESERVED_ALIASES = new Set(['rowcount', 'count', 'key', 'value', 'group', 'order', 'user', 'date', 'time', 'type', 'table', 'schema']);
 const quoteAlias = (a) => `[${String(a).replace(/]/g, ']]')}]`;
+
+export function prepareReadOnlyStatements(query) {
+  const raw = stripSqlFence(String(query || '').trim());
+  const statements = splitSqlStatements(raw).map((s) => normalizeSelect(s.trim())).filter((s) => stripSqlLiterals(s).trim());
+  if (!statements.length) throw new Error('Enter a read-only SELECT query.');
+  if (statements.length > 10) throw new Error('Run at most 10 read-only SELECT statements at a time.');
+  for (const text of statements) {
+    const safe = stripSqlLiterals(text);
+    if (!/^(select|with)\b/i.test(safe) || /\b(insert|update|delete|merge|drop|alter|create|truncate|exec|execute|grant|revoke|into)\b/i.test(safe)) {
+      throw new Error('Only read-only SELECT (or WITH … SELECT) statements are allowed.');
+    }
+  }
+  return statements;
+}
+
+function stripSqlFence(text) {
+  const m = text.match(/^```(?:sql|tsql|t-sql)?\s*\r?\n([\s\S]*?)\r?\n```\s*$/i);
+  return (m ? m[1] : text).trim().replace(/;+\s*$/, '');
+}
+
+function splitSqlStatements(text) {
+  const out = [];
+  let cur = '';
+  let quote = null;
+  let bracket = false;
+  let lineComment = false;
+  let blockComment = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    const next = text[i + 1];
+    if (lineComment) {
+      cur += ch;
+      if (ch === '\n') lineComment = false;
+      continue;
+    }
+    if (blockComment) {
+      cur += ch;
+      if (ch === '*' && next === '/') { cur += next; i++; blockComment = false; }
+      continue;
+    }
+    if (quote) {
+      cur += ch;
+      if (ch === quote && next === quote) { cur += next; i++; continue; }
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (bracket) {
+      cur += ch;
+      if (ch === ']' && next === ']') { cur += next; i++; continue; }
+      if (ch === ']') bracket = false;
+      continue;
+    }
+    if (ch === '-' && next === '-') { cur += ch + next; i++; lineComment = true; continue; }
+    if (ch === '/' && next === '*') { cur += ch + next; i++; blockComment = true; continue; }
+    if (ch === "'" || ch === '"') { cur += ch; quote = ch; continue; }
+    if (ch === '[') { cur += ch; bracket = true; continue; }
+    if (ch === ';') {
+      if (cur.trim()) out.push(cur.trim());
+      cur = '';
+      continue;
+    }
+    cur += ch;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
+
+function stripSqlLiterals(text) {
+  let out = '';
+  let quote = null;
+  let bracket = false;
+  let lineComment = false;
+  let blockComment = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    const next = text[i + 1];
+    if (lineComment) {
+      out += ch === '\n' ? '\n' : ' ';
+      if (ch === '\n') lineComment = false;
+      continue;
+    }
+    if (blockComment) {
+      out += /\s/.test(ch) ? ch : ' ';
+      if (ch === '*' && next === '/') { out += ' '; i++; blockComment = false; }
+      continue;
+    }
+    if (quote) {
+      out += /\s/.test(ch) ? ch : ' ';
+      if (ch === quote && next === quote) { out += ' '; i++; continue; }
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (bracket) {
+      out += /\s/.test(ch) ? ch : ' ';
+      if (ch === ']' && next === ']') { out += ' '; i++; continue; }
+      if (ch === ']') bracket = false;
+      continue;
+    }
+    if (ch === '-' && next === '-') { out += '  '; i++; lineComment = true; continue; }
+    if (ch === '/' && next === '*') { out += '  '; i++; blockComment = true; continue; }
+    if (ch === "'" || ch === '"') { out += ' '; quote = ch; continue; }
+    if (ch === '[') { out += ' '; bracket = true; continue; }
+    out += ch;
+  }
+  return out.trim();
+}
 
 function normalizeSelect(text) {
   // AI-generated profiling SQL often uses aliases such as "AS RowCount" or "COUNT_BIG(*) RowCount".
