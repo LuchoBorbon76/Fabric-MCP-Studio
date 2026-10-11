@@ -125,6 +125,7 @@
     { "date": "2026-10-10", "type": "fix", "commit": "f42fa5a", "title": "GitHub Copilot status now auto-loads the GitHub CLI keyring token when the provider is GitHub, so Settings shows authenticated after restart without pressing Sign in again" },
     { "date": "2026-10-10", "type": "fix", "commit": "85ccf0a", "title": "Chat resumes now recover from missing Copilot SDK sessions by creating a fresh session and retrying the message, instead of showing session.resume Session not found" },
     { "date": "2026-10-10", "type": "improvement", "commit": "db9215f", "title": "Settings recommends the best model for Fabric MCP work per AI provider, applies a sensible default when switching providers, and shows a Recommended models picker with reasons when several good choices exist" },
-    { "date": "2026-10-10", "type": "improvement", "commit": "da2e9ff", "title": "Model check can now repair older app-created semantic models by hiding every column used in relationships (keys and foreign keys), and Copilot has a matching studio_hide_relationship_keys tool" }
+    { "date": "2026-10-10", "type": "improvement", "commit": "da2e9ff", "title": "Model check can now repair older app-created semantic models by hiding every column used in relationships (keys and foreign keys), and Copilot has a matching studio_hide_relationship_keys tool" },
+    { "date": "2026-10-10", "type": "fix", "title": "Copilot-suggested measures are automatically renamed when they collide with source columns or other measures in the same semantic model, and DAX references are rewritten to the safe names so Fabric accepts the model" }
   ]
 }

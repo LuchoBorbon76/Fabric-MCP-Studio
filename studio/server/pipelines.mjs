@@ -567,8 +567,9 @@ export async function runSemanticModel(ctx, { name, include, names, relationship
   ctx.progress(25);
 
   const kpis = !preset?.measures?.length && !measures?.length && schema.kpis?.length ? kpiMeasures(plan, schema.kpis) : [];
-  const m = kpis.length ? kpis : modelMeasures(plan, preset, measures, useDefaults);
+  const m = kpis.length ? sanitizeMeasures(plan, kpis) : modelMeasures(plan, preset, measures, useDefaults);
   if (kpis.length) ctx.log(`${kpis.length} measures from the notebook's KPIs`);
+  if (m.warnings?.length) for (const w of m.warnings) ctx.log(w);
   const dateTable = preset?.dateTable && plan.tables.some((t) => t.name === preset.dateTable.table) ? preset.dateTable : preset ? null : findDateTable(plan);
   const modelName = modelNameFor(p, preset, name);
   // A model the user added to the project (not built by the studio) is never overwritten by a generated one.
@@ -628,7 +629,7 @@ export function kpiMeasures(plan, kpis) {
   }
   // Every KPI must resolve: a measure that refers to another one left out would break the model.
   const names = new Set(out.map((x) => x.name.toLowerCase()));
-  return out.filter((x) => [...x.expression.matchAll(/(?<!['\w\]])\[([^\]]+)\]/g)].every((r) => names.has(r[1].toLowerCase()) || plan.tables.some((t) => t.columns.some((c) => c.name.toLowerCase() === r[1].toLowerCase()))));
+  return sanitizeMeasures(plan, out.filter((x) => [...x.expression.matchAll(/(?<!['\w\]])\[([^\]]+)\]/g)].every((r) => names.has(r[1].toLowerCase()) || plan.tables.some((t) => t.columns.some((c) => c.name.toLowerCase() === r[1].toLowerCase())))));
 }
 
 /** The model's date table: a dimension keyed on a date column that other tables relate to (Date, Dates, Calendar…). */
@@ -656,14 +657,58 @@ export function modelNameFor(p, preset, name) {
  * Measures for a model: sample presets keep their glossary measures and add or replace Copilot's by name;
  * other sources use Copilot's measures, or starter measures when there are none. Measures on excluded tables are dropped.
  */
-function modelMeasures(plan, preset, measures, useDefaults = true) {
+const measureRef = (name) => `[${String(name).replace(/]/g, ']]')}]`;
+function safeMeasureName(base, used, columnNames) {
+  const raw = String(base || 'Measure').trim() || 'Measure';
+  const candidates = columnNames.has(raw.toLowerCase())
+    ? [/^(count|number of|total|sum|average|avg|distinct)/i.test(raw) ? `${raw} Measure` : `Total ${raw}`, `${raw} Measure`, `${raw} Value`]
+    : [raw];
+  for (const c of candidates) if (!used.has(c.toLowerCase()) && !columnNames.has(c.toLowerCase())) return c;
+  let i = 2;
+  while (used.has(`${raw} ${i}`.toLowerCase()) || columnNames.has(`${raw} ${i}`.toLowerCase())) i++;
+  return `${raw} ${i}`;
+}
+
+function rewriteMeasureRefs(expression, renames) {
+  return String(expression || '').replace(/(?<!['\w\]])\[([^\]]+)\]/g, (all, n) => {
+    const key = n.replace(/]]/g, ']').toLowerCase();
+    return renames.has(key) ? measureRef(renames.get(key)) : all;
+  });
+}
+
+function sanitizeMeasures(plan, measures) {
+  const byTable = new Map(plan.tables.map((t) => [t.name, t]));
+  const columns = new Map(plan.tables.map((t) => [t.name, new Set(t.columns.map((c) => c.name.toLowerCase()))]));
+  const used = new Set();
+  const renames = new Map();
+  const warnings = [];
+  const out = [];
+  for (const x of measures.filter((m) => byTable.has(m.table))) {
+    const colNames = columns.get(x.table) || new Set();
+    const columnCollision = colNames.has(String(x.name).toLowerCase());
+    const name = safeMeasureName(x.name, used, colNames);
+    used.add(name.toLowerCase());
+    if (name !== x.name) {
+      // Only rewrite [Measure] references for the common Fabric-blocking case: a measure name collides with a column.
+      // Duplicate suggested measures are renamed too, but their references would be ambiguous, so leave them alone.
+      if (columnCollision) renames.set(String(x.name).toLowerCase(), name);
+      warnings.push(`Measure "${x.name}" in ${x.table} renamed to "${name}" because a column or another measure already uses that name.`);
+    }
+    out.push({ ...x, name });
+  }
+  if (renames.size) for (const m of out) m.expression = rewriteMeasureRefs(m.expression, renames);
+  out.warnings = warnings;
+  return out;
+}
+
+export function modelMeasures(plan, preset, measures, useDefaults = true) {
   let m;
   if (preset?.measures?.length) {
     const given = measures || [];
     const names = new Set(given.map((x) => x.name.toLowerCase()));
     m = [...preset.measures.filter((x) => !names.has(x.name.toLowerCase())), ...given];
   } else m = measures?.length ? measures : useDefaults ? defaultMeasures(plan) : [];
-  return m.filter((x) => plan.tables.some((t) => t.name === x.table));
+  return sanitizeMeasures(plan, m);
 }
 
 // ---------------- Copilot suggestions ----------------
@@ -684,6 +729,7 @@ export async function proposeSemanticModel({ name, include, names, relationships
     ...(include || []).filter((k) => !known.has(k)).map((k) => `Table ${k} doesn't exist in the data source and was left out.`),
     ...given.filter((x) => !plan.tables.some((t) => t.name === x.table)).map((x) => `Measure ${x.name} uses table "${x.table}", which isn't one of the model's business table names, and was left out.`),
     ...(relationships?.length && plan.relationships.length < relationships.length ? [`${relationships.length - plan.relationships.length} relationship(s) use tables or columns that aren't in the model and were left out.`] : []),
+    ...(effective.warnings || []),
   ];
   const modelName = modelNameFor(p, preset, name);
   // Snowflaked dimensions (Product → Subcategory) are on the "from" side too; only tables nothing points to are facts.
