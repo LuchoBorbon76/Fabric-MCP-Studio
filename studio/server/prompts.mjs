@@ -51,12 +51,16 @@ function modelPrompts(p, pr, preset) {
   const brk = pr.breakdown?.label;
   const share = pr.share?.label;
   const ent = pr.entity?.label;
+  const stories = (pr.stories || []).filter((s) => s.primary?.name !== pr.primary.name);
+  const storyNames = (pr.stories || []).slice(0, 4).map((s) => `${s.label} (${s.primary.label})`);
 
   const numbers = [];
   if (last && prev) numbers.push(`What was ${m} in ${last}, and how does it compare with ${prev}?`);
   else numbers.push(`What is ${m} in total${t?.last ? ` and in ${t.last}` : ''}?`);
   numbers.push(`Give me an executive summary: ${list([m, ...kpis.slice(0, 3)])}${last ? ` for ${last}` : ''}, with what changed and why.`);
+  if (storyNames.length > 1) numbers.push(`Give me a business-area summary across ${list(storyNames)}: what is healthy, what changed, and what needs attention?`);
   if (t) numbers.push(`How has ${m} trended by ${grain}${full.length >= 2 ? ` from ${full[0]} to ${t.last}` : ''}? Point out peaks, dips and seasonality.`);
+  for (const s of stories.slice(0, 3)) if (s.periods > 1) numbers.push(`How has ${s.primary.label} trended over time? Point out peaks, dips and seasonality.`);
   for (const ins of pr.insights || []) {
     if (ins.kind === 'growth' && last) numbers.push(`Why did ${m} ${ins.value >= 0 ? 'grow' : 'fall'} in ${last}?${brk ? ` Which ${lower(brk)} drove the change?` : ''}`);
   }
@@ -66,6 +70,7 @@ function modelPrompts(p, pr, preset) {
   const compare = [];
   if (brk) compare.push(`Which ${lower(brk)} has the highest ${m}${full.length >= 2 ? ', and which is growing fastest year over year' : ''}?`);
   if (share) compare.push(`What share of ${m} comes from each ${lower(share)}${full.length >= 2 ? ', and how has the mix changed' : ''}?`);
+  if (storyNames.length > 1) compare.push(`Compare ${list(storyNames)} over time: which business area is growing fastest and which is weakening?`);
   if (ent) compare.push(`Who are the top 10 ${lower(plural(ent))} by ${m}? And the bottom 10?`);
   if (ent && last && prev) compare.push(`Which ${lower(plural(ent))} declined the most in ${last} compared with ${prev}?`);
   if (pct && (brk || share)) compare.push(`Where is ${pct.label} lowest by ${lower(brk || share)}, and what explains it?`);

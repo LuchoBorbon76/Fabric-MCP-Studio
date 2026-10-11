@@ -11,6 +11,7 @@ const TOP = HEADER + G;
 
 export const PAGE_TEMPLATES = [
   { id: 'executive', name: 'Executive summary', archetype: 'Executive summary', description: 'Headline KPIs, trend by channel, share of the main measure, top breakdown and top 10 list.', needs: ['kpis'] },
+  { id: 'portfolio', name: 'Measure portfolio', archetype: 'Executive overview', description: 'Top report-ready measure stories across the model, with historical trends and a cross-measure matrix.', needs: ['kpis'] },
   { id: 'drivers', name: 'Performance drivers', archetype: 'Analytical canvas', description: 'Drill-down matrix (category → item), year-over-year comparison by segment, and the biggest contributors.', needs: ['kpis'] },
   { id: 'scorecard', name: 'Scorecard', archetype: 'Operational monitor', description: 'Segment × year scorecard, margin trend by segment, and a ranked breakdown with data bars.', needs: ['kpis'] },
   { id: 'rules', name: 'Business rules', archetype: 'Operational monitor', description: 'Ontology rules in plain English with live counts, rule breaks by year, and where they happen.', needs: ['rules'] },
@@ -68,6 +69,13 @@ function kpiRow(theme, profile, y, h = 96) {
 }
 
 const trendTitle = (profile) => `${profile.time.grain === 'month' ? 'Monthly' : profile.time.grain === 'quarter' ? 'Quarterly' : 'Yearly'} ${profile.primary.label.replace(/^total\s+/i, '').toLowerCase()}${profile.channels.length > 1 ? ' by channel' : ''}`;
+const sameMeasure = (a, b) => a?.table === b?.table && a?.name === b?.name;
+function storyMeasures(profile, max = 4) {
+  const out = [];
+  for (const s of profile.stories || []) if (s.primary && !out.some((m) => sameMeasure(m, s.primary))) out.push(s.primary);
+  for (const k of profile.kpis || []) if (!out.some((m) => sameMeasure(m, k))) out.push(k);
+  return out.slice(0, max);
+}
 
 // ---------------- page builders ----------------
 
@@ -92,6 +100,38 @@ function executive(theme, profile, { subtitle }) {
     });
   }
   return { displayName: 'Executive summary', visuals };
+}
+
+function portfolio(theme, profile, { subtitle }) {
+  const p = profile;
+  const stories = (p.stories || []).slice(0, 4);
+  const measures = storyMeasures(p, 4);
+  const visuals = [...header(theme, p, 'Measure portfolio', subtitle)];
+  const cards = stories.length
+    ? stories.map((s, i) => ({ key: `story-${s.key || s.label}`, ref: s.primary, label: `${s.label}: ${s.primary.label}`, accent: theme.dataColors[i % theme.dataColors.length] }))
+    : p.kpis.slice(0, 4).map((k, i) => ({ key: `story-${k.name}`, ref: k, label: k.label, accent: theme.dataColors[i % theme.dataColors.length] }));
+  const w = (W - (cards.length - 1) * G) / Math.max(1, cards.length);
+  cards.forEach((c, i) => visuals.push({ key: c.key, pos: { x: M + i * (w + G), y: TOP, w, h: 96 }, visual: V_.card(theme, c.ref, { label: c.label, accent: c.accent, labelSize: cards.length > 3 ? 8.5 : 10 }) }));
+  const row2 = TOP + 96 + G;
+  const row2h = p.time ? 230 : 0;
+  if (p.time && measures.length) {
+    visuals.push({ key: 'portfolio-trend', pos: { x: M, y: row2, w: W, h: row2h }, visual: V_.trend(theme, { measures, axis: p.time.axis, title: `Historical movement across ${measures.length} report-ready measures`, area: false }) });
+  }
+  const y = p.time ? row2 + row2h + G : TOP + 96 + G;
+  const h = PAGE.height - M - y;
+  const rows = (p.hierarchy || []).length > 1 ? p.hierarchy.slice(0, 2) : [p.breakdown || p.share || p.entity].filter(Boolean);
+  const leftW = p.entity && rows.length ? 740 : W;
+  if (rows.length && measures.length) {
+    visuals.push({ key: 'portfolio-matrix', pos: { x: M, y, w: leftW, h }, visual: V_.matrix(theme, { rows, measures, title: `${measures.map((m) => m.label).join(', ')} by ${rows.map((r) => r.label.toLowerCase()).join(' › ')}` }) });
+  }
+  if (p.entity) {
+    visuals.push({
+      key: 'portfolio-top', pos: { x: rows.length ? M + leftW + G : M, y, w: rows.length ? W - leftW - G : W, h },
+      visual: V_.table(theme, { columns: [p.entity], measures: measures.slice(0, 3), title: `Top ${p.entity.label.toLowerCase()}s across key measures`, bars: true }),
+      filterConfig: topNFilter(p.entity, measures[0] || p.primary, 10),
+    });
+  }
+  return { displayName: 'Measure portfolio', visuals };
 }
 
 function drivers(theme, profile, { subtitle }) {
@@ -248,7 +288,7 @@ function geo(theme, profile, { subtitle }) {
   return { displayName: 'Map', visuals };
 }
 
-const BUILDERS = { executive, drivers, scorecard, rules, plan, geo };
+const BUILDERS = { executive, portfolio, drivers, scorecard, rules, plan, geo };
 
 /**
  * Report plan for a model profile: { pages: [{ name, displayName, visuals, filterConfig }] } ready for reportFiles().

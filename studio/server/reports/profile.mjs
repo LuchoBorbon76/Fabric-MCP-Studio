@@ -41,20 +41,70 @@ function scoreMeasure(m) {
   return s;
 }
 
+function measureTopic(m) {
+  const folder = String(m.displayFolder || '').split(/[\\/]/).filter(Boolean)[0];
+  if (folder) return folder.toLowerCase();
+  if (/sales|reseller|internet|order/i.test(`${m.table} ${m.name}`)) return 'sales';
+  if (/inventory|stock/i.test(`${m.table} ${m.name}`)) return 'inventory';
+  if (/call|service|support/i.test(`${m.table} ${m.name}`)) return 'service';
+  if (/survey/i.test(`${m.table} ${m.name}`)) return 'survey';
+  if (/finance|account/i.test(`${m.table} ${m.name}`)) return 'finance';
+  return String(m.table || '').toLowerCase();
+}
+
+function storyScore(m) {
+  const text = `${m.table} ${m.name} ${m.displayFolder || ''} ${m.description || ''}`;
+  let s = scoreMeasure(m) * 5;
+  if (/(sales|revenue|gross profit|orders?|bookings?)/i.test(text)) s += 70;
+  if (/(orders?|transactions?|customers?|accounts?|members?)/i.test(m.name)) s += 18;
+  if (/(units?|quantity|qty|volume)/i.test(m.name)) s += 8;
+  if (/(internet|reseller|channel)/i.test(text)) s += 10;
+  if (/(inventory|stock|balance)/i.test(text)) s += 28;
+  if (/(finance|budget|quota)/i.test(text)) s += 16;
+  if (/(call|service|survey|support)/i.test(text)) s += 8;
+  if (/(diagnostic|reference|translation|staging|exchange rate|single record|single context|exactly one)/i.test(text)) s -= 160;
+  if (/\b(records?|rows?)\b/i.test(m.name) && !/(orders?|customers?|accounts?|members?|responses?)/i.test(m.name)) s -= 90;
+  if (isComparison(m)) s -= 35;
+  if (isPercent(m) || isAverage(m)) s -= 25;
+  if (/by reason|date roles/i.test(text)) s -= 8;
+  return s;
+}
+
 function pickKpis(measures, primary, channels) {
   // Skip channel-specific variants ("Internet Gross Profit") when the model has the overall measure.
   const prefixes = channels.map((m) => m.name.split(/\s+/)[0].toLowerCase());
   const channelVariant = (m) => prefixes.some((p) => m.name.toLowerCase().startsWith(`${p} `));
+  const topic = measureTopic(primary);
+  const sameTopic = (m) => measureTopic(m) === topic;
   const pool = measures.filter((m) => m !== primary && !isComparison(m) && !channelVariant(m));
+  const samePool = pool.filter(sameTopic);
   const pick = [];
-  const take = (pred) => { const m = pool.find((x) => !pick.includes(x) && pred(x)); if (m) pick.push(m); };
+  const take = (pred, allowCrossTopic = false) => {
+    const m = samePool.find((x) => !pick.includes(x) && pred(x))
+      || (allowCrossTopic ? pool.find((x) => !pick.includes(x) && pred(x)) : null);
+    if (m) pick.push(m);
+  };
   take((m) => /profit/i.test(m.name) && !isPercent(m));
   take((m) => isPercent(m) && /margin/i.test(m.name));
   take((m) => isPercent(m));
   take((m) => isAverage(m));
   take((m) => isCount(m) && /(order|transaction)/i.test(m.name));
+  take((m) => isCount(m) && /(unit|quantity|qty)/i.test(m.name));
   take((m) => isCount(m));
   take((m) => isCurrency(m) && !/cost/i.test(m.name));
+  for (const m of samePool) {
+    if (pick.length >= 3) break;
+    if (!pick.includes(m) && !isPercent(m) && !isAverage(m)) pick.push(m);
+  }
+  if (pick.length < 2) {
+    take((m) => /profit/i.test(m.name) && !isPercent(m), true);
+    take((m) => isPercent(m) && /margin/i.test(m.name), true);
+    take((m) => isCount(m) && /(order|transaction|unit|quantity|qty)/i.test(m.name), true);
+  }
+  for (const m of pool) {
+    if (pick.length >= 3) break;
+    if (!pick.includes(m) && !isPercent(m) && !isAverage(m) && storyScore(m) > 0) pick.push(m);
+  }
   return [primary, ...pick].slice(0, 4);
 }
 
@@ -80,6 +130,42 @@ async function measureTotals(workspaceId, datasetId, candidates) {
     }
   }
   return out;
+}
+
+async function measureTimeStats(workspaceId, datasetId, candidates, date) {
+  const out = new Map(candidates.map((m) => [m, { periods: 0, years: 0, values: 0 }]));
+  if (!date?.year || !candidates.length) return out;
+  const periodCol = date.monthNum || date.quarter;
+  const chunkSize = 8;
+  for (let i = 0; i < candidates.length; i += chunkSize) {
+    const chunk = candidates.slice(i, i + chunkSize);
+    const periodTable = (m) => `FILTER(SUMMARIZECOLUMNS(${cRef(date.year)}${periodCol ? `, ${cRef(periodCol)}` : ''}, "v", ${mRef(m)}), NOT ISBLANK([v]))`;
+    const exprs = chunk.flatMap((m, j) => [
+      `"p${j}", COUNTROWS(${periodTable(m)})`,
+      `"y${j}", COUNTROWS(FILTER(SUMMARIZECOLUMNS(${cRef(date.year)}, "v", ${mRef(m)}), NOT ISBLANK([v])))`,
+      `"d${j}", COUNTROWS(DISTINCT(SELECTCOLUMNS(${periodTable(m)}, "v", [v])))`,
+    ]);
+    try {
+      const row = (await dax(workspaceId, datasetId, `EVALUATE ROW(${exprs.join(', ')})`))[0] || {};
+      chunk.forEach((m, j) => out.set(m, { periods: Number(row[`p${j}`]) || 0, years: Number(row[`y${j}`]) || 0, values: Number(row[`d${j}`]) || 0 }));
+    } catch {
+      chunk.forEach((m) => out.set(m, { periods: 0, years: 0, values: 0 }));
+    }
+  }
+  return out;
+}
+
+function dimensionReach(meta, measure, date) {
+  const textCols = (table) => meta.columns.filter((c) => c.table === table && c.dataType === 'Text' && !LANG.test(c.name) && !NOT_CATEGORY.test(c.name));
+  const rels = meta.relationships.filter((r) => r.active && r.fromTable === measure.table && r.toTable !== date?.table);
+  const dims = rels.map((r) => r.toTable).filter((t, i, a) => a.indexOf(t) === i && textCols(t).length);
+  const named = dims.filter((t) => STRONG_TABLE.test(t)).length;
+  return { dims: dims.length, named };
+}
+
+function topicLabelOf(m) {
+  const folder = String(m.displayFolder || '').split(/[\\/]/).filter(Boolean)[0];
+  return columnLabel(folder || m.table || 'Measures');
 }
 
 // A year column: "Year", "Calendar Year", "Fiscal Year", "Order Year"… – not "Week Number Of Year" or "Day Of Year".
@@ -231,16 +317,63 @@ export async function profileModel(workspaceId, datasetId, { modelName = '' } = 
   const warnings = [];
   const measures = meta.measures;
   if (!measures.length) throw new Error('This semantic model has no measures yet. Add business measures first (Semantic model tab › Copilot), then design reports.');
+  const date = dateInfo(meta);
   const rankedMeasures = [...measures].sort((a, b) => scoreMeasure(b) - scoreMeasure(a));
-  const totals = await measureTotals(workspaceId, datasetId, rankedMeasures.slice(0, 40));
-  const usableMeasures = rankedMeasures.filter((m) => totals.has(m) && totals.get(m) !== null && totals.get(m) !== undefined);
-  const primary = usableMeasures[0] || rankedMeasures[0];
-  if (usableMeasures.length && primary !== rankedMeasures[0]) warnings.push(`${rankedMeasures[0].name} is blank without extra filters, so ${primary.name} is used for report recommendations.`);
-  else if (!usableMeasures.length) warnings.push('All tested headline measures are blank without extra filters; recommendations use the highest-scored measure, but visuals may need slicers.');
-  const reportMeasures = usableMeasures.length ? usableMeasures : measures;
+  const profiledMeasures = rankedMeasures.slice(0, 60);
+  const [totals, timeStats] = await Promise.all([
+    measureTotals(workspaceId, datasetId, profiledMeasures),
+    measureTimeStats(workspaceId, datasetId, profiledMeasures, date),
+  ]);
+  const reach = new Map(profiledMeasures.map((m) => [m, dimensionReach(meta, m, date)]));
+  const hasTotal = (m) => totals.has(m) && totals.get(m) !== null && totals.get(m) !== undefined;
+  const usableMeasures = profiledMeasures.filter((m) => hasTotal(m) || (timeStats.get(m)?.periods || 0) > 0);
+  const reportability = (m) => {
+    const stat = timeStats.get(m) || {};
+    const dims = reach.get(m) || {};
+    const periods = Number(stat.periods) || 0;
+    const years = Number(stat.years) || 0;
+    const values = Number(stat.values) || 0;
+    let s = storyScore(m);
+    if (hasTotal(m)) s += 12;
+    else s -= 45;
+    s += Math.min(periods, 48) * 2;
+    s += Math.min(years, 6) * 8;
+    s += Math.min(values, 12) * 3;
+    s += Math.min(Number(dims.dims) || 0, 5) * 14;
+    s += Math.min(Number(dims.named) || 0, 3) * 8;
+    if (periods >= 12) s += 24;
+    if (periods >= 24) s += 16;
+    if (periods <= 1) s -= 60;
+    if (periods > 1 && values <= 1) s -= 90;
+    if ((Number(dims.dims) || 0) === 0 && periods > 1) s -= 20;
+    return s;
+  };
+  const reportMeasures = usableMeasures.length
+    ? [...usableMeasures].sort((a, b) => reportability(b) - reportability(a) || scoreMeasure(b) - scoreMeasure(a))
+    : rankedMeasures;
+  const primary = reportMeasures[0] || rankedMeasures[0];
+  if (usableMeasures.length && primary !== rankedMeasures[0]) {
+    const first = rankedMeasures[0];
+    const periods = timeStats.get(first)?.periods || 0;
+    const reason = !hasTotal(first) && !periods ? 'is blank without extra filters' : periods <= 1 ? `has only ${periods || 1} populated period` : 'has less report-ready coverage';
+    warnings.push(`${first.name} ${reason}, so ${primary.name} is used for report recommendations.`);
+  } else if (!usableMeasures.length) warnings.push('All tested headline measures are blank without extra filters; recommendations use the highest-scored measure, but visuals may need slicers.');
   const channels = channelMeasures(reportMeasures, primary);
   const kpis = pickKpis(reportMeasures, primary, channels);
-  const date = dateInfo(meta);
+  const topicMap = new Map();
+  for (const m of reportMeasures) {
+    if ((timeStats.get(m)?.periods || 0) <= 0 && !hasTotal(m)) continue;
+    const key = measureTopic(m);
+    if (!topicMap.has(key)) topicMap.set(key, []);
+    topicMap.get(key).push(m);
+  }
+  const stories = [...topicMap.entries()].map(([key, list]) => {
+    const sorted = [...list].sort((a, b) => reportability(b) - reportability(a) || scoreMeasure(b) - scoreMeasure(a));
+    const main = sorted[0];
+    const stat = timeStats.get(main) || {};
+    const k = pickKpis(sorted, main, channelMeasures(sorted, main));
+    return { key, label: topicLabelOf(main), primary: meas(main), measures: k.map((m) => meas(m)), periods: Number(stat.periods) || 0, years: Number(stat.years) || 0, score: Math.round(reportability(main)) };
+  }).filter((s) => s.score > 0).sort((a, b) => b.score - a.score).slice(0, 6);
 
   // Fact tables hold measures or are only ever on the "many" side; candidate categories live in dimensions.
   const oneSide = new Set(meta.relationships.map((r) => r.toTable));
@@ -371,6 +504,7 @@ export async function profileModel(workspaceId, datasetId, { modelName = '' } = 
       .map(([name, list]) => ({ name, measures: list.slice(0, 8), count: list.length }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 8),
+    stories,
     primary: meas(primary),
     kpis: kpis.map((m) => meas(m)),
     channels: channels.map((m) => meas(m, m.name.replace(new RegExp(`\\s*${primary.name.replace(/^total\s+/i, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'), '') || m.name)),

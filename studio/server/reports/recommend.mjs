@@ -82,20 +82,21 @@ export function recommendations(profile, project, { rules = null, values = [] } 
   const out = [];
   const hasTime = Boolean(profile.time);
   const hasSegments = Boolean(profile.share || profile.breakdown);
+  const hasPortfolio = (profile.stories || []).length > 1 || profile.measures.length >= 8;
 
-  const exec = { id: 'executive-report', kind: 'report', title: 'Executive report', audience: 'Leadership', theme: 'executive', pages: ['executive', ...(profile.geo ? ['geo'] : []), 'drivers', 'scorecard'].filter((x) => x !== 'scorecard' || (hasTime && hasSegments)), name: nameFor('Executive', `${model} – Executive report`) };
+  const exec = { id: 'executive-report', kind: 'report', title: 'Executive report', audience: 'Leadership', theme: 'executive', pages: ['executive', ...(hasPortfolio ? ['portfolio'] : []), ...(profile.geo ? ['geo'] : []), 'drivers', 'scorecard'].filter((x) => x !== 'scorecard' || (hasTime && hasSegments)), name: nameFor('Executive', `${model} – Executive report`) };
   exec.reasons = reasonsFor(profile, 'executive');
   if (profile.warnings?.some((w) => /is blank without extra filters/i.test(w))) exec.reasons.push(profile.warnings.find((w) => /is blank without extra filters/i.test(w)));
   out.push(exec);
 
   if (profile.measures.length >= 8) {
-    const portfolio = { id: 'measure-portfolio-report', kind: 'report', title: 'Measure portfolio', audience: 'Analysts and model owners', theme: 'slate', pages: ['executive', 'drivers', ...(hasTime ? ['scorecard'] : [])], name: nameFor('MeasurePortfolio', `${model} – Measure portfolio`) };
+    const portfolio = { id: 'measure-portfolio-report', kind: 'report', title: 'Measure portfolio', audience: 'Analysts and model owners', theme: 'slate', pages: ['portfolio', 'executive', 'drivers', ...(hasTime ? ['scorecard'] : [])], name: nameFor('MeasurePortfolio', `${model} – Measure portfolio`) };
     portfolio.reasons = reasonsFor(profile, 'portfolio');
     out.push(portfolio);
   }
 
   if ((profile.measureGroups || []).some((g) => /call|inventory|finance|quota|survey|operation/i.test(g.name)) || profile.kpis.some((k) => /call|order|issue|inventory|quota|survey/i.test(k.name))) {
-    const ops = { id: 'operations-report', kind: 'report', title: 'Operations report', audience: 'Operations managers', theme: 'teal', pages: ['scorecard', 'drivers', 'executive'], name: nameFor('Operations', `${model} – Operations report`) };
+    const ops = { id: 'operations-report', kind: 'report', title: 'Operations report', audience: 'Operations managers', theme: 'teal', pages: [...(hasPortfolio ? ['portfolio'] : []), 'scorecard', 'drivers', 'executive'], name: nameFor('Operations', `${model} – Operations report`) };
     ops.reasons = reasonsFor(profile, 'operations');
     out.push(ops);
   }

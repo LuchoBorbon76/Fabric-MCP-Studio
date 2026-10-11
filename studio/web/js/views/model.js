@@ -21,7 +21,7 @@ export function renderModel(el) {
   const p = store.project || {};
   const sm = p.semanticModel;
   const designer = h('div', { class: 'card designer' });
-  if (sm) el.append(modelCard(p), askCard({ title: `Ask ${sm.name}`, lead: 'Questions built from your measures, dimensions and years – answered through Fabric IQ with the DAX shown.', only: ['numbers', 'compare', 'sample'] }));
+  if (sm) el.append(modelCard(p), askCard({ title: `Ask ${sm.name}`, lead: 'Questions built from your measures, dimensions and years – answered through Fabric IQ with the DAX shown.', only: ['numbers', 'compare', 'sample'], perGroup: 5 }));
   else if (p.workspace) {
     // No model yet: an existing model is one click away (the designer below builds a new one).
     el.append(h('div', { class: 'banner', style: { marginBottom: '14px' } },
