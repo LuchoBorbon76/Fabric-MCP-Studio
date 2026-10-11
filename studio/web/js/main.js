@@ -63,7 +63,7 @@ function renderHeader() {
   if (u?.signedIn) chips.push(['Account', u.upn || u.name]);
   if (store.provider) chips.push(['AI', `${store.provider.name}${store.provider.model ? ` · ${store.provider.model}` : ''}`]);
   if (p?.workspace) chips.push(['Workspace', p.workspace.name]);
-  if (p?.semanticModel) chips.push(['Model', `${p.semanticModel.name}${(p.semanticModels || []).length > 1 ? ` · 1 of ${p.semanticModels.length}` : ''}`]);
+  if (p?.semanticModel) chips.push(['Semantic model', `${p.semanticModel.name}${(p.semanticModels || []).length > 1 ? ` · 1 of ${p.semanticModels.length}` : ''}`]);
   const sub = $('#subtitle');
   sub.className = chips.length ? 'subchips' : '';
   sub.replaceChildren(...(chips.length
