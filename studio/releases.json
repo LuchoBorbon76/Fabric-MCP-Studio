@@ -121,6 +121,6 @@
     { "date": "2026-10-10", "type": "fix", "commit": "ab90d67", "title": "GitHub Copilot sign-in and switch account ignore GITHUB_TOKEN, GH_TOKEN and related environment variables so browser GitHub CLI sign-in works even when a non-Copilot token is set for other tools" },
     { "date": "2026-10-10", "type": "fix", "commit": "ac55ffd", "title": "GitHub Copilot sign-in and Switch GitHub account now show the GitHub device code as the active step, open the device page, log clear instructions, reuse an existing in-progress sign-in job on repeated clicks, and time out instead of waiting forever" },
     { "date": "2026-10-10", "type": "fix", "commit": "c55106b", "title": "Cancel now stops the GitHub CLI device-code sign-in process, marks the job cancelled, and repeated GitHub sign-in clicks reuse the same job card instead of adding duplicates" },
-    { "date": "2026-10-10", "type": "fix", "title": "GitHub Copilot sign-in now explicitly loads the token from the GitHub CLI keyring after gh auth status/login succeeds, so a valid GitHub CLI sign-in is accepted by the Copilot SDK" }
+    { "date": "2026-10-10", "type": "fix", "commit": "af179f4", "title": "GitHub Copilot sign-in now explicitly loads the token from the GitHub CLI keyring after gh auth status/login succeeds, so a valid GitHub CLI sign-in is accepted by the Copilot SDK" }
   ]
 }
