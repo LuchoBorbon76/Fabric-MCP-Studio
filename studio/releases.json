@@ -117,6 +117,7 @@
     { "date": "2026-10-10", "type": "improvement", "commit": "aef25c4", "title": "Audit log is now a smaller fixed-height card with its own scrollbar and sticky filter header, so the Activity page is easier to scan" },
     { "date": "2026-10-10", "type": "improvement", "commit": "30b7e35", "title": "GitHub README and installer instructions now explain the external-user install path, and the installer zip includes the full user guide PDF next to README.txt" },
     { "date": "2026-10-10", "type": "fix", "commit": "71be91d", "title": "The solution map clears stale failed data-source warnings when a newer data source is successfully connected, so a failed mirror does not keep warning after switching to a working SQL database or Fabric item" },
-    { "date": "2026-10-10", "type": "fix", "commit": "d85d7ec", "title": "Settings now has an embedded Switch GitHub account flow for GitHub Copilot: it signs the active GitHub CLI account out locally, opens browser sign-in for the new account, and then verifies Copilot access" }
+    { "date": "2026-10-10", "type": "fix", "commit": "d85d7ec", "title": "Settings now has an embedded Switch GitHub account flow for GitHub Copilot: it signs the active GitHub CLI account out locally, opens browser sign-in for the new account, and then verifies Copilot access" },
+    { "date": "2026-10-10", "type": "fix", "title": "GitHub Copilot sign-in and switch account ignore GITHUB_TOKEN, GH_TOKEN and related environment variables so browser GitHub CLI sign-in works even when a non-Copilot token is set for other tools" }
   ]
 }

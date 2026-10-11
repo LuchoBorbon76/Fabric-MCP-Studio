@@ -209,10 +209,12 @@ route('GET', '/api/openrouter/models', (_, __, q) => {
 });
 // GitHub sign-in is for developer mode only.
 const developerOnly = () => { if (!isDeveloper()) throw Object.assign(new Error('GitHub Copilot is only available in developer mode.'), { status: 403 }); };
+const GH_ENV_TOKENS = new Set(['GITHUB_TOKEN', 'GH_TOKEN', 'GITHUB_ENTERPRISE_TOKEN', 'GH_ENTERPRISE_TOKEN', 'COPILOT_GITHUB_TOKEN']);
+const withoutGhEnvTokens = () => Object.fromEntries(Object.entries(process.env).filter(([k]) => !GH_ENV_TOKENS.has(k.toUpperCase())));
 function runGh(args, ctx, { input = false, log = true } = {}) {
   return new Promise((resolveP, reject) => {
     const lines = [];
-    const child = spawn('gh', args, { shell: process.platform === 'win32', windowsHide: true });
+    const child = spawn('gh', args, { shell: process.platform === 'win32', windowsHide: true, env: withoutGhEnvTokens() });
     const onData = (d) => String(d).split(/\r?\n/).filter(Boolean).forEach((l) => {
       lines.push(l);
       if (log && !/^\s*-\s*Token:/i.test(l)) ctx?.log?.(l);
