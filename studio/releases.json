@@ -157,6 +157,7 @@
     { "date": "2026-10-11", "type": "fix", "commit": "57a5e67", "title": "The header chip now says Semantic model instead of Model for clarity" },
     { "date": "2026-10-11", "type": "improvement", "commit": "863f1a1", "title": "Instructions and the user guide now cover Fix prerequisites, provider checks, expanded artifact adoption, planning-sheet setup, and recent model/report quality safeguards" },
     { "date": "2026-10-11", "type": "fix", "commit": "d8dc556", "title": "The assistant no longer tries GitHub Copilot Space context tools in Fabric MCP Studio; those GitHub MCP calls are blocked with a clear explanation because Studio context comes from Studio/Fabric tools" },
-    { "date": "2026-10-11", "type": "improvement", "commit": "d8dc556", "title": "Generic chat UI is now provider-neutral: Copilot tab/header/buttons are renamed AI Assistant while GitHub Copilot remains only the provider name" }
+    { "date": "2026-10-11", "type": "improvement", "commit": "d8dc556", "title": "Generic chat UI is now provider-neutral: Copilot tab/header/buttons are renamed AI Assistant while GitHub Copilot remains only the provider name" },
+    { "date": "2026-10-11", "type": "improvement", "title": "New professional Fabric MCP Studio icon for the desktop shortcut, browser tab and app header, replacing the generic Microsoft tile with a Fabric graph motif" }
   ]
 }

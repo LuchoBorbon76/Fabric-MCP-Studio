@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Fabric MCP Studio">
+  <defs>
+    <linearGradient id="bg" x1="68" y1="36" x2="444" y2="476" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B1935"/>
+      <stop offset=".55" stop-color="#0F78C8"/>
+      <stop offset="1" stop-color="#0078D4"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="256" y1="24" x2="256" y2="488" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5AC8FF" stop-opacity=".55"/>
+      <stop offset=".58" stop-color="#5AC8FF" stop-opacity=".05"/>
+      <stop offset="1" stop-color="#5AC8FF" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#00111F" flood-opacity=".35"/>
+    </filter>
+  </defs>
+
+  <rect x="24" y="24" width="464" height="464" rx="96" fill="url(#bg)" filter="url(#shadow)"/>
+  <rect x="24" y="24" width="464" height="464" rx="96" fill="url(#glow)"/>
+  <rect x="26" y="26" width="460" height="460" rx="94" fill="none" stroke="#FFFFFF" stroke-opacity=".45" stroke-width="4"/>
+
+  <g stroke="#FFFFFF" stroke-opacity=".1" stroke-width="1.4">
+    <path d="M64 88H448M64 144H448M64 200H448M64 256H448M64 312H448M64 368H448M64 424H448"/>
+    <path d="M88 64V448M144 64V448M200 64V448M256 64V448M312 64V448M368 64V448M424 64V448"/>
+  </g>
+
+  <text x="220" y="352" text-anchor="middle"
+        font-family="Segoe UI, Arial, sans-serif" font-size="270" font-weight="800"
+        fill="#001A31" opacity=".34">F</text>
+  <text x="212" y="340" text-anchor="middle"
+        font-family="Segoe UI, Arial, sans-serif" font-size="270" font-weight="800"
+        fill="#FFFFFF">F</text>
+
+  <g fill="none" stroke="#FFFFFF" stroke-opacity=".78" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M356 142 416 238 348 342 250 334Z"/>
+  </g>
+  <g stroke="#FFFFFF" stroke-width="5">
+    <circle cx="356" cy="142" r="28" fill="#FFB900"/>
+    <circle cx="416" cy="238" r="24" fill="#50E6FF"/>
+    <circle cx="348" cy="342" r="28" fill="#7C3AED"/>
+    <circle cx="250" cy="334" r="20" fill="#10B981"/>
+  </g>
+</svg>

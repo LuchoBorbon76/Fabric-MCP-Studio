@@ -176,7 +176,7 @@ export function modelErrorBanner(e) {
     h('div', { style: { flex: 1 } }, e.message),
     h('div', { class: 'row', style: { flexShrink: 0 } },
       h('button', { class: 'btn pri', onclick: () => modelCheckDialog() }, '🩺 Check and fix the data'),
-      h('button', { class: 'btn ai', onclick: () => app.ask('My semantic model fails with a duplicate value / relationship error. Check it with studio_check_semantic_model, explain what is wrong in plain words, and suggest the fix.') }, '✦ Ask Copilot')));
+      h('button', { class: 'btn ai', onclick: () => app.ask('My semantic model fails with a duplicate value / relationship error. Check it with studio_check_semantic_model, explain what is wrong in plain words, and suggest the fix.') }, '✦ Ask AI Assistant')));
 }
 
 const num = (n) => (n === null || n === undefined ? '–' : fmtNum(n));
@@ -265,7 +265,7 @@ export function modelCheckDialog() {
     }
     const again = h('button', { class: 'btn', 'data-busy': 'Checking…' }, '↻ Check again');
     again.addEventListener('click', busy(again, async () => { draw(await get(`/models/check?id=${encodeURIComponent(r.model.id)}&fresh=1`)); }));
-    actions.append(again, h('button', { class: 'btn ai', onclick: () => { dlg?.close(); app.ask(`My semantic model ${r.model.name} has duplicate keys: ${r.keys.filter((k) => k.status === 'duplicates').map((k) => `${k.sourceTable} (${k.reason})`).join('; ')}. Explain what happened and how to prevent it where the data is loaded.`); } }, '✦ Ask Copilot'));
+    actions.append(again, h('button', { class: 'btn ai', onclick: () => { dlg?.close(); app.ask(`My semantic model ${r.model.name} has duplicate keys: ${r.keys.filter((k) => k.status === 'duplicates').map((k) => `${k.sourceTable} (${k.reason})`).join('; ')}. Explain what happened and how to prevent it where the data is loaded.`); } }, '✦ Ask AI Assistant'));
     // replaceChildren() would show a missing note as the text "null".
     body.replaceChildren(...[head, h('div', { class: 'scroll' }, t), actions, job,
       fixes.length ? h('p', { class: 'tiny muted', style: { margin: 0 } }, 'Removing them keeps a backup copy of each table in its warehouse (<table>_backup_<time>), works in one transaction per warehouse – all or nothing – and reloads the model. Drop the backup once the numbers look right.') : null].filter(Boolean));

@@ -568,7 +568,7 @@ cover the stable baseline only.
 | `server/samples/adventureworks-dw.mjs` | AdventureWorksDW2022 loader for Fabric SQL database (install kit → tables, keys, bulk load, verification) |
 | `server/agent-instructions.md` | System instructions for the agent |
 | `web/` | UI (vanilla ES modules, MSX Command Center design, 9 themes); `web/js/lineage.js` draws the solution map |
-| `assets/` | App icon (`fabric-mcp-studio.ico` / `.png`) used by the desktop shortcut |
+| `assets/` | App icon (`fabric-mcp-studio.svg` / `.ico` / `.png`) used by the header, browser tab and desktop shortcut |
 | `Start-Studio-Silent.wsf` | Windows launcher used by the desktop shortcut: starts the studio without a console window, reuses a running copy, reports start-up errors |
 | `data/` | Local state (git-ignored): project, activity log, chat transcripts, Copilot runtime home, `studio.log` (and `studio.restart.log` after *Restart now*) |
 
