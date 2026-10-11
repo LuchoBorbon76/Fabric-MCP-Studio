@@ -144,7 +144,7 @@
     { "date": "2026-10-11", "type": "fix", "commit": "fbfbbe2", "title": "Ontology rule validation and generation now normalize plural table names and generated singular entity names so rules bind correctly across source schemas" },
     { "date": "2026-10-11", "type": "fix", "commit": "fbfbbe2", "title": "Planning availability and readiness now show a clear blocker when the model has only fact dates and no dedicated year/month date table" },
     { "date": "2026-10-11", "type": "fix", "commit": "60ee3bd", "title": "Switching AI providers now preserves each provider's selected model and in-memory API key/config during the running Studio session" },
-    { "date": "2026-10-11", "type": "fix", "commit": "pending", "title": "Generated Power BI Azure Maps visuals no longer bind Location together with raw latitude/longitude, avoiding invalid Location/Average coordinate combinations" },
-    { "date": "2026-10-11", "type": "fix", "commit": "pending", "title": "Generated Real-Time Dashboards now use Fabric-supported auto-refresh intervals such as 10s instead of unsupported values like 5s" }
+    { "date": "2026-10-11", "type": "fix", "commit": "d041b4b", "title": "Generated Power BI Azure Maps visuals no longer bind Location together with raw latitude/longitude, avoiding invalid Location/Average coordinate combinations" },
+    { "date": "2026-10-11", "type": "fix", "commit": "d041b4b", "title": "Generated Real-Time Dashboards now use Fabric-supported auto-refresh intervals such as 10s instead of unsupported values like 5s" }
   ]
 }
