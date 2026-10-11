@@ -3,6 +3,7 @@ import { h, statusDot } from '../ui.js';
 import { app } from '../app.js';
 import { buildGraph, getNode, upstream, downstream, nodePrompt, icon, CAT, VIEW_LABEL } from '../lineage.js';
 import { askCard } from '../prompts.js';
+import { namingCard } from '../naming.js';
 import { itemsTable, nodeRemoveActions } from '../artifacts.js';
 import { modelsDialog, modelCheckDialog } from '../models.js';
 import { sourcesDialog } from '../sources.js';
@@ -17,6 +18,7 @@ export function renderHome(el) {
   const n = (sel && getNode(g, sel)) || getNode(g, g.next || 'model');
   el.append(h('div', { class: 'sheet' },
     inspector(g, n),
+    n.id === 'workspace' && g.signedIn ? namingCard({ compact: true }) : null,
     store.project?.semanticModel ? askCard({ title: 'Start asking', lead: `Questions from "${store.project.semanticModel.name}", your reports, rules, plan and live data. Select one and Copilot answers with the numbers.`, perGroup: 2 }) : null,
     h('div', { class: 'sheetrow' }, checksSection(), createdSection())));
 }
