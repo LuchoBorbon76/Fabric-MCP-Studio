@@ -183,6 +183,7 @@ route('PATCH', '/api/settings', async (_, b) => {
   return publicSettings();
 });
 
+const providerMemory = new Map();
 route('GET', '/api/providers', () => ({ providers: A.visibleProviders(), current: A.providerSummary(), settings: publicSettings().provider }));
 route('PUT', '/api/providers', async (_, b) => {
   if (b.id && !A.visibleProviders().some((x) => x.id === b.id)) {
@@ -191,9 +192,22 @@ route('PUT', '/api/providers', async (_, b) => {
   }
   const s = getSettings();
   const cur = s.provider;
-  const config = { ...(cur.id === b.id ? cur.config : {}), ...(b.config || {}) };
+  if (cur.id) {
+    const remembered = providerMemory.get(cur.id) || {};
+    providerMemory.set(cur.id, {
+      model: cur.model || remembered.model || '',
+      reasoningEffort: cur.reasoningEffort || remembered.reasoningEffort || '',
+      config: { ...(remembered.config || {}), ...(cur.config || {}) },
+    });
+  }
+  const id = b.id || cur.id;
+  const prior = providerMemory.get(id) || {};
+  const config = { ...(cur.id === id ? cur.config : prior.config || {}), ...(b.config || {}) };
   if (b.config && b.config.apiKey === '') delete config.apiKey;
-  s.provider = { id: b.id || cur.id, model: b.model ?? (cur.id === b.id ? cur.model : ''), reasoningEffort: b.reasoningEffort ?? '', config };
+  const model = b.model ?? (cur.id === id ? cur.model : prior.model || '');
+  const reasoningEffort = b.reasoningEffort ?? (cur.id === id ? cur.reasoningEffort || '' : prior.reasoningEffort || '');
+  s.provider = { id, model, reasoningEffort, config };
+  providerMemory.set(id, { model, reasoningEffort, config });
   saveSettings({});
   logActivity('provider.change', `AI provider set to ${A.providerSummary().name}`, { provider: A.providerSummary() });
   emit('provider', { provider: A.providerSummary() });
