@@ -75,21 +75,30 @@ function providerCard() {
     const effort = select(['', 'low', 'medium', 'high', 'xhigh'].map((x) => ({ value: x, label: x || 'default', selected: x === d.reasoningEffort })));
     effort.addEventListener('change', () => { d.reasoningEffort = effort.value; });
     const tok = input({ type: 'password', placeholder: 'GitHub token (optional)' });
-    const login = h('button', { class: 'btn', 'data-busy': 'Starting…' }, 'Sign in with GitHub CLI');
-    login.addEventListener('click', busy(login, async () => {
-      const j = await post('/copilot/login');
+    const showLoginJob = (j, anchor) => {
       app.watchJob(j.id);
       const box = h('div', { class: 'mt' });
-      login.after(box);
+      anchor.after(box);
       const render = (x) => { box.innerHTML = ''; box.append(app.jobCard(x)); };
       render(j);
       const off = on('job', (e) => { if (e.job.id !== j.id) return; render(e.job); if (e.job.status !== 'running') { off(); redraw(); } });
+    };
+    const login = h('button', { class: 'btn', 'data-busy': 'Starting…' }, 'Sign in with GitHub CLI');
+    login.addEventListener('click', busy(login, async () => {
+      const j = await post('/copilot/login');
+      showLoginJob(j, login);
+    }));
+    const switchAcct = h('button', { class: 'btn', 'data-busy': 'Switching…' }, 'Switch GitHub account');
+    switchAcct.addEventListener('click', busy(switchAcct, async () => {
+      if (!(await confirmDialog('Switch GitHub account?', 'The app will sign GitHub CLI out of the current github.com account on this computer, then open the browser sign-in flow for the new account. This does not revoke the old token in GitHub; it only removes it locally.', 'Switch account'))) return;
+      const j = await post('/copilot/switch');
+      showLoginJob(j, switchAcct);
     }));
     const useTok = h('button', { class: 'btn', 'data-busy': 'Checking…' }, 'Use token');
     useTok.addEventListener('click', busy(useTok, async () => { const s = await post('/copilot/token', { token: tok.value }); toast(s.isAuthenticated ? 'GitHub token accepted' : 'Token not accepted', s.isAuthenticated ? 'ok' : 'err'); redraw(); }));
     body.append(h('div', { class: 'col mt' }, status,
       h('div', { class: 'formgrid' }, field('Model', model, 'Models available to your Copilot plan'), field('Reasoning effort', effort)),
-      h('div', { class: 'row' }, login, tok, useTok),
+      h('div', { class: 'row' }, login, switchAcct, tok, useTok),
       h('p', { class: 'tiny muted' }, 'Uses your GitHub Copilot seat (Free, Pro, Pro+, Business or Enterprise). Business/Enterprise admins may need to allow MCP servers and the models you pick. Tokens are kept in memory only.')));
   } else if (d.id === 'openrouter') {
     const saved = store.settings?.provider?.hasApiKey && cur.id === 'openrouter';

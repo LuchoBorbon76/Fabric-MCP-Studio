@@ -209,19 +209,29 @@ route('GET', '/api/openrouter/models', (_, __, q) => {
 });
 // GitHub sign-in is for developer mode only.
 const developerOnly = () => { if (!isDeveloper()) throw Object.assign(new Error('GitHub Copilot is only available in developer mode.'), { status: 403 }); };
-function runGh(args, ctx, { input = false } = {}) {
+function runGh(args, ctx, { input = false, log = true } = {}) {
   return new Promise((resolveP, reject) => {
     const lines = [];
     const child = spawn('gh', args, { shell: process.platform === 'win32', windowsHide: true });
     const onData = (d) => String(d).split(/\r?\n/).filter(Boolean).forEach((l) => {
       lines.push(l);
-      if (!/^\s*-\s*Token:/i.test(l)) ctx?.log?.(l);
+      if (log && !/^\s*-\s*Token:/i.test(l)) ctx?.log?.(l);
     });
     child.stdout.on('data', onData); child.stderr.on('data', onData);
     if (input) child.stdin.end('\n'); else child.stdin.end();
     child.on('error', () => reject(new Error('GitHub CLI (gh) not found. Install it from https://cli.github.com or paste a token in Settings.')));
     child.on('exit', (code) => resolveP({ code, lines }));
   });
+}
+
+function activeGhLogin(lines) {
+  const text = lines.join('\n').trim();
+  try {
+    const host = JSON.parse(text.replace(/""/g, '"'))?.hosts?.['github.com'] || [];
+    return (host.find((x) => x.active) || host[0])?.login || '';
+  } catch {
+    return (text.match(/"?login"?\s*:\s*"([^"]+)/i) || text.match(/account\s+([^\s()]+)/i) || [])[1] || '';
+  }
 }
 
 route('POST', '/api/copilot/token', async (_, b) => { developerOnly(); A.setGitHubToken(String(b.token || '').trim()); return A.copilotStatus(); });
@@ -246,6 +256,30 @@ route('POST', '/api/copilot/login', () => developerOnly() || startJob('github-lo
   const s = await A.copilotStatus();
   if (!s.isAuthenticated) throw new Error(`${s.statusMessage || 'GitHub sign-in finished, but Copilot access was not accepted.'} Choose another provider or paste a token with Copilot access.`);
   return { ok: true };
+}));
+route('POST', '/api/copilot/switch', () => developerOnly() || startJob('github-login', 'Switch GitHub account', async (ctx) => {
+  ctx.step('Sign out of the current GitHub CLI account');
+  A.setGitHubToken('');
+  const current = await runGh(['auth', 'status', '--hostname', 'github.com', '--active', '--json', 'hosts'], ctx, { log: false });
+  const login = current.code === 0 ? activeGhLogin(current.lines) : '';
+  if (login) {
+    ctx.log(`Signing out ${login} from GitHub CLI on this computer…`);
+    const out = await runGh(['auth', 'logout', '--hostname', 'github.com', '--user', login], ctx);
+    if (out.code !== 0) throw new Error(`GitHub CLI couldn't sign out ${login}. ${out.lines.slice(-3).join(' ') || `Exit ${out.code}`}`);
+  } else {
+    ctx.log('No active GitHub CLI account was found; continuing to sign in.');
+  }
+
+  ctx.step('Sign in with the new GitHub account');
+  const next = await runGh(['auth', 'login', '--hostname', 'github.com', '--web', '--git-protocol', 'https', '--skip-ssh-key'], ctx, { input: true });
+  if (next.code !== 0) {
+    const detail = next.lines.slice(-4).join(' ').trim();
+    throw new Error(`GitHub CLI sign-in did not finish${detail ? `: ${detail}` : ` (exit ${next.code})`}. Try again, or paste a token in Settings.`);
+  }
+  await A.restartClient();
+  const s = await A.copilotStatus();
+  if (!s.isAuthenticated) throw new Error(`${s.statusMessage || 'GitHub sign-in finished, but Copilot access was not accepted.'} Choose another provider or paste a token with Copilot access.`);
+  return { ok: true, switched: true };
 }));
 
 route('GET', '/api/chats', () => A.listChats());

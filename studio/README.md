@@ -86,7 +86,7 @@ language with screenshots, for business users. Rebuild it after changing `docs/u
 | **OpenAI** | API key |
 | **Anthropic Claude** | API key |
 | **Local model** | Any OpenAI-compatible endpoint (Ollama, LM Studio, vLLM) with tool calling |
-| **GitHub Copilot** (developer mode only) | A Copilot seat. Sign in with GitHub CLI (`gh auth login`) or paste a token in Settings |
+| **GitHub Copilot** (developer mode only) | A Copilot seat. Sign in, switch accounts, or paste a token in Settings |
 | **OpenRouter** (developer mode only) | An [OpenRouter](https://openrouter.ai) API key – hundreds of models from many labs through one key |
 
 The agent engine is the [GitHub Copilot SDK](https://github.com/github/copilot-sdk); with the providers above it runs
@@ -99,6 +99,9 @@ environment variable or an empty file named `developer` in the studio's data fol
 restart the studio. Settings › About shows when it's on. Outside developer mode a saved GitHub Copilot or OpenRouter
 choice is kept on disk but the studio uses Azure AI Foundry / Azure OpenAI until developer mode is back – also when
 developer mode is turned off while the studio runs (open chats switch with their next message).
+For GitHub Copilot, Settings › AI provider includes **Switch GitHub account**: it signs GitHub CLI out locally and opens
+the browser sign-in flow for the new account. This changes only the account on this computer; it does not revoke old
+tokens from GitHub.
 
 **OpenRouter**: *Settings › AI provider › OpenRouter* – paste the API key (openrouter.ai › Keys), search and pick a model
 (only models that can call tools are listed – Copilot works through tools – with their price per million tokens and
