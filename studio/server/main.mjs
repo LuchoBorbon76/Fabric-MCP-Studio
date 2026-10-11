@@ -200,7 +200,7 @@ route('PUT', '/api/providers', async (_, b) => {
   return { current: A.providerSummary(), settings: publicSettings().provider };
 });
 route('POST', '/api/providers/test', () => A.testProvider());
-route('GET', '/api/copilot/status', () => A.copilotStatus());
+route('GET', '/api/copilot/status', () => copilotStatusWithGh());
 route('GET', '/api/copilot/models', () => A.listModels());
 // OpenRouter's tool-capable models, for the Settings picker before OpenRouter is saved as the provider.
 route('GET', '/api/openrouter/models', (_, __, q) => {
@@ -303,12 +303,19 @@ async function loadCopilotFromGh(ctx) {
 
 route('POST', '/api/copilot/token', async (_, b) => { developerOnly(); await A.setGitHubToken(String(b.token || '').trim()); return A.copilotStatus(); });
 const runningGitHubLogin = () => listJobs().find((j) => j.kind === 'github-login' && j.status === 'running');
+async function copilotStatusWithGh(ctx = null) {
+  const s = await A.copilotStatus();
+  if (s.isAuthenticated || getSettings().provider.id !== 'github' || !isDeveloper()) return s;
+  const current = await runGh(['auth', 'status', '--hostname', 'github.com', '--active', '--json', 'hosts'], ctx, { log: false });
+  if (current.code !== 0 || !activeGhLogin(current.lines)) return s;
+  try { return await loadCopilotFromGh(ctx || { log: () => {} }); } catch { return s; }
+}
 route('POST', '/api/copilot/login', () => developerOnly() || runningGitHubLogin() || startJob('github-login', 'Sign in to GitHub', async (ctx) => {
   ctx.step('Check the GitHub CLI sign-in');
   const current = await runGh(['auth', 'status', '--hostname', 'github.com'], ctx);
   if (current.code === 0) {
     ctx.log('GitHub CLI is already signed in. Checking Copilot access…');
-    const s = await loadCopilotFromGh(ctx);
+    const s = await copilotStatusWithGh(ctx);
     if (s.isAuthenticated) return { ok: true, alreadySignedIn: true };
     throw new Error(`${s.statusMessage || 'GitHub is signed in, but Copilot access was not accepted.'} If this account has a Copilot seat, paste a token with Copilot access or sign out with "gh auth logout --hostname github.com" and sign in again.`);
   }
