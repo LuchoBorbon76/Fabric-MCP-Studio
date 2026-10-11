@@ -63,6 +63,10 @@ function parseTmdl(parts) {
   return { exprs, tables };
 }
 
+function encodeText(s) {
+  return Buffer.from(String(s), 'utf8').toString('base64');
+}
+
 // Reading a definition takes Fabric about 20 seconds; fixing data doesn't change it, so it is kept for a while.
 const defCache = new Map();
 async function modelDefinition(ws, id) {
@@ -71,6 +75,33 @@ async function modelDefinition(ws, id) {
   const def = parseTmdl((await F.getDefinition(ws, id))?.parts || []);
   defCache.set(id, { at: Date.now(), def });
   return def;
+}
+
+function tableNameOfTmdl(text, fallback = '') {
+  return unq(String(text || '').replace(/\r\n/g, '\n').match(/^table\s+(.+)$/m)?.[1] || fallback);
+}
+
+function hideColumnsInTableTmdl(text, columns) {
+  const want = new Set([...columns].map((x) => String(x).toLowerCase()));
+  if (!want.size) return { text, hidden: [], already: [] };
+  const lines = String(text || '').replace(/\r\n/g, '\n').split('\n');
+  const hidden = [];
+  const already = [];
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/^\tcolumn\s+(.+?)\s*$/);
+    if (!m) continue;
+    const col = unq(m[1].split('=')[0]);
+    if (!want.has(col.toLowerCase())) continue;
+    let end = i + 1;
+    while (end < lines.length && !/^\t(?:column|measure|partition|hierarchy|annotation|calculationGroup)\b/.test(lines[end])) end++;
+    if (lines.slice(i + 1, end).some((l) => /^\t\tisHidden\b/.test(l))) { already.push(col); continue; }
+    let insertAt = i + 1;
+    for (let j = i + 1; j < end; j++) if (/^\t\tdataType:/.test(lines[j])) { insertAt = j + 1; break; }
+    lines.splice(insertAt, 0, '\t\tisHidden');
+    hidden.push(col);
+    i = insertAt;
+  }
+  return { text: lines.join('\n'), hidden, already };
 }
 
 /** The item behind an expression: Sql.Database("server", "database") or a OneLake URL with workspace and item ids. */
@@ -361,6 +392,62 @@ export async function runReloadModel(ctx, { id } = {}) {
   ctx.log(checkSummary(after));
   logActivity('model.reload', `Reloaded ${check.model.name}${current ? '' : ' (it still holds older rows)'}`, { semanticModelId: check.model.id });
   return { reloaded: current, stale: after?.stale ?? null, remaining: after?.problems ?? null };
+}
+
+/** Job: hide all columns used by model relationships (both keys and foreign keys), keeping relationships intact. */
+export async function runHideRelationshipKeys(ctx, { id } = {}) {
+  ctx.step('Read the model relationships');
+  await assertProjectTenant();
+  const { m, ws } = modelFor(id);
+  if (m.origin === 'existing') throw fail('This is an existing semantic model the studio did not create. The studio will not change it.');
+  const rels = await dax(ws, m.id, 'EVALUATE SELECTCOLUMNS(INFO.VIEW.RELATIONSHIPS(), "FromTable", [FromTable], "FromColumn", [FromColumn], "ToTable", [ToTable], "ToColumn", [ToColumn], "Active", [IsActive])');
+  const colsByTable = new Map();
+  for (const r of rels || []) {
+    for (const [table, column] of [[r.FromTable, r.FromColumn], [r.ToTable, r.ToColumn]]) {
+      if (!table || !column) continue;
+      const key = String(table).toLowerCase();
+      if (!colsByTable.has(key)) colsByTable.set(key, { table: String(table), columns: new Set() });
+      colsByTable.get(key).columns.add(String(column));
+    }
+  }
+  if (!colsByTable.size) throw fail(`${m.name} has no relationships, so there are no relationship key columns to hide.`);
+  ctx.progress(20);
+
+  ctx.step('Read the model definition');
+  const definition = await F.getDefinition(ws, m.id, 'TMDL');
+  const parts = (definition?.parts || []).map((p) => ({ ...p }));
+  let changed = 0;
+  let already = 0;
+  const details = [];
+  for (const p of parts) {
+    const file = String(p.path || '');
+    if (!/^definition\/tables\/.+\.tmdl$/i.test(file) || !p.payload) continue;
+    const text = decodeText(Buffer.from(p.payload, 'base64'));
+    const table = tableNameOfTmdl(text, file.replace(/^definition\/tables\/|\.tmdl$/gi, ''));
+    const spec = colsByTable.get(table.toLowerCase());
+    if (!spec) continue;
+    const next = hideColumnsInTableTmdl(text, spec.columns);
+    if (next.hidden.length) {
+      p.payload = encodeText(next.text);
+      p.payloadType = 'InlineBase64';
+      changed += next.hidden.length;
+      details.push(`${table}: ${next.hidden.join(', ')}`);
+    }
+    already += next.already.length;
+  }
+  if (!changed) {
+    ctx.log(already ? `All ${already} relationship key column${already === 1 ? '' : 's'} were already hidden.` : 'No matching relationship columns were found in the TMDL definition.');
+    return { changed: 0, already };
+  }
+  ctx.progress(55);
+
+  ctx.step(`Update ${m.name}`);
+  await F.updateDefinition(ws, m.id, { ...definition, parts });
+  defCache.delete(m.id);
+  resetProfileCache();
+  for (const d of details) ctx.log(`Hidden ${d}`);
+  logActivity('model.hide-keys', `Hid ${changed} relationship key column${changed === 1 ? '' : 's'} in ${m.name}`, { semanticModelId: m.id });
+  return { changed, already, tables: details.length };
 }
 
 // ---------------- the fix ----------------

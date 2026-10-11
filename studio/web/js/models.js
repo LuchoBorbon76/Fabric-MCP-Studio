@@ -258,6 +258,11 @@ export function modelCheckDialog() {
       reload.addEventListener('click', busy(reload, () => runJob('/jobs/model-reload', { id: r.model.id }, `${r.model.name} reloaded – it holds the current data`)));
       actions.append(reload);
     }
+    if (r.model.origin !== 'existing' && r.relationships) {
+      const hide = h('button', { class: 'btn', 'data-busy': 'Updating…', title: 'Hide all key and foreign-key columns used by relationships. Relationships still work; the columns are just hidden from report users.' }, 'Hide relationship keys');
+      hide.addEventListener('click', busy(hide, () => runJob('/jobs/model-hide-keys', { id: r.model.id }, 'Relationship key columns hidden')));
+      actions.append(hide);
+    }
     const again = h('button', { class: 'btn', 'data-busy': 'Checking…' }, '↻ Check again');
     again.addEventListener('click', busy(again, async () => { draw(await get(`/models/check?id=${encodeURIComponent(r.model.id)}&fresh=1`)); }));
     actions.append(again, h('button', { class: 'btn ai', onclick: () => { dlg?.close(); app.ask(`My semantic model ${r.model.name} has duplicate keys: ${r.keys.filter((k) => k.status === 'duplicates').map((k) => `${k.sourceTable} (${k.reason})`).join('; ')}. Explain what happened and how to prevent it where the data is loaded.`); } }, '✦ Ask Copilot'));

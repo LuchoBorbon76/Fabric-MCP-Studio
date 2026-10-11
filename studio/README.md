@@ -12,9 +12,10 @@ chatting with the **AI the customer already licenses**:
   for PostgreSQL), or reuse Fabric lakehouses, warehouses, mirrored databases and SQL databases (in place or with
   OneLake shortcuts). When the data source is a **lakehouse**, an option creates a **data prep notebook** (Python)
   that cleans, renames, models, measures and charts the data.
-- **Semantic model** – Direct Lake models generated from your tables and relationships, then enriched by Copilot
-  (business measures from your glossary, descriptions, RLS, translations, best-practice review) – or existing semantic
-  models from any workspace. Several models per project; switch the active one any time.
+- **Semantic model** – Direct Lake models generated from your tables and relationships, with relationship key/foreign-key
+  columns hidden by default, then enriched by Copilot (business measures from your glossary, descriptions, RLS,
+  translations, best-practice review) – or existing semantic models from any workspace. Several models per project;
+  switch the active one any time. The model check can also repair older app-created models by hiding relationship keys.
 - **Task flows** – Fabric's predesigned task flows (Medallion, Basic data analytics, Event analytics…) or the task flow
   already in your workspace, with every item the studio builds in its box.
 - **Ontology** – Fabric IQ entities, relationships and plain-English business rules.

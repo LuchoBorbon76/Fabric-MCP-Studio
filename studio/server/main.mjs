@@ -465,6 +465,7 @@ route('POST', '/api/jobs/model-links', (_, b) => {
 route('GET', '/api/models/check', (_, __, q) => MC.checkModel({ id: q.get('id') || undefined, fresh: q.get('fresh') === '1' }));
 route('POST', '/api/jobs/model-fix', (_, b) => startJob('model-fix', 'Remove duplicate rows the semantic model can\'t use', (ctx) => MC.runFixDuplicates(ctx, { id: b.id ? String(b.id) : undefined, tables: Array.isArray(b.tables) ? b.tables.map(String) : undefined })));
 route('POST', '/api/jobs/model-reload', (_, b) => startJob('model-reload', 'Reload the semantic model with the current data', (ctx) => MC.runReloadModel(ctx, { id: b.id ? String(b.id) : undefined })));
+route('POST', '/api/jobs/model-hide-keys', (_, b) => startJob('model-fix', 'Hide relationship keys in the semantic model', (ctx) => MC.runHideRelationshipKeys(ctx, { id: b.id ? String(b.id) : undefined })));
 // Everything the project built, what uses what, and removing items nothing uses any more.
 route('GET', '/api/artifacts', () => ARTS.projectArtifacts());
 route('POST', '/api/jobs/remove', (_, b) => {

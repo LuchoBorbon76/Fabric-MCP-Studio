@@ -445,6 +445,7 @@ const STUDIO_TOOLS_META = {
   studio_list_semantic_models: { write: false, title: 'List the project\'s semantic models' },
   studio_check_semantic_model: { write: false, title: 'Check the semantic model\'s data (relationship keys)' },
   studio_reload_semantic_model: { write: true, title: 'Reload the semantic model with the current data' },
+  studio_hide_relationship_keys: { write: true, title: 'Hide relationship key columns in the semantic model' },
   studio_find_model_dependents: { write: false, title: 'Find the reports and data agents built on the semantic model' },
   studio_fix_model_duplicates: { write: true, title: 'Remove duplicate rows from warehouse tables' },
   studio_use_semantic_model: { write: false, title: 'Switch the active semantic model or add an existing one' },
@@ -1011,6 +1012,11 @@ function studioTools(chatId) {
       description: 'Reload a semantic model (the active one by default) so it reads its data again – when studio_check_semantic_model reports "stale" tables (the model holds other row counts than the data, for example after duplicates were removed in the warehouse): queries keep failing with the old duplicate-value error until it reloads. Reloads again (up to 5 times, 20 seconds apart) until the model holds the current rows, then checks again. Changes no data.',
       parameters: obj({ id: str('Semantic model id (default: the active model)') }),
       handler: async (a) => runAsJob('model-reload', 'Reload the semantic model with the current data', (ctx) => MC.runReloadModel(ctx, { id: a.id })),
+    }),
+    studioTool('studio_hide_relationship_keys', {
+      description: 'Hide every column used by relationships in an app-created semantic model (both keys and foreign keys). The relationships still work; the columns are hidden from report users. Use after a model was created before this default existed, or when users see key columns in the Fields pane. Does not change data and does not change existing semantic models the studio did not create.',
+      parameters: obj({ id: str('Semantic model id (default: the active model)') }),
+      handler: async (a) => runAsJob('model-fix', 'Hide relationship keys in the semantic model', (ctx) => MC.runHideRelationshipKeys(ctx, { id: a.id })),
     }),
     studioTool('studio_planning_status', {
       description: 'Read the budget and forecast: plan year, base year, growth, forecast cut-off, planned dimensions, the Plan table measures, the Fabric plan item, and plan vs actual for the plan year (overall and by the first dimension) through the semantic model. Read-only.',
