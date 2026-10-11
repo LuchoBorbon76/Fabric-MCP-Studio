@@ -22,7 +22,7 @@ import * as N from './naming.mjs';
 import { promptSuggestions } from './prompts.mjs';
 import { readiness, cachedReadiness, resetReadiness, assertModuleReady, assertLiveEventsAllowed } from './readiness.mjs';
 import { catalog } from './sources.mjs';
-import { getProject, updateProject, resetProject, getActivity, clearActivity, logActivity, assertProjectTenant } from './project.mjs';
+import { getProject, updateProject, resetProject, getActivity, clearActivity, logActivity, assertProjectTenant, projectModels, modelWorkspaceId } from './project.mjs';
 import { startJob, listJobs, getJob, cancelJob, flushRunningJobs, onJobSucceeded, plainError } from './jobs.mjs';
 import * as WTF from './workspace-taskflow.mjs';
 import * as MODELS from './models.mjs';
@@ -452,6 +452,15 @@ route('DELETE', '/api/taskflow', () => WTF.removeTaskFlow());
 // Semantic models: the project's models (one active), existing models in any workspace, adding and switching.
 route('GET', '/api/models', () => MODELS.modelsState());
 route('GET', '/api/models/available', (_, __, q) => MODELS.availableModels(q.get('workspaceId') || undefined));
+route('GET', '/api/models/measures', async (_, __, q) => {
+  const { modelMetadata } = await import('./powerbi.mjs');
+  const id = q.get('id') || getProject().semanticModel?.id;
+  const p = getProject();
+  const m = id ? projectModels(p).find((x) => x.id === id) : p.semanticModel;
+  if (!m) throw Object.assign(new Error('There is no semantic model yet.'), { status: 404 });
+  const meta = await modelMetadata(modelWorkspaceId(p, m), m.id);
+  return { model: { id: m.id, name: m.name }, measures: meta.measures.map((x) => ({ table: x.table, name: x.name, expression: x.expression, displayFolder: x.displayFolder, formatString: x.formatString, description: x.description })) };
+});
 // An existing model that becomes active brings what is built on it to the map (looked for in the background, once).
 route('POST', '/api/models/active', async (_, b) => { const s = await MODELS.useModel(String(b.id || '')); WTF.syncTaskFlow().catch(() => {}); return { ...s, linksJob: LINKS.ensureModelLinks(s.active) }; });
 route('POST', '/api/models/existing', async (_, b) => { const s = await MODELS.addExistingModel({ workspaceId: b.workspaceId ? String(b.workspaceId) : undefined, id: String(b.id || '') }); WTF.syncTaskFlow().catch(() => {}); return { ...s, linksJob: LINKS.ensureModelLinks(s.active) }; });

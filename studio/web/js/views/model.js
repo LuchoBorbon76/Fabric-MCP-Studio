@@ -119,6 +119,7 @@ function drawDesigner(card, p) {
   const body = h('div', {}, h('div', { class: 'row muted' }, h('span', { class: 'spin' }), 'Reading tables, keys and relationships from the SQL analytics endpoint…'));
   const slot = copilotSlot();   // Copilot opens here, right below the tables and relationships
   const footer = h('div');
+  const createdMeasures = h('div');
   const job = h('div', { class: 'mt' });
   // Switch between updating the active model and building another one next to it.
   const canUpdate = Boolean(p.semanticModel && p.semanticModel.origin !== 'existing' && !(p.semanticModel.sourceItemId && p.semanticModel.sourceItemId !== p.modelSource.itemId));
@@ -134,8 +135,9 @@ function drawDesigner(card, p) {
           ? `Changes regenerate ${target.name} (Direct Lake TMDL) from your tables and relationships. Copilot can then add business measures, descriptions, security and translations.`
           : `The studio generates a Direct Lake model (TMDL) from your tables and relationships${p.semanticModel ? ' and adds it to the project next to the models you have – it becomes the active model' : ''}. Copilot can then add business measures, descriptions, security and translations.`)),
       h('div', { class: 'row' }, toggle, h('button', { class: 'btn', onclick: () => { schema = null; drawDesigner(card, p); } }, '↻ Re-read schema'))),
-    body, slot, footer, job);
+    body, slot, footer, createdMeasures, job);
   app.placeChat();   // keep an open Copilot chat after the designer is rebuilt
+  renderCreatedMeasures(createdMeasures, p);
 
   loadSchema(false).then((s) => {
     body.innerHTML = '';
@@ -188,6 +190,42 @@ function drawDesigner(card, p) {
 
 function humanize(n) { return String(n).replace(/[_-]+/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/\b\w/g, (c) => c.toUpperCase()); }
 
+function measuresTable(measures, { suggested = false } = {}) {
+  const rows = (measures || []).slice(0, 80);
+  if (!rows.length) return h('div', { class: 'empty' }, suggested ? 'No suggested measures yet.' : 'No measures read yet.');
+  return h('div', { class: 'scroll measures-scroll' }, h('table', { class: 't stable' },
+    h('tr', {}, h('th', {}, 'Measure'), h('th', {}, 'Table'), h('th', {}, 'DAX')),
+    rows.map((m) => h('tr', {},
+      h('td', {}, h('b', {}, m.name), suggested && m.suggested === false ? h('span', { class: 'pill', style: { marginLeft: '6px' } }, 'default') : null),
+      h('td', {}, m.table),
+      h('td', { class: 'mono tiny' }, m.expression || '')))));
+}
+
+function suggestedMeasuresCard(pr) {
+  const measures = pr?.preview?.measures || [];
+  return h('div', { class: 'card compact mt' },
+    h('div', { class: 'row sp' },
+      h('div', {}, h('h3', {}, `Suggested measures (${measures.length})`), h('p', { class: 'lead' }, 'What Copilot/defaults will create when you apply this design.')),
+      h('button', { class: 'btn pri', onclick: () => applyModelProposal(pr) }, '✓ Apply suggestions')),
+    measuresTable(measures, { suggested: true }));
+}
+
+function renderCreatedMeasures(box, p) {
+  box.innerHTML = '';
+  const sm = p.semanticModel;
+  if (!sm?.id) return;
+  box.append(h('div', { class: 'card compact mt' },
+    h('div', { class: 'row muted small' }, h('span', { class: 'spin' }), `Reading measures created in ${sm.name}…`)));
+  get(`/models/measures?id=${encodeURIComponent(sm.id)}`).then((r) => {
+    box.replaceChildren(h('div', { class: 'card compact mt' },
+      h('h3', {}, `Created measures (${r.measures.length})`),
+      h('p', { class: 'lead' }, 'Measures currently visible in the active semantic model.'),
+      measuresTable(r.measures)));
+  }).catch((e) => {
+    box.replaceChildren(h('div', { class: 'card compact mt' }, h('h3', {}, 'Created measures'), h('div', { class: 'banner warn' }, e.message)));
+  });
+}
+
 // ---------------- Copilot's suggestions ----------------
 
 const pendingProposal = (p) => Boolean(p?.modelProposal && !p.modelProposal.appliedAt);
@@ -200,7 +238,12 @@ export function proposalCounts(pr) {
 function proposalBanner(pr) {
   return h('div', { class: 'banner ok mt' },
     h('div', { style: { flex: 1 } }, h('b', {}, 'Copilot suggested a design. '), proposalCounts(pr), pr.warnings?.length ? h('div', { class: 'tiny muted' }, `${pr.warnings.length} item(s) left out – see the review.`) : null),
+    h('button', { class: 'btn', onclick: () => reviewSuggestedMeasures(pr) }, 'Measures'),
     h('button', { class: 'btn pri', onclick: () => applyModelProposal(pr) }, '✓ Apply suggestions'));
+}
+
+function reviewSuggestedMeasures(pr) {
+  modal({ title: 'Suggested measures', className: 'wide', body: suggestedMeasuresCard(pr), actions: [{ label: 'Close' }] });
 }
 
 /** Review Copilot's suggested design, then create or update the semantic model exactly as shown. */

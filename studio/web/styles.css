@@ -678,6 +678,7 @@ table.t.items td.act .btn{padding:4px 9px}
 .modelbar .mbnote{max-width:340px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .modelbar>.btn{margin-left:auto}
 .modelbar .btn{padding:4px 10px}
+.measures-scroll{max-height:260px}
 table.t.mtable td{vertical-align:top}
 table.t.mtable td.act{white-space:nowrap;text-align:right}
 table.t.mtable td a{color:inherit;text-decoration:none}
