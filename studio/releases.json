@@ -128,7 +128,7 @@
     { "date": "2026-10-10", "type": "improvement", "commit": "da2e9ff", "title": "Model check can now repair older app-created semantic models by hiding every column used in relationships (keys and foreign keys), and Copilot has a matching studio_hide_relationship_keys tool" },
     { "date": "2026-10-10", "type": "fix", "commit": "e57dfde", "title": "Copilot-suggested measures are automatically renamed when they collide with source columns or other measures in the same semantic model, and DAX references are rewritten to the safe names so Fabric accepts the model" },
     { "date": "2026-10-10", "type": "improvement", "commit": "2ddcee3", "title": "Semantic model design now shows the suggested measures from Copilot/defaults and the created measures currently visible in the active model" },
-    { "date": "2026-10-10", "type": "fix", "title": "Report recommendations no longer collapse around a blank headline measure: the profiler tests candidate measures and uses a populated KPI for recommendations and visuals" },
-    { "date": "2026-10-10", "type": "improvement", "title": "Reports recommends measure-portfolio and operations reports when a model has many measure groups but weak segment detection, so rich report choices still appear" }
+    { "date": "2026-10-10", "type": "fix", "commit": "63ad85e", "title": "Report recommendations no longer collapse around a blank headline measure: the profiler tests candidate measures and uses a populated KPI for recommendations and visuals" },
+    { "date": "2026-10-10", "type": "improvement", "commit": "63ad85e", "title": "Reports recommends measure-portfolio and operations reports when a model has many measure groups but weak segment detection, so rich report choices still appear" }
   ]
 }
