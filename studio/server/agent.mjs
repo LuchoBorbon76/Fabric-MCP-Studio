@@ -763,11 +763,14 @@ function studioTools(chatId) {
         if (!pr.share && !pr.breakdown && !pr.entity) recommendations.push({ area: 'Dimensions', severity: 'medium', issue: 'No report-ready categorical dimensions split the primary measure.', fix: 'Add useful dimension attributes, verify relationships reach the fact table, and hide technical keys from report users.' });
         if (pr.warnings?.length) recommendations.push(...pr.warnings.map((w) => ({ area: 'Profile warning', severity: 'medium', issue: w, fix: 'Review the related model table, column or measure and update the semantic model design before publishing broadly.' })));
         if (!recommendations.length) recommendations.push({ area: 'Model readiness', severity: 'info', issue: 'The model has measures, relationships and reportable dimensions.', fix: 'Next improvements should focus on descriptions, display folders, RLS/OLS needs and report-specific UX polish.' });
+        const counts = { tables: pr.model.tables, measures: pr.model.measures, relationships: pr.model.relationships };
         const review = {
           ok: true,
+          summary: `${pr.model.name}: ${counts.tables} tables, ${counts.measures} measures, ${counts.relationships} relationships. Primary measure: ${label(pr.primary) || 'none found'}.`,
+          topRecommendations: recommendations.slice(0, 8),
+          nextSteps: recommendations.slice(0, 5).map((r) => `${r.area}: ${r.fix}`),
           model: pr.model,
-          tables: pr.tables,
-          counts: { tables: pr.model.tables, measures: pr.model.measures, relationships: pr.model.relationships },
+          counts,
           primaryMeasure: label(pr.primary),
           kpis: pr.kpis.map(label),
           measureGroups: pr.measureGroups,
@@ -776,6 +779,7 @@ function studioTools(chatId) {
           stories: pr.stories,
           warnings: pr.warnings,
           recommendations,
+          tables: pr.tables,
         };
         if (deepCheck) review.dataIntegrity = await MC.checkModel({}).catch((e) => ({ error: e.message }));
         return review;
