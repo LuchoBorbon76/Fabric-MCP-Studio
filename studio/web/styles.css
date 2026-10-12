@@ -74,6 +74,13 @@ header.top p.subchips{display:flex;gap:6px;align-items:center;flex-wrap:wrap;opa
 .g2{grid-template-columns:repeat(auto-fit,minmax(380px,1fr))}
 .g3{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
 .g4{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.grid>.card+.card{margin-top:0}
+.waf-pillars{grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch}
+.waf-pillars>.card{display:flex;flex-direction:column}
+.waf-pillars>.card .rbar{margin-top:auto}
+@media(min-width:1600px){.waf-pillars{grid-template-columns:repeat(5,minmax(0,1fr))}}
+@media(max-width:1050px){.waf-pillars{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:680px){.waf-pillars{grid-template-columns:1fr}}
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .row.sp{justify-content:space-between}
 .col{display:flex;flex-direction:column;gap:8px}

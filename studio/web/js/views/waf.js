@@ -69,7 +69,7 @@ function header(el, s) {
 }
 
 function pillarCards(s) {
-  return h('div', { class: 'grid g3' }, s.pillars.map((p) => h('div', { class: 'card compact' },
+  return h('div', { class: 'grid waf-pillars' }, s.pillars.map((p) => h('div', { class: 'card compact' },
     h('div', { class: 'row sp' }, h('h2', {}, p.label), h('span', { class: `pill ${scoreClass(p.score)}` }, `${p.score}/100`)),
     h('p', { class: 'lead' }, p.focus),
     h('div', { class: 'rbar' }, h('i', { style: { width: `${p.score}%` } })),
