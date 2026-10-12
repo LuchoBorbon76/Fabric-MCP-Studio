@@ -147,9 +147,10 @@ All scripts run on Windows PowerShell 5.1 and PowerShell 7.
 
 ## Disclaimer
 
-Fabric MCP Studio and this kit are a **sample** for demos, learning and proofs of concept. They aren't an official
-Microsoft product or service, aren't supported by Microsoft Support and aren't covered by any Microsoft service-level
-agreement. They're provided **as is, without warranty of any kind**.
+Fabric MCP Studio and this kit are a **sample**, created by Luis Fernando Borbon (luisbor@microsoft.com) for demos,
+learning and proofs of concept. They aren't an official Microsoft product or service, aren't supported by Microsoft
+Support and aren't covered by any Microsoft service-level agreement. They're provided **as is, without warranty of any
+kind**.
 
 - The studio acts in Microsoft Fabric and Power BI with the user's own sign-in and permissions, and asks before every
   change. Everything it creates lives in the user's tenant, runs on their Fabric capacity and may incur costs; the
