@@ -2,7 +2,7 @@
 import { CopilotClient, ToolSet, defineTool } from '@github/copilot-sdk';
 import { join } from 'node:path';
 import { existsSync, readFileSync, mkdirSync } from 'node:fs';
-import { COPILOT_HOME, DATA_DIR, REPO_ROOT, STUDIO_ROOT, getSettings, envApiKey, newId, truncate, readJson, writeJson, isDeveloper } from './config.mjs';
+import { COPILOT_HOME, DATA_DIR, REPO_ROOT, STUDIO_ROOT, getSettings, envApiKey, newId, truncate, readJson, writeJson } from './config.mjs';
 import { getToken, tokenExpiresOn, SCOPES, whoAmI } from './auth.mjs';
 import { emit } from './events.mjs';
 import { getProject, updateProject, logActivity, assertProjectTenant, projectModels, sourceContexts, modelFits, modelWorkspaceId } from './project.mjs';
@@ -33,9 +33,9 @@ export const MCP_ENDPOINTS = {
 };
 
 export const PROVIDERS = [
-  { id: 'github', name: 'GitHub Copilot', license: 'GitHub Copilot Free, Pro, Pro+, Business or Enterprise', needs: 'GitHub sign-in (gh auth login) with a Copilot seat', fields: [], developer: true },
+  { id: 'github', name: 'GitHub Copilot', license: 'GitHub Copilot Free, Pro, Pro+, Business or Enterprise', needs: 'GitHub sign-in (gh auth login) with a Copilot seat', fields: [] },
   {
-    id: 'openrouter', name: 'OpenRouter', license: 'Hundreds of models from many labs with one OpenRouter API key', developer: true,
+    id: 'openrouter', name: 'OpenRouter', license: 'Hundreds of models from many labs with one OpenRouter API key',
     needs: 'OpenRouter API key (openrouter.ai › Keys)', fields: [],
   },
   {
@@ -76,8 +76,8 @@ export const PROVIDERS = [
   },
 ];
 
-/** The providers people can choose: GitHub Copilot and OpenRouter only in developer mode. */
-export const visibleProviders = () => (isDeveloper() ? PROVIDERS : PROVIDERS.filter((p) => !p.developer));
+/** The providers people can choose. */
+export const visibleProviders = () => PROVIDERS;
 
 // ---------------- OpenRouter ----------------
 // One OpenAI-compatible API in front of many labs' models. The list of models is public; only models that can call

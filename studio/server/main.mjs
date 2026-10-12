@@ -5,7 +5,7 @@ import { join, extname, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { WEB_ROOT, DATA_DIR, STUDIO_ROOT, VERSION, BUILD, RELEASES, DEMO_MODE, getSettings, saveSettings, publicSettings, readJson, writeJson, shortHash, isDeveloper, pendingUpdate } from './config.mjs';
+import { WEB_ROOT, DATA_DIR, STUDIO_ROOT, VERSION, BUILD, RELEASES, DEMO_MODE, getSettings, saveSettings, publicSettings, readJson, writeJson, shortHash, pendingUpdate } from './config.mjs';
 import { addClient, emit } from './events.mjs';
 import * as auth from './auth.mjs';
 import * as F from './fabric.mjs';
@@ -186,10 +186,7 @@ route('PATCH', '/api/settings', async (_, b) => {
 const providerMemory = new Map();
 route('GET', '/api/providers', () => ({ providers: A.visibleProviders(), current: A.providerSummary(), settings: publicSettings().provider }));
 route('PUT', '/api/providers', async (_, b) => {
-  if (b.id && !A.visibleProviders().some((x) => x.id === b.id)) {
-    const dev = A.PROVIDERS.find((x) => x.id === b.id && x.developer);
-    throw Object.assign(new Error(dev ? `${dev.name} is only available in developer mode. Choose Azure AI Foundry / Azure OpenAI or another provider.` : `Unknown AI provider "${b.id}".`), { status: 400 });
-  }
+  if (b.id && !A.visibleProviders().some((x) => x.id === b.id)) throw Object.assign(new Error(`Unknown AI provider "${b.id}".`), { status: 400 });
   const s = getSettings();
   const cur = s.provider;
   if (cur.id) {
@@ -218,11 +215,8 @@ route('GET', '/api/copilot/status', () => copilotStatusWithGh());
 route('GET', '/api/copilot/models', () => A.listModels());
 // OpenRouter's tool-capable models, for the Settings picker before OpenRouter is saved as the provider.
 route('GET', '/api/openrouter/models', (_, __, q) => {
-  if (!isDeveloper()) throw Object.assign(new Error('OpenRouter is only available in developer mode.'), { status: 403 });
   return A.listOpenRouterModels({ refresh: q.get('refresh') === '1' });
 });
-// GitHub sign-in is for developer mode only.
-const developerOnly = () => { if (!isDeveloper()) throw Object.assign(new Error('GitHub Copilot is only available in developer mode.'), { status: 403 }); };
 const GH_ENV_TOKENS = new Set(['GITHUB_TOKEN', 'GH_TOKEN', 'GITHUB_ENTERPRISE_TOKEN', 'GH_ENTERPRISE_TOKEN', 'COPILOT_GITHUB_TOKEN']);
 const withoutGhEnvTokens = () => Object.fromEntries(Object.entries(process.env).filter(([k]) => !GH_ENV_TOKENS.has(k.toUpperCase())));
 function runGh(args, ctx, { input = false, log = true } = {}) {
@@ -315,16 +309,16 @@ async function loadCopilotFromGh(ctx) {
   return A.copilotStatus();
 }
 
-route('POST', '/api/copilot/token', async (_, b) => { developerOnly(); await A.setGitHubToken(String(b.token || '').trim()); return A.copilotStatus(); });
+route('POST', '/api/copilot/token', async (_, b) => { await A.setGitHubToken(String(b.token || '').trim()); return A.copilotStatus(); });
 const runningGitHubLogin = () => listJobs().find((j) => j.kind === 'github-login' && j.status === 'running');
 async function copilotStatusWithGh(ctx = null) {
   const s = await A.copilotStatus();
-  if (s.isAuthenticated || getSettings().provider.id !== 'github' || !isDeveloper()) return s;
+  if (s.isAuthenticated || getSettings().provider.id !== 'github') return s;
   const current = await runGh(['auth', 'status', '--hostname', 'github.com', '--active', '--json', 'hosts'], ctx, { log: false });
   if (current.code !== 0 || !activeGhLogin(current.lines)) return s;
   try { return await loadCopilotFromGh(ctx || { log: () => {} }); } catch { return s; }
 }
-route('POST', '/api/copilot/login', () => developerOnly() || runningGitHubLogin() || startJob('github-login', 'Sign in to GitHub', async (ctx) => {
+route('POST', '/api/copilot/login', () => runningGitHubLogin() || startJob('github-login', 'Sign in to GitHub', async (ctx) => {
   ctx.step('Check the GitHub CLI sign-in');
   const current = await runGh(['auth', 'status', '--hostname', 'github.com'], ctx);
   if (current.code === 0) {
@@ -345,7 +339,7 @@ route('POST', '/api/copilot/login', () => developerOnly() || runningGitHubLogin(
   if (!s.isAuthenticated) throw new Error(`${s.statusMessage || 'GitHub sign-in finished, but Copilot access was not accepted.'} Choose another provider or paste a token with Copilot access.`);
   return { ok: true };
 }));
-route('POST', '/api/copilot/switch', () => developerOnly() || runningGitHubLogin() || startJob('github-login', 'Switch GitHub account', async (ctx) => {
+route('POST', '/api/copilot/switch', () => runningGitHubLogin() || startJob('github-login', 'Switch GitHub account', async (ctx) => {
   ctx.step('Sign out of the current GitHub CLI account');
   A.setGitHubToken('');
   const current = await runGh(['auth', 'status', '--hostname', 'github.com', '--active', '--json', 'hosts'], ctx, { log: false });

@@ -92,19 +92,16 @@ language with screenshots, for business users. Rebuild it after changing `docs/u
 | **OpenAI** | API key |
 | **Anthropic Claude** | API key |
 | **Local model** | Any OpenAI-compatible endpoint (Ollama, LM Studio, vLLM) with tool calling |
-| **GitHub Copilot** (developer mode only) | A Copilot seat. Sign in, switch accounts, or paste a token in Settings |
-| **OpenRouter** (developer mode only) | An [OpenRouter](https://openrouter.ai) API key – hundreds of models from many labs through one key |
+| **GitHub Copilot** | A Copilot seat. Sign in with GitHub CLI, switch accounts, or paste a token in Settings |
+| **OpenRouter** | An [OpenRouter](https://openrouter.ai) API key – hundreds of models from many labs through one key |
 
 The agent engine is the [GitHub Copilot SDK](https://github.com/github/copilot-sdk); with the providers above it runs
 in *bring your own key* mode, so business users need no GitHub account or license. API keys stay in memory (or
 environment variables `AZURE_OPENAI_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`).
 
-**Developer mode** is for the people who build and test the studio: it adds **GitHub Copilot** and **OpenRouter** as
-providers (and the GitHub Copilot clients on Ask & share). Turn it on for your own computer only, with the `STUDIO_DEVELOPER=1`
-environment variable or an empty file named `developer` in the studio's data folder (`studio/data/developer`), then
-restart the studio. Settings › About shows when it's on. Outside developer mode a saved GitHub Copilot or OpenRouter
-choice is kept on disk but the studio uses Azure AI Foundry / Azure OpenAI until developer mode is back – also when
-developer mode is turned off while the studio runs (open chats switch with their next message).
+**Developer mode** is only for extra diagnostics and client setup hints for people who build/test the studio. Turn it on
+with the `STUDIO_DEVELOPER=1` environment variable or an empty file named `developer` in the studio's data folder
+(`studio/data/developer`), then restart the studio. GitHub Copilot and OpenRouter are available to all users.
 For GitHub Copilot, Settings › AI provider includes **Switch GitHub account**: it signs GitHub CLI out locally and opens
 the browser sign-in flow for the new account. This changes only the account on this computer; it does not revoke old
 tokens from GitHub.

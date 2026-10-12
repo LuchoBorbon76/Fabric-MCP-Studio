@@ -109,7 +109,7 @@ function aboutCard() {
       h('dt', {}, 'Build'), h('dd', {}, store.build ? `${store.build.commit} · ${store.build.date}` : '– (not a git copy)'),
       h('dt', {}, 'Disclaimer'), h('dd', {}, s?.acceptedAt ? `Acknowledged ${new Date(s.acceptedAt).toLocaleDateString()}` : 'Not acknowledged yet'),
     store.demoMode ? [h('dt', {}, 'Safe demo mode'), h('dd', {}, 'On – read-only mock Fabric data; no Fabric changes are made')] : null,
-    store.settings?.developer ? [h('dt', {}, 'Developer mode'), h('dd', {}, 'On – GitHub Copilot is available as an AI provider')] : null),
+    store.settings?.developer ? [h('dt', {}, 'Developer mode'), h('dd', {}, 'On – developer diagnostics and client setup hints are visible')] : null),
     h('div', { class: 'row mt' },
       h('button', { class: 'btn', onclick: () => showWhatsNew() }, 'What\'s new'),
       h('button', { class: 'btn', onclick: () => showDisclaimer() }, 'Disclaimer')));
@@ -193,7 +193,7 @@ function providerCard() {
     }
     redraw();
   } },
-    h('div', { class: 'h' }, h('div', { class: 'ic' }, { github: '🐙', 'azure-openai': '☁', openai: '◎', anthropic: '✳', local: '🖥', openrouter: '🔀' }[p.id] || '✦'), p.name, p.developer ? h('span', { class: 'pill', title: 'Only in developer mode' }, 'Dev') : null),
+    h('div', { class: 'h' }, h('div', { class: 'ic' }, { github: '🐙', 'azure-openai': '☁', openai: '◎', anthropic: '✳', local: '🖥', openrouter: '🔀' }[p.id] || '✦'), p.name),
     h('div', { class: 'meta' }, p.license))));
   const redraw = () => { card.replaceWith(providerCard()); };
 
@@ -275,7 +275,7 @@ function providerCard() {
       field('Model', model, 'Only models that can call tools – Copilot works through tools. Prices are per million tokens, input / output.'),
       info,
       h('div', { class: 'formgrid' }, field('Reasoning effort', effort, 'Used by models that support it')),
-      h('p', { class: 'tiny muted' }, 'Developer mode only. The key is kept in memory until the studio stops – set the OPENROUTER_API_KEY environment variable to have it every time. Prompts and data in answers go to OpenRouter and the model\'s lab under their terms.')));
+      h('p', { class: 'tiny muted' }, 'The key is kept in memory until the studio stops – set the OPENROUTER_API_KEY environment variable to have it every time. Prompts and data in answers go to OpenRouter and the model\'s lab under their terms.')));
     d.read = () => { if (key.value.trim()) d.config.apiKey = key.value.trim(); d.model = model.value || d.model; };
   } else {
     const inputs = {};

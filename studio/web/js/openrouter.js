@@ -1,4 +1,4 @@
-// OpenRouter model lists (developer mode): one list grouped by lab, with price and context, used by Settings and the
+// OpenRouter model lists: one list grouped by lab, with price and context, used by Settings and the
 // Copilot header. The models come from GET /api/copilot/models when OpenRouter is the provider.
 import { h } from './ui.js';
 

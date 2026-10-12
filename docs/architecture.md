@@ -73,7 +73,7 @@ flowchart LR
 | Layer | Technology |
 |---|---|
 | UI | Vanilla ES modules served from `127.0.0.1` (per-launch token; requests with another Host name, or changes from another origin, get 403 – DNS rebinding protection), MSX Command Center design, SSE for live events |
-| Agent | GitHub Copilot SDK in `empty` mode (isolated home), customer's provider (Azure AI Foundry / Azure OpenAI, OpenAI, Anthropic or a local model in BYOK mode; GitHub Copilot in developer mode), MCP servers with Entra bearer tokens, studio tools, `onPreToolUse` approvals |
+| Agent | GitHub Copilot SDK in `empty` mode (isolated home), customer's provider (GitHub Copilot, OpenRouter, Azure AI Foundry / Azure OpenAI, OpenAI, Anthropic or a local model), MCP servers with Entra bearer tokens, studio tools, `onPreToolUse` approvals |
 | Pipelines | Fabric REST APIs: workspaces, lakehouse load table, OneLake DFS, connections, mirroring, shortcuts, item definitions |
 | Generators | Direct Lake semantic model TMDL and ontology TMDL from discovered schemas (keys, foreign keys or inferred relationships) |
 | State | `studio/data/` (project, activity, chat transcripts) and `config/demo.state.json` shared with the scripts |

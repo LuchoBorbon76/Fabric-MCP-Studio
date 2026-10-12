@@ -92,11 +92,7 @@ export function writeJson(path, data) {
 
 const SETTINGS_FILE = join(DATA_DIR, 'settings.json');
 
-/**
- * Developer mode: GitHub Copilot (sign-in with GitHub, Copilot models) is for the people who build the studio, not for
- * business users. Turn it on with the STUDIO_DEVELOPER=1 environment variable or an empty "developer" file in the
- * studio's data folder. Everyone else uses Azure AI Foundry / Azure OpenAI, OpenAI, Anthropic or a local model.
- */
+/** Developer mode: extra diagnostics and developer-only client setup hints. */
 export function isDeveloper() {
   return /^(1|true|yes|on)$/i.test(String(process.env.STUDIO_DEVELOPER || '')) || existsSync(join(DATA_DIR, 'developer'));
 }
@@ -116,28 +112,11 @@ export const DEFAULT_SETTINGS = {
 };
 
 let settingsCache = null;
-// Providers for developer mode only (the people who build the studio). Outside developer mode a saved one is replaced
-// in memory only: what was saved stays on disk until the user picks another provider, so turning developer mode back
-// on restores it.
-export const DEVELOPER_PROVIDERS = new Set(['github', 'openrouter']);
-let providerSwap = null; // { replacement, saved }
 
 export function getSettings() {
   if (!settingsCache) {
     const saved = readJson(SETTINGS_FILE, {});
     settingsCache = deepMerge(structuredClone(DEFAULT_SETTINGS), saved);
-  }
-  // Outside developer mode GitHub Copilot and OpenRouter aren't offered: Azure AI Foundry / Azure OpenAI (Entra
-  // sign-in) is used instead. Checked on every read, because developer mode can be turned on or off while the studio
-  // runs (the data\developer file or STUDIO_DEVELOPER): the saved choice comes back when developer mode does.
-  const dev = isDeveloper();
-  if (!dev && DEVELOPER_PROVIDERS.has(settingsCache.provider?.id)) {
-    const replacement = { id: 'azure-openai', model: '', reasoningEffort: '', config: { authMode: 'entra' } };
-    providerSwap = { replacement, saved: settingsCache.provider };
-    settingsCache.provider = replacement;
-  } else if (dev && providerSwap && settingsCache.provider === providerSwap.replacement) {
-    settingsCache.provider = providerSwap.saved;
-    providerSwap = null;
   }
   return settingsCache;
 }
@@ -149,8 +128,6 @@ export function saveSettings(patch) {
   const next = deepMerge(getSettings(), patch);
   settingsCache = next;
   const disk = stripSecrets(next);
-  // The in-memory replacement of a GitHub provider is never written; a provider the user picks is.
-  if (providerSwap && next.provider === providerSwap.replacement && !patch?.provider) disk.provider = stripSecrets(providerSwap.saved);
   writeJson(SETTINGS_FILE, disk);
   return next;
 }
