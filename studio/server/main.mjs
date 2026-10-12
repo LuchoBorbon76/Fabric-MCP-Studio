@@ -253,6 +253,13 @@ function githubDeviceCode(text) {
     || [])[1] || '';
 }
 
+async function ghTokenAvailable() {
+  const status = await runGh(['auth', 'status', '--hostname', 'github.com', '--active', '--json', 'hosts'], null, { log: false });
+  if (status.code !== 0 || !activeGhLogin(status.lines)) return false;
+  const token = await runGh(['auth', 'token', '--hostname', 'github.com'], null, { log: false });
+  return token.code === 0 && Boolean(token.lines.join('').trim());
+}
+
 function runGhBrowserLogin(ctx, label = 'GitHub sign-in') {
   return new Promise((resolveP, reject) => {
     const args = ['auth', 'login', '--hostname', 'github.com', '--web', '--clipboard', '--git-protocol', 'https', '--skip-ssh-key'];
@@ -260,6 +267,7 @@ function runGhBrowserLogin(ctx, label = 'GitHub sign-in') {
     let seen = '';
     let codeShown = false;
     let urlOpened = false;
+    let pollingToken = false;
     let done = false;
     const child = spawn('gh', args, { windowsHide: true, env: withoutGhEnvTokens() });
     const abort = () => {
@@ -284,6 +292,20 @@ function runGhBrowserLogin(ctx, label = 'GitHub sign-in') {
       const waited = Math.floor((Date.now() - started) / 1000);
       ctx.progress(Math.min(82, 45 + Math.floor(waited / 12)));
       if (waited && waited % 60 === 0) ctx.log(`Still waiting for GitHub browser sign-in (${Math.floor(waited / 60)} minute${waited >= 120 ? 's' : ''})…`);
+      if ((codeShown || urlOpened) && !pollingToken) {
+        pollingToken = true;
+        ghTokenAvailable()
+          .then((ok) => {
+            if (!ok || done) return;
+            ctx.step('GitHub sign-in accepted');
+            ctx.progress(85);
+            ctx.log('GitHub CLI now has a token; finishing sign-in.');
+            try { child.kill(); } catch { /* ignore */ }
+            finish(resolveP, { code: 0, lines: [...lines, 'GitHub CLI token detected after device-code sign-in.'] });
+          })
+          .catch(() => {})
+          .finally(() => { pollingToken = false; });
+      }
     }, 5000);
     const showDeviceCode = () => {
       const code = githubDeviceCode(seen);
