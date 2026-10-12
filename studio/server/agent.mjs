@@ -445,6 +445,7 @@ const STUDIO_TOOLS_META = {
   studio_switch_data_source: { write: false, title: 'Switch to another data source' },
   studio_describe_data: { write: false, title: 'Describe data source' },
   studio_query_data: { write: false, title: 'Query data (read-only)' },
+  studio_profile_relationships: { write: false, title: 'Profile relationship candidates' },
   studio_data_prep_status: { write: false, title: 'Read the data prep notebook results' },
   studio_create_data_prep_notebook: { write: true, title: 'Create and run the data prep notebook' },
   studio_create_semantic_model: { write: true, title: 'Create semantic model' },
@@ -669,9 +670,21 @@ function studioTools(chatId) {
       },
     }),
     studioTool('studio_query_data', {
-      description: 'Run read-only T-SQL SELECT queries against the model source SQL analytics endpoint to profile data (max 200 rows returned per result set). Use TOP/aggregations. Markdown SQL fences are accepted. Prefer bracketed aliases such as AS [RowCount] and AS [DistinctCount] because words like RowCount can be reserved by SQL endpoints.',
+      description: 'Run read-only T-SQL SELECT queries against the model source SQL analytics endpoint to profile data (max 200 rows returned per result set). Use TOP/aggregations. Markdown SQL fences are accepted. Prefer bracketed aliases such as AS [RowCount] and AS [DistinctCount] because words like RowCount can be reserved by SQL endpoints. SQL Server does not allow aggregate expressions that contain EXISTS/NOT EXISTS subqueries (for example SUM(CASE WHEN EXISTS (...) THEN 1 END)); use studio_profile_relationships for table matching, or rewrite such checks with LEFT JOIN/CTEs.',
       parameters: obj({ sql: str('One or more read-only SELECT statements') }, ['sql']),
       handler: async ({ sql }) => P.queryModelSource(sql),
+    }),
+    studioTool('studio_profile_relationships', {
+      description: 'Profile declared/inferred or requested table relationships with SQL Server-safe JOIN/CTE queries: row counts, null keys, distinct keys, matched rows, unmatched rows and match rate. Use this instead of hand-written EXISTS/NOT EXISTS aggregate SQL when designing a star schema or checking whether fact rows match dimension keys.',
+      parameters: obj({
+        tables: { type: 'array', items: { type: 'string' }, description: 'Optional source tables to limit profiling, using schema.table or table names from studio_describe_data' },
+        relationships: {
+          type: 'array',
+          items: { type: 'object', properties: { from: { type: 'string' }, to: { type: 'string' }, fromTable: { type: 'string' }, fromColumn: { type: 'string' }, toTable: { type: 'string' }, toColumn: { type: 'string' } } },
+          description: 'Optional custom relationships. Use from/to as schema.table.column, or fromTable/fromColumn/toTable/toColumn.',
+        },
+      }),
+      handler: async (a) => P.profileRelationships({ tables: a.tables || [], relationships: a.relationships || [] }),
     }),
     studioTool('studio_data_prep_status', {
       description: 'Read the data prep notebook for a lakehouse data source: whether it applies (only lakehouses), the notebook and curated lakehouse, and the last run: curated tables with their roles and keys, relationships found from the data, column renames, data fixes, KPIs with DAX and the charts with their one-line insights. Read-only.',

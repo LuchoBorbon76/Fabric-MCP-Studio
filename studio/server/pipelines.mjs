@@ -544,7 +544,104 @@ export async function queryModelSource(query) {
   await assertProjectTenant();
   const ms = getProject().modelSource;
   if (!ms) throw new Error('No data source yet.');
-  return readOnlyQuery({ server: ms.server, database: ms.database }, query);
+  try {
+    return await readOnlyQuery({ server: ms.server, database: ms.database }, query);
+  } catch (e) {
+    if (/aggregate function.*aggregate or a subquery/i.test(e.message || '')) {
+      throw new Error(`${e.message} For relationship checks, do not put EXISTS/NOT EXISTS subqueries inside SUM/COUNT expressions. Use studio_profile_relationships, or rewrite the SQL with LEFT JOIN/CTEs and aggregate over joined columns.`);
+    }
+    throw e;
+  }
+}
+
+const qSql = (s) => `[${String(s).replace(/]/g, ']]')}]`;
+const tableKey = (t) => `${t.schema}.${t.name}`.toLowerCase();
+const tableRef = (t) => `${qSql(t.schema)}.${qSql(t.name)}`;
+
+function resolveSourceTable(schema, name) {
+  const want = String(name || '').trim().toLowerCase();
+  if (!want) return null;
+  return schema.tables.find((t) => `${t.schema}.${t.name}`.toLowerCase() === want || t.name.toLowerCase() === want) || null;
+}
+
+function relationshipCandidates(schema, include) {
+  const includeKeys = new Set(include.map(tableKey));
+  return (schema.relationships || []).filter((r) => {
+    const from = resolveSourceTable(schema, `${r.from.schema}.${r.from.table}`);
+    const to = resolveSourceTable(schema, `${r.to.schema}.${r.to.table}`);
+    if (!from || !to) return false;
+    return !includeKeys.size || (includeKeys.has(tableKey(from)) && includeKeys.has(tableKey(to)));
+  }).slice(0, 30);
+}
+
+/** SQL Server-safe relationship profiling for star-schema design. */
+export async function profileRelationships({ tables = [], relationships = [] } = {}) {
+  await assertProjectTenant();
+  const ms = getProject().modelSource;
+  if (!ms) throw new Error('No data source yet.');
+  const schema = await describeModelSource();
+  const include = (tables || []).map((x) => resolveSourceTable(schema, x)).filter(Boolean);
+  const missingTables = (tables || []).filter((x) => !resolveSourceTable(schema, x));
+  if ((tables || []).length && !include.length) {
+    return { ok: true, relationships: [], missingTables, note: 'None of the requested tables were found. Call studio_describe_data and use exact schema.table names.' };
+  }
+  const rels = relationships?.length
+    ? relationships.map((r) => {
+      const fromParts = String(r.from || '').split('.');
+      const toParts = String(r.to || '').split('.');
+      const fromColumn = r.fromColumn || fromParts.pop();
+      const toColumn = r.toColumn || toParts.pop();
+      const fromTable = r.fromTable || fromParts.join('.');
+      const toTable = r.toTable || toParts.join('.');
+      const from = resolveSourceTable(schema, fromTable);
+      const to = resolveSourceTable(schema, toTable);
+      return from && to && fromColumn && toColumn ? { from: { ...from, column: fromColumn }, to: { ...to, column: toColumn }, source: 'requested' } : null;
+    }).filter(Boolean)
+    : relationshipCandidates(schema, include);
+  if (!rels.length) return { ok: true, relationships: [], missingTables, note: 'No declared or inferred relationships were found for the selected tables. Use studio_describe_data to inspect candidate key columns.' };
+
+  return withPool({ server: ms.server, database: ms.database }, async (pool) => {
+    const out = [];
+    for (const r of rels.slice(0, 20)) {
+      const from = resolveSourceTable(schema, `${r.from.schema}.${r.from.table}`);
+      const to = resolveSourceTable(schema, `${r.to.schema}.${r.to.table}`);
+      if (!from || !to) continue;
+      const fc = qSql(r.from.column);
+      const tc = qSql(r.to.column);
+      const sql = `
+SELECT
+  (SELECT COUNT_BIG(*) FROM ${tableRef(from)}) AS [FromRows],
+  (SELECT COUNT_BIG(*) FROM ${tableRef(from)} WHERE ${fc} IS NULL) AS [FromNullKeys],
+  (SELECT COUNT_BIG(DISTINCT ${fc}) FROM ${tableRef(from)} WHERE ${fc} IS NOT NULL) AS [DistinctFromKeys],
+  (SELECT COUNT_BIG(*) FROM ${tableRef(to)}) AS [ToRows],
+  (SELECT COUNT_BIG(*) FROM ${tableRef(to)} WHERE ${tc} IS NULL) AS [ToNullKeys],
+  (SELECT COUNT_BIG(DISTINCT ${tc}) FROM ${tableRef(to)} WHERE ${tc} IS NOT NULL) AS [DistinctToKeys],
+  (SELECT COUNT_BIG(*) FROM ${tableRef(from)} f JOIN (SELECT DISTINCT ${tc} AS [k] FROM ${tableRef(to)} WHERE ${tc} IS NOT NULL) d ON f.${fc} = d.[k] WHERE f.${fc} IS NOT NULL) AS [MatchedFromRows],
+  (SELECT COUNT_BIG(*) FROM ${tableRef(from)} f LEFT JOIN (SELECT DISTINCT ${tc} AS [k] FROM ${tableRef(to)} WHERE ${tc} IS NOT NULL) d ON f.${fc} = d.[k] WHERE f.${fc} IS NOT NULL AND d.[k] IS NULL) AS [UnmatchedFromRows]`;
+      try {
+        const row = (await pool.request().query(sql)).recordset?.[0] || {};
+        const fromRows = Number(row.FromRows) || 0;
+        const unmatched = Number(row.UnmatchedFromRows) || 0;
+        out.push({
+          from: `${from.schema}.${from.name}.${r.from.column}`,
+          to: `${to.schema}.${to.name}.${r.to.column}`,
+          source: r.source || 'inferred',
+          fromRows,
+          fromNullKeys: Number(row.FromNullKeys) || 0,
+          distinctFromKeys: Number(row.DistinctFromKeys) || 0,
+          toRows: Number(row.ToRows) || 0,
+          toNullKeys: Number(row.ToNullKeys) || 0,
+          distinctToKeys: Number(row.DistinctToKeys) || 0,
+          matchedFromRows: Number(row.MatchedFromRows) || 0,
+          unmatchedFromRows: unmatched,
+          matchRate: fromRows ? Number(((fromRows - unmatched) / fromRows).toFixed(4)) : null,
+        });
+      } catch (e) {
+        out.push({ from: `${from.schema}.${from.name}.${r.from.column}`, to: `${to.schema}.${to.name}.${r.to.column}`, source: r.source || 'inferred', error: e.message });
+      }
+    }
+    return { ok: true, relationships: out, missingTables, note: 'Counts are computed with JOIN/CTE-safe SQL; no aggregate expression contains a subquery.' };
+  });
 }
 
 // ---------------- semantic model ----------------
