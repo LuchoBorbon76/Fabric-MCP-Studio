@@ -25,7 +25,8 @@ The app opens on the **solution map**: every part below is a box on the map, gre
 with lines showing what is built from what. Select a part to see its details and the suggested next step, and
 **Open** it (or double-click it) to work on it; while you work, the map stays on top in a compact form and selecting
 a part goes straight to its page. **Overview**, **Copilot**, **Activity** and **Settings** are at the top right of
-the map, and **Costs** shows capacity utilization and cost guidance.
+the map. **Costs** shows capacity utilization and cost guidance, and **WAF Review** scores the selected landing zone
+against the Microsoft Fabric Well-Architected pillars.
 
 Everything below can be done with the quick action buttons **or** by asking Copilot. Copilot opens inside the page you
 are working in (no separate window) and asks for your approval before each change. For a quick chart in the chat, ask for
@@ -36,6 +37,12 @@ The **Costs** tab uses the Microsoft Fabric Capacity Metrics app (or opens its i
 heavy-hitter workspaces, items, operations, users, background jobs, smoothing/overage and pay-as-you-go versus reservation
 costs in plain language. When the metrics app is missing, the studio opens the supported Microsoft install flow; a
 capacity admin still completes the Install/Connect screens in Fabric.
+
+The **WAF Review** tab reads the selected workspace/landing zone and generates an evidence-backed Well-Architected
+scorecard across Reliability, Security, Cost Optimization, Operational Excellence and Performance Efficiency. Findings are
+grouped by Fabric control domains: tenant settings, workspaces, domains, roles and access, capacity and costs, security,
+monitoring, reliability, performance and artifacts. Each recommendation is marked as guided in the Studio, manual, or
+admin-only, and the report can be downloaded as HTML or Markdown.
 
 ## 1. Workspace
 

@@ -39,8 +39,8 @@ export function icon(name, cls = '') {
   return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ICONS.database}</svg>`;
 }
 
-export const VIEW_LABEL = { home: 'Overview', copilot: 'AI Assistant', workspace: 'Workspace', data: 'Data', model: 'Semantic model', ontology: 'Ontology', reports: 'Reports & apps', realtime: 'Real-time', planning: 'Planning', share: 'Ask & share', costs: 'Costs & usage', activity: 'Activity', settings: 'Settings' };
-const UTILITY = new Set(['copilot', 'costs', 'activity', 'settings']);
+export const VIEW_LABEL = { home: 'Overview', copilot: 'AI Assistant', workspace: 'Workspace', data: 'Data', model: 'Semantic model', ontology: 'Ontology', reports: 'Reports & apps', realtime: 'Real-time', planning: 'Planning', share: 'Ask & share', costs: 'Costs & usage', waf: 'WAF Review', activity: 'Activity', settings: 'Settings' };
+const UTILITY = new Set(['copilot', 'costs', 'waf', 'activity', 'settings']);
 const COLS = ['Sources', 'OneLake', 'Semantic layer', 'Insights & AI', 'Apps & sharing'];
 
 // Grid position (column, row) of every part. Rows 0-2: analytics; row 3: real-time.
@@ -459,7 +459,7 @@ export function mountMap(root, { onNode, onTab, opensOnDouble }) {
         h('span', {}, h('i', { class: 'lg off' }), 'Needs an earlier step'),
         h('span', {}, h('i', { class: 'lg bl' }), 'Can\'t run')) : null,
       h('nav', { class: 'mtabs', 'aria-label': 'Sections' },
-        tab('home', 'Overview'), tab('copilot', '✦ AI Assistant'), tab('costs', 'Costs'), tab('activity', 'Activity', running ? h('span', { class: 'cnt' }, running) : null), tab('settings', 'Settings')),
+        tab('home', 'Overview'), tab('copilot', '✦ AI Assistant'), tab('costs', 'Costs'), tab('waf', 'WAF Review'), tab('activity', 'Activity', running ? h('span', { class: 'cnt' }, running) : null), tab('settings', 'Settings')),
       fold);
   }
 

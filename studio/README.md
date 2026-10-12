@@ -27,6 +27,9 @@ chatting with the **AI the customer already licenses**:
 - **Planning** – a budget and rolling forecast from your actuals, a Plan table with variance measures in the model, a
   Plan vs actual report, and a Fabric Plan container for planning sheets. The Plan item opens as a shell until a user
   creates a Planning Sheet and connects the semantic model with their own sign-in.
+- **WAF Review** – a Fabric Well-Architected Review for the selected landing zone: tenant settings, workspaces, domains,
+  roles/access, capacity/costs, security, monitoring, reliability, performance and artifacts scored across the five WAF
+  pillars, with guided/admin/manual recommendations and HTML/Markdown export.
 - **Ask & share** – governed answers in the app chat, Microsoft 365 Copilot / Teams agent, other AI clients, and a
   **Fabric data agent** on the semantic model (Copilot suggests the instructions, **Apply suggestions** creates and
   publishes it; the studio writes the item definition with every table, column and measure).
@@ -162,6 +165,10 @@ flowchart LR
   A **paused capacity** is checked again every
   minute (`STUDIO_CAPACITY_CHECK_SECONDS`, at least 15) and a running one every five minutes while a page is open: when
   it is resumed (or paused) the map, the badges and every page change by themselves – no reload or *Check again*.
+- **WAF Review**: the top navigation includes a Well-Architected scorecard for the selected workspace/landing zone. It
+  groups evidence-backed findings by tenant settings, workspaces, domains, roles/access, capacity/costs, security,
+  monitoring, reliability, performance and artifacts; each recommendation says whether the Studio can guide the fix,
+  whether it is manual, or whether a Fabric/capacity/tenant admin must apply it.
 
 ## Naming standard
 

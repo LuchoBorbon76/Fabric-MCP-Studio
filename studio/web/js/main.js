@@ -20,6 +20,7 @@ import { renderRealtime } from './views/realtime.js';
 import { renderPlanning } from './views/planning.js';
 import { renderShare } from './views/share.js';
 import { renderCosts } from './views/costs.js';
+import { renderWaf } from './views/waf.js';
 import { renderActivity } from './views/activity.js';
 import { renderSettings } from './views/settings.js';
 
@@ -35,6 +36,7 @@ const VIEWS = {
   planning: { label: 'Planning', render: renderPlanning },
   share: { label: 'Ask & share', render: renderShare },
   costs: { label: 'Costs & usage', render: renderCosts },
+  waf: { label: 'WAF Review', render: renderWaf },
   activity: { label: 'Activity', render: renderActivity },
   settings: { label: 'Settings', render: renderSettings },
 };
@@ -566,7 +568,7 @@ on('project.updated', async () => {
   const dk = dataKey(store.project);
   const dataChanged = dk !== dataSourceKey;
   dataSourceKey = dk;
-  if (['home', 'model', 'ontology', 'reports', 'realtime', 'planning', 'share', 'workspace'].includes(current) || (current === 'data' && dataChanged)) renderView(current);
+  if (['home', 'model', 'ontology', 'reports', 'realtime', 'planning', 'share', 'workspace', 'waf'].includes(current) || (current === 'data' && dataChanged)) renderView(current);
   // A new workspace or data source changes what can run.
   const rk = [store.project?.workspace?.id, store.project?.modelSource?.itemId, Boolean(store.project?.realtime)].join('|');
   if (rk !== readinessKey) { readinessKey = rk; loadReadiness(); }

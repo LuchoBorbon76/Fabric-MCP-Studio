@@ -24,6 +24,7 @@ import * as MODELS from './models.mjs';
 import * as MC from './modelcheck.mjs';
 import * as LINKS from './modellinks.mjs';
 import * as ARTS from './artifacts.mjs';
+import * as WAF from './waf.mjs';
 
 export const MCP_ENDPOINTS = {
   'fabric-core': 'https://api.fabric.microsoft.com/v1/mcp/core',
@@ -494,6 +495,7 @@ const STUDIO_TOOLS_META = {
   studio_planning_access: { write: false, title: 'Read who can plan' },
   studio_add_planner: { write: true, title: 'Give a planner Contributor access' },
   studio_check_readiness: { write: false, title: 'Check what can run (capacity, role, tenant settings)' },
+  studio_generate_waf_review: { write: false, title: 'Generate a Fabric Well-Architected review' },
 };
 
 async function runAsJob(kind, title, fn) {
@@ -1184,6 +1186,21 @@ function studioTools(chatId) {
       handler: async (a) => {
         const r = await readiness({ refresh: Boolean(a.refresh) });
         return { capacity: r.capacity, role: r.role, tenantSettings: r.tenantSettings, checks: r.checks, modules: Object.values(r.modules).map((m) => ({ module: m.id, status: m.status, reasons: m.reasons.filter((x) => x.status !== 'info').map((x) => ({ status: x.status, text: x.text, fix: x.fix })) })) };
+      },
+    }),
+    studioTool('studio_generate_waf_review', {
+      description: 'Generate a read-only Microsoft Fabric Well-Architected Framework review for the selected landing zone/workspace. Scores Reliability, Security, Cost Optimization, Operational Excellence and Performance Efficiency; groups findings by tenant settings, workspaces, domains, roles/access, capacity/costs, security, monitoring, reliability, performance and artifacts; returns evidence, recommendations and guided/admin/manual fix paths. Use when the user asks for WAF, architecture review, landing zone assessment, governance score or recommendations for the Fabric environment.',
+      parameters: obj({ refresh: { type: 'boolean', description: 'Read Fabric inventory again instead of using the cached WAF review' } }),
+      handler: async (a) => {
+        const r = await WAF.wafAssessment({ refresh: Boolean(a.refresh) });
+        return {
+          overall: `${r.overallScore}/100 ${r.overallLabel}`,
+          workspace: r.scope.workspace?.name || null,
+          pillars: r.pillars.map((p) => ({ pillar: p.label, score: p.score, status: p.status, topFinding: p.topFinding })),
+          domains: r.domains.map((d) => ({ domain: d.label, score: d.score, status: d.status, topFinding: d.topFinding })),
+          topRecommendations: r.recommendations.slice(0, 8).map((f) => ({ severity: f.severityLabel, pillar: f.pillarLabel, domain: f.domainLabel, title: f.title, recommendation: f.recommendation, fix: f.fixLabel || f.fixType, evidence: f.evidence })),
+          inventory: r.inventory,
+        };
       },
     }),
   ];

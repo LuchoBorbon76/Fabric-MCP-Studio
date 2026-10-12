@@ -30,6 +30,7 @@ import * as MC from './modelcheck.mjs';
 import * as LINKS from './modellinks.mjs';
 import * as ARTS from './artifacts.mjs';
 import * as COST from './costs.mjs';
+import * as WAF from './waf.mjs';
 import { health } from './health.mjs';
 import { presetSummary } from './presets.mjs';
 import { diagnosticsBundle } from './diagnostics.mjs';
@@ -567,6 +568,8 @@ route('POST', '/api/jobs/:id/cancel', (p) => ({ ok: cancelJob(p.id) }));
 
 route('GET', '/api/activity', () => getActivity());
 route('GET', '/api/costs', (_, __, q) => COST.costState({ capacityId: q.get('capacityId') || undefined }));
+route('GET', '/api/waf', (_, __, q) => WAF.wafAssessment({ refresh: q.get('refresh') === '1' }));
+route('GET', '/api/waf/report', (_, __, q) => WAF.wafReport({ format: q.get('format') || 'markdown', refresh: q.get('refresh') === '1' }));
 route('GET', '/api/export', () => ({ exportedAt: new Date().toISOString(), version: VERSION, project: getProject(), activity: getActivity() }));
 
 route('POST', '/api/shutdown', () => {

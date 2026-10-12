@@ -19,7 +19,7 @@
       by clicking buttons or by asking Copilot in plain language. No coding needed.</p>
     <table class="cover-meta">
       <tr><td>For</td><td>Business users, analysts and anyone who wants to use Fabric MCP Studio – no technical background required</td></tr>
-      <tr><td>App version</td><td>1.63 and later</td></tr>
+      <tr><td>App version</td><td>1.68 and later</td></tr>
       <tr><td>Updated</td><td>October 2026</td></tr>
     </table>
     <div class="note cover-note">
@@ -84,6 +84,10 @@
     to explain utilization, heavy hitters, smoothing/overage and pay-as-you-go versus reservation costs. If the metrics
     app is missing, the studio opens Microsoft's install flow; a capacity admin completes the install and connection screens
     in Fabric.</p>
+  <p>The top bar also has <b>WAF Review</b>: a Well-Architected scorecard for the selected workspace or landing zone. It
+    scores reliability, security, cost optimization, operational excellence and performance, then lists recommendations by
+    tenant settings, workspaces, domains, roles and access, capacity and costs, security, monitoring, reliability,
+    performance and artifacts.</p>
   <div class="note">
     <b>It works as you.</b> The app signs in to Microsoft Fabric with your own work account, so it can only see and change
     what you are allowed to. Everything it builds lives in your organization's Fabric, not on your computer.
@@ -274,7 +278,7 @@
 
   <h3>The four tabs</h3>
   <p>At the top right of the map: <b>Overview</b> (the map and suggestions), <b>Copilot</b> (the full-size chat),
-    <b>Activity</b> (everything that happened) and <b>Settings</b>. On other pages the map gets smaller; <b>Hide map</b> folds it away.</p>
+    <b>WAF Review</b> (architecture scorecard), <b>Activity</b> (everything that happened) and <b>Settings</b>. On other pages the map gets smaller; <b>Hide map</b> folds it away.</p>
 
   <h3>Jobs that take a while</h3>
   <p>Longer tasks – loading data, building a report – run in the background. A small card at the bottom right shows the
@@ -658,6 +662,8 @@
       changed or deleted by the app.</li>
     <li><b>Costs.</b> Items run on your organization's Fabric capacity and may use its capacity or incur costs. Clean up what
       you don't need (chapter 16).</li>
+    <li><b>Review before production.</b> Use <b>WAF Review</b> to check the landing zone before sharing it broadly. Some
+      recommendations need a Fabric, capacity or tenant administrator.</li>
     <li><b>Start in a test workspace.</b> Try new things in a <i>Personal sandbox</i> or <i>Development</i> environment before
       production.</li>
   </ul>
@@ -692,6 +698,7 @@
     <tr><td>Ask a business question</td><td><b>Ask &amp; share</b> or <b>Copilot</b></td><td>A suggested question, or type your own</td></tr>
     <tr><td>Create a data agent</td><td><b>Ask &amp; share</b></td><td><b>Create data agent</b></td></tr>
     <tr><td>Add the agent to Teams</td><td><b>Ask &amp; share</b></td><td><b>Install for me</b></td></tr>
+    <tr><td>Review the landing zone</td><td><b>WAF Review</b></td><td><b>Generate WAF review</b>, then download HTML or Markdown</td></tr>
     <tr><td>Remove one item</td><td><b>Overview › Items in this project</b></td><td><b>Remove</b></td></tr>
     <tr><td>Delete everything the app built</td><td><b>Settings › Clean up</b></td><td><b>Clean up resources</b></td></tr>
     <tr><td>See what happened</td><td><b>Activity</b></td><td>–</td></tr>

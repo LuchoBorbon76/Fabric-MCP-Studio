@@ -60,7 +60,35 @@ const costs = {
   lastRefresh: new Date().toISOString(),
 };
 
-export function demoApi(method, pathname) {
+const waf = {
+  at: new Date().toISOString(),
+  scope: {
+    tenant: demoProject.tenant,
+    workspace: WS,
+    capacity: { id: WS.capacityId, name: 'Demo F16', sku: 'F16', state: 'Active', region: 'demo' },
+    source: { label: demoProject.source.label, method: demoProject.source.method, kind: demoProject.source.kind },
+    semanticModel: { id: MODEL.id, name: MODEL.name, origin: 'studio' },
+  },
+  overallScore: 82,
+  overallLabel: 'Good',
+  pillars: [
+    { id: 'reliability', label: 'Reliability', focus: 'Availability, recoverability, workload isolation and failure handling.', score: 80, status: 'Good', findings: 1, topFinding: 'No Activator alerts are configured for live rule breaks' },
+    { id: 'security', label: 'Security', focus: 'Identity, access, tenant controls, data protection and secure sharing.', score: 86, status: 'Good', findings: 1, topFinding: 'Reports are not packaged in an org app' },
+    { id: 'cost', label: 'Cost Optimization', focus: 'Capacity sizing, utilization, cost visibility and spend governance.', score: 89, status: 'Good', findings: 1, topFinding: 'Capacity appears underutilized' },
+    { id: 'operations', label: 'Operational Excellence', focus: 'Governance, ownership, naming, task flows, deployment and repeatable operations.', score: 76, status: 'Good', findings: 2, topFinding: 'No task flow is applied' },
+    { id: 'performance', label: 'Performance Efficiency', focus: 'Model design, query patterns, capacity pressure and workload tuning.', score: 79, status: 'Good', findings: 1, topFinding: 'Semantic model quality should be reviewed before production' },
+  ],
+  domains: ['Tenant settings', 'Workspaces', 'Domains', 'Roles & access', 'Capacity & costs', 'Security', 'Monitoring', 'Reliability', 'Performance', 'Artifacts'].map((label, i) => ({ id: label.toLowerCase().replace(/[^a-z]+/g, '-'), label, score: [90, 82, 75, 86, 84, 86, 78, 80, 79, 82][i], status: 'Good', findings: i % 3 ? 1 : 0, topFinding: i % 3 ? 'Demo recommendation for this domain' : 'No material findings' })),
+  findings: [],
+  recommendations: [
+    { id: 'demo-taskflow', pillar: 'operations', pillarLabel: 'Operational Excellence', domain: 'reliability', domainLabel: 'Reliability', severity: 'medium', severityLabel: 'Medium', title: 'No task flow is applied', detail: 'A task flow gives operators a shared map of the landing zone.', recommendation: 'Open Workspace and apply a task flow that matches the solution.', evidence: ['Demo workspace has items but no task flow.'], fixType: 'guided', fixLabel: 'Open Workspace', fixTarget: { view: 'workspace' } },
+    { id: 'demo-orgapp', pillar: 'security', pillarLabel: 'Security', domain: 'security', domainLabel: 'Security', severity: 'low', severityLabel: 'Low', title: 'Reports are not packaged in an org app', detail: 'Sharing reports through app audiences is easier to govern.', recommendation: 'Create an org app for certified reports.', evidence: ['Reports: 1', 'Org app: none'], fixType: 'guided', fixLabel: 'Open Reports & apps', fixTarget: { view: 'reports' } },
+  ],
+  inventory: { workspaceItems: 5, itemTypes: [{ type: 'Lakehouse', count: 1 }, { type: 'SemanticModel', count: 1 }, { type: 'Report', count: 1 }], projectArtifacts: 4, artifactTypes: [{ type: 'Report', count: 1 }, { type: 'Semantic model', count: 1 }], semanticModels: 1, dataSources: 1, roleAssignments: 3, tenantSettingsVisible: true, domainsVisible: true, domains: 1, capacityMetrics: 'ok' },
+  fixSummary: { auto: 0, guided: 2, manual: 0, admin: 0 },
+};
+
+export function demoApi(method, pathname, q = new URLSearchParams()) {
   if (!['GET', 'HEAD'].includes(method)) return blocked();
   if (pathname === '/api/bootstrap') return ok({ version: VERSION, build: BUILD, update: pendingUpdate(), user, settings: publicSettings(), provider: providerSummary(), providers: visibleProviders(), project: demoProject, preset: presetSummary(demoProject), naming: null, catalog: catalog(), jobs: listJobs(), chats: [], approvals: [], realtime: { available: true, simulator: { running: false } }, planning: { available: true }, readiness, platform: process.platform, demoMode: true });
   if (pathname === '/api/health') return ok({ at: new Date().toISOString(), ready: true, checks: [{ id: 'demo', label: 'Safe demo mode', status: 'ok', detail: 'No Fabric calls are made.' }] });
@@ -83,6 +111,10 @@ export function demoApi(method, pathname) {
   if (pathname === '/api/reports/profile') return ok(profile);
   if (pathname === '/api/reports/recommendations') return ok({ recommendations: [{ id: 'executive', title: 'Executive overview', reason: 'Demo recommendation', pages: ['executive'] }], insights: profile.insights, rules: { source: 'demo', count: 0, values: [] } });
   if (pathname === '/api/costs') return ok(costs);
+  if (pathname === '/api/waf') return ok(waf);
+  if (pathname === '/api/waf/report') return ok(q.get('format') === 'html'
+    ? `<!doctype html><html><body><h1>Fabric Well-Architected Review</h1><p>Demo WAF review for ${WS.name}.</p><p>Overall score: ${waf.overallScore}/100 (${waf.overallLabel}).</p></body></html>`
+    : `# Fabric Well-Architected Review\n\nDemo WAF review for ${WS.name}.\n\nOverall score: ${waf.overallScore}/100 (${waf.overallLabel}).\n`);
   if (pathname === '/api/taskflow') return ok({ available: true, workspace: WS, templates: [{ id: 'medallion', name: 'Medallion', description: 'Demo medallion flow', tasks: 9 }], existing: [], plan: { name: 'Demo_TF_Sales_DEV', tasks: [], edges: [], unassigned: [], count: 0 }, applied: null, upToDate: false });
   if (pathname === '/api/realtime') return ok({ available: true, setup: {}, simulator: { running: false }, limits: {} });
   if (pathname === '/api/planning') return ok({ available: true, writable: true, model: MODEL, plan: null });
