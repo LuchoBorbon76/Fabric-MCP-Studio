@@ -355,8 +355,13 @@ function entraCard() {
   const tenant = input({ value: s.tenantId || '', placeholder: 'Optional: tenant ID or domain' });
   const save = h('button', { class: 'btn pri', 'data-busy': 'Saving…' }, 'Save');
   save.addEventListener('click', busy(save, async () => {
+    const oldTenant = (s.tenantId || '').trim();
+    const newTenant = tenant.value.trim();
+    const oldMode = s.authMode || 'auto';
     store.settings = await patch('/settings', { azure: { authMode: mode.value, tenantId: tenant.value.trim() } });
-    toast('Saved. Sign in again to apply.', 'ok');
+    if (oldTenant !== newTenant) toast('Saved. Use Switch account to sign in to the selected tenant.', 'ok');
+    else if (oldMode !== mode.value) toast('Saved. The current account stays active; use Switch account if you want to sign in again with this method.', 'ok');
+    else toast('Saved. The current account stays active.', 'ok');
     await app.refresh();
   }));
   return h('div', { class: 'card' },

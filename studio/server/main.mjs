@@ -170,16 +170,24 @@ route('POST', '/api/disclaimer/accept', (_, b) => {
   return publicSettings();
 });
 
-route('POST', '/api/auth/signin', async (_, b) => { const me = await auth.signIn(b.mode || 'browser'); await A.restartClient(); emit('auth', { user: me }); return me; });
+route('POST', '/api/auth/signin', async (_, b) => {
+  const mode = b.mode === 'azure-cli' ? 'azure-cli' : 'browser';
+  const me = await auth.signIn(mode);
+  if (me.signedIn) saveSettings({ azure: { authMode: mode } });
+  await A.restartClient();
+  emit('auth', { user: me });
+  return me;
+});
 route('POST', '/api/auth/signout', async () => { auth.signOut(); await A.restartClient(); emit('auth', { user: { signedIn: false } }); return { ok: true }; });
 
 route('GET', '/api/settings', () => publicSettings());
 route('PATCH', '/api/settings', async (_, b) => {
+  const beforeAzure = { ...getSettings().azure };
   const allowed = {};
   for (const k of ['theme', 'approvalMode', 'mcp', 'azure']) if (b[k] !== undefined) allowed[k] = b[k];
   saveSettings(allowed);
   if (b.mcp || b.azure) await A.restartClient();
-  if (b.azure) auth.signOut();
+  if (b.azure && String(beforeAzure.tenantId || '').trim() !== String(getSettings().azure.tenantId || '').trim()) auth.signOut();
   return publicSettings();
 });
 
