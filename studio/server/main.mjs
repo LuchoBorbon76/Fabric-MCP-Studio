@@ -236,10 +236,20 @@ function runGh(args, ctx, { input = false, log = true } = {}) {
   });
 }
 
+const stripAnsi = (s) => String(s || '').replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+const githubDeviceUrl = (s) => stripAnsi(s).match(/https:\/\/github\.com\/login\/device\b/i)?.[0] || '';
+function githubDeviceCode(text) {
+  const s = stripAnsi(text);
+  return (s.match(/(?:one-time(?: OAuth)? code|device code|code)[^A-Z0-9]{0,40}([A-Z0-9]{4}-[A-Z0-9]{4})/i)
+    || s.match(/\b([A-Z0-9]{4}-[A-Z0-9]{4})\b/)
+    || [])[1] || '';
+}
+
 function runGhBrowserLogin(ctx, label = 'GitHub sign-in') {
   return new Promise((resolveP, reject) => {
-    const args = ['auth', 'login', '--hostname', 'github.com', '--web', '--git-protocol', 'https', '--skip-ssh-key'];
+    const args = ['auth', 'login', '--hostname', 'github.com', '--web', '--clipboard', '--git-protocol', 'https', '--skip-ssh-key'];
     const lines = [];
+    let seen = '';
     let codeShown = false;
     let urlOpened = false;
     let done = false;
@@ -267,23 +277,32 @@ function runGhBrowserLogin(ctx, label = 'GitHub sign-in') {
       ctx.progress(Math.min(82, 45 + Math.floor(waited / 12)));
       if (waited && waited % 60 === 0) ctx.log(`Still waiting for GitHub browser sign-in (${Math.floor(waited / 60)} minute${waited >= 120 ? 's' : ''})…`);
     }, 5000);
-    const onLine = (line) => {
-      lines.push(line);
-      if (!/^\s*-\s*Token:/i.test(line)) ctx.log(line);
-      const code = line.match(/one-time code:\s*([A-Z0-9-]+)/i)?.[1];
-      if (code && !codeShown) {
-        codeShown = true;
-        ctx.step(`GitHub sign-in: enter code ${code}`);
-        ctx.progress(45);
-      }
-      const url = line.match(/https:\/\/github\.com\/login\/device/i)?.[0];
-      if (url && !urlOpened) {
-        urlOpened = true;
-        openBrowser(url);
-        ctx.log(`Opened ${url}. If it did not open, copy the URL and enter the code shown above.`);
-      }
+    const showDeviceCode = () => {
+      const code = githubDeviceCode(seen);
+      if (!code || codeShown) return;
+      codeShown = true;
+      ctx.step(`Enter GitHub code ${code}`);
+      ctx.progress(45);
+      ctx.log(`GitHub device code: ${code}`);
+      ctx.log('The code was also copied to the clipboard when GitHub CLI supports clipboard access.');
     };
-    const onData = (d) => String(d).split(/\r?\n/).filter(Boolean).forEach(onLine);
+    const openDevicePage = () => {
+      const url = githubDeviceUrl(seen);
+      if (!url || urlOpened) return;
+      urlOpened = true;
+      openBrowser(url);
+      ctx.log(`Opened ${url}. If it did not open, copy this URL and enter the code shown in the current step.`);
+    };
+    const onData = (d) => {
+      const chunk = stripAnsi(String(d));
+      seen += chunk;
+      for (const clean of chunk.split(/\r?\n/).filter(Boolean)) {
+        lines.push(clean);
+        if (!/^\s*-\s*Token:/i.test(clean)) ctx.log(clean);
+      }
+      showDeviceCode();
+      openDevicePage();
+    };
     child.stdout.on('data', onData); child.stderr.on('data', onData);
     child.stdin.end('\n');
     child.on('error', () => finish(reject, new Error('GitHub CLI (gh) not found. Install it from https://cli.github.com or paste a token in Settings.')));

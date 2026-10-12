@@ -234,7 +234,7 @@ function providerCard() {
     }));
     const switchAcct = h('button', { class: 'btn', 'data-busy': 'Switching…' }, 'Switch GitHub account');
     switchAcct.addEventListener('click', busy(switchAcct, async () => {
-      if (!(await confirmDialog('Switch GitHub account?', 'The app will sign GitHub CLI out of the current github.com account on this computer, then open the browser sign-in flow for the new account. This does not revoke the old token in GitHub; it only removes it locally.', 'Switch account'))) return;
+      if (!(await confirmDialog('Switch GitHub account?', 'The app will sign GitHub CLI out of the current github.com account on this computer, then show a GitHub device code and open the browser sign-in flow for the new account. This does not revoke the old token in GitHub; it only removes it locally.', 'Switch account'))) return;
       const j = await post('/copilot/switch');
       showLoginJob(j, switchAcct);
     }));
@@ -243,7 +243,7 @@ function providerCard() {
     body.append(h('div', { class: 'col mt' }, status,
       h('div', { class: 'formgrid' }, field('Model', model, 'Models available to your Copilot plan'), field('Reasoning effort', effort)),
       h('div', { class: 'row' }, login, switchAcct, tok, useTok),
-      h('p', { class: 'tiny muted' }, 'Uses your GitHub Copilot seat (Free, Pro, Pro+, Business or Enterprise). Business/Enterprise admins may need to allow MCP servers and the models you pick. Tokens are kept in memory only.')));
+      h('p', { class: 'tiny muted' }, 'Uses your GitHub Copilot seat (Free, Pro, Pro+, Business or Enterprise). The sign-in job shows the GitHub device code and opens github.com/login/device; the code is copied to the clipboard when GitHub CLI supports it. Business/Enterprise admins may need to allow MCP servers and the models you pick. Tokens are kept in memory only.')));
   } else if (d.id === 'openrouter') {
     const saved = store.settings?.provider?.hasApiKey && cur.id === 'openrouter';
     const key = input({ type: 'password', placeholder: saved ? '•••••••• (saved in memory)' : 'sk-or-…' });
