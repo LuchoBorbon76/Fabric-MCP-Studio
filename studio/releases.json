@@ -163,6 +163,6 @@
     { "date": "2026-10-11", "type": "fix", "commit": "7ef8510", "title": "The AI Assistant no longer tries nested agents or GitHub MCP code search for Studio tasks, and semantic-model best-practice reviews now use a dedicated Studio/Fabric review tool" },
     { "date": "2026-10-12", "type": "fix", "commit": "514305c", "title": "External sharing package and app text no longer include personal author, email, local clone or personal GitHub account references, and installer builds require an explicit share-safe repository URL" },
     { "date": "2026-10-12", "type": "fix", "commit": "76b8e22", "title": "Author attribution restored as Created by Luis Fernando Borbon with luisbor@microsoft.com while keeping tenant, local path and personal repository details out of the shareable package" },
-    { "date": "2026-10-12", "type": "improvement", "commit": "pending", "title": "GitHub Copilot and OpenRouter are now available AI providers for all users, not only developer mode, alongside Azure AI Foundry, OpenAI, Anthropic and local models" }
+    { "date": "2026-10-12", "type": "improvement", "commit": "75a0b37", "title": "GitHub Copilot and OpenRouter are now available AI providers for all users, not only developer mode, alongside Azure AI Foundry, OpenAI, Anthropic and local models" }
   ]
 }
