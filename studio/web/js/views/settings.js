@@ -224,8 +224,27 @@ function providerCard() {
         anchor.after(box);
       }
       const render = (x) => { box.innerHTML = ''; box.append(app.jobCard(x)); };
-      render(j);
-      const off = on('job', (e) => { if (e.job.id !== j.id) return; render(e.job); if (e.job.status !== 'running') { off(); redraw(); } });
+      let done = false;
+      let timer = null;
+      const finish = (x) => {
+        if (!box.isConnected) { clearInterval(timer); return; }
+        render(x);
+        if (x.status === 'running') return;
+        if (done) return;
+        done = true;
+        clearInterval(timer);
+        off?.();
+        redraw();
+      };
+      const off = on('job', (e) => { if (e.job.id === j.id) finish(e.job); });
+      timer = setInterval(async () => {
+        try {
+          const latest = await get(`/jobs/${j.id}`);
+          store.jobs.set(j.id, latest);
+          finish(latest);
+        } catch { /* SSE/reconnect will handle it */ }
+      }, 3000);
+      finish(j);
     };
     const login = h('button', { class: 'btn', 'data-busy': 'Starting…' }, 'Sign in with GitHub CLI');
     login.addEventListener('click', busy(login, async () => {

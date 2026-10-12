@@ -199,6 +199,14 @@ export async function copilotStatus() {
 }
 
 const NOT_SIGNED_IN = 'GitHub Copilot isn\'t signed in. Open Settings › AI provider and select "Sign in with GitHub CLI" (or paste a token), or choose another AI provider.';
+const timeoutError = (message, status = 408) => Object.assign(new Error(message), { status });
+function withTimeout(promise, ms, message) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => { timer = setTimeout(() => reject(timeoutError(message)), ms); }),
+  ]).finally(() => clearTimeout(timer));
+}
 
 /** Fail early with a clear message instead of the runtime's "Session was not created with authentication info". */
 async function assertCopilotSignedIn() {
@@ -1423,22 +1431,23 @@ export async function deleteChat(chatId) {
 
 /** Quick connectivity test for the selected provider (no tools). */
 export async function testProvider() {
-  const c = await getClient();
-  if (getSettings().provider.id === 'openrouter') await listOpenRouterModels().catch(() => null);
+  const c = await withTimeout(getClient(), 60000, 'The AI provider sign-in/configuration check timed out. Save the provider settings and try Test again.');
+  if (getSettings().provider.id === 'openrouter') await withTimeout(listOpenRouterModels().catch(() => null), 30000, 'OpenRouter model discovery timed out. Check the network connection or API key, then try Test again.');
   const prov = providerConfig();
   const started = Date.now();
-  const session = await c.createSession({
-    ...prov, clientName: 'fabric-mcp-studio', availableTools: [],
-    onPermissionRequest: async () => ({ kind: 'approved' }),
-    systemMessage: { mode: 'append', content: 'Reply with exactly: OK' },
-    infiniteSessions: { enabled: false },
-  });
+  let session = null;
   try {
+    session = await withTimeout(c.createSession({
+      ...prov, clientName: 'fabric-mcp-studio', availableTools: [],
+      onPermissionRequest: async () => ({ kind: 'approved' }),
+      systemMessage: { mode: 'append', content: 'Reply with exactly: OK' },
+      infiniteSessions: { enabled: false },
+    }), 60000, 'The AI provider did not finish opening a test session. Check the provider credentials/model and try again.');
     const r = await session.sendAndWait({ prompt: 'Health check. Reply with exactly OK.' }, 90000);
     return { ok: true, reply: String(r?.data?.content || '').slice(0, 80), ms: Date.now() - started, ...providerSummary() };
   } catch (e) {
-    throw Object.assign(new Error(friendlyProviderError(e.message)), { status: 400 });
+    throw Object.assign(new Error(friendlyProviderError(e.message)), { status: e.status || 400 });
   } finally {
-    try { await session.disconnect(); } catch { /* ignore */ }
+    if (session) try { await withTimeout(session.disconnect(), 5000, 'Timed out disconnecting the test session.'); } catch { /* ignore */ }
   }
 }

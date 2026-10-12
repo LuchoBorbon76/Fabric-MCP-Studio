@@ -254,11 +254,18 @@ function githubDeviceCode(text) {
     || [])[1] || '';
 }
 
+async function ghCliToken() {
+  const token = await runGh(['auth', 'token', '--hostname', 'github.com'], null, { log: false });
+  return token.code === 0 ? token.lines.join('').trim() : '';
+}
+
 async function ghTokenAvailable() {
+  // The token is the real completion signal. Some GitHub CLI/browser flows leave the login process open or make
+  // `gh auth status --json` lag even after the device code was accepted, so don't gate on status parsing.
+  if (await ghCliToken()) return true;
   const status = await runGh(['auth', 'status', '--hostname', 'github.com', '--active', '--json', 'hosts'], null, { log: false });
   if (status.code !== 0 || !activeGhLogin(status.lines)) return false;
-  const token = await runGh(['auth', 'token', '--hostname', 'github.com'], null, { log: false });
-  return token.code === 0 && Boolean(token.lines.join('').trim());
+  return Boolean(await ghCliToken());
 }
 
 function runGhBrowserLogin(ctx, label = 'GitHub sign-in') {
@@ -293,7 +300,7 @@ function runGhBrowserLogin(ctx, label = 'GitHub sign-in') {
       const waited = Math.floor((Date.now() - started) / 1000);
       ctx.progress(Math.min(82, 45 + Math.floor(waited / 12)));
       if (waited && waited % 60 === 0) ctx.log(`Still waiting for GitHub browser sign-in (${Math.floor(waited / 60)} minute${waited >= 120 ? 's' : ''})…`);
-      if ((codeShown || urlOpened) && !pollingToken) {
+      if ((codeShown || urlOpened || waited >= 5) && !pollingToken) {
         pollingToken = true;
         ghTokenAvailable()
           .then((ok) => {
@@ -337,7 +344,11 @@ function runGhBrowserLogin(ctx, label = 'GitHub sign-in') {
     child.stdout.on('data', onData); child.stderr.on('data', onData);
     child.stdin.end('\n');
     child.on('error', () => finish(reject, new Error('GitHub CLI (gh) not found. Install it from https://cli.github.com or paste a token in Settings.')));
-    child.on('exit', (exitCode) => finish(resolveP, { code: exitCode, lines }));
+    child.on('exit', (exitCode) => {
+      ghTokenAvailable()
+        .then((ok) => finish(resolveP, { code: ok ? 0 : exitCode, lines: ok ? [...lines, 'GitHub CLI token detected after browser sign-in.'] : lines }))
+        .catch(() => finish(resolveP, { code: exitCode, lines }));
+    });
   });
 }
 
@@ -352,9 +363,8 @@ function activeGhLogin(lines) {
 }
 
 async function loadCopilotFromGh(ctx) {
-  const token = await runGh(['auth', 'token', '--hostname', 'github.com'], ctx, { log: false });
-  const value = token.lines.join('').trim();
-  if (token.code !== 0 || !value) throw new Error('GitHub CLI is signed in, but it could not return a token. Use Switch GitHub account, or paste a token in Settings.');
+  const value = await ghCliToken();
+  if (!value) throw new Error('GitHub CLI is signed in, but it could not return a token. Use Switch GitHub account, or paste a token in Settings.');
   await A.setGitHubToken(value);
   return A.copilotStatus();
 }
@@ -364,8 +374,7 @@ const runningGitHubLogin = () => listJobs().find((j) => j.kind === 'github-login
 async function copilotStatusWithGh(ctx = null) {
   const s = await A.copilotStatus();
   if (s.isAuthenticated || getSettings().provider.id !== 'github') return s;
-  const current = await runGh(['auth', 'status', '--hostname', 'github.com', '--active', '--json', 'hosts'], ctx, { log: false });
-  if (current.code !== 0 || !activeGhLogin(current.lines)) return s;
+  if (!(await ghTokenAvailable().catch(() => false))) return s;
   try { return await loadCopilotFromGh(ctx || { log: () => {} }); } catch { return s; }
 }
 route('POST', '/api/copilot/login', () => runningGitHubLogin() || startJob('github-login', 'Sign in to GitHub', async (ctx) => {
