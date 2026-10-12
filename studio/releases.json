@@ -171,6 +171,6 @@
     { "date": "2026-10-12", "type": "improvement", "commit": "6426a75", "title": "WAF Review scores the selected Fabric landing zone across Well-Architected pillars with evidence-backed recommendations, guided/admin fix paths and HTML/Markdown export" },
     { "date": "2026-10-12", "type": "fix", "commit": "e573f40", "title": "WAF Review pillar scorecards now align in a balanced responsive grid without overlapping or staggered card offsets" },
     { "date": "2026-10-12", "type": "fix", "commit": "d0c8ee2", "title": "WAF Review sections now have explicit vertical spacing so scorecards, recommendations, domain scores and inventory panels do not visually overlap" },
-    { "date": "2026-10-12", "type": "fix", "commit": "pending", "title": "GitHub Copilot sign-in now finishes when the GitHub CLI token appears even if the browser auth process keeps running, and provider tests have bounded timeouts" }
+    { "date": "2026-10-12", "type": "fix", "commit": "c62364c", "title": "GitHub Copilot sign-in now finishes when the GitHub CLI token appears even if the browser auth process keeps running, and provider tests have bounded timeouts" }
   ]
 }
