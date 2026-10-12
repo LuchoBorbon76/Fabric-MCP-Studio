@@ -280,7 +280,7 @@ function providerConfig() {
         ...(s.reasoningEffort && meta?.reasoning !== false ? { reasoningEffort: s.reasoningEffort } : {}),
         provider: {
           type: 'openai', baseUrl: OPENROUTER_API, apiKey, modelId: known, wireModel: id,
-          headers: { 'HTTP-Referer': 'https://github.com/luisbor_microsoft/Fabric-MCP-Studio', 'X-Title': 'Fabric MCP Studio' },
+          headers: { 'HTTP-Referer': 'https://fabric-mcp-studio.local', 'X-Title': 'Fabric MCP Studio' },
           ...(promptTokens ? { maxPromptTokens: promptTokens } : {}),
           ...(outTokens ? { maxOutputTokens: outTokens } : {}),
         },

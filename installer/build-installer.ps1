@@ -3,13 +3,14 @@
     Builds the shareable installer zip (Fabric-MCP-Studio-Installer.zip) for this repository.
 
 .DESCRIPTION
-    Copies the installer files, writes files\installer.config.json with the repository to install from (by default the
-    URL this clone fetches from), the branch and the Node.js version the app needs (from studio\package.json), fills
-    in README.txt, and zips it. Share the zip: whoever runs it gets the app straight from the repository (they need
-    read access to it when it is private).
+    Copies the installer files, writes files\installer.config.json with the repository to install from, the branch and
+    the Node.js version the app needs (from studio\package.json), fills in README.txt, and zips it. Share the zip:
+    whoever runs it gets the app straight from the repository (they need read access to it when it is private).
 
 .PARAMETER RepoUrl
-    Repository the installer downloads from. Default: the fetch URL of "origin" (credentials removed).
+    Repository the installer downloads from. Required unless installer\files\installer.config.json already contains a
+    share-safe repoUrl. The builder intentionally does not read the local git origin because that can leak a personal
+    account in a shareable installer.
 .PARAMETER Branch
     Branch to install. Default: main.
 .PARAMETER InstallDir
@@ -18,7 +19,7 @@
     Where the zip goes. Default: dist\ in the repository (git-ignored).
 
 .EXAMPLE
-    .\installer\build-installer.ps1
+    .\installer\build-installer.ps1 -RepoUrl https://github.com/contoso/Fabric-MCP-Studio.git
 .EXAMPLE
     .\installer\build-installer.ps1 -RepoUrl https://github.com/contoso/Fabric-MCP-Studio.git -OutDir $HOME\Desktop
 #>
@@ -36,13 +37,6 @@ $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 if (-not $OutDir) { $OutDir = Join-Path $repo 'dist' }
 
-if (-not $RepoUrl) {
-    $RepoUrl = (& git -C $repo remote get-url origin 2>$null)
-    if (-not $RepoUrl) { throw 'This clone has no "origin" remote. Pass -RepoUrl.' }
-}
-# Never ship credentials that may be part of the remote URL.
-$RepoUrl = ([string]$RepoUrl).Trim() -replace '^(https?://)[^@/]+@', '$1'
-
 $pkg = Get-Content -LiteralPath (Join-Path $repo 'studio\package.json') -Raw | ConvertFrom-Json
 $version = $pkg.version
 $minNode = '20.19.0'
@@ -55,6 +49,17 @@ New-Item -ItemType Directory -Path (Join-Path $root 'files') -Force | Out-Null
 $crlf = { param($text) ($text -replace "`r?`n", "`r`n") }
 $utf8 = New-Object System.Text.UTF8Encoding($false)
 $utf8Bom = New-Object System.Text.UTF8Encoding($true)
+$configPath = Join-Path $PSScriptRoot 'files\installer.config.json'
+$config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+
+if (-not $RepoUrl) {
+    $RepoUrl = [string]$config.repoUrl
+    if (-not $RepoUrl) {
+        throw 'Pass -RepoUrl with the organization-owned repository URL to put in the shareable installer. The builder no longer reads git origin automatically because that can expose a personal account.'
+    }
+}
+# Never ship credentials that may be part of the repository URL.
+$RepoUrl = ([string]$RepoUrl).Trim() -replace '^(https?://)[^@/]+@', '$1'
 
 # Double-click files (CRLF for cmd.exe).
 foreach ($f in Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.cmd') {
@@ -66,7 +71,6 @@ $ps1 = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'files\Install-FabricMCPS
 [IO.File]::WriteAllText((Join-Path $root 'files\Install-FabricMCPStudio.ps1'), (& $crlf $ps1), $utf8Bom)
 
 # Its settings.
-$config = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'files\installer.config.json') -Raw | ConvertFrom-Json
 $config.repoUrl = $RepoUrl
 $config.branch = $Branch
 $config.installDir = $InstallDir

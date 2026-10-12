@@ -36,7 +36,7 @@ Parts stay greyed out until they are configured and light up as you build; selec
 For customers, partners or anyone who should not work from a Git clone, share the **Windows installer zip**:
 
 ```powershell
-.\installer\build-installer.ps1
+.\installer\build-installer.ps1 -RepoUrl https://github.com/<your-org>/Fabric-MCP-Studio.git
 ```
 
 This creates `dist\Fabric-MCP-Studio-Installer.zip`. The external user:
@@ -63,7 +63,7 @@ read, or run the installer with `-GitHubToken` for controlled unattended install
 Developers can still run from source:
 
 ```powershell
-git clone https://github.com/luisbor_microsoft/Fabric-MCP-Studio.git
+git clone https://github.com/<your-org>/Fabric-MCP-Studio.git
 cd Fabric-MCP-Studio
 .\Start-Studio.cmd            # Windows  (macOS/Linux: ./studio/start-studio.sh)
 .\scripts\create-shortcut.ps1 # optional: "Fabric MCP Studio" desktop icon, runs in the background (-StartMenu adds it to the Start menu)
@@ -133,7 +133,7 @@ scripts/               setup, prereq-check, deploy-fabric, deploy-ontology, rese
 | `deploy-ontology.ps1` | Deploy `ontology/<domain>` TMDL as a Fabric Ontology item |
 | `install-teams-agent.ps1` | Install/publish/uninstall the Microsoft 365 Copilot agent in any tenant |
 | `create-shortcut.ps1` | Desktop (and optional Start menu) shortcut that starts Fabric MCP Studio without a console window; `-ShowConsole` for a minimized console, `-Remove` to delete it |
-| `../installer/build-installer.ps1` | Build the shareable installer zip (repository from `origin`, or `-RepoUrl`; `-Branch`, `-OutDir`) |
+| `../installer/build-installer.ps1` | Build the shareable installer zip. Pass `-RepoUrl` with the organization-owned repository URL so the zip does not include a personal clone URL; supports `-Branch`, `-OutDir` |
 | `reset.ps1` | Delete what the scripts created |
 
 All scripts run on Windows PowerShell 5.1 and PowerShell 7.
@@ -147,9 +147,9 @@ All scripts run on Windows PowerShell 5.1 and PowerShell 7.
 
 ## Disclaimer
 
-Fabric MCP Studio and this kit are a **sample**, created by Luis Fernando Borbon for demos, learning and proofs of
-concept. They aren't an official Microsoft product or service, aren't supported by Microsoft Support and aren't
-covered by any Microsoft service-level agreement. They're provided **as is, without warranty of any kind**.
+Fabric MCP Studio and this kit are a **sample** for demos, learning and proofs of concept. They aren't an official
+Microsoft product or service, aren't supported by Microsoft Support and aren't covered by any Microsoft service-level
+agreement. They're provided **as is, without warranty of any kind**.
 
 - The studio acts in Microsoft Fabric and Power BI with the user's own sign-in and permissions, and asks before every
   change. Everything it creates lives in the user's tenant, runs on their Fabric capacity and may incur costs; the

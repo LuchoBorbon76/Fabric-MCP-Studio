@@ -9,12 +9,12 @@ export const DISCLAIMER_VERSION = 1;
 function disclaimerBody() {
   const li = (...kids) => h('li', {}, ...kids);
   return h('div', { class: 'disc' },
-    h('p', { style: { margin: 0 } }, h('b', {}, 'Fabric MCP Studio is a sample app'), ', created by Luis Fernando Borbon for demos, learning and proofs of concept.'),
+    h('p', { style: { margin: 0 } }, h('b', {}, 'Fabric MCP Studio is a sample app'), ' for demos, learning and proofs of concept.'),
     h('h3', {}, 'Not a Microsoft product'),
     h('ul', {},
       li('It isn\'t an official Microsoft product or service, isn\'t supported by Microsoft Support and isn\'t covered by any Microsoft service-level agreement.'),
       li('It\'s provided ', h('b', {}, 'as is, without warranty of any kind'), ', express or implied. Try it in a test workspace before using it with production workspaces or data.'),
-      li('Questions and feedback: ', h('a', { href: 'mailto:luisbor@microsoft.com' }, 'luisbor@microsoft.com'), ' – best effort, no support commitment.')),
+      li('Questions and feedback should go through the app owner or repository your organization used to share this sample.')),
     h('h3', {}, 'What it does in your tenant'),
     h('ul', {},
       li('It runs on your computer and acts in Microsoft Fabric and Power BI with ', h('b', {}, 'your own sign-in and permissions'), '. It asks before every change.'),
