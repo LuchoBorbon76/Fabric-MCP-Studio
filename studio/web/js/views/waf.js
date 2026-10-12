@@ -87,7 +87,7 @@ function recommendationCard(f, i) {
 }
 
 function recommendations(s) {
-  return h('div', { class: 'card' },
+  return h('div', { class: 'card waf-recommendations' },
     h('div', { class: 'row sp actiontitle' },
       h('div', {}, h('h2', {}, 'What to fix first'), h('p', { class: 'lead' }, 'Findings are evidence-backed and marked as guided, manual or admin fixes. Use the buttons to jump to the right place when the Studio can help.')),
       h('span', { class: 'pill' }, `${s.recommendations.length} recommendation${s.recommendations.length === 1 ? '' : 's'}`)),
@@ -95,7 +95,7 @@ function recommendations(s) {
 }
 
 function domains(s) {
-  return h('div', { class: 'card' },
+  return h('div', { class: 'card waf-domain-card' },
     h('h2', {}, 'Control domains'),
     h('p', { class: 'lead' }, 'Fabric-specific surfaces behind the WAF score: tenant settings, workspaces, domains, roles, capacity/costs, security, monitoring, reliability, performance and artifacts.'),
     table([
@@ -107,7 +107,7 @@ function domains(s) {
 }
 
 function inventory(s) {
-  return h('div', { class: 'grid g2' },
+  return h('div', { class: 'grid g2 waf-inventory' },
     h('div', { class: 'card' },
       h('h2', {}, 'Inventory summary'),
       h('dl', { class: 'kv' },

@@ -169,6 +169,7 @@
     { "date": "2026-10-12", "type": "fix", "commit": "8b60d65", "title": "GitHub sign-in jobs now complete as soon as the GitHub CLI token is available, even if the hidden browser sign-in process keeps running after the device code is entered" },
     { "date": "2026-10-12", "type": "fix", "commit": "2668e70", "title": "Star-schema design now has a safe relationship profiling tool and guidance that avoids SQL Server aggregate/subquery errors from EXISTS checks inside SUM or COUNT" },
     { "date": "2026-10-12", "type": "improvement", "commit": "6426a75", "title": "WAF Review scores the selected Fabric landing zone across Well-Architected pillars with evidence-backed recommendations, guided/admin fix paths and HTML/Markdown export" },
-    { "date": "2026-10-12", "type": "fix", "commit": "e573f40", "title": "WAF Review pillar scorecards now align in a balanced responsive grid without overlapping or staggered card offsets" }
+    { "date": "2026-10-12", "type": "fix", "commit": "e573f40", "title": "WAF Review pillar scorecards now align in a balanced responsive grid without overlapping or staggered card offsets" },
+    { "date": "2026-10-12", "type": "fix", "commit": "pending", "title": "WAF Review sections now have explicit vertical spacing so scorecards, recommendations, domain scores and inventory panels do not visually overlap" }
   ]
 }

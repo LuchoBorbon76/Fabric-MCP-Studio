@@ -78,6 +78,9 @@ header.top p.subchips{display:flex;gap:6px;align-items:center;flex-wrap:wrap;opa
 .waf-pillars{grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch}
 .waf-pillars>.card{display:flex;flex-direction:column}
 .waf-pillars>.card .rbar{margin-top:auto}
+#view-waf>.waf-pillars{margin-bottom:28px}
+#view-waf>.waf-recommendations+.waf-domain-card{margin-top:28px}
+#view-waf>.waf-inventory{margin-top:28px}
 @media(min-width:1600px){.waf-pillars{grid-template-columns:repeat(5,minmax(0,1fr))}}
 @media(max-width:1050px){.waf-pillars{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:680px){.waf-pillars{grid-template-columns:1fr}}
