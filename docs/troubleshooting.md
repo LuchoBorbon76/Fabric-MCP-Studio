@@ -14,7 +14,7 @@
 | Fabric IQ: 404/not available | Region or private link | Use `https://api.fabric.microsoft.com/v1/mcp/fabriciq` with private links; not available in Power BI-only regions or sovereign clouds |
 | Ontology MCP 403 / not found | Wrong IDs, trial capacity, or preview not enabled | Check IDs in the ontology URL; paid F2+/P1+ capacity; ontology tenant setting |
 | Agent tries to ask the ontology questions | `ask_ontology` enabled in the client | Ontology questions are turned off in this kit for now (the preview agent returned *No answer received from the agent* in testing). Keep only `list_ontology_entities` and `list_ontology_rules`; use Fabric IQ for numbers |
-| *fetch failed*, or *The connection to api.fabric.microsoft.com dropped … not your access* | The network connection to Fabric or Power BI dropped (Wi-Fi, VPN, proxy) – not a permission problem | The studio already tries reads again a few times; try again in a moment, and check the VPN or proxy if it keeps happening |
+| *fetch failed*, *The connection to … dropped … not your access*, or `SELF_SIGNED_CERT_IN_CHAIN` / `UNABLE_TO_VERIFY_LEAF_SIGNATURE` | Either the network connection dropped (Wi-Fi, VPN, proxy), or HTTPS is being inspected by a proxy whose root certificate Node.js does not trust | Retry first. If a TLS certificate code appears, ask IT for the corporate root certificate in PEM format and start the studio with `NODE_EXTRA_CA_CERTS=<path-to-cert.pem>`. Temporary demo-only fallback: start with `NODE_TLS_REJECT_UNAUTHORIZED=0` |
 
 ## AdventureWorksDW2022 sample (Fabric SQL database)
 

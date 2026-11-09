@@ -179,6 +179,7 @@ export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // A dropped or refused connection (Wi-Fi, VPN, proxy, a service resetting the connection) – not an answer from the service.
 const NET_CODES = new Set(['ECONNRESET', 'ETIMEDOUT', 'ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'EPIPE', 'ENETUNREACH', 'EHOSTUNREACH', 'ENETDOWN',
   'UND_ERR_SOCKET', 'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_HEADERS_TIMEOUT', 'UND_ERR_BODY_TIMEOUT', 'UND_ERR_CLOSED']);
+const CERT_CODES = new Set(['SELF_SIGNED_CERT_IN_CHAIN', 'DEPTH_ZERO_SELF_SIGNED_CERT', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY']);
 // The request never left this computer, so any call can be sent again without doing anything twice.
 const NOT_SENT = new Set(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'ENETUNREACH', 'EHOSTUNREACH', 'ENETDOWN', 'UND_ERR_CONNECT_TIMEOUT']);
 const netCode = (e) => e?.cause?.code || e?.code || '';
@@ -196,11 +197,16 @@ export async function netFetch(url, init = {}, { tries = 4, repeatable = false }
       return await fetch(url, init);
     } catch (e) {
       if (init.signal?.aborted || !isNetworkError(e)) throw e;
-      const again = repeatable || method === 'GET' || method === 'HEAD' || NOT_SENT.has(netCode(e));
+      const code = netCode(e);
+      if (CERT_CODES.has(code)) {
+        let host = 'the service';
+        try { host = new URL(url).host; } catch { /* keep the generic name */ }
+        throw Object.assign(new Error(`TLS certificate validation failed for ${host} (${code}). A proxy or security gateway is replacing HTTPS certificates with one this Node.js runtime does not trust. Ask IT for the corporate root certificate (PEM) and start the studio with NODE_EXTRA_CA_CERTS=<path-to-cert.pem>, then retry. Temporary demo-only fallback: start with NODE_TLS_REJECT_UNAUTHORIZED=0.`), { code: 'NETWORK', status: 503, cause: e });
+      }
+      const again = repeatable || method === 'GET' || method === 'HEAD' || NOT_SENT.has(code);
       if (!again || attempt >= tries) {
         let host = 'the service';
         try { host = new URL(url).host; } catch { /* keep the generic name */ }
-        const code = netCode(e);
         throw Object.assign(new Error(`The connection to ${host} dropped${code ? ` (${code})` : ''}${attempt > 1 ? ` ${attempt} times` : ''} – a network, VPN or proxy problem, not your access. Try again in a moment.`), { code: 'NETWORK', status: 503, cause: e });
       }
       await sleep(Math.min(8, 2 ** attempt) * 1000);

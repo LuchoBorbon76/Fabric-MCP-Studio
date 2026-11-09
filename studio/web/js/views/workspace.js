@@ -10,7 +10,8 @@ let wsPurpose = 'Analytics';
 let caps = null;
 let workspaces = null;
 let filter = '';
-on('studio.reset', () => { caps = null; workspaces = null; });
+let showTaskFlow = false;
+on('studio.reset', () => { caps = null; workspaces = null; showTaskFlow = false; });
 
 export function renderWorkspace(el) {
   const p = store.project || {};
@@ -18,7 +19,7 @@ export function renderWorkspace(el) {
   // The naming standard comes first: a new workspace's name depends on it.
   const nc = namingCard({ compact: true });
   if (nc) el.append(nc);
-  if (p.workspace) el.append(taskFlowCard());
+  if (p.workspace) el.append(taskFlowSection(p));
 
   const body = h('div');
   const card = h('div', { class: 'card' },
@@ -29,6 +30,33 @@ export function renderWorkspace(el) {
 
   const draw = () => { body.innerHTML = ''; body.append(mode === 'new' ? newForm() : existingList()); };
   draw();
+}
+
+function taskFlowSection(p) {
+  const slot = h('div');
+  if (p.taskFlow && !showTaskFlow) showTaskFlow = true;
+
+  const draw = () => {
+    slot.innerHTML = '';
+    if (!showTaskFlow) {
+      slot.append(h('div', { class: 'card', style: { marginBottom: '14px' } },
+        h('div', { class: 'row sp' },
+          h('div', {},
+            h('h2', {}, 'Task flow (optional)'),
+            h('p', { class: 'lead' }, 'Keep the workspace blank if you prefer. Turn this on only when you want the studio to organize items into Fabric tasks.')),
+          h('button', { class: 'btn ghost', onclick: () => { showTaskFlow = true; draw(); } }, 'Show task flow'))));
+      return;
+    }
+
+    slot.append(
+      h('div', { class: 'row', style: { justifyContent: 'flex-end', margin: '0 0 8px' } },
+        h('button', { class: 'btn ghost', onclick: () => { showTaskFlow = false; draw(); } }, 'Hide task flow')),
+      taskFlowCard(),
+    );
+  };
+
+  draw();
+  return slot;
 }
 
 function currentCard(p) {
