@@ -48,6 +48,12 @@ settings (studio\data). If the app is running, the installer closes it first and
 the update fails). A copy installed from the zip (without Git) switches to Git updates once Git is installed.
 Inside the app, "Restart now" appears when a newer version is on disk.
 
+Power users can also update from the installed app folder with one command:
+  .\Update-Studio.cmd
+
+If your company uses HTTPS inspection with a corporate certificate:
+  .\Update-Studio.cmd -CertPath C:\Certs\CorpRootCA.pem
+
 
 UNINSTALL
 ---------

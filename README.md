@@ -70,6 +70,18 @@ cd Fabric-MCP-Studio
 .\scripts\create-shortcut.ps1 # optional: "Fabric MCP Studio" desktop icon, runs in the background (-StartMenu adds it to the Start menu)
 ```
 
+To update an existing local copy and start the new version in one step (Windows):
+
+```powershell
+.\Update-Studio.cmd
+```
+
+Corporate TLS proxy/certificate environments:
+
+```powershell
+.\Update-Studio.cmd -CertPath C:\Certs\CorpRootCA.pem
+```
+
 Requirements: Node.js 20.19+, a Microsoft Entra work account with Fabric access, and one AI provider.
 Details: [studio/README.md](studio/README.md) · Step-by-step: [docs/walkthrough.md](docs/walkthrough.md).
 
@@ -134,6 +146,7 @@ scripts/               setup, prereq-check, deploy-fabric, deploy-ontology, rese
 | `deploy-ontology.ps1` | Deploy `ontology/<domain>` TMDL as a Fabric Ontology item |
 | `install-teams-agent.ps1` | Install/publish/uninstall the Microsoft 365 Copilot agent in any tenant |
 | `create-shortcut.ps1` | Desktop (and optional Start menu) shortcut that starts Fabric MCP Studio without a console window; `-ShowConsole` for a minimized console, `-Remove` to delete it |
+| `update-studio.ps1` | Pull latest code, run `npm ci`, apply optional enterprise TLS cert settings, and start the app (`Update-Studio.cmd` wrapper) |
 | `../installer/build-installer.ps1` | Build the shareable installer zip. Pass `-RepoUrl` with the organization-owned repository URL so the zip does not include a personal clone URL; supports `-Branch`, `-OutDir` |
 | `reset.ps1` | Delete what the scripts created |
 
