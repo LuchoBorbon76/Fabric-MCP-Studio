@@ -70,6 +70,11 @@ foreach ($f in Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.cmd') {
 $ps1 = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'files\Install-FabricMCPStudio.ps1'))
 [IO.File]::WriteAllText((Join-Path $root 'files\Install-FabricMCPStudio.ps1'), (& $crlf $ps1), $utf8Bom)
 
+# Optional helper cmd files in installer\files (CRLF for cmd.exe).
+foreach ($f in Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'files') -Filter '*.cmd' -File -ErrorAction SilentlyContinue) {
+    [IO.File]::WriteAllText((Join-Path $root "files\$($f.Name)"), (& $crlf ([IO.File]::ReadAllText($f.FullName))), [Text.Encoding]::ASCII)
+}
+
 # Its settings.
 $config.repoUrl = $RepoUrl
 $config.branch = $Branch
