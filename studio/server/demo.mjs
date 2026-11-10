@@ -88,6 +88,62 @@ const waf = {
   fixSummary: { auto: 0, guided: 2, manual: 0, admin: 0 },
 };
 
+const governance = {
+  at: new Date().toISOString(),
+  scope: waf.scope,
+  overallScore: 84,
+  overallLabel: 'Good',
+  domains: [
+    ['Tenant settings', 88, 'No material findings'],
+    ['Workspaces', 82, 'Task flow is not applied'],
+    ['Domains', 78, 'Workspace-to-domain assignment should be reviewed'],
+    ['Roles & access', 86, 'Service principals should be documented'],
+    ['Capacity & costs', 84, 'Capacity underutilization review recommended'],
+    ['Security', 84, 'Reports are not packaged in an org app'],
+    ['Monitoring', 78, 'No Activator alerts are configured'],
+    ['Reliability', 80, 'No task flow is applied'],
+    ['Performance', 81, 'Semantic model quality should be reviewed'],
+    ['OneLake catalog', 86, 'Data-product metadata is partially complete'],
+  ].map(([label, score, topFinding]) => ({ id: label.toLowerCase().replace(/[^a-z]+/g, '-'), label, focus: 'Demo focus', score, status: score >= 75 ? 'Good' : 'Needs attention', findings: 1, topFinding })),
+  findings: [],
+  recommendations: [
+    { id: 'demo-catalog-coverage', pillar: 'operations', pillarLabel: 'Operational Excellence', domain: 'catalog', domainLabel: 'OneLake catalog', severity: 'medium', severityLabel: 'Medium', title: 'Data-product metadata is partially complete', detail: 'Some OneLake data products still lack meaningful descriptions.', recommendation: 'Add descriptions to every production lakehouse and warehouse.', evidence: ['Described data products: 2/3 (67%)'], fixType: 'manual', fixLabel: '', fixTarget: null },
+    { id: 'demo-domain-map', pillar: 'operations', pillarLabel: 'Operational Excellence', domain: 'domains', domainLabel: 'Domains', severity: 'low', severityLabel: 'Low', title: 'Workspace-to-domain assignment should be reviewed', detail: 'Domain ownership is visible but should be explicitly validated.', recommendation: 'Confirm the workspace is assigned to the right business domain owners.', evidence: ['Domains visible: 1', 'Workspace assignments found: 1'], fixType: 'admin', fixLabel: 'Open OneLake catalog', fixLink: 'https://app.fabric.microsoft.com/explore', fixTarget: null },
+  ],
+  inventory: {
+    workspaceItems: 5,
+    itemTypes: [{ type: 'Lakehouse', count: 1 }, { type: 'SemanticModel', count: 1 }, { type: 'Report', count: 1 }],
+    itemExplorer: [
+      { id: MODEL.sourceItemId, name: 'Demo_LH_Sales_DEV', type: 'Lakehouse', owner: 'demo.user@contoso.com', location: WS.name, refreshedAt: new Date(Date.now() - 1000 * 60 * 18).toISOString(), description: 'Curated sales lakehouse for executive reporting.' },
+      { id: MODEL.id, name: MODEL.name, type: 'SemanticModel', owner: 'demo.user@contoso.com', location: WS.name, refreshedAt: new Date(Date.now() - 1000 * 60 * 32).toISOString(), description: 'Direct Lake semantic model over the curated sales lakehouse.' },
+      { id: '77777777-7777-4777-8777-777777777777', name: 'Demo_RPT_Executive_DEV', type: 'Report', owner: 'finance.analyst@contoso.com', location: WS.name, refreshedAt: new Date(Date.now() - 1000 * 60 * 52).toISOString(), description: 'Executive KPI report for daily sales tracking.' },
+      { id: '88888888-8888-4888-8888-888888888888', name: 'Demo_DWH_Sales_DEV', type: 'Warehouse', owner: 'data.engineer@contoso.com', location: WS.name, refreshedAt: new Date(Date.now() - 1000 * 60 * 110).toISOString(), description: 'Warehouse serving conformed sales marts and SQL consumers.' },
+      { id: '99999999-9999-4999-8999-999999999999', name: 'Demo_Notebook_Profile_DEV', type: 'Notebook', owner: 'ml.engineer@contoso.com', location: WS.name, refreshedAt: new Date(Date.now() - 1000 * 60 * 145).toISOString(), description: '' },
+    ],
+    roleAssignments: 3,
+    tenantSettingsVisible: true,
+    domainsVisible: true,
+    domains: 1,
+    workspaceDomainAssignments: 1,
+    capacityMetrics: 'ok',
+    dataProducts: 1,
+    describedDataProducts: 1,
+    catalogCoveragePct: 100,
+    describedItems: 4,
+    lakehouses: 1,
+    lakehousesSampled: 1,
+    lakehouseTables: 4,
+    lakehousesWithoutTables: 0,
+    lakehouseTableErrors: 0,
+    lakehouseTableCoverage: [{ id: MODEL.sourceItemId, name: 'Demo_LH_Sales_DEV', tables: 4, error: '' }],
+    sourceContexts: 1,
+    inactiveSourcesWithAssets: 0,
+  },
+  fixSummary: { auto: 0, guided: 0, manual: 1, admin: 1 },
+};
+
+const demoActivity = { artifacts: [], log: [{ at: new Date().toISOString(), kind: 'demo', title: 'Safe demo mode' }] };
+
 export function demoApi(method, pathname, q = new URLSearchParams()) {
   if (!['GET', 'HEAD'].includes(method)) return blocked();
   if (pathname === '/api/bootstrap') return ok({ version: VERSION, build: BUILD, update: pendingUpdate(), user, settings: publicSettings(), provider: providerSummary(), providers: visibleProviders(), project: demoProject, preset: presetSummary(demoProject), naming: null, catalog: catalog(), jobs: listJobs(), chats: [], approvals: [], realtime: { available: true, simulator: { running: false } }, planning: { available: true }, readiness, platform: process.platform, demoMode: true });
@@ -115,10 +171,35 @@ export function demoApi(method, pathname, q = new URLSearchParams()) {
   if (pathname === '/api/waf/report') return ok(q.get('format') === 'html'
     ? `<!doctype html><html><body><h1>Fabric Well-Architected Review</h1><p>Demo WAF review for ${WS.name}.</p><p>Overall score: ${waf.overallScore}/100 (${waf.overallLabel}).</p></body></html>`
     : `# Fabric Well-Architected Review\n\nDemo WAF review for ${WS.name}.\n\nOverall score: ${waf.overallScore}/100 (${waf.overallLabel}).\n`);
+  if (pathname === '/api/governance') return ok(governance);
+  if (pathname === '/api/governance/report') return ok(q.get('format') === 'html'
+    ? `<!doctype html><html><body><h1>OneLake Catalog Governance Review</h1><p>Demo governance review for ${WS.name}.</p><p>Overall score: ${governance.overallScore}/100 (${governance.overallLabel}).</p></body></html>`
+    : `# OneLake Catalog Governance Review\n\nDemo governance review for ${WS.name}.\n\nOverall score: ${governance.overallScore}/100 (${governance.overallLabel}).\n`);
   if (pathname === '/api/taskflow') return ok({ available: true, workspace: WS, templates: [{ id: 'medallion', name: 'Medallion', description: 'Demo medallion flow', tasks: 9 }], existing: [], plan: { name: 'Demo_TF_Sales_DEV', tasks: [], edges: [], unassigned: [], count: 0 }, applied: null, upToDate: false });
   if (pathname === '/api/realtime') return ok({ available: true, setup: {}, simulator: { running: false }, limits: {} });
   if (pathname === '/api/planning') return ok({ available: true, writable: true, model: MODEL, plan: null });
-  if (pathname === '/api/activity') return ok({ artifacts: [], log: [{ at: new Date().toISOString(), kind: 'demo', title: 'Safe demo mode' }] });
+  if (pathname === '/api/activity') return ok(demoActivity);
+  if (pathname === '/api/export') return ok({
+    exportedAt: new Date().toISOString(),
+    version: VERSION,
+    project: demoProject,
+    activity: demoActivity,
+    governance: {
+      at: governance.at,
+      workspace: governance.scope?.workspace?.name || null,
+      overallScore: governance.overallScore,
+      overallLabel: governance.overallLabel,
+      domains: governance.domains.map((d) => ({ domain: d.label, score: d.score, status: d.status })),
+      topRecommendations: governance.recommendations.map((f) => ({ severity: f.severityLabel, domain: f.domainLabel, title: f.title, recommendation: f.recommendation, fix: f.fixLabel || f.fixType })),
+      inventory: {
+        dataProducts: governance.inventory.dataProducts,
+        catalogCoveragePct: governance.inventory.catalogCoveragePct,
+        lakehouses: governance.inventory.lakehouses,
+        lakehouseTables: governance.inventory.lakehouseTables,
+        lakehousesWithoutTables: governance.inventory.lakehousesWithoutTables,
+      },
+    },
+  });
   if (pathname === '/api/jobs') return ok(listJobs());
   if (pathname === '/api/chats') return ok([]);
   if (pathname === '/api/approvals') return ok([]);

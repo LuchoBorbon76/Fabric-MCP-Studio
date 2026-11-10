@@ -31,6 +31,7 @@ import * as LINKS from './modellinks.mjs';
 import * as ARTS from './artifacts.mjs';
 import * as COST from './costs.mjs';
 import * as WAF from './waf.mjs';
+import * as GOV from './governance.mjs';
 import { health } from './health.mjs';
 import { presetSummary } from './presets.mjs';
 import { diagnosticsBundle } from './diagnostics.mjs';
@@ -579,7 +580,38 @@ route('GET', '/api/activity', () => getActivity());
 route('GET', '/api/costs', (_, __, q) => COST.costState({ capacityId: q.get('capacityId') || undefined }));
 route('GET', '/api/waf', (_, __, q) => WAF.wafAssessment({ refresh: q.get('refresh') === '1' }));
 route('GET', '/api/waf/report', (_, __, q) => WAF.wafReport({ format: q.get('format') || 'markdown', refresh: q.get('refresh') === '1' }));
-route('GET', '/api/export', () => ({ exportedAt: new Date().toISOString(), version: VERSION, project: getProject(), activity: getActivity() }));
+route('GET', '/api/governance', (_, __, q) => GOV.governanceAssessment({ refresh: q.get('refresh') === '1' }));
+route('GET', '/api/governance/report', (_, __, q) => GOV.governanceReport({ format: q.get('format') || 'markdown', refresh: q.get('refresh') === '1' }));
+route('GET', '/api/export', async () => {
+  let governance = null;
+  try {
+    const g = await GOV.governanceAssessment();
+    governance = {
+      at: g.at,
+      workspace: g.scope?.workspace?.name || null,
+      overallScore: g.overallScore,
+      overallLabel: g.overallLabel,
+      domains: g.domains.map((d) => ({ domain: d.label, score: d.score, status: d.status })),
+      topRecommendations: g.recommendations.slice(0, 6).map((f) => ({
+        severity: f.severityLabel,
+        domain: f.domainLabel,
+        title: f.title,
+        recommendation: f.recommendation,
+        fix: f.fixLabel || f.fixType,
+      })),
+      inventory: {
+        dataProducts: g.inventory.dataProducts,
+        catalogCoveragePct: g.inventory.catalogCoveragePct,
+        lakehouses: g.inventory.lakehouses,
+        lakehouseTables: g.inventory.lakehouseTables,
+        lakehousesWithoutTables: g.inventory.lakehousesWithoutTables,
+      },
+    };
+  } catch (e) {
+    governance = { error: e.message || String(e) };
+  }
+  return { exportedAt: new Date().toISOString(), version: VERSION, project: getProject(), activity: getActivity(), governance };
+});
 
 route('POST', '/api/shutdown', () => {
   const running = listJobs().filter((j) => j.status === 'running');

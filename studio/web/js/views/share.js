@@ -176,6 +176,6 @@ function exportCard() {
   }));
   return h('div', { class: 'card' },
     h('h2', {}, 'Export'),
-    h('p', { class: 'lead' }, 'Keep a record of what was built: project settings, created items with links, and every approved or declined change.'),
+    h('p', { class: 'lead' }, 'Keep a record of what was built: project settings, created items with links, governance scoring snapshot, and every approved or declined change.'),
     dl);
 }

@@ -1,8 +1,12 @@
 // Microsoft Entra ID tokens for Fabric, OneLake, SQL endpoints, Azure Resource Manager and Azure OpenAI.
 // Default: reuse the customer's Azure CLI sign-in (`az login`). Fallback: interactive browser sign-in.
-import { InteractiveBrowserCredential } from '@azure/identity';
+import { InteractiveBrowserCredential, useIdentityPlugin } from '@azure/identity';
+import { cachePersistencePlugin } from '@azure/identity-cache-persistence';
 import { runAz } from './azcli.mjs';
 import { getSettings } from './config.mjs';
+
+// Keep browser sign-in tokens across studio restarts so reopening the app reuses the same account.
+useIdentityPlugin(cachePersistencePlugin);
 
 export const SCOPES = {
   fabric: 'https://api.fabric.microsoft.com/.default',
@@ -63,7 +67,11 @@ export function currentIdentity() {
 function getBrowserCred() {
   if (!browserCred) {
     const tenantId = getSettings().azure.tenantId || 'organizations';
-    browserCred = new InteractiveBrowserCredential({ tenantId, redirectUri: 'http://localhost' });
+    browserCred = new InteractiveBrowserCredential({
+      tenantId,
+      redirectUri: 'http://localhost',
+      tokenCachePersistenceOptions: { enabled: true, name: 'fabric-mcp-studio' },
+    });
   }
   return browserCred;
 }

@@ -1,6 +1,6 @@
 {
   "name": "fabric-mcp-studio",
-  "version": "1.68.102",
+  "version": "1.70.104",
   "private": true,
   "description": "Fabric MCP Studio - build Fabric lakehouses, semantic models and ontologies by chatting with your own Copilot through MCP servers.",
   "type": "module",
@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@azure/identity": "^4.13.0",
+    "@azure/identity-cache-persistence": "^1.3.2",
     "@github/copilot-sdk": "1.0.16",
     "mssql": "^12.0.0",
     "pg": "^8.16.0"

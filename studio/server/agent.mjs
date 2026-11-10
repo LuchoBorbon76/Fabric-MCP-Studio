@@ -25,6 +25,7 @@ import * as MC from './modelcheck.mjs';
 import * as LINKS from './modellinks.mjs';
 import * as ARTS from './artifacts.mjs';
 import * as WAF from './waf.mjs';
+import * as GOV from './governance.mjs';
 
 export const MCP_ENDPOINTS = {
   'fabric-core': 'https://api.fabric.microsoft.com/v1/mcp/core',
@@ -127,7 +128,10 @@ if (!existsSync(CHAT_DIR)) mkdirSync(CHAT_DIR, { recursive: true });
 const STUDIO_BUILT_INS = ['ask_user', 'task_complete', 'exit_plan_mode'];
 const STUDIO_EXCLUDED_TOOLS = [
   'builtin:task', 'builtin:read_agent', 'builtin:write_agent', 'builtin:list_agents', 'builtin:skill', 'builtin:context_board',
-  'mcp:github-mcp-server-*', 'mcp:github-*',
+  // Keep Studio grounded in Fabric context: block GitHub MCP tools (exact names + common wildcard patterns).
+  'mcp:github-*', 'mcp:github-mcp-server-*',
+  'mcp:github-mcp-server-web_search', 'mcp:github-mcp-server-web-search',
+  'mcp:github-web_search', 'mcp:github-web-search',
 ];
 const STUDIO_EXCLUDED_AGENTS = ['task', 'explore', 'general-purpose', 'code-review', 'security-review', 'research'];
 
@@ -356,13 +360,35 @@ const BLOCKED_TOOLS = { 'fabric-ontology': ['ask_ontology', 'search_ontology'] }
 // ---------------- approvals ----------------
 
 const READ_OPS = /^(help|list|get|export|query|execute(query)?|describe|connect|connectfabric|disconnect|getconnection|listconnections|search|find|validate|evaluate|analy[sz]e|run(query)?|preview|bpa|best)/i;
+const normalizeToolInput = (input = {}) => {
+  const raw = input && typeof input === 'object' ? input : {};
+  const toolArgs = raw.toolArgs ?? raw.arguments ?? raw.args ?? raw.input ?? raw.toolInput ?? {};
+  const toolName = raw.toolName ?? raw.name ?? raw.tool?.name ?? raw.tool?.toolName ?? '';
+  const mcpServerName = raw.mcpServerName ?? raw.serverName ?? raw.server ?? raw.mcp?.serverName ?? raw.mcpServer ?? raw.tool?.server ?? '';
+  const toolTitle = raw.toolTitle ?? raw.title ?? raw.tool?.title ?? '';
+  return {
+    raw,
+    toolName: String(toolName || ''),
+    mcpServerName: String(mcpServerName || ''),
+    toolTitle: String(toolTitle || ''),
+    toolArgs,
+  };
+};
 const isUnsupportedGitHubTool = (input = {}) => {
-  const name = String(input.toolName || input.name || '').toLowerCase();
-  const server = String(input.mcpServerName || input.serverName || input.server || '').toLowerCase();
-  return server.includes('github-mcp-server') || /^github[-_]/.test(name) || name.includes('github-mcp-server') || (name.includes('copilot') && name.includes('space'));
+  const n = normalizeToolInput(input);
+  const name = n.toolName.toLowerCase();
+  const server = n.mcpServerName.toLowerCase();
+  const title = n.toolTitle.toLowerCase();
+  const snapshot = JSON.stringify(n.raw || {}).toLowerCase();
+  if (server.includes('github')) return true;
+  if (/^github[-_]/.test(name) || /^mcp__github[-_]/.test(name)) return true;
+  if (name.includes('github-mcp-server') || name.includes('github_mcp_server')) return true;
+  if (title.includes('github-mcp-server') || /^github[-_]/.test(title)) return true;
+  if (name.includes('copilot') && name.includes('space')) return true;
+  return snapshot.includes('github-mcp-server') || snapshot.includes('github_mcp_server');
 };
 const isUnsupportedBuiltInAgentTool = (input = {}) => {
-  const name = String(input.toolName || input.name || '').toLowerCase();
+  const name = normalizeToolInput(input).toolName.toLowerCase();
   return ['task', 'read_agent', 'write_agent', 'list_agents', 'skill', 'context_board'].includes(name);
 };
 
@@ -398,14 +424,15 @@ export function toolDenyReason(info, args) {
 }
 
 async function approve(chatId, input) {
-  if (isUnsupportedBuiltInAgentTool(input)) {
+  const req = normalizeToolInput(input);
+  if (isUnsupportedBuiltInAgentTool(req)) {
     return { permissionDecision: 'deny', permissionDecisionReason: 'Nested agents are not available inside Fabric MCP Studio. Complete the task directly with Studio and Fabric tools.' };
   }
-  if (isUnsupportedGitHubTool(input)) {
+  if (isUnsupportedGitHubTool(req)) {
     return { permissionDecision: 'deny', permissionDecisionReason: 'Fabric MCP Studio is not connected to a GitHub Copilot Space or GitHub repository search context. Use the Studio and Fabric tools for this project instead.' };
   }
-  const info = classifyTool(input.toolName, input.toolArgs);
-  const deny = toolDenyReason(info, input.toolArgs);
+  const info = classifyTool(req.toolName, req.toolArgs);
+  const deny = toolDenyReason(info, req.toolArgs);
   if (deny) return { permissionDecision: 'deny', permissionDecisionReason: deny };
   if (!info.write) return { permissionDecision: 'allow' };
   const mode = getSettings().approvalMode;
@@ -415,7 +442,7 @@ async function approve(chatId, input) {
   }
   if (mode === 'auto') return { permissionDecision: 'allow' };
   const id = newId();
-  const request = { id, chatId, server: info.server, tool: info.tool, title: info.title, args: truncate(JSON.stringify(input.toolArgs ?? {}, null, 2), 6000) };
+  const request = { id, chatId, server: info.server, tool: info.tool, title: info.title, args: truncate(JSON.stringify(req.toolArgs ?? {}, null, 2), 6000) };
   emit('approval.request', { approval: request });
   const decision = await new Promise((resolveP) => {
     approvals.set(id, { resolve: resolveP, request });
@@ -504,6 +531,7 @@ const STUDIO_TOOLS_META = {
   studio_add_planner: { write: true, title: 'Give a planner Contributor access' },
   studio_check_readiness: { write: false, title: 'Check what can run (capacity, role, tenant settings)' },
   studio_generate_waf_review: { write: false, title: 'Generate a Fabric Well-Architected review' },
+  studio_generate_catalog_governance_review: { write: false, title: 'Generate a OneLake catalog governance review' },
 };
 
 async function runAsJob(kind, title, fn) {
@@ -1207,6 +1235,20 @@ function studioTools(chatId) {
           pillars: r.pillars.map((p) => ({ pillar: p.label, score: p.score, status: p.status, topFinding: p.topFinding })),
           domains: r.domains.map((d) => ({ domain: d.label, score: d.score, status: d.status, topFinding: d.topFinding })),
           topRecommendations: r.recommendations.slice(0, 8).map((f) => ({ severity: f.severityLabel, pillar: f.pillarLabel, domain: f.domainLabel, title: f.title, recommendation: f.recommendation, fix: f.fixLabel || f.fixType, evidence: f.evidence })),
+          inventory: r.inventory,
+        };
+      },
+    }),
+    studioTool('studio_generate_catalog_governance_review', {
+      description: 'Generate a read-only OneLake catalog governance review for the selected workspace. This combines WAF-style landing-zone governance checks with OneLake catalog depth: data-product inventory, metadata coverage, lakehouse table visibility, domain assignment signals and actionable recommendations by domain (tenant settings, workspaces, domains, roles/access, capacity/costs, security, monitoring, reliability, performance and OneLake catalog). Use when the user asks for OneLake governance, catalog governance scoring, governance recommendations or landing-zone governance without Purview.',
+      parameters: obj({ refresh: { type: 'boolean', description: 'Read Fabric inventory again instead of using the cached governance review' } }),
+      handler: async (a) => {
+        const r = await GOV.governanceAssessment({ refresh: Boolean(a.refresh) });
+        return {
+          overall: `${r.overallScore}/100 ${r.overallLabel}`,
+          workspace: r.scope.workspace?.name || null,
+          domains: r.domains.map((d) => ({ domain: d.label, score: d.score, status: d.status, topFinding: d.topFinding })),
+          topRecommendations: r.recommendations.slice(0, 10).map((f) => ({ severity: f.severityLabel, domain: f.domainLabel, title: f.title, recommendation: f.recommendation, fix: f.fixLabel || f.fixType, evidence: f.evidence })),
           inventory: r.inventory,
         };
       },

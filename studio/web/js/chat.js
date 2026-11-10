@@ -97,6 +97,52 @@ export async function refreshHeader() {
 
 function scrollDown() { msgsEl.scrollTop = msgsEl.scrollHeight; }
 
+function renderBotMarkdown(target, content) {
+  target.innerHTML = md(content);
+  attachCodeCopyButtons(target);
+}
+
+async function copyText(text) {
+  if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(text); return; }
+  const tmp = h('textarea', {});
+  tmp.value = text;
+  tmp.readOnly = true;
+  tmp.style.position = 'fixed';
+  tmp.style.opacity = '0';
+  tmp.style.left = '-9999px';
+  tmp.style.top = '-9999px';
+  document.body.append(tmp);
+  tmp.select();
+  const ok = document.execCommand('copy');
+  tmp.remove();
+  if (!ok) throw new Error('Clipboard unavailable');
+}
+
+function attachCodeCopyButtons(scope) {
+  scope.querySelectorAll('pre > code').forEach((codeEl) => {
+    const pre = codeEl.parentElement;
+    if (!pre || pre.dataset.copyReady === '1') return;
+    pre.dataset.copyReady = '1';
+    pre.classList.add('copyable');
+    const btn = h('button', { class: 'copycode', type: 'button', title: 'Copy code block' }, 'Copy');
+    btn.addEventListener('click', async (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const code = codeEl.textContent || '';
+      if (!code.trim()) return;
+      try {
+        await copyText(code);
+        btn.textContent = 'Copied';
+        btn.classList.add('ok');
+        setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('ok'); }, 1400);
+      } catch {
+        toast('Clipboard access was blocked. Copy manually from the code block.', 'err');
+      }
+    });
+    pre.append(btn);
+  });
+}
+
 function renderWelcome() {
   msgsEl.innerHTML = '';
   const model = store.project?.semanticModel?.name;
@@ -116,7 +162,7 @@ export function refreshSuggestions() {
 
 function addMsg(role, content) {
   const bub = h('div', { class: 'bub' });
-  if (role === 'bot') bub.innerHTML = md(content);
+  if (role === 'bot') renderBotMarkdown(bub, content);
   else bub.textContent = content;
   const el = h('div', { class: `msg ${role}` }, bub);
   msgsEl.append(el);
@@ -259,7 +305,7 @@ function wireEvents() {
     if (!mine(e)) return;
     if (!streamBubble) { streamBubble = addMsg('bot', ''); streamBubble.classList.add('cursor'); }
     streamText += e.delta;
-    streamBubble.innerHTML = md(streamText);
+    renderBotMarkdown(streamBubble, streamText);
     scrollDown();
   });
   on('chat.reasoning.delta', (e) => {
@@ -272,7 +318,7 @@ function wireEvents() {
   });
   on('chat.message', (e) => {
     if (!mine(e)) return;
-    if (streamBubble) streamBubble.innerHTML = md(e.content);
+    if (streamBubble) renderBotMarkdown(streamBubble, e.content);
     else addMsg('bot', e.content);
     turnText = e.content;
     endStream();
