@@ -4,7 +4,14 @@ import { md } from '../md.js';
 import { app } from '../app.js';
 
 let state = null;
-const ui = { domain: 'all', itemType: 'all', search: '', selectedId: '', detailTab: 'overview' };
+const ui = {
+  domain: 'all',
+  itemType: 'all',
+  search: '',
+  selectedId: '',
+  detailTab: 'overview',
+  severity: 'all',
+};
 
 const num = (v) => Number.isFinite(Number(v)) ? Number(v).toLocaleString() : '–';
 const clean = (v) => String(v ?? '').replace(/\s+/g, ' ').trim();
@@ -12,6 +19,7 @@ const chart = (c) => h('div', { html: md(`\`\`\`studio-chart\n${JSON.stringify(c
 const scoreClass = (s) => s >= 90 ? 'ok' : s >= 75 ? 'brand' : s >= 60 ? 'warn' : 'err';
 const sevClass = (s) => ({ critical: 'err', high: 'err', medium: 'warn', low: 'brand', unknown: 'warn', info: '' })[s] || '';
 const severityLabel = (s) => ({ critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low', unknown: 'Unknown' })[s] || 'Info';
+const severityKey = (s) => ['critical', 'high', 'medium', 'low', 'unknown'].includes(s) ? s : 'unknown';
 
 const dateText = (v) => {
   const t = Date.parse(v || '');
@@ -178,8 +186,8 @@ function recommendationCard(f, i) {
     h('div', { class: 'row' }, h('span', { class: 'pill brand' }, `Fix: ${f.fixType}`), fixButton(f)));
 }
 
-function recommendationsCard(recs, { title = 'What to fix first', subtitle = '' } = {}) {
-  return h('div', { class: 'card gov-recommendations' },
+function recommendationsCard(recs, { title = 'What to fix first', subtitle = '', id = '' } = {}) {
+  return h('div', { class: 'card gov-recommendations', id: id || undefined },
     h('div', { class: 'row sp actiontitle' },
       h('div', {}, h('h2', {}, title), subtitle ? h('p', { class: 'lead' }, subtitle) : null),
       h('span', { class: 'pill' }, `${recs.length} recommendation${recs.length === 1 ? '' : 's'}`)),
@@ -240,9 +248,18 @@ function filteredItems(items) {
   });
 }
 
-function filteredRecommendations(s) {
-  if (ui.domain === 'all') return s.recommendations;
-  return s.recommendations.filter((r) => r.domain === ui.domain);
+function filteredRecommendations(s, { includeSeverity = true } = {}) {
+  let recs = ui.domain === 'all' ? s.recommendations : s.recommendations.filter((r) => r.domain === ui.domain);
+  if (includeSeverity && ui.severity !== 'all') recs = recs.filter((r) => severityKey(r.severity) === ui.severity);
+  return recs;
+}
+
+function focusRecommendationDetails(redraw, severity = 'all') {
+  ui.severity = severity;
+  redraw();
+  requestAnimationFrame(() => {
+    document.getElementById('gov-priority-actions')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
 }
 
 function filteredDomains(s) {
@@ -337,7 +354,7 @@ function explorerCard(s, items, recs, redraw, { title = 'Item explorer', subtitl
     h('div', { class: 'gov-explorer-body' }, list, detail));
 }
 
-function headerCard(el, s) {
+function headerCard(el, s, redraw) {
   const refresh = h('button', { class: 'btn pri', 'data-busy': 'Generating…' }, 'Generate governance review');
   refresh.addEventListener('click', busy(refresh, async () => { state = null; await renderGovernance(el); }));
   const html = h('button', { class: 'btn', 'data-busy': 'Exporting…' }, 'Download HTML');
@@ -345,7 +362,8 @@ function headerCard(el, s) {
   const mdBtn = h('button', { class: 'btn', 'data-busy': 'Exporting…' }, 'Download Markdown');
   mdBtn.addEventListener('click', busy(mdBtn, () => downloadReport('markdown')));
 
-  const mix = severityMix(s.recommendations);
+  const scopedRecs = filteredRecommendations(s, { includeSeverity: false });
+  const mix = severityMix(scopedRecs);
   const score = Math.max(0, Math.min(100, Number(s.overallScore) || 0));
   return h('div', { class: 'card gov-command' },
     h('div', { class: 'gov-headline' },
@@ -367,8 +385,18 @@ function headerCard(el, s) {
             h('b', {}, s.overallLabel),
             h('span', { class: 'tiny muted' }, `Updated ${fmtDate(s.at)}`))),
         h('div', { class: 'gov-head-sev' },
-          h('div', { class: 'tiny muted' }, 'Finding severity'),
-          mix.length ? h('div', { class: 'gov-head-sev-list' }, mix.map((x) => h('span', { class: `pill ${sevClass(x.key)}` }, `${x.label} ${x.count}`))) : h('span', { class: 'pill ok' }, 'No material findings')))),
+          h('button', { type: 'button', class: 'tiny muted', style: { border: '0', background: 'transparent', padding: '0', cursor: 'pointer', textAlign: 'left' }, title: 'Go to recommendation details', onclick: () => focusRecommendationDetails(redraw, 'all') }, 'Finding severity'),
+          mix.length ? h('div', { class: 'gov-head-sev-list' }, mix.map((x) => {
+            const active = ui.severity === x.key;
+            return h('button', {
+              type: 'button',
+              class: `pill ${sevClass(x.key)}`,
+              style: active ? { border: '0', cursor: 'pointer', boxShadow: '0 0 0 1px var(--brand) inset' } : { border: '0', cursor: 'pointer' },
+              'aria-pressed': active ? 'true' : 'false',
+              title: `Show ${x.label.toLowerCase()} findings`,
+              onclick: () => focusRecommendationDetails(redraw, active ? 'all' : x.key),
+            }, `${x.label} ${x.count}`);
+          })) : h('button', { type: 'button', class: 'pill ok', style: { border: '0', cursor: 'pointer' }, title: 'Go to recommendation details', onclick: () => focusRecommendationDetails(redraw, 'all') }, 'No material findings')))),
     h('div', { class: 'row gov-actions' }, refresh, html, mdBtn, s.scope?.workspace ? h('a', { class: 'btn ghost', href: `https://app.fabric.microsoft.com/groups/${s.scope.workspace.id}/list`, target: '_blank', rel: 'noopener' }, 'Open workspace ↗') : null));
 }
 
@@ -437,6 +465,9 @@ function discoverSection(insights, recs) {
   const missingDesc = insights.missingDescriptionByType.slice(0, 12).map((x) => ({ Type: x.type, Items: x.count }));
   const missingOwner = insights.missingOwnerByType.slice(0, 12).map((x) => ({ Type: x.type, Items: x.count }));
   const sevRows = insights.severity.map((x) => ({ Severity: x.label, Findings: x.count }));
+  const recSubtitle = ui.severity === 'all'
+    ? 'Start with highest-severity, highest-impact governance actions.'
+    : `Start with highest-severity, highest-impact governance actions. Filtered to ${severityLabel(ui.severity)} findings.`;
 
   return h('section', { class: 'gov-section' },
     sectionHeader('Discover, trust, and reuse', 'Increase discoverability and usage with stronger metadata, ownership, and stewardship signals.'),
@@ -452,7 +483,7 @@ function discoverSection(insights, recs) {
       chartOrEmpty({ type: 'horizontalBar', title: 'Owner gap by type', subtitle: 'Items without explicit owner', x: 'Type', y: ['Items'], rows: missingOwner, maxRows: 12 }, 'No owner gaps in this scope.'),
       chartOrEmpty({ type: 'horizontalBar', title: 'Recommendations by severity', x: 'Severity', y: ['Findings'], rows: sevRows }, 'No recommendation severity data available.'),
       chartOrEmpty({ type: 'horizontalBar', title: 'Top owners by item count', x: 'Owner', y: ['Items'], rows: insights.ownerMix.map((x) => ({ Owner: x.label, Items: x.value })), maxRows: 8 })),
-    recommendationsCard(recs.slice(0, 8), { title: 'Priority actions', subtitle: 'Start with highest-severity, highest-impact governance actions.' }));
+    recommendationsCard(recs.slice(0, 8), { id: 'gov-priority-actions', title: 'Priority actions', subtitle: recSubtitle }));
 }
 
 function freshnessSection(insights, domains) {
@@ -490,6 +521,8 @@ function bodyCard(s, redraw) {
   if (!allTypes.has(ui.itemType)) ui.itemType = 'all';
   const domainIds = new Set(['all', ...s.domains.map((d) => d.id)]);
   if (!domainIds.has(ui.domain)) ui.domain = 'all';
+  const severityIds = new Set(['all', 'critical', 'high', 'medium', 'low', 'unknown']);
+  if (!severityIds.has(ui.severity)) ui.severity = 'all';
 
   const filtered = filteredItems(items);
   const insights = insightsFor(s, filtered);
@@ -508,7 +541,7 @@ function bodyCard(s, redraw) {
 function draw(el, s) {
   const redraw = () => draw(el, s);
   el.innerHTML = '';
-  el.append(headerCard(el, s));
+  el.append(headerCard(el, s, redraw));
   if (!s.scope?.workspace) {
     el.append(h('div', { class: 'banner warn' }, h('div', {}, h('b', {}, 'Choose a workspace first. '), 'The governance review scores the selected landing zone and OneLake catalog quality.')));
   }
