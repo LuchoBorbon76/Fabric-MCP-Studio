@@ -5,6 +5,7 @@ import { app } from '../app.js';
 
 let state = null;
 const ui = {
+  scopeMode: 'workspace',
   domain: 'all',
   itemType: 'all',
   search: '',
@@ -31,7 +32,9 @@ const dateText = (v) => {
 
 async function load({ fresh = false } = {}) {
   if (state && !fresh) return state;
-  state = await get(`/governance${fresh ? '?refresh=1' : ''}`);
+  const q = new URLSearchParams({ scope: ui.scopeMode });
+  if (fresh) q.set('refresh', '1');
+  state = await get(`/governance?${q.toString()}`);
   return state;
 }
 
@@ -72,7 +75,8 @@ function download(name, text, type) {
 }
 
 async function downloadReport(format) {
-  const text = await get(`/governance/report?format=${encodeURIComponent(format)}`);
+  const q = new URLSearchParams({ format, scope: ui.scopeMode });
+  const text = await get(`/governance/report?${q.toString()}`);
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   download(`fabric-onelake-governance-${stamp}.${format === 'html' ? 'html' : 'md'}`, text, format === 'html' ? 'text/html' : 'text/markdown');
   toast(`${format === 'html' ? 'HTML' : 'Markdown'} governance report downloaded`, 'ok');
@@ -151,8 +155,9 @@ function insightsFor(s, items) {
     else refreshedOver120d++;
   }
 
-  const withDomainAssignment = s.scope?.workspace ? Math.min(1, Number(s.inventory.workspaceDomainAssignments) > 0 ? 1 : 0) : 0;
-  const selectedWorkspaces = s.scope?.workspace ? 1 : 0;
+  const selectedWorkspaces = Math.max(0, Number(s.inventory?.workspacesInScope || (s.scope?.workspace ? 1 : 0)));
+  const mappedWorkspaces = Number(s.inventory?.workspacesAssignedToDomains ?? (Number(s.inventory?.workspaceDomainAssignments) > 0 ? 1 : 0));
+  const withDomainAssignment = Math.max(0, Math.min(selectedWorkspaces, mappedWorkspaces));
 
   return {
     total: items.length,
@@ -274,10 +279,14 @@ function domainsTable(domains) {
 
 function inventoryCards(s) {
   const v = s.inventory;
+  const scopeWorkspaces = Number(v.workspacesInScope || (s.scope?.workspace ? 1 : 0));
+  const mappedWorkspaces = Number(v.workspacesAssignedToDomains ?? (v.workspaceDomainAssignments > 0 ? 1 : 0));
   return h('div', { class: 'grid g2 gov-inventory' },
     h('div', { class: 'card' },
       h('h2', {}, 'Catalog summary'),
       h('dl', { class: 'kv' },
+        h('dt', {}, 'Scope'), h('dd', {}, s.scope?.mode === 'capacity' ? 'All workspaces in capacity' : 'Current workspace'),
+        h('dt', {}, 'Scoped workspaces'), h('dd', {}, num(scopeWorkspaces)),
         h('dt', {}, 'Workspace items'), h('dd', {}, num(v.workspaceItems)),
         h('dt', {}, 'Data products'), h('dd', {}, num(v.dataProducts)),
         h('dt', {}, 'Data-product descriptions'), h('dd', {}, `${num(v.describedDataProducts)} (${num(v.catalogCoveragePct)}%)`),
@@ -286,7 +295,8 @@ function inventoryCards(s) {
         h('dt', {}, 'Lakehouses without tables'), h('dd', {}, num(v.lakehousesWithoutTables)),
         h('dt', {}, 'Source contexts'), h('dd', {}, num(v.sourceContexts)),
         h('dt', {}, 'Inactive contexts with assets'), h('dd', {}, num(v.inactiveSourcesWithAssets)),
-        h('dt', {}, 'Domains visible'), h('dd', {}, v.domainsVisible ? `${num(v.domains)} (${num(v.workspaceDomainAssignments)} mapped)` : 'Not visible'),
+        h('dt', {}, 'Domains visible'), h('dd', {}, v.domainsVisible ? `${num(v.domains)} (${num(mappedWorkspaces)}/${num(scopeWorkspaces)} workspaces mapped)` : 'Not visible'),
+        h('dt', {}, 'Workspace read issues'), h('dd', {}, num(v.workspaceItemsPartialErrors?.length || 0)),
         h('dt', {}, 'Capacity Metrics'), h('dd', {}, v.capacityMetrics))),
     h('div', { class: 'card' },
       h('h2', {}, 'Lakehouse table coverage'),
@@ -327,14 +337,18 @@ function filteredDomains(s) {
 
 function itemChecks(item, s) {
   const refreshed = dateText(item.refreshedAt);
+  const scopedWorkspaces = Number(s.inventory?.workspacesInScope || (s.scope?.workspace ? 1 : 0));
+  const mappedWorkspaces = Number(s.inventory?.workspacesAssignedToDomains ?? (Number(s.inventory?.workspaceDomainAssignments) > 0 ? 1 : 0));
   return [
     { label: 'Description', ok: Boolean(item.description), detail: item.description ? 'Present' : 'Missing description' },
     { label: 'Owner', ok: Boolean(item.owner), detail: item.owner || 'No explicit owner detected' },
     { label: 'Freshness', ok: Boolean(refreshed), detail: refreshed ? `Updated ${refreshed}` : 'No freshness timestamp exposed' },
     {
       label: 'Domain mapping',
-      ok: Boolean(s.inventory.domainsVisible && s.inventory.workspaceDomainAssignments > 0),
-      detail: s.inventory.domainsVisible ? `${num(s.inventory.workspaceDomainAssignments)} mapping(s) in visible domains` : 'Domain inventory not visible with current permissions',
+      ok: Boolean(s.inventory.domainsVisible && mappedWorkspaces > 0),
+      detail: s.inventory.domainsVisible
+        ? (scopedWorkspaces > 1 ? `${num(mappedWorkspaces)}/${num(scopedWorkspaces)} scoped workspaces mapped` : `${num(s.inventory.workspaceDomainAssignments)} mapping(s) in visible domains`)
+        : 'Domain inventory not visible with current permissions',
     },
   ];
 }
@@ -413,16 +427,33 @@ function explorerCard(s, items, recs, redraw, { title = 'Item explorer', subtitl
 }
 
 function headerCard(el, s, redraw) {
-  const refresh = h('button', { class: 'btn pri', 'data-busy': 'Generating…' }, 'Generate governance review');
-  refresh.addEventListener('click', busy(refresh, async () => { state = null; await renderGovernance(el); }));
   const html = h('button', { class: 'btn', 'data-busy': 'Exporting…' }, 'Download HTML');
   html.addEventListener('click', busy(html, () => downloadReport('html')));
   const mdBtn = h('button', { class: 'btn', 'data-busy': 'Exporting…' }, 'Download Markdown');
   mdBtn.addEventListener('click', busy(mdBtn, () => downloadReport('markdown')));
+  const canScopeCapacity = Boolean(s.scope?.workspace?.capacityId || s.scope?.capacity?.id || s.scope?.scopeCapacity?.id);
+  if (!canScopeCapacity && ui.scopeMode === 'capacity') ui.scopeMode = 'workspace';
+  const scopeSel = select([
+    { value: 'workspace', label: 'Current workspace' },
+    { value: 'capacity', label: 'All workspaces in this capacity', disabled: !canScopeCapacity },
+  ]);
+  scopeSel.value = ui.scopeMode;
+  scopeSel.addEventListener('change', () => {
+    const next = scopeSel.value === 'capacity' ? 'capacity' : 'workspace';
+    if (next === ui.scopeMode) return;
+    ui.scopeMode = next;
+    ui.selectedId = '';
+    state = null;
+    renderGovernance(el);
+  });
 
   const scopedRecs = filteredRecommendations(s, { includeSeverity: false });
   const mix = severityMix(scopedRecs);
   const score = Math.max(0, Math.min(100, Number(s.overallScore) || 0));
+  const scopedWorkspaceCount = Number(s.scope?.workspacesInScope || s.inventory?.workspacesInScope || (s.scope?.workspace ? 1 : 0));
+  const scopeLabel = ui.scopeMode === 'capacity'
+    ? `Scope ${num(scopedWorkspaceCount)} workspaces in capacity`
+    : `Scope ${s.scope?.workspace?.name || 'No workspace selected'}`;
   return h('div', { class: 'card gov-command' },
     h('div', { class: 'gov-headline' },
       h('div', { class: 'gov-head-main' },
@@ -431,6 +462,7 @@ function headerCard(el, s, redraw) {
         h('p', { class: 'lead' }, 'Get an overview of the content in Fabric and identify actions to keep it organized, governed, and up to date.'),
         h('div', { class: 'gov-chipline' },
           h('span', { class: `pill ${scoreClass(s.overallScore)}` }, `Overall ${s.overallScore}/100 · ${s.overallLabel}`),
+          h('span', { class: 'pill' }, scopeLabel),
           h('span', { class: 'pill' }, `Items ${num(s.inventory.workspaceItems)}`),
           h('span', { class: 'pill' }, `Data products ${num(s.inventory.dataProducts)}`),
           h('span', { class: 'pill' }, `Coverage ${num(s.inventory.catalogCoveragePct)}%`))),
@@ -454,7 +486,11 @@ function headerCard(el, s, redraw) {
               onclick: () => focusRecommendationDetails(redraw, active ? 'all' : x.key),
             }, `${x.label} ${x.count}`);
           })) : h('button', { type: 'button', class: 'pill gov-pill-btn ok', title: 'Go to recommendation details', onclick: () => focusRecommendationDetails(redraw, 'all') }, 'No material findings')))),
-    h('div', { class: 'row gov-actions' }, refresh, html, mdBtn, s.scope?.workspace ? h('a', { class: 'btn ghost', href: `https://app.fabric.microsoft.com/groups/${s.scope.workspace.id}/list`, target: '_blank', rel: 'noopener' }, 'Open workspace ↗') : null));
+    h('div', { class: 'row gov-actions' },
+      h('label', { class: 'gov-scope' }, h('span', { class: 'tiny muted' }, 'Scope'), scopeSel),
+      html,
+      mdBtn,
+      s.scope?.workspace ? h('a', { class: 'btn ghost', href: `https://app.fabric.microsoft.com/groups/${s.scope.workspace.id}/list`, target: '_blank', rel: 'noopener' }, 'Open workspace ↗') : null));
 }
 
 function hierarchyNode(label, value) {
@@ -509,13 +545,17 @@ function estateSection(s, items, insights, redraw) {
     { Status: 'Unassigned', Workspaces: insights.unassignedWorkspaces },
   ];
   const selectedName = filtered.find((i) => i.id === ui.selectedId)?.name || (ui.search ? `Matching "${ui.search}"` : 'Any item');
+  const scopeWorkspaces = Number(s.inventory?.workspacesInScope || (s.scope?.workspace ? 1 : 0));
+  const workspaceHierarchyLabel = s.scope?.mode === 'capacity'
+    ? `All in capacity (${num(scopeWorkspaces)})`
+    : (s.scope?.workspace?.name || 'Not selected');
 
   return h('section', { class: 'gov-section' },
     sectionHeader('Your data estate', 'Get an overview of your landing zone and drill into domains, workspaces, item types, and item names.'),
     h('div', { class: 'gov-estate-shell' },
       h('div', { class: 'gov-estate-left' },
-        miniStat('Domains & subdomains', s.inventory.domainsVisible ? num(s.inventory.domains) : 'Not visible', s.inventory.domainsVisible ? `${num(s.inventory.workspaceDomainAssignments)} workspace mapping(s)` : 'Needs admin visibility', domainSel),
-        miniStat('Workspaces', s.scope?.workspace ? '1' : '0', s.scope?.workspace?.name || 'No workspace selected'),
+        miniStat('Domains & subdomains', s.inventory.domainsVisible ? num(s.inventory.domains) : 'Not visible', s.inventory.domainsVisible ? `${num(s.inventory.workspacesAssignedToDomains ?? (s.inventory.workspaceDomainAssignments > 0 ? 1 : 0))}/${num(scopeWorkspaces)} workspaces mapped` : 'Needs admin visibility', domainSel),
+        miniStat('Workspaces', num(scopeWorkspaces), s.scope?.mode === 'capacity' ? 'All workspaces in selected capacity' : (s.scope?.workspace?.name || 'No workspace selected')),
         miniStat('Items', num(filtered.length), `${num(insights.typeCount)} distinct item types in scope`, typeSel),
         miniStat('Find item', ui.search ? `"${ui.search}"` : 'Any', 'Filter by item, owner, type, or description. Applies after you pause typing or press Enter.', searchBox)),
       h('div', { class: 'card gov-estate-main' },
@@ -523,7 +563,7 @@ function estateSection(s, items, insights, redraw) {
         h('div', { class: 'gov-hierarchy' },
           hierarchyNode('Domain', ui.domain === 'all' ? 'All domains' : (s.domains.find((d) => d.id === ui.domain)?.label || 'Domain')),
           hierarchyNode('Subdomain', 'N/A'),
-          hierarchyNode('Workspace', s.scope?.workspace?.name || 'Not selected'),
+          hierarchyNode('Workspace', workspaceHierarchyLabel),
           hierarchyNode('Item type', ui.itemType === 'all' ? 'All types' : ui.itemType),
           hierarchyNode('Item name', selectedName)),
         h('div', { class: 'grid g2 gov-estate-charts' },

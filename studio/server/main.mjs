@@ -580,8 +580,8 @@ route('GET', '/api/activity', () => getActivity());
 route('GET', '/api/costs', (_, __, q) => COST.costState({ capacityId: q.get('capacityId') || undefined }));
 route('GET', '/api/waf', (_, __, q) => WAF.wafAssessment({ refresh: q.get('refresh') === '1' }));
 route('GET', '/api/waf/report', (_, __, q) => WAF.wafReport({ format: q.get('format') || 'markdown', refresh: q.get('refresh') === '1' }));
-route('GET', '/api/governance', (_, __, q) => GOV.governanceAssessment({ refresh: q.get('refresh') === '1' }));
-route('GET', '/api/governance/report', (_, __, q) => GOV.governanceReport({ format: q.get('format') || 'markdown', refresh: q.get('refresh') === '1' }));
+route('GET', '/api/governance', (_, __, q) => GOV.governanceAssessment({ refresh: q.get('refresh') === '1', scope: q.get('scope') === 'capacity' ? 'capacity' : 'workspace' }));
+route('GET', '/api/governance/report', (_, __, q) => GOV.governanceReport({ format: q.get('format') || 'markdown', refresh: q.get('refresh') === '1', scope: q.get('scope') === 'capacity' ? 'capacity' : 'workspace' }));
 route('GET', '/api/export', async () => {
   let governance = null;
   try {

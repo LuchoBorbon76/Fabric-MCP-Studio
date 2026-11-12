@@ -1,5 +1,5 @@
 // OneLake-focused governance review: combines WAF signals with catalog depth checks.
-import { fabric, listItems, listLakehouseTables } from './fabric.mjs';
+import { fabric, getWorkspace, listItems, listLakehouseTables, listWorkspaces } from './fabric.mjs';
 import { getProject, sourceContexts } from './project.mjs';
 import * as WAF from './waf.mjs';
 
@@ -65,9 +65,11 @@ function sortedFindings(findings) {
   return [...findings].sort((a, b) => (SEVERITY[b.severity]?.rank || 0) - (SEVERITY[a.severity]?.rank || 0) || a.title.localeCompare(b.title));
 }
 
-function projectKey(p) {
+function projectKey(p, scope = 'workspace') {
   return [
+    scope,
     p.workspace?.id || '',
+    p.workspace?.capacityId || '',
     p.sourceKey || '',
     p.semanticModel?.id || '',
     p.ontology?.id || '',
@@ -101,14 +103,16 @@ function domainsFromPayload(v) {
   return [];
 }
 
-async function readCatalogInventory(p) {
+async function readCatalogInventory(p, { scope = 'workspace' } = {}) {
   const wsId = p.workspace?.id;
   if (!wsId) {
     return {
       workspaceItems: [],
       workspaceItemsError: '',
+      workspaceItemsPartialErrors: [],
       itemTypes: [],
       itemExplorer: [],
+      workspacesInScope: 0,
       dataProducts: 0,
       describedDataProducts: 0,
       describedItems: 0,
@@ -122,23 +126,63 @@ async function readCatalogInventory(p) {
       domainsVisible: false,
       domains: 0,
       workspaceDomainAssignments: 0,
+      workspacesAssignedToDomains: 0,
       sourceContexts: sourceContexts(p),
       inactiveSourcesWithAssets: 0,
+      scopeMode: scope,
+      scopeCapacity: null,
     };
   }
 
-  const [itemsRes, domainsRes] = await Promise.all([
-    readMaybe('workspace items', () => listItems(wsId)),
-    readMaybe('domains', () => fabric('GET', '/admin/domains')),
-  ]);
-  const items = itemsRes.ok ? itemsRes.value || [] : [];
+  const selectedWorkspace = {
+    id: wsId,
+    name: clean(p.workspace?.name || 'Workspace'),
+    capacityId: p.workspace?.capacityId || null,
+    type: 'Workspace',
+  };
+  const scopeWorkspaces = [selectedWorkspace];
+
+  if (scope === 'capacity') {
+    let capacityId = selectedWorkspace.capacityId;
+    if (!capacityId) {
+      const wsMeta = await readMaybe('workspace metadata', () => getWorkspace(wsId));
+      if (wsMeta.ok) capacityId = wsMeta.value?.capacityId || null;
+    }
+    if (capacityId) {
+      const allWs = await readMaybe('capacity workspaces', () => listWorkspaces());
+      if (allWs.ok) {
+        const sameCapacity = (allWs.value || []).filter((w) => String(w.capacityId || '') === String(capacityId) && w.type !== 'Personal');
+        if (sameCapacity.length) {
+          scopeWorkspaces.length = 0;
+          for (const w of sameCapacity) {
+            scopeWorkspaces.push({
+              id: w.id,
+              name: clean(w.displayName || w.name || 'Workspace'),
+              capacityId: w.capacityId || capacityId,
+              type: w.type || 'Workspace',
+            });
+          }
+        }
+      }
+      selectedWorkspace.capacityId = capacityId;
+    }
+  }
+
+  const itemReads = await Promise.all(scopeWorkspaces.map(async (w) => {
+    const res = await readMaybe(`workspace items (${w.name})`, () => listItems(w.id));
+    return { workspace: w, res };
+  }));
+  const itemErrors = itemReads.filter((x) => !x.res.ok).map((x) => ({ workspaceId: x.workspace.id, workspaceName: x.workspace.name, error: x.res.error }));
+  const items = itemReads.filter((x) => x.res.ok).flatMap((x) => (x.res.value || []).map((i) => ({ ...i, __workspaceId: x.workspace.id, __workspaceName: x.workspace.name })));
+  const allItemReadsFailed = itemReads.length > 0 && itemReads.every((x) => !x.res.ok);
+
   const dataProducts = items.filter((i) => ONE_LAKE_TYPES.has(i.type || ''));
   const describedDataProducts = dataProducts.filter((i) => clean(i.description)).length;
   const describedItems = items.filter((i) => clean(i.description)).length;
   const coverage = dataProducts.length ? Math.round((describedDataProducts / dataProducts.length) * 100) : 0;
   const lakehouses = items.filter((i) => i.type === 'Lakehouse');
-  const workspaceName = clean(p.workspace?.name || '');
-  const itemExplorer = items.slice(0, 400).map((i, idx) => ({
+  const fallbackWorkspace = clean(p.workspace?.name || '');
+  const itemExplorer = items.slice(0, 600).map((i, idx) => ({
     id: i.id || `${i.type || 'item'}-${idx}`,
     name: itemName(i),
     type: clean(i.type || i.itemType || 'Item'),
@@ -146,24 +190,35 @@ async function readCatalogInventory(p) {
       i.owner?.displayName || i.owner?.name || i.createdBy?.displayName || i.createdBy?.name
       || i.lastUpdatedBy?.displayName || i.lastUpdatedBy?.name || i.createdBy?.userPrincipalName || '',
     ),
-    location: clean(i.workspaceName || workspaceName),
+    location: clean(i.workspaceName || i.__workspaceName || fallbackWorkspace),
     refreshedAt: i.lastUpdatedDateTime || i.lastUpdatedTime || i.modifiedDateTime || i.updatedAt || i.createdDateTime || i.createdAt || '',
     description: clean(i.description || ''),
   }));
-  const sample = lakehouses.slice(0, 12);
+
+  const sample = lakehouses.slice(0, 24);
   const tableChecks = await Promise.all(sample.map(async (lh) => {
-    const res = await readMaybe('lakehouse tables', () => listLakehouseTables(wsId, lh.id));
-    if (!res.ok) return { id: lh.id, name: itemName(lh), tables: 0, error: res.error };
+    const sourceWsId = lh.__workspaceId || wsId;
+    const res = await readMaybe('lakehouse tables', () => listLakehouseTables(sourceWsId, lh.id));
+    if (!res.ok) return { id: lh.id, workspaceId: sourceWsId, workspaceName: lh.__workspaceName || fallbackWorkspace, name: itemName(lh), tables: 0, error: res.error };
     const tables = Array.isArray(res.value) ? res.value : (res.value?.value || res.value?.tables || []);
-    return { id: lh.id, name: itemName(lh), tables: tables.length, error: '' };
+    return { id: lh.id, workspaceId: sourceWsId, workspaceName: lh.__workspaceName || fallbackWorkspace, name: itemName(lh), tables: tables.length, error: '' };
   }));
   const totalLakehouseTables = tableChecks.reduce((a, x) => a + (x.error ? 0 : x.tables), 0);
   const emptyLakehouses = tableChecks.filter((x) => !x.error && x.tables === 0).length;
   const lakehouseTableErrors = tableChecks.filter((x) => x.error).length;
 
+  const domainsRes = await readMaybe('domains', () => fabric('GET', '/admin/domains'));
   const domainList = domainsRes.ok ? domainsFromPayload(domainsRes.value) : [];
-  const wsLc = String(wsId).toLowerCase();
-  const workspaceDomainAssignments = domainList.filter((d) => domainWorkspaceIds(d).includes(wsLc)).length;
+  const scopeWorkspaceIds = new Set(scopeWorkspaces.map((w) => String(w.id).toLowerCase()));
+  const assignedWs = new Set();
+  let workspaceDomainAssignments = 0;
+  for (const d of domainList) {
+    for (const id of domainWorkspaceIds(d)) {
+      if (!scopeWorkspaceIds.has(id)) continue;
+      assignedWs.add(id);
+      workspaceDomainAssignments += 1;
+    }
+  }
 
   const sources = sourceContexts(p);
   const inactiveSourcesWithAssets = sources.filter((s) => !s.active && (
@@ -172,9 +227,11 @@ async function readCatalogInventory(p) {
 
   return {
     workspaceItems: items,
-    workspaceItemsError: itemsRes.ok ? '' : itemsRes.error,
+    workspaceItemsError: allItemReadsFailed ? (itemErrors[0]?.error || 'Could not read workspace items in the selected scope.') : '',
+    workspaceItemsPartialErrors: itemErrors,
     itemTypes: byType(items),
     itemExplorer,
+    workspacesInScope: scopeWorkspaces.length,
     dataProducts: dataProducts.length,
     describedDataProducts,
     describedItems,
@@ -188,8 +245,11 @@ async function readCatalogInventory(p) {
     domainsVisible: domainsRes.ok,
     domains: domainList.length,
     workspaceDomainAssignments,
+    workspacesAssignedToDomains: assignedWs.size,
     sourceContexts: sources,
     inactiveSourcesWithAssets,
+    scopeMode: scope,
+    scopeCapacity: selectedWorkspace.capacityId ? { id: selectedWorkspace.capacityId } : null,
   };
 }
 
@@ -236,10 +296,11 @@ function evaluateCatalog(p, inv) {
   }
 
   if (inv.workspaceItemsError) {
+    const scopeLabel = inv.scopeMode === 'capacity' ? 'capacity scope' : 'workspace';
     add({
       id: 'catalog-items-not-readable',
       severity: 'unknown',
-      title: 'Workspace items could not be inventoried',
+      title: `${scopeLabel[0].toUpperCase()}${scopeLabel.slice(1)} items could not be inventoried`,
       detail: 'OneLake catalog scoring needs item inventory and metadata.',
       recommendation: 'Run the governance review with an account that can list workspace items.',
       evidence: [inv.workspaceItemsError],
@@ -251,15 +312,30 @@ function evaluateCatalog(p, inv) {
   }
 
   if (!inv.workspaceItems.length) {
+    const scopeLabel = inv.scopeMode === 'capacity' ? 'across this capacity' : 'in this workspace';
     add({
       id: 'catalog-workspace-empty',
       severity: 'medium',
-      title: 'Workspace has no visible items',
+      title: inv.scopeMode === 'capacity' ? 'No visible items in this capacity scope' : 'Workspace has no visible items',
       detail: 'There is nothing in the landing zone yet to catalog or govern.',
       recommendation: 'Connect data or add existing data products, then rerun the governance review.',
-      evidence: [`Workspace: ${p.workspace.name}`],
+      evidence: [`Items visible ${scopeLabel}: ${inv.workspaceItems.length}`],
       fixType: 'guided',
       fixTarget: { view: 'data' },
+    });
+  }
+
+  if (inv.workspaceItemsPartialErrors?.length) {
+    add({
+      id: 'catalog-partial-item-visibility',
+      severity: 'low',
+      title: 'Some workspaces in scope could not be inventoried',
+      detail: 'The assessment completed, but inventory from one or more scoped workspaces was not readable.',
+      recommendation: 'Verify permissions on all scoped workspaces to improve governance coverage.',
+      evidence: inv.workspaceItemsPartialErrors.slice(0, 4).map((x) => `${x.workspaceName}: ${x.error}`),
+      fixType: 'admin',
+      fixLabel: 'Open workspace access',
+      fixLink: `https://app.fabric.microsoft.com/groups/${p.workspace.id}/settings/access`,
     });
   }
 
@@ -336,10 +412,24 @@ function evaluateCatalog(p, inv) {
     add({
       id: 'catalog-workspace-no-domain',
       severity: 'medium',
-      title: 'Workspace is not mapped to a visible Fabric domain',
+      title: inv.scopeMode === 'capacity' ? 'No scoped workspace is mapped to a visible Fabric domain' : 'Workspace is not mapped to a visible Fabric domain',
       detail: 'Domain assignment helps governance boundaries, ownership and catalog discovery.',
-      recommendation: 'Assign this workspace to a business domain with clear owners.',
-      evidence: [`Domains visible: ${inv.domains}`, `Workspace-domain assignments found: ${inv.workspaceDomainAssignments}`],
+      recommendation: inv.scopeMode === 'capacity' ? 'Assign scoped workspaces to business domains with clear owners.' : 'Assign this workspace to a business domain with clear owners.',
+      evidence: inv.scopeMode === 'capacity'
+        ? [`Domains visible: ${inv.domains}`, `Scoped workspaces mapped to domains: ${inv.workspacesAssignedToDomains}/${inv.workspacesInScope}`]
+        : [`Domains visible: ${inv.domains}`, `Workspace-domain assignments found: ${inv.workspaceDomainAssignments}`],
+      fixType: 'admin',
+      fixLabel: 'Open OneLake catalog',
+      fixLink: 'https://app.fabric.microsoft.com/explore',
+    });
+  } else if (inv.scopeMode === 'capacity' && inv.domainsVisible && inv.workspacesInScope > inv.workspacesAssignedToDomains) {
+    add({
+      id: 'catalog-capacity-partial-domain-mapping',
+      severity: 'low',
+      title: 'Some capacity workspaces are not mapped to visible domains',
+      detail: 'Domain assignment is incomplete across the selected capacity scope.',
+      recommendation: 'Map remaining capacity workspaces to domains to improve ownership and discovery.',
+      evidence: [`Scoped workspaces mapped to domains: ${inv.workspacesAssignedToDomains}/${inv.workspacesInScope}`],
       fixType: 'admin',
       fixLabel: 'Open OneLake catalog',
       fixLink: 'https://app.fabric.microsoft.com/explore',
@@ -412,7 +502,12 @@ function summarize(p, waf, inv, findings) {
 
   return {
     at: new Date().toISOString(),
-    scope: waf.scope,
+    scope: {
+      ...waf.scope,
+      mode: inv.scopeMode || 'workspace',
+      workspacesInScope: inv.workspacesInScope || (waf.scope?.workspace ? 1 : 0),
+      scopeCapacity: inv.scopeCapacity || null,
+    },
     overallScore,
     overallLabel: scoreLabel(overallScore),
     domains,
@@ -427,6 +522,9 @@ function summarize(p, waf, inv, findings) {
       domainsVisible: inv.domainsVisible,
       domains: inv.domains,
       workspaceDomainAssignments: inv.workspaceDomainAssignments,
+      workspacesInScope: inv.workspacesInScope || (waf.scope?.workspace ? 1 : 0),
+      workspacesAssignedToDomains: inv.workspacesAssignedToDomains || (inv.workspaceDomainAssignments > 0 ? 1 : 0),
+      workspaceItemsPartialErrors: inv.workspaceItemsPartialErrors || [],
       capacityMetrics: waf.inventory.capacityMetrics,
       dataProducts: inv.dataProducts,
       describedDataProducts: inv.describedDataProducts,
@@ -450,9 +548,10 @@ function summarize(p, waf, inv, findings) {
   };
 }
 
-export async function governanceAssessment({ refresh = false } = {}) {
+export async function governanceAssessment({ refresh = false, scope = 'workspace' } = {}) {
   const p = getProject();
-  const key = projectKey(p);
+  const scopeMode = scope === 'capacity' ? 'capacity' : 'workspace';
+  const key = projectKey(p, scopeMode);
   const fresh = cache.key === key && cache.data && Date.now() - cache.at < TTL_MS;
   if (!refresh && fresh) return cache.data;
   if (cache.pending && cache.key === key) return cache.pending;
@@ -460,7 +559,7 @@ export async function governanceAssessment({ refresh = false } = {}) {
   cache.pending = (async () => {
     const [waf, inv] = await Promise.all([
       WAF.wafAssessment({ refresh }),
-      readCatalogInventory(p),
+      readCatalogInventory(p, { scope: scopeMode }),
     ]);
     const findings = [
       ...waf.findings.map(normalizeWafFinding),
@@ -475,9 +574,12 @@ export async function governanceAssessment({ refresh = false } = {}) {
 
 function markdown(a) {
   const lines = [];
+  const scopeLabel = a.scope.mode === 'capacity'
+    ? `All workspaces in capacity (${a.scope.capacity?.name || a.scope.scopeCapacity?.id || a.scope.workspace?.capacityId || 'unknown'})`
+    : (a.scope.workspace?.name || 'No workspace selected');
   lines.push('# OneLake Catalog Governance Review', '');
   lines.push(`Generated: ${a.at}`);
-  lines.push(`Scope: ${a.scope.workspace?.name || 'No workspace selected'}`);
+  lines.push(`Scope: ${scopeLabel}`);
   lines.push(`Overall score: ${a.overallScore}/100 (${a.overallLabel})`, '');
   lines.push('## Governance domain scores', '');
   lines.push('| Domain | Score | Status | Top finding |');
@@ -512,13 +614,16 @@ function markdown(a) {
 function html(a) {
   const pill = (s) => s >= 90 ? 'ok' : s >= 75 ? 'good' : s >= 60 ? 'warn' : 'bad';
   const rows = (items, cols) => items.map((r) => `<tr>${cols.map((c) => `<td>${esc(typeof c === 'function' ? c(r) : r[c])}</td>`).join('')}</tr>`).join('');
+  const scopeLabel = a.scope.mode === 'capacity'
+    ? `All workspaces in capacity (${a.scope.capacity?.name || a.scope.scopeCapacity?.id || a.scope.workspace?.capacityId || 'unknown'})`
+    : (a.scope.workspace?.name || 'No workspace selected');
   return `<!doctype html>
 <html><head><meta charset="utf-8"><title>OneLake Catalog Governance - ${esc(a.scope.workspace?.name || 'Workspace')}</title>
 <style>
 body{font-family:Segoe UI,Aptos,Arial,sans-serif;margin:32px;color:#1b1b1f;background:#f6f8fb}h1{margin-bottom:4px}.muted{color:#5b5f6b}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}.card{background:white;border:1px solid #e2e5ea;border-radius:12px;padding:14px;margin:14px 0;box-shadow:0 1px 3px #0001}.score{font-size:32px;font-weight:800}.ok{color:#107c10}.good{color:#0078d4}.warn{color:#c26c00}.bad{color:#c50f1f}table{border-collapse:collapse;width:100%;background:white}td,th{border-bottom:1px solid #e2e5ea;padding:8px;text-align:left;vertical-align:top}th{font-size:12px;text-transform:uppercase;color:#5b5f6b;background:#eef3fa}.finding{border-left:4px solid #0078d4}.finding.high,.finding.critical{border-left-color:#c50f1f}.finding.medium,.finding.unknown{border-left-color:#c26c00}.tag{display:inline-block;border-radius:999px;background:#eef3fa;padding:2px 8px;font-size:12px;margin-right:4px}
 </style></head><body>
 <h1>OneLake Catalog Governance Review</h1>
-<div class="muted">Generated ${esc(new Date(a.at).toLocaleString())} · Scope: ${esc(a.scope.workspace?.name || 'No workspace selected')}</div>
+<div class="muted">Generated ${esc(new Date(a.at).toLocaleString())} · Scope: ${esc(scopeLabel)}</div>
 <div class="card"><div class="muted">Overall score</div><div class="score ${pill(a.overallScore)}">${a.overallScore}/100</div><b>${esc(a.overallLabel)}</b></div>
 <h2>Governance domains</h2><div class="grid">${a.domains.map((d) => `<div class="card"><div class="muted">${esc(d.label)}</div><div class="score ${pill(d.score)}">${d.score}</div><b>${esc(d.status)}</b><p>${esc(d.topFinding)}</p></div>`).join('')}</div>
 <h2>Top recommendations</h2>${a.recommendations.length ? a.recommendations.map((f, i) => `<div class="card finding ${esc(f.severity)}"><span class="tag">${i + 1}</span><span class="tag">${esc(f.severityLabel)}</span><span class="tag">${esc(f.domainLabel)}</span><h3>${esc(f.title)}</h3><p>${esc(f.detail)}</p><p><b>Recommendation:</b> ${esc(f.recommendation)}</p>${f.evidence.length ? `<p class="muted"><b>Evidence:</b> ${esc(f.evidence.join('; '))}</p>` : ''}<p><b>Fix:</b> ${esc(f.fixType)}${f.fixLabel ? ` - ${esc(f.fixLabel)}` : ''}</p></div>`).join('') : '<p>No material recommendations found.</p>'}
@@ -537,7 +642,7 @@ ${a.inventory.lakehouseTableCoverage.length ? `<h2>Lakehouse table coverage</h2>
 </body></html>`;
 }
 
-export async function governanceReport({ format = 'markdown', refresh = false } = {}) {
-  const assessment = await governanceAssessment({ refresh });
+export async function governanceReport({ format = 'markdown', refresh = false, scope = 'workspace' } = {}) {
+  const assessment = await governanceAssessment({ refresh, scope });
   return /^html$/i.test(format) ? html(assessment) : markdown(assessment);
 }
