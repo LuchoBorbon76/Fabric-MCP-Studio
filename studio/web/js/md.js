@@ -123,8 +123,19 @@ function pie(c, rows) {
   const slices = data.map((r) => ({ label: r.label, v: Math.max(0, r.values[0] || 0) })).filter((r) => r.v > 0);
   const total = slices.reduce((a, r) => a + r.v, 0);
   if (!total) return rowTable(rows);
-  let a = 0, paths = '';
   const donut = kind(c.type) === 'donut' || kind(c.type) === 'doughnut';
+  // A full single-slice pie/donut needs a dedicated shape; arc paths with identical start/end can render nothing.
+  if (slices.length === 1) {
+    const s = slices[0];
+    const color = PALETTE[0];
+    const title = `${safe(s.label)}: ${fmt(s.v, c.format?.[val] || c.format)} (${fmt(1, 'percent')})`;
+    const full = donut
+      ? `<circle cx="180" cy="150" r="89" fill="none" stroke="${color}" stroke-width="58"><title>${title}</title></circle>`
+      : `<circle cx="180" cy="150" r="118" fill="${color}"><title>${title}</title></circle>`;
+    const legend = `<div class="clegend"><span><i style="background:${color}"></i>${safe(SHORT(s.label, 24))}: ${fmt(s.v, c.format?.[val] || c.format)} (${fmt(1, 'percent')})</span></div>`;
+    return shell(c, `<svg viewBox="0 0 420 310" role="img" aria-label="${safe(c.title || 'Pie chart')}">${full}</svg>`, { legend });
+  }
+  let a = 0, paths = '';
   for (const [i, s] of slices.entries()) {
     const b = a + s.v / total * 360, large = b - a > 180 ? 1 : 0;
     const p1 = polar(180, 150, 118, a), p2 = polar(180, 150, 118, b);
