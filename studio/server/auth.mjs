@@ -1,12 +1,18 @@
 // Microsoft Entra ID tokens for Fabric, OneLake, SQL endpoints, Azure Resource Manager and Azure OpenAI.
 // Default: reuse the customer's Azure CLI sign-in (`az login`). Fallback: interactive browser sign-in.
 import { InteractiveBrowserCredential, useIdentityPlugin } from '@azure/identity';
-import { cachePersistencePlugin } from '@azure/identity-cache-persistence';
 import { runAz } from './azcli.mjs';
 import { getSettings } from './config.mjs';
 
-// Keep browser sign-in tokens across studio restarts so reopening the app reuses the same account.
-useIdentityPlugin(cachePersistencePlugin);
+let cachePersistenceEnabled = false;
+try {
+  const { cachePersistencePlugin } = await import('@azure/identity-cache-persistence');
+  // Keep browser sign-in tokens across studio restarts so reopening the app reuses the same account.
+  useIdentityPlugin(cachePersistencePlugin);
+  cachePersistenceEnabled = true;
+} catch {
+  // Older installs may not have this optional package yet; continue without persistent browser cache.
+}
 
 export const SCOPES = {
   fabric: 'https://api.fabric.microsoft.com/.default',
@@ -67,11 +73,12 @@ export function currentIdentity() {
 function getBrowserCred() {
   if (!browserCred) {
     const tenantId = getSettings().azure.tenantId || 'organizations';
-    browserCred = new InteractiveBrowserCredential({
+    const opts = {
       tenantId,
       redirectUri: 'http://localhost',
-      tokenCachePersistenceOptions: { enabled: true, name: 'fabric-mcp-studio' },
-    });
+    };
+    if (cachePersistenceEnabled) opts.tokenCachePersistenceOptions = { enabled: true, name: 'fabric-mcp-studio' };
+    browserCred = new InteractiveBrowserCredential(opts);
   }
   return browserCred;
 }
