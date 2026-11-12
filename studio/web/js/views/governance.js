@@ -260,14 +260,6 @@ function actionCenterSection(s, domains, recs, redraw) {
     recommendationsCard(recs.slice(0, 6), { title: 'Detailed recommendations', subtitle: 'Use this detail view after triage to execute each action.' }));
 }
 
-function domainCards(domains) {
-  return h('div', { class: 'grid gov-domains' }, domains.map((d) => h('div', { class: 'card compact' },
-    h('div', { class: 'row sp' }, h('h2', {}, d.label), h('span', { class: `pill ${scoreClass(d.score)}` }, `${d.score}/100`)),
-    h('p', { class: 'lead' }, d.focus),
-    h('div', { class: 'rbar' }, h('i', { style: { width: `${d.score}%` } })),
-    h('p', { class: 'small muted' }, d.topFinding))));
-}
-
 function domainsTable(domains) {
   return h('div', { class: 'card gov-domain-card' },
     h('h2', {}, 'Control domains'),
@@ -607,7 +599,6 @@ function bodyCard(s, redraw) {
     actionCenterSection(s, domains, recs, redraw),
     discoverSection(insights),
     freshnessSection(insights, domains),
-    domainCards(domains),
     inventoryCards(s),
     explorerCard(s, items, recs, redraw, { title: 'Catalog item explorer', subtitle: 'Inspect item-level metadata, governance checks, and related recommendations.' }));
 }
