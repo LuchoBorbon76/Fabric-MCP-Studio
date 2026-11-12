@@ -26,18 +26,29 @@ function shortName(reportName, modelName) {
   return s;
 }
 
-/** Org app definition (definition.json). Rules dashboards get their own section after the reports. */
+const GOVERNANCE_SECTION = 'Governance';
+const GOVERNANCE_SECTION_ALIASES = [GOVERNANCE_SECTION, 'Business rules'];
+const GOVERNANCE_KEYWORDS = /\b(governance|business\s*rules?|compliance|policy|risk|control|controls|waf|well-architected)\b/i;
+
+function isGovernanceReport(report, modelName) {
+  const pages = Array.isArray(report.pages) ? report.pages.map((p) => String(p || '').trim().toLowerCase()) : [];
+  if (pages.includes('business rules') || pages.includes('governance')) return true;
+  const label = shortName(report.name, modelName);
+  return GOVERNANCE_KEYWORDS.test(label) || GOVERNANCE_KEYWORDS.test(String(report.name || ''));
+}
+
+/** Org app definition (definition.json). Governance dashboards get their own section after the reports. */
 export function orgAppDefinition({ title, body, theme, reports, modelName, workspaceId, existing }) {
   const keep = new Map((existing?.elements || []).flatMap((e) => (e.elements ? e.elements : [e])).filter((e) => e.itemId).map((e) => [e.itemId, e.elementId]));
   const overviewId = existing?.elements?.find((e) => e.elementType === 'overview')?.elementId || randomUUID();
   const item = (r) => ({ elementType: 'item', elementId: keep.get(r.id) || randomUUID(), itemType: 'Report', itemId: r.id, folderObjectId: workspaceId, displayName: shortName(r.name, modelName).slice(0, 100) });
-  const isRules = (r) => r.pages?.length === 1 && r.pages[0] === 'Business rules';
-  const main = reports.filter((r) => !isRules(r));
-  const rules = reports.filter(isRules);
-  const sectionId = (name) => existing?.elements?.find((e) => e.elementType === 'section' && e.displayName === name)?.elementId || randomUUID();
+  const tagged = reports.map((report) => ({ report, governance: isGovernanceReport(report, modelName) }));
+  const main = tagged.filter((x) => !x.governance).map((x) => x.report);
+  const governance = tagged.filter((x) => x.governance).map((x) => x.report);
+  const sectionId = (...names) => existing?.elements?.find((e) => e.elementType === 'section' && names.includes(e.displayName))?.elementId || randomUUID();
   const elements = [{ elementType: 'overview', elementId: overviewId, displayName: 'Overview', header: { title: title.slice(0, 100), body: body.slice(0, 1000), showTheme: true } }];
   if (main.length) elements.push({ elementType: 'section', elementId: sectionId('Reports'), displayName: 'Reports', elements: main.map(item) });
-  if (rules.length) elements.push({ elementType: 'section', elementId: sectionId('Business rules'), displayName: 'Business rules', elements: rules.map(item) });
+  if (governance.length) elements.push({ elementType: 'section', elementId: sectionId(...GOVERNANCE_SECTION_ALIASES), displayName: GOVERNANCE_SECTION, elements: governance.map(item) });
   return {
     $schema: SCHEMA,
     settings: {

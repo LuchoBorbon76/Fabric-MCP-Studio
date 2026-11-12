@@ -4,6 +4,7 @@ import { getProject, projectModels, sourceContexts } from './project.mjs';
 import { readiness } from './readiness.mjs';
 import { projectArtifacts } from './artifacts.mjs';
 import { costState } from './costs.mjs';
+import { workspaceReports } from './powerbi.mjs';
 
 const TTL_MS = 5 * 60 * 1000;
 
@@ -137,13 +138,14 @@ function findingFactory(findings) {
 async function readInventory(p, refresh) {
   const wsId = p.workspace?.id;
   const capacityId = p.workspace?.capacityId;
-  const [rd, capacities, workspaceItems, roles, tenant, domains, artifacts, costs] = await Promise.all([
+  const [rd, capacities, workspaceItems, roles, tenant, domains, reports, artifacts, costs] = await Promise.all([
     readiness({ refresh }).catch((e) => ({ error: e.message })),
     readMaybe('capacities', () => listCapacities()),
     wsId ? readMaybe('workspace items', () => listItems(wsId)) : Promise.resolve({ ok: true, value: [] }),
     wsId ? readMaybe('workspace roles', () => fabric('GET', `/workspaces/${wsId}/roleAssignments`)) : Promise.resolve({ ok: true, value: { value: [] } }),
     readMaybe('tenant settings', () => fabric('GET', '/admin/tenantsettings')),
     readMaybe('domains', () => fabric('GET', '/admin/domains')),
+    wsId ? readMaybe('workspace reports', () => workspaceReports(wsId)) : Promise.resolve({ ok: true, value: [] }),
     readMaybe('project artifacts', () => projectArtifacts()),
     capacityId ? readMaybe('costs', () => costState({ capacityId })) : Promise.resolve({ ok: false, error: 'No capacity selected.' }),
   ]);
@@ -152,6 +154,7 @@ async function readInventory(p, refresh) {
   const itemList = workspaceItems.ok ? workspaceItems.value || [] : [];
   const roleList = roles.ok ? roles.value?.value || roles.value?.roleAssignments || [] : [];
   const domainList = domains.ok ? domains.value?.value || domains.value?.domains || [] : [];
+  const reportList = reports.ok ? reports.value || [] : [];
   return {
     readiness: rd,
     capacities: caps,
@@ -162,6 +165,8 @@ async function readInventory(p, refresh) {
     rolesError: roles.ok ? '' : roles.error,
     tenant: tenantMap(tenant),
     domains: { available: domains.ok, list: domainList, error: domains.ok ? '' : domains.error },
+    workspaceReports: reportList,
+    workspaceReportsError: reports.ok ? '' : reports.error,
     artifacts: artifacts.ok ? artifacts.value || [] : [],
     artifactsError: artifacts.ok ? '' : artifacts.error,
     costs: costs.ok ? costs.value : null,
@@ -528,8 +533,10 @@ function summarize(p, inv, findings) {
     domains: domainScores,
     findings: sortedFindings(findings),
     recommendations: sortedFindings(material).slice(0, 10),
+    workspaceReports: inv.workspaceReports.map((r) => ({ id: r.id, name: r.name, type: r.type || 'PowerBIReport', datasetId: r.datasetId || null })),
     inventory: {
       workspaceItems: inv.workspaceItems.length,
+      workspaceReports: inv.workspaceReports.length,
       itemTypes: itemsByType,
       projectArtifacts: inv.artifacts.length,
       artifactTypes: byType(inv.artifacts.map((a) => ({ type: a.type }))),
@@ -592,6 +599,7 @@ function markdown(a) {
   }
   lines.push('', '## Inventory', '');
   lines.push(`- Workspace items: ${a.inventory.workspaceItems}`);
+  lines.push(`- Workspace reports: ${a.inventory.workspaceReports}`);
   lines.push(`- Project artifacts: ${a.inventory.projectArtifacts}`);
   lines.push(`- Semantic models: ${a.inventory.semanticModels}`);
   lines.push(`- Data sources: ${a.inventory.dataSources}`);
@@ -617,6 +625,7 @@ body{font-family:Segoe UI,Aptos,Arial,sans-serif;margin:32px;color:#1b1b1f;backg
 <h2>Top recommendations</h2>${a.recommendations.length ? a.recommendations.map((f, i) => `<div class="card finding ${esc(f.severity)}"><span class="tag">${i + 1}</span><span class="tag">${esc(f.severityLabel)}</span><span class="tag">${esc(f.pillarLabel)}</span><span class="tag">${esc(f.domainLabel)}</span><h3>${esc(f.title)}</h3><p>${esc(f.detail)}</p><p><b>Recommendation:</b> ${esc(f.recommendation)}</p>${f.evidence.length ? `<p class="muted"><b>Evidence:</b> ${esc(f.evidence.join('; '))}</p>` : ''}<p><b>Fix:</b> ${esc(f.fixType)}${f.fixLabel ? ` - ${esc(f.fixLabel)}` : ''}</p></div>`).join('') : '<p>No material recommendations found.</p>'}
 <h2>Inventory</h2><table><tr><th>Metric</th><th>Value</th></tr>
 <tr><td>Workspace items</td><td>${a.inventory.workspaceItems}</td></tr>
+<tr><td>Workspace reports</td><td>${a.inventory.workspaceReports}</td></tr>
 <tr><td>Project artifacts</td><td>${a.inventory.projectArtifacts}</td></tr>
 <tr><td>Semantic models</td><td>${a.inventory.semanticModels}</td></tr>
 <tr><td>Data sources</td><td>${a.inventory.dataSources}</td></tr>

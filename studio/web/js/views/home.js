@@ -20,7 +20,7 @@ export function renderHome(el) {
     inspector(g, n),
     n.id === 'workspace' && g.signedIn ? namingCard({ compact: true }) : null,
     store.project?.semanticModel ? askCard({ title: 'Start asking', lead: `Questions from "${store.project.semanticModel.name}", your reports, rules, plan and live data. Select one and the AI Assistant answers with the numbers.`, perGroup: 2 }) : null,
-    h('div', { class: 'sheetrow' }, checksSection(), wafSection(), governanceSection(), createdSection())));
+    h('div', { class: 'sheetrow' }, checksSection(), governanceSection(), createdSection())));
 }
 
 function tint(el, cat) { el.style.setProperty('--nc', CAT[cat] || CAT.workspace); return el; }
@@ -121,18 +121,11 @@ function checksSection() {
     h('button', { class: 'btn ghost mt', onclick: () => app.showHealth?.(true) }, '✓ Run the full setup check'));
 }
 
-function wafSection() {
-  return h('section', {},
-    h('div', { class: 'row sp' }, h('h3', {}, 'Well-Architected Review'), h('span', { class: 'pill brand' }, 'WAF')),
-    h('p', { class: 'small muted' }, 'Score the selected landing zone across reliability, security, cost, operational excellence and performance, with evidence-backed recommendations.'),
-    h('button', { class: 'btn ghost mt', onclick: () => app.go('waf') }, 'Generate WAF review ›'));
-}
-
 function governanceSection() {
   return h('section', {},
-    h('div', { class: 'row sp' }, h('h3', {}, 'Catalog Governance'), h('span', { class: 'pill brand' }, 'OneLake')),
-    h('p', { class: 'small muted' }, 'Score OneLake catalog governance across tenant settings, domains, access, reliability and metadata quality, with guided fix paths.'),
-    h('button', { class: 'btn ghost mt', onclick: () => app.go('governance') }, 'Generate governance review ›'));
+    h('div', { class: 'row sp' }, h('h3', {}, 'Governance'), h('span', { class: 'pill brand' }, 'OneLake + WAF')),
+    h('p', { class: 'small muted' }, 'One place for OneLake catalog governance, domain/access controls, and Well-Architected scoring with guided fix paths.'),
+    h('button', { class: 'btn ghost mt', onclick: () => app.go('governance') }, 'Open Governance ›'));
 }
 
 function createdSection() {

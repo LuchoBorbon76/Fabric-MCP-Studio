@@ -27,7 +27,7 @@ chatting with the **AI the customer already licenses**:
 - **Planning** – a budget and rolling forecast from your actuals, a Plan table with variance measures in the model, a
   Plan vs actual report, and a Fabric Plan container for planning sheets. The Plan item opens as a shell until a user
   creates a Planning Sheet and connects the semantic model with their own sign-in.
-- **WAF Review** – a Fabric Well-Architected Review for the selected landing zone: tenant settings, workspaces, domains,
+- **Governance** – a Fabric Well-Architected Review for the selected landing zone: tenant settings, workspaces, domains,
   roles/access, capacity/costs, security, monitoring, reliability, performance and artifacts scored across the five WAF
   pillars, with guided/admin/manual recommendations and HTML/Markdown export.
 - **Ask & share** – governed answers in the app chat, Microsoft 365 Copilot / Teams agent, other AI clients, and a
@@ -165,7 +165,7 @@ flowchart LR
   A **paused capacity** is checked again every
   minute (`STUDIO_CAPACITY_CHECK_SECONDS`, at least 15) and a running one every five minutes while a page is open: when
   it is resumed (or paused) the map, the badges and every page change by themselves – no reload or *Check again*.
-- **WAF Review**: the top navigation includes a Well-Architected scorecard for the selected workspace/landing zone. It
+- **Governance**: the top navigation includes a Well-Architected scorecard for the selected workspace/landing zone. It
   groups evidence-backed findings by tenant settings, workspaces, domains, roles/access, capacity/costs, security,
   monitoring, reliability, performance and artifacts; each recommendation says whether the Studio can guide the fix,
   whether it is manual, or whether a Fabric/capacity/tenant admin must apply it.
@@ -409,7 +409,7 @@ Copilot can recommend pages and a theme for your audience (`studio_describe_repo
 **Org app** – *Create app* (in *Your reports*, or on the *Org app for your organization* card) asks which reports go in
 the app – the studio's reports on the model are ticked, and reports already on the model in the workspace can be added
 (the app only links to them, they stay as they are) – then builds a Fabric org app: an overview page, a *Reports*
-section and a *Business rules* section, in the report theme's colors, with an **audience** that shows them (without one
+section and a *Governance* section (business-rules and governance-focused reports), in the report theme's colors, with an **audience** that shows them (without one
 Fabric shows *No items to show*, even to you). People get the app without access to the workspace: open it in Fabric,
 add people to its audience and publish it. *Choose reports* changes what is in it, *Delete app* deletes the app and its
 audience (the reports stay) (`studio_create_org_app` for Copilot, which asks which reports first).

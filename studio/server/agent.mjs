@@ -856,7 +856,7 @@ function studioTools(chatId) {
       },
     }),
     studioTool('studio_create_org_app', {
-      description: 'Create or update a Fabric org app that bundles Power BI reports on the active semantic model (overview page, Reports and Business rules sections, theme colors) and gives it an audience so its content shows. Before creating one, ask the user which reports to include (studio_get_project_state lists the studio\'s reports and the existing reports on the model; existing reports in the project workspace can be included – the app only links to them). Default: all reports the studio built on the model. People get the app without workspace access once the user adds people to its audience and publishes it in Fabric. To delete the app use studio_remove_artifacts with the key "orgApp".',
+      description: 'Create or update a Fabric org app that bundles Power BI reports on the active semantic model (overview page, Reports and Governance sections, theme colors) and gives it an audience so its content shows. Before creating one, ask the user which reports to include (studio_get_project_state lists the studio\'s reports and the existing reports on the model; existing reports in the project workspace can be included – the app only links to them). Default: all reports the studio built on the model. People get the app without workspace access once the user adds people to its audience and publishes it in Fabric. To delete the app use studio_remove_artifacts with the key "orgApp".',
       parameters: obj({
         name: str('App name (default: "<semantic model> app")'),
         theme: themeParam(),

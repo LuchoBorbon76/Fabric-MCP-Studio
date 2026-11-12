@@ -20,7 +20,6 @@ import { renderRealtime } from './views/realtime.js';
 import { renderPlanning } from './views/planning.js';
 import { renderShare } from './views/share.js';
 import { renderCosts } from './views/costs.js';
-import { renderWaf } from './views/waf.js';
 import { renderGovernance } from './views/governance.js';
 import { renderActivity } from './views/activity.js';
 import { renderSettings } from './views/settings.js';
@@ -37,12 +36,12 @@ const VIEWS = {
   planning: { label: 'Planning', render: renderPlanning },
   share: { label: 'Ask & share', render: renderShare },
   costs: { label: 'Costs & usage', render: renderCosts },
-  waf: { label: 'WAF Review', render: renderWaf },
-  governance: { label: 'Catalog Governance', render: renderGovernance },
+  governance: { label: 'Governance', render: renderGovernance },
   activity: { label: 'Activity', render: renderActivity },
   settings: { label: 'Settings', render: renderSettings },
 };
-let current = location.hash.slice(1) || 'home';
+const canonicalView = (id) => (id === 'waf' ? 'governance' : id);
+let current = canonicalView(location.hash.slice(1) || 'home');
 if (!VIEWS[current]) current = 'home';
 const rendered = new Set();
 
@@ -354,6 +353,7 @@ function renderView(id) {
 }
 
 export function go(id) {
+  id = canonicalView(id);
   if (!VIEWS[id]) return;
   current = id;
   history.replaceState(null, '', `#${id}`);
@@ -570,7 +570,7 @@ on('project.updated', async () => {
   const dk = dataKey(store.project);
   const dataChanged = dk !== dataSourceKey;
   dataSourceKey = dk;
-  if (['home', 'model', 'ontology', 'reports', 'realtime', 'planning', 'share', 'workspace', 'waf', 'governance'].includes(current) || (current === 'data' && dataChanged)) renderView(current);
+  if (['home', 'model', 'ontology', 'reports', 'realtime', 'planning', 'share', 'workspace', 'governance'].includes(current) || (current === 'data' && dataChanged)) renderView(current);
   // A new workspace or data source changes what can run.
   const rk = [store.project?.workspace?.id, store.project?.modelSource?.itemId, Boolean(store.project?.realtime)].join('|');
   if (rk !== readinessKey) { readinessKey = rk; loadReadiness(); }
@@ -655,7 +655,7 @@ on('prompts.updated', () => refreshSuggestions());
 connectEvents();
 await refresh();
 go(current);
-window.addEventListener('hashchange', () => { const v = location.hash.slice(1); if (VIEWS[v] && v !== current) go(v); });
+window.addEventListener('hashchange', () => { const v = canonicalView(location.hash.slice(1)); if (VIEWS[v] && v !== current) go(v); });
 $('#buildChip')?.addEventListener('click', () => showWhatsNew());
 $('#whatsNewLink')?.addEventListener('click', (e) => { e.preventDefault(); showWhatsNew(); });
 $('#disclaimerLink')?.addEventListener('click', (e) => { e.preventDefault(); showDisclaimer(); });

@@ -168,7 +168,7 @@ approval.
   `studio_add_planner`). Never suggest shared cloud connections or *Manage Connections* for planning – Microsoft
   deprecated that flow; recreate an old plan with `studio_create_plan_item` connection="fabric".
 - **Fabric WAF / landing-zone review**: selected workspace → `studio_generate_waf_review` → summarize overall score,
-  pillar scores and top evidence-backed recommendations. Direct the user to the **WAF Review** page when they want the
+  pillar scores and top evidence-backed recommendations. Direct the user to the **Governance** page when they want the
   interactive scorecard or an HTML/Markdown report. If a finding says admin-only, do not imply the Studio can change the
   tenant/capacity setting itself; provide the admin link or exact owner action.
 - **OneLake catalog governance review**: selected workspace → `studio_generate_catalog_governance_review` → summarize the
