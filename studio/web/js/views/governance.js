@@ -202,29 +202,6 @@ function recommendationsCard(recs, { title = 'What to fix first', subtitle = '',
     recs.length ? h('div', { class: 'actiongrid' }, recs.map(recommendationCard)) : h('div', { class: 'empty' }, 'No recommendations match the current filters.'));
 }
 
-function recommendationQueue(recs) {
-  const rows = recs.slice(0, 12).map((r, i) => ({
-    priority: i + 1,
-    severity: r.severity,
-    severityLabel: r.severityLabel,
-    title: r.title,
-    recommendation: r.recommendation,
-    domainLabel: r.domainLabel,
-    fixType: r.fixType,
-  }));
-  return h('div', { class: 'card gov-queue', id: 'gov-priority-actions' },
-    h('div', { class: 'row sp actiontitle' },
-      h('div', {}, h('h2', {}, 'Priority action queue'), h('p', { class: 'lead' }, 'Fast, scan-friendly list to triage governance work by severity, domain, and remediation path.')),
-      h('span', { class: 'pill' }, `${rows.length} visible`)),
-    table([
-      { label: '#' , key: 'priority', num: true },
-      { label: 'Severity', render: (r) => h('span', { class: `pill ${sevClass(r.severity)}` }, r.severityLabel) },
-      { label: 'Finding', render: (r) => h('div', { class: 'gov-queue-finding' }, h('b', {}, r.title), h('span', { class: 'small muted' }, r.recommendation)) },
-      { label: 'Domain', key: 'domainLabel' },
-      { label: 'Fix path', render: (r) => h('span', { class: 'pill brand' }, fixTypeLabel(r.fixType)) },
-    ], rows, 'No recommendations match the current filter set.'));
-}
-
 function actionCenterSection(s, domains, recs, redraw) {
   const scopedRecs = filteredRecommendations(s, { includeSeverity: false });
   const sevMix = severityMix(scopedRecs);
@@ -261,8 +238,11 @@ function actionCenterSection(s, domains, recs, redraw) {
       chartOrEmpty({ type: 'horizontalBar', title: 'Findings by domain', subtitle: 'Risk concentration by governance area', x: 'Domain', y: ['Findings'], rows: domainRows, maxRows: 10 }, 'No domain-level findings in current scope.'),
       chartOrEmpty({ type: 'horizontalBar', title: 'Findings by remediation path', subtitle: 'Balance quick wins vs admin/manual work', x: 'Type', y: ['Findings'], rows: fixRows }, 'No remediation path data available.'),
       chartOrEmpty({ type: 'horizontalBar', title: 'Domain score profile', subtitle: 'Higher is healthier', x: 'Domain', y: ['Score'], rows: domainScoreRows }, 'No domain score data available.')),
-    recommendationQueue(recs),
-    recommendationsCard(recs.slice(0, 6), { title: 'Detailed recommendations', subtitle: 'Use this detail view after triage to execute each action.' }));
+    recommendationsCard(recs.slice(0, 6), {
+      title: 'Detailed recommendations',
+      subtitle: 'Use this detail view after triage to execute each action.',
+      id: 'gov-priority-actions',
+    }));
 }
 
 function domainsTable(domains) {
