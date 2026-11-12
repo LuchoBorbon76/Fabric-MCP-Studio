@@ -12,6 +12,7 @@ const ui = {
   detailTab: 'overview',
   severity: 'all',
 };
+const SEARCH_COMMIT_MS = 550;
 
 const num = (v) => Number.isFinite(Number(v)) ? Number(v).toLocaleString() : '–';
 const clean = (v) => String(v ?? '').replace(/\s+/g, ' ').trim();
@@ -20,6 +21,8 @@ const scoreClass = (s) => s >= 90 ? 'ok' : s >= 75 ? 'brand' : s >= 60 ? 'warn' 
 const sevClass = (s) => ({ critical: 'err', high: 'err', medium: 'warn', low: 'brand', unknown: 'warn', info: '' })[s] || '';
 const severityLabel = (s) => ({ critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low', unknown: 'Unknown' })[s] || 'Info';
 const severityKey = (s) => ['critical', 'high', 'medium', 'low', 'unknown'].includes(s) ? s : 'unknown';
+const sevRank = (s) => ({ critical: 5, high: 4, medium: 3, low: 2, unknown: 1 }[severityKey(s)] || 0);
+const fixTypeLabel = (t) => ({ auto: 'Auto fix', guided: 'Guided', manual: 'Manual', admin: 'Admin' }[t] || String(t || 'Unknown'));
 
 const dateText = (v) => {
   const t = Date.parse(v || '');
@@ -192,6 +195,69 @@ function recommendationsCard(recs, { title = 'What to fix first', subtitle = '',
       h('div', {}, h('h2', {}, title), subtitle ? h('p', { class: 'lead' }, subtitle) : null),
       h('span', { class: 'pill' }, `${recs.length} recommendation${recs.length === 1 ? '' : 's'}`)),
     recs.length ? h('div', { class: 'actiongrid' }, recs.map(recommendationCard)) : h('div', { class: 'empty' }, 'No recommendations match the current filters.'));
+}
+
+function recommendationQueue(recs) {
+  const rows = recs.slice(0, 12).map((r, i) => ({
+    priority: i + 1,
+    severity: r.severity,
+    severityLabel: r.severityLabel,
+    title: r.title,
+    recommendation: r.recommendation,
+    domainLabel: r.domainLabel,
+    fixType: r.fixType,
+  }));
+  return h('div', { class: 'card gov-queue', id: 'gov-priority-actions' },
+    h('div', { class: 'row sp actiontitle' },
+      h('div', {}, h('h2', {}, 'Priority action queue'), h('p', { class: 'lead' }, 'Fast, scan-friendly list to triage governance work by severity, domain, and remediation path.')),
+      h('span', { class: 'pill' }, `${rows.length} visible`)),
+    table([
+      { label: '#' , key: 'priority', num: true },
+      { label: 'Severity', render: (r) => h('span', { class: `pill ${sevClass(r.severity)}` }, r.severityLabel) },
+      { label: 'Finding', render: (r) => h('div', { class: 'gov-queue-finding' }, h('b', {}, r.title), h('span', { class: 'small muted' }, r.recommendation)) },
+      { label: 'Domain', key: 'domainLabel' },
+      { label: 'Fix path', render: (r) => h('span', { class: 'pill brand' }, fixTypeLabel(r.fixType)) },
+    ], rows, 'No recommendations match the current filter set.'));
+}
+
+function actionCenterSection(s, domains, recs, redraw) {
+  const scopedRecs = filteredRecommendations(s, { includeSeverity: false });
+  const sevMix = severityMix(scopedRecs);
+  const highest = scopedRecs.length
+    ? scopedRecs.reduce((best, cur) => (sevRank(cur.severity) > sevRank(best.severity) ? cur : best), scopedRecs[0]).severityLabel
+    : 'None';
+  const fixCounts = new Map([['auto', 0], ['guided', 0], ['manual', 0], ['admin', 0]]);
+  for (const r of scopedRecs) fixCounts.set(r.fixType || 'manual', (fixCounts.get(r.fixType || 'manual') || 0) + 1);
+  const fixRows = [...fixCounts.entries()].map(([type, count]) => ({ Type: fixTypeLabel(type), Findings: count })).filter((r) => r.Findings > 0);
+  const domainRisk = new Map();
+  for (const r of scopedRecs) domainRisk.set(r.domainLabel, (domainRisk.get(r.domainLabel) || 0) + 1);
+  const domainRows = [...domainRisk.entries()].map(([Domain, Findings]) => ({ Domain, Findings })).sort((a, b) => b.Findings - a.Findings).slice(0, 10);
+  const domainScoreRows = domains.map((d) => ({ Domain: d.label, Score: d.score }));
+  const autoFix = fixCounts.get('auto') || 0;
+
+  return h('section', { class: 'gov-section' },
+    sectionHeader('Governance action center', 'Prioritize remediation using severity-first triage, domain risk concentration, and execution path clarity.'),
+    h('div', { class: 'gov-focus-filters' },
+      h('span', { class: 'gov-focus-label' }, 'Severity focus'),
+      h('button', { type: 'button', class: `pill gov-pill-btn ${ui.severity === 'all' ? 'is-on brand' : ''}`, onclick: () => focusRecommendationDetails(redraw, 'all') }, `All ${scopedRecs.length}`),
+      ...sevMix.map((x) => h('button', {
+        type: 'button',
+        class: `pill gov-pill-btn ${sevClass(x.key)} ${ui.severity === x.key ? 'is-on' : ''}`,
+        'aria-pressed': ui.severity === x.key ? 'true' : 'false',
+        onclick: () => focusRecommendationDetails(redraw, ui.severity === x.key ? 'all' : x.key),
+      }, `${x.label} ${x.count}`))),
+    h('div', { class: 'grid g4 gov-kpis' },
+      kpi('Findings in scope', num(scopedRecs.length), 'Domain filter applied'),
+      kpi('Findings in focus', num(recs.length), ui.severity === 'all' ? 'Showing all severities' : `Filtered to ${severityLabel(ui.severity)}`),
+      kpi('Highest severity', highest, 'Current domain scope'),
+      kpi('Auto-fix candidates', num(autoFix), 'Potential immediate remediation')),
+    h('div', { class: 'grid g2 gov-chart-grid' },
+      chartOrEmpty({ type: 'horizontalBar', title: 'Findings by severity', subtitle: 'Use to set triage order', x: 'Severity', y: ['Findings'], rows: sevMix.map((x) => ({ Severity: x.label, Findings: x.count })) }, 'No findings in current scope.'),
+      chartOrEmpty({ type: 'horizontalBar', title: 'Findings by domain', subtitle: 'Risk concentration by governance area', x: 'Domain', y: ['Findings'], rows: domainRows, maxRows: 10 }, 'No domain-level findings in current scope.'),
+      chartOrEmpty({ type: 'horizontalBar', title: 'Findings by remediation path', subtitle: 'Balance quick wins vs admin/manual work', x: 'Type', y: ['Findings'], rows: fixRows }, 'No remediation path data available.'),
+      chartOrEmpty({ type: 'horizontalBar', title: 'Domain score profile', subtitle: 'Higher is healthier', x: 'Domain', y: ['Score'], rows: domainScoreRows }, 'No domain score data available.')),
+    recommendationQueue(recs),
+    recommendationsCard(recs.slice(0, 6), { title: 'Detailed recommendations', subtitle: 'Use this detail view after triage to execute each action.' }));
 }
 
 function domainCards(domains) {
@@ -385,18 +451,17 @@ function headerCard(el, s, redraw) {
             h('b', {}, s.overallLabel),
             h('span', { class: 'tiny muted' }, `Updated ${fmtDate(s.at)}`))),
         h('div', { class: 'gov-head-sev' },
-          h('button', { type: 'button', class: 'tiny muted', style: { border: '0', background: 'transparent', padding: '0', cursor: 'pointer', textAlign: 'left' }, title: 'Go to recommendation details', onclick: () => focusRecommendationDetails(redraw, 'all') }, 'Finding severity'),
+          h('button', { type: 'button', class: 'gov-head-sev-title', title: 'Go to recommendation details', onclick: () => focusRecommendationDetails(redraw, 'all') }, 'Finding severity'),
           mix.length ? h('div', { class: 'gov-head-sev-list' }, mix.map((x) => {
             const active = ui.severity === x.key;
             return h('button', {
               type: 'button',
-              class: `pill ${sevClass(x.key)}`,
-              style: active ? { border: '0', cursor: 'pointer', boxShadow: '0 0 0 1px var(--brand) inset' } : { border: '0', cursor: 'pointer' },
+              class: `pill gov-pill-btn ${sevClass(x.key)} ${active ? 'is-on' : ''}`,
               'aria-pressed': active ? 'true' : 'false',
               title: `Show ${x.label.toLowerCase()} findings`,
               onclick: () => focusRecommendationDetails(redraw, active ? 'all' : x.key),
             }, `${x.label} ${x.count}`);
-          })) : h('button', { type: 'button', class: 'pill ok', style: { border: '0', cursor: 'pointer' }, title: 'Go to recommendation details', onclick: () => focusRecommendationDetails(redraw, 'all') }, 'No material findings')))),
+          })) : h('button', { type: 'button', class: 'pill gov-pill-btn ok', title: 'Go to recommendation details', onclick: () => focusRecommendationDetails(redraw, 'all') }, 'No material findings')))),
     h('div', { class: 'row gov-actions' }, refresh, html, mdBtn, s.scope?.workspace ? h('a', { class: 'btn ghost', href: `https://app.fabric.microsoft.com/groups/${s.scope.workspace.id}/list`, target: '_blank', rel: 'noopener' }, 'Open workspace ↗') : null));
 }
 
@@ -421,8 +486,29 @@ function estateSection(s, items, insights, redraw) {
   typeSel.value = ui.itemType;
   typeSel.addEventListener('change', () => { ui.itemType = typeSel.value; redraw(); });
 
-  const searchBox = input({ placeholder: 'Search item or owner…', value: ui.search });
-  searchBox.addEventListener('input', () => { ui.search = searchBox.value; redraw(); });
+  const searchBox = input({ placeholder: 'Search item, owner, type, or description…', value: ui.search });
+  let searchTimer = 0;
+  const commitSearch = () => {
+    if (searchTimer) {
+      clearTimeout(searchTimer);
+      searchTimer = 0;
+    }
+    const next = searchBox.value;
+    if (next === ui.search) return;
+    ui.search = next;
+    redraw();
+  };
+  searchBox.addEventListener('input', () => {
+    if (searchTimer) clearTimeout(searchTimer);
+    searchTimer = setTimeout(commitSearch, SEARCH_COMMIT_MS);
+  });
+  searchBox.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      commitSearch();
+    }
+  });
+  searchBox.addEventListener('blur', commitSearch);
 
   const filtered = filteredItems(items);
   const filteredTypeMix = byType(filtered).slice(0, 12).map((x) => ({ Type: x.type, Items: x.count }));
@@ -439,7 +525,7 @@ function estateSection(s, items, insights, redraw) {
         miniStat('Domains & subdomains', s.inventory.domainsVisible ? num(s.inventory.domains) : 'Not visible', s.inventory.domainsVisible ? `${num(s.inventory.workspaceDomainAssignments)} workspace mapping(s)` : 'Needs admin visibility', domainSel),
         miniStat('Workspaces', s.scope?.workspace ? '1' : '0', s.scope?.workspace?.name || 'No workspace selected'),
         miniStat('Items', num(filtered.length), `${num(insights.typeCount)} distinct item types in scope`, typeSel),
-        miniStat('Find item', ui.search ? `"${ui.search}"` : 'Any', 'Filter by item name, owner, type, or description', searchBox)),
+        miniStat('Find item', ui.search ? `"${ui.search}"` : 'Any', 'Filter by item, owner, type, or description. Applies after you pause typing or press Enter.', searchBox)),
       h('div', { class: 'card gov-estate-main' },
         h('h3', {}, 'Data hierarchy'),
         h('div', { class: 'gov-hierarchy' },
@@ -453,7 +539,7 @@ function estateSection(s, items, insights, redraw) {
           chartOrEmpty({ type: 'donut', title: 'Workspaces assigned to domains', subtitle: 'Domain stewardship signal', x: 'Status', y: 'Workspaces', rows: assignedRows })))));
 }
 
-function discoverSection(insights, recs) {
+function discoverSection(insights) {
   const descRows = [
     { Status: 'With description', Items: insights.withDescription },
     { Status: 'Without description', Items: insights.withoutDescription },
@@ -464,10 +550,6 @@ function discoverSection(insights, recs) {
   ];
   const missingDesc = insights.missingDescriptionByType.slice(0, 12).map((x) => ({ Type: x.type, Items: x.count }));
   const missingOwner = insights.missingOwnerByType.slice(0, 12).map((x) => ({ Type: x.type, Items: x.count }));
-  const sevRows = insights.severity.map((x) => ({ Severity: x.label, Findings: x.count }));
-  const recSubtitle = ui.severity === 'all'
-    ? 'Start with highest-severity, highest-impact governance actions.'
-    : `Start with highest-severity, highest-impact governance actions. Filtered to ${severityLabel(ui.severity)} findings.`;
 
   return h('section', { class: 'gov-section' },
     sectionHeader('Discover, trust, and reuse', 'Increase discoverability and usage with stronger metadata, ownership, and stewardship signals.'),
@@ -477,22 +559,14 @@ function discoverSection(insights, recs) {
       kpi('With owner', num(insights.withOwner), `${num(Math.round((insights.withOwner / Math.max(1, insights.total)) * 100))}% ownership coverage`),
       kpi('Without owner', num(insights.withoutOwner), 'Stewardship follow-up', insights.withoutOwner ? 'warn' : '')),
     h('div', { class: 'grid g2 gov-chart-grid' },
-      chartOrEmpty({ type: 'donut', title: 'Items with description', x: 'Status', y: 'Items', rows: descRows }),
+      chartOrEmpty({ type: 'horizontalBar', title: 'Description coverage', subtitle: 'Use to track metadata completeness', x: 'Status', y: ['Items'], rows: descRows }),
       chartOrEmpty({ type: 'horizontalBar', title: 'Metadata gap by type', subtitle: 'Items without description', x: 'Type', y: ['Items'], rows: missingDesc, maxRows: 12 }, 'No metadata gaps in this scope.'),
-      chartOrEmpty({ type: 'donut', title: 'Items with owner', x: 'Status', y: 'Items', rows: ownerRows }),
+      chartOrEmpty({ type: 'horizontalBar', title: 'Ownership coverage', subtitle: 'Use to track stewardship assignment', x: 'Status', y: ['Items'], rows: ownerRows }),
       chartOrEmpty({ type: 'horizontalBar', title: 'Owner gap by type', subtitle: 'Items without explicit owner', x: 'Type', y: ['Items'], rows: missingOwner, maxRows: 12 }, 'No owner gaps in this scope.'),
-      chartOrEmpty({ type: 'horizontalBar', title: 'Recommendations by severity', x: 'Severity', y: ['Findings'], rows: sevRows }, 'No recommendation severity data available.'),
-      chartOrEmpty({ type: 'horizontalBar', title: 'Top owners by item count', x: 'Owner', y: ['Items'], rows: insights.ownerMix.map((x) => ({ Owner: x.label, Items: x.value })), maxRows: 8 })),
-    recommendationsCard(recs.slice(0, 8), { id: 'gov-priority-actions', title: 'Priority actions', subtitle: recSubtitle }));
+      chartOrEmpty({ type: 'horizontalBar', title: 'Top owners by item count', x: 'Owner', y: ['Items'], rows: insights.ownerMix.map((x) => ({ Owner: x.label, Items: x.value })), maxRows: 8 })));
 }
 
 function freshnessSection(insights, domains) {
-  const freshnessDonut = [
-    { Bucket: 'Last 30 days', Items: insights.refreshedLast30d },
-    { Bucket: '31-120 days', Items: insights.refreshed31to120d },
-    { Bucket: '> 120 days', Items: insights.refreshedOver120d },
-    { Bucket: 'No signal', Items: insights.noRefreshSignal },
-  ];
   const freshnessBars = [
     { Range: 'Last 30 days', Items: insights.refreshedLast30d },
     { Range: '31-120 days', Items: insights.refreshed31to120d },
@@ -509,8 +583,7 @@ function freshnessSection(insights, domains) {
       kpi('Older than 120 days', num(insights.refreshedOver120d), 'Likely stale inventory', insights.refreshedOver120d ? 'warn' : ''),
       kpi('No refresh signal', num(insights.noRefreshSignal), 'Needs metadata/permissions follow-up', insights.noRefreshSignal ? 'warn' : '')),
     h('div', { class: 'grid g2 gov-chart-grid' },
-      chartOrEmpty({ type: 'donut', title: 'Items by last refresh date', x: 'Bucket', y: 'Items', rows: freshnessDonut }),
-      chartOrEmpty({ type: 'horizontalBar', title: 'Refresh recency distribution', x: 'Range', y: ['Items'], rows: freshnessBars }),
+      chartOrEmpty({ type: 'horizontalBar', title: 'Refresh recency distribution', subtitle: 'Prioritize stale and unknown assets first', x: 'Range', y: ['Items'], rows: freshnessBars }),
       chartOrEmpty({ type: 'horizontalBar', title: 'Potentially stale items by type', subtitle: 'Older than 120 days or without refresh signal', x: 'Type', y: ['Items'], rows: staleByType, maxRows: 12 }, 'No stale items detected in this scope.'),
       domainsTable(domains)));
 }
@@ -531,7 +604,8 @@ function bodyCard(s, redraw) {
 
   return h('div', { class: 'gov-insights' },
     estateSection(s, items, insights, redraw),
-    discoverSection(insights, recs),
+    actionCenterSection(s, domains, recs, redraw),
+    discoverSection(insights),
     freshnessSection(insights, domains),
     domainCards(domains),
     inventoryCards(s),
